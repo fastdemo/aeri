@@ -1,19 +1,20 @@
 # TODO — Aeri
 
 ## Now
-- [x] AGENTS.md + docs + skills
-- [x] Vite/React/TS/Tailwind + routing + GH Pages config
-- [ ] Build visual prototype with mock data (nav, hero, rows, cards, detail, watch)
-- [ ] Playwright visual verification vs reference
+- [x] AGENTS.md + docs + skills (Phase 1)
+- [x] Vite/React/TS/Tailwind + HashRouter + GH Pages config
+- [x] Visual prototype on mock data (nav, hero, rows, cards, detail modal, episode list, watch, search, browse, my list)
+- [x] Playwright verification at 1440/768/375 + deep-link check + preview base check
+- [ ] Connect real AniList GraphQL (Phase 3)
 
 ## Next
-- [ ] AniList integration (auth, lists, progress)
-- [ ] MAL integration
-- [ ] Local persistence (IndexedDB)
-- [ ] Recommendations engine
+- [ ] AniList OAuth + lists/progress sync
+- [ ] MAL OAuth + lists
+- [ ] IndexedDB polish (history, cache versioning)
+- [ ] Recommendations engine wiring to homepage rows
 
 ## Later
-- [ ] Video provider abstraction + player polish
-- [ ] PWA refinements + offline shell
-- [ ] Performance + a11y audits
-- [ ] Final GH Pages deployment test
+- [ ] VideoProvider + player (authorized sources only)
+- [ ] PWA offline shell tuning
+- [ ] a11y + perf audits (Lighthouse, keyboard, reduced-motion)
+- [ ] Final GH Pages deployment verification on `fastdemo/aeri`
