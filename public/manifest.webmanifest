@@ -1,0 +1,18 @@
+{
+  "name": "Aeri",
+  "short_name": "Aeri",
+  "description": "Minimal anime discovery, tracking, and watching.",
+  "start_url": "/aeri/#/",
+  "scope": "/aeri/",
+  "display": "standalone",
+  "background_color": "#070708",
+  "theme_color": "#070708",
+  "icons": [
+    {
+      "src": "favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
