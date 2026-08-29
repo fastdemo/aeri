@@ -82,10 +82,10 @@ export function Navbar() {
             onClick={dispatchNavigate}
             className="text-[19px] font-semibold tracking-[-0.02em] text-white"
             style={{ fontFamily: '"Cal Sans", sans-serif' }}
-            aria-label="Aeri home"
+            aria-label="aeri home"
             // React Router's <Link> does push synchronously in its handler; our onClick only queues cleanup
           >
-            Aeri
+            aeri
           </Link>
 
           <nav className="hidden items-center gap-5 md:flex" aria-label="Sections">
