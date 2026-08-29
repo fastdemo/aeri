@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { AnimeCard } from '../components/cards/AnimeCard'
 import { DetailModal } from '../components/detail/DetailModal'
-import { mockAnime } from '../data/mockAnime'
 import type { Anime, AnimeStatus } from '../types/anime'
 import { useTracking } from '../contexts/TrackingContext'
 import { AniListConnectCompact } from '../components/anilist/AniListConnect'
@@ -25,12 +24,10 @@ export function MyList() {
   const ani = useAniList()
   const mal = useMAL()
 
-  // Source list: combined when authenticated, else mock
-  const sourceList: Anime[] = isAuthenticated && combinedList ? combinedList.map((e) => e.anime) : mockAnime.filter((a) => a.inList)
+  // Production: real list only when authenticated; unauth shows empty with CTA (no fake anime)
+  const sourceList: Anime[] = isAuthenticated && combinedList ? combinedList.map((e) => e.anime) : []
   const filtered: Anime[] = (() => {
-    if (!isAuthenticated || !combinedList) {
-      return tab === 'all' ? sourceList : sourceList.filter((a) => a.listStatus === tab)
-    }
+    if (!isAuthenticated || !combinedList) return []
     const entries = tab === 'all' ? combinedList : combinedList.filter((e) => e.status === tab)
     return entries.map((e) => e.anime)
   })()
@@ -42,7 +39,7 @@ export function MyList() {
       ? 'synced with AniList'
       : isMALAuthenticated
         ? 'synced with MyAnimeList'
-        : 'demo data — connect to sync'
+        : 'connect AniList to sync'
 
   return (
     <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-12">
@@ -94,7 +91,14 @@ export function MyList() {
         ))}
       </div>
 
-      {!loading ? (
+      {!isAuthenticated ? (
+        <div className="mt-8 rounded-lg border border-white/5 bg-white/[0.02] px-6 py-10 text-center">
+          <p className="text-sm font-medium text-white">Your list is empty</p>
+          <p className="mx-auto mt-1 max-w-md text-xs leading-5 text-white/50">
+            Connect AniList above to see your anime list, track progress, and keep Continue Watching in sync. Your data stays in your browser and AniList.
+          </p>
+        </div>
+      ) : !loading ? (
         <>
           <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
             {filtered.map((a) => (
@@ -102,7 +106,10 @@ export function MyList() {
             ))}
           </div>
           {filtered.length === 0 && !loading && !error && (
-            <p className="mt-12 text-center text-sm text-white/50">Nothing here yet.</p>
+            <div className="mt-8 rounded-lg border border-white/5 bg-white/[0.02] px-6 py-10 text-center">
+              <p className="text-sm text-white/50">Nothing here yet.</p>
+              <p className="mt-1 text-xs text-white/40">Add titles from Browse or Search, or update status in the detail view.</p>
+            </div>
           )}
         </>
       ) : null}

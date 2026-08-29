@@ -70,10 +70,10 @@ Canonical `internalId` (`anilist-<id>` / `mal-<id>` for real, slug for mock). Op
 
 ## Hooks
 
-- `src/hooks/useAnimeMetadata.ts` — `useTrending`, `usePopular`, `useAiring`, `useNewReleases`, `useAnimeSearch` (debounced 300 ms), `useAnimeDetail`. Each manages `data/loading/error` with `ProviderError` friendly messages, uses provider + shared cache (public, no token).
+- `src/hooks/useAnimeMetadata.ts` — `useTrending`, `usePopular`, `useAiring`, `useNewReleases`, `useUpcoming`, `useFinished`, `useBrowse` (with `sort/status/genre/seasonYear/season/format/perPage/page`, `hasNextPage`, `loadMore`), `useAnimeSearch` (debounced 300 ms, live while typing, stale-ignore), `useAnimeDetail`. Each manages `data/loading/error` with `ProviderError` friendly messages, uses provider + shared cache (public, no token). `useBrowse` resets `page` on filter change and appends on `loadMore`.
 - `src/contexts/AniListContext.tsx` — AniList auth state, `animeList` for personal rows, optimistic updates.
-- `src/contexts/MALContext.tsx` — Phase 5: MAL auth state (`isAuthenticated/token/user/animeList/loadingUser/loadingList/error/authExpired/redirectUri/hasClientId/login/logout/setManualToken/refresh/updateProgress/updateStatus/updateRating`), handles `?code=` callback via `handleMalOAuthCallback`, mirrors AniList shape.
-- `src/contexts/TrackingContext.tsx` — Phase 5: unified `useTracking()` merging both contexts (deduped `combinedList`, `isAuthenticated`, `isAniListAuthenticated`, `isMALAuthenticated`, fan-out mutations). UI consumes this, not direct provider.
+- `src/contexts/MALContext.tsx` — Phase 5: MAL auth state (`isAuthenticated/token/user/animeList/loadingUser/loadingList/error/authExpired/redirectUri/hasClientId/login/logout/setManualToken/refresh/updateProgress/updateStatus/updateRating`), handles `?code=` callback via `handleMalOAuthCallback`, mirrors AniList shape. **Parked in Phase 6** (no changes, CORS limitation documented in `docs/MAL_BROWSER_FEASIBILITY.md`).
+- `src/contexts/TrackingContext.tsx` — Phase 5: unified `useTracking()` merging both contexts (deduped `combinedList`, `isAuthenticated`, `isAniListAuthenticated`, `isMALAuthenticated`, fan-out mutations). UI consumes this, not direct provider. Parked for MAL in Phase 6.
 
 ## App Wiring
 
@@ -94,9 +94,10 @@ Reuses `RowSkeleton`/`Skeleton` mirroring final layout, no new spinner design.
 ## Performance
 
 - Tailwind v4 eliminates separate build step; Vite handles CSS.
-- Cards `loading="lazy"` (hero `eager` for LCP), images `decoding="async"`, fallback `backdrop||cover`, `onError` hide.
+- Cards `loading="lazy"` (hero `eager` for LCP, `fetchPriority="high"`), images `decoding="async"`, fallback `backdrop||cover`, `onError` hide.
 - Detail + Watch not yet code-split via `React.lazy` (future), but metadata hooks dedup inflight.
 - **Phase 4:** Homepage issues 4 parallel `Page` requests (trending/popular/airing/new) — not dozens — each cached 5 min memory + 24 h IDB + dedup. Browse 1 request, Search debounced. **Phase 5:** Same; MAL adds no extra discovery requests (reuse `malFetch` cache/dedup), list fetched once per auth (paging `limit=1000`, up to 500 safety), mutations invalidate only memory cache.
+- **Phase 6:** Homepage still 4 parallel `Page` (trending/popular/airing/new, each `perPage:12`, second load cached 0 new), Browse `perPage:24` with `page` pagination (`hasNextPage` + `Load more`, append), filters server-side via `browse` (single request per filter change, deduped by `anilist:browse:…` key), Search live while typing debounced 300ms + 400ms URL sync, no duplicate/stale (hook `cancelled` + `clearTimeout` + `inflight` dedup). No dozens of requests, no huge datasets.
 - No heavy carousel library.
 
 ## Future Extensibility

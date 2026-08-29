@@ -61,7 +61,7 @@ interface TrackingProvider {
 
 **Local caching (shared):** `src/services/mal/client.ts:malFetch` reuses same `memoryCache` TTL 5 min + IDB `putCache/getCache` TTL 24 h + `inflight` dedup as `anilistGraphQL`, with `ensureFreshToken` auto-refresh (1 min buffer) and `clearMalTokens` on AUTH. Keys `mal:*`. Homepage discovery still 4 parallel AniList metadata requests (cached); MAL list only fetched when authenticated.
 
-### AnimeMetadataProvider (public discovery, Phase 4)
+### AnimeMetadataProvider (public discovery, Phase 4 → Phase 6)
 
 ```ts
 interface AnimeMetadataProvider {
@@ -72,7 +72,11 @@ interface AnimeMetadataProvider {
   getPopular(perPage?: number): Promise<Anime[]>
   getAiring(perPage?: number): Promise<Anime[]>
   getNewReleases(perPage?: number): Promise<Anime[]>
+  getUpcoming(perPage?: number): Promise<Anime[]>      // Phase 6
+  getFinished(perPage?: number): Promise<Anime[]>      // Phase 6
+  browse(params: BrowseParams): Promise<{ data: Anime[]; hasNextPage: boolean; pageInfo } > // Phase 6
 }
+type BrowseParams = { sort?: string; status?: string; genre?: string; seasonYear?: number; season?: string; format?: string; perPage?: number; page?: number }
 ```
 
 - `src/providers/metadata/types.ts` defines the abstraction; `src/providers/metadata/anilistMetadata.ts` (`AniListMetadataProvider`, singleton `anilistMetadataProvider`) is the first implementation. UI never imports AniList GraphQL types directly — all through normalized `Anime`.
@@ -81,15 +85,18 @@ interface AnimeMetadataProvider {
   - `Popular`: `sort:POPULARITY_DESC`
   - `Airing`: `sort:POPULARITY_DESC, status:RELEASING`
   - `New Releases`: `sort:START_DATE_DESC, status:FINISHED`
+  - `Upcoming`: `sort:POPULARITY_DESC, status:NOT_YET_RELEASED` (Phase 6)
+  - `Finished`: `sort:END_DATE_DESC, status:FINISHED` (Phase 6)
+  - `Browse`: dynamic `Page(media(type:ANIME, isAdult:false, sort, status, genre, seasonYear, season, format))` with `pageInfo { hasNextPage currentPage lastPage }` for pagination (Phase 6)
   - `Search`: `Page(media(search, type:ANIME, isAdult:false))`
   - `Anime`: `Media(id, type:ANIME)`
   All share `MEDIA_FIELDS` (`id/idMal/title/description/coverImage{extraLarge large medium}/bannerImage/startDate/season/seasonYear/episodes/duration/status/averageScore/genres/studios/format/popularity`). Mapped via `mapAniListMediaToAnime` (HTML stripped via `cleanDescription`, `banner→cover` fallback, `averageScore/10`, `external IDs` `idMal`).
-- **Caching:** Same architecture extended — memory 5 min + IDB 24 h + `inflight` dedup, keys `anilist:trending:<perPage>`, `anilist:popular:<perPage>`, `anilist:airing:<perPage>`, `anilist:new:<perPage>`, `anilist:search:<query>`, `anilist:anime:<id>`. Public metadata therefore not refetched on every navigation; homepage 4 sections issue 4 parallel requests first load, then served from cache.
-- **Home usage:** `src/pages/Home.tsx` uses hooks `useTrending/usePopular/useAiring/useNewReleases` (from `src/hooks/useAnimeMetadata.ts`) for `Trending Now`, `Popular on Aeri`, `Currently Airing`, `New Releases`, plus `Because you watched` (deterministic filter of trending by Fantasy/Adventure). Hero is `trending[0]` (real banner) with fallback `heroAnime` mock. `Continue Watching`/`My List` remain `AniListContext` user-specific (hidden when unauthenticated). Unauthenticated users still get useful public discovery.
-- **Browse usage:** `src/pages/Browse.tsx` uses `usePopular(24)` and client-side `genres` filter, no mock.
-- **Search usage (Phase 4):** `src/pages/Search.tsx` always uses `useAnimeSearch` → `anilistMetadataProvider.search` (public, debounced 300 ms inside hook), no longer gated by `isAuthenticated`. Handles loading (pulse), empty (`No results`), network/rate-limit (`ProviderError` → friendly `error` string), no raw GraphQL dump.
-- **Detail usage:** `src/pages/AnimeDetail.tsx` + `DetailModal` fetch via `useAnimeDetail` / `anilistMetadataProvider.getAnime` for real metadata (title, alt titles, description, cover/banner, episodes/duration/status/year/season/genres/studios/score/popularity/external IDs). Fallback to `fromList` or `mock` only if remote fails.
-- **Images:** Real content uses `coverImage.extraLarge/large` and `bannerImage` from AniList; `AnimeCard` uses `loading="lazy"` + `fallbackSrc = backdropImage || coverImage` with `onError` hide, `Hero`/`Watch` use `loading="eager"` for LCP. Picsum remains only in `mockAnime.ts` fallback.
+- **Caching:** Same architecture extended — memory 5 min + IDB 24 h + `inflight` dedup, keys `anilist:trending:<perPage>`, `anilist:popular:<perPage>`, `anilist:airing:<perPage>`, `anilist:new:<perPage>`, `anilist:upcoming:<perPage>`, `anilist:finished:<perPage>`, `anilist:browse:<sort:status:genre:year:season:format:perPage:page>`, `anilist:search:<query>:<perPage>`, `anilist:anime:<id>`. Public metadata therefore not refetched on every navigation; homepage 4 sections issue 4 parallel requests first load, then served from cache. Browse `useBrowse` deduplicates per filter set and supports `loadMore` via `page` increment without refetching previous pages (append). Second Home load is cached (0 new requests).
+- **Home usage (Phase 6):** `src/pages/Home.tsx` uses hooks `useTrending/usePopular/useAiring/useNewReleases` for `Trending Now`, `Popular on Aeri`, `Currently Airing`, `New Releases`, plus `Because you watched` (deterministic filter of trending by Fantasy/Adventure). Hero is `trending.data?.[0]` (real `bannerImage` or `cover` fallback) with `RowSkeleton` while loading, fallback `heroAnime` only if remote fails. `Continue Watching`/`My List` via `useTracking` `combinedList` (real when auth, hidden when unauth). Unauthenticated users still get useful public discovery; no mock discovery path.
+- **Browse usage (Phase 6):** `src/pages/Browse.tsx` uses `useBrowse` with category tabs `Popular (POPULARITY_DESC)`, `Trending (TRENDING_DESC)`, `Airing (RELEASING)`, `Upcoming (NOT_YET_RELEASED)`, `Finished (FINISHED+END_DATE_DESC)` and filters `genre`, `seasonYear`, `season` (WINTER/SPRING/SUMMER/FALL), `format` (TV/MOVIE/OVA/SPECIAL) as server-side AniList filters. `perPage 24`, pagination via `hasNextPage` + `Load more`, client-side no giant table, horizontal filters are compact rounded `select`s (Netflix-like). Loading shows pulse grid, error shows retry, empty shows “No titles match your filters.” No mock.
+- **Search usage (Phase 6):** `src/pages/Search.tsx` uses `useAnimeSearch(liveQuery, 12)` where `liveQuery = input.trim()` — **search while typing** (debounced 300ms inside `useAnimeSearch`, plus 400ms URL sync). Updates URL `?q=` via `replace` for deep link/share, handles `q` initial from `searchParams` and back navigation. Loading shows pulse grid, error shows retry button, empty shows “No results for …”, no stale results (hook `cancelled` flag + `clearTimeout`), no duplicate requests (cache + inflight), keyboard-friendly cards. Works for all users, no auth gate.
+- **Detail usage:** `src/pages/AnimeDetail.tsx` + `DetailModal` fetch via `useAnimeDetail` / `anilistMetadataProvider.getAnime` for real metadata (title, alt titles, description, cover/banner, episodes/duration/status/year/season/genres/studios/score/popularity/external IDs). Fallback to `fromList` or `mock` only if remote fails or legacy slug (`frieren` → `anilist-154587` resolver) for deep-link compat; otherwise no fake display.
+- **Images (Phase 6):** Real content uses `coverImage.extraLarge/large` and `bannerImage` from AniList; `AnimeCard` `loading="lazy"` + `fallbackSrc = backdropImage || coverImage` with `onError` hide, `decoding="async"`, `Hero`/`Watch` `loading="eager"` `fetchPriority="high"` for LCP. No huge artwork loading below fold; Picsum remains only in `mockAnime.ts` fallback/test fixture.
 
 ### VideoProvider
 

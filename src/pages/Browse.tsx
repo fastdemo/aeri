@@ -1,64 +1,173 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { AnimeCard } from '../components/cards/AnimeCard'
 import { DetailModal } from '../components/detail/DetailModal'
 import type { Anime } from '../types/anime'
-import { usePopular } from '../hooks/useAnimeMetadata'
-import { RowSkeleton } from '../components/ui/Skeleton'
+import { useBrowse } from '../hooks/useAnimeMetadata'
 
-const genres = ['All', 'Action', 'Adventure', 'Drama', 'Fantasy', 'Sci-Fi', 'Comedy', 'Slice of Life']
+const categories = [
+  { id: 'popular', label: 'Popular', sort: 'POPULARITY_DESC' as const },
+  { id: 'trending', label: 'Trending', sort: 'TRENDING_DESC' as const },
+  { id: 'airing', label: 'Airing', sort: 'POPULARITY_DESC' as const, status: 'RELEASING' as const },
+  { id: 'upcoming', label: 'Upcoming', sort: 'POPULARITY_DESC' as const, status: 'NOT_YET_RELEASED' as const },
+  { id: 'finished', label: 'Finished', sort: 'END_DATE_DESC' as const, status: 'FINISHED' as const },
+] as const
+
+const genres = ['All', 'Action', 'Adventure', 'Drama', 'Fantasy', 'Sci-Fi', 'Comedy', 'Slice of Life', 'Romance', 'Mystery']
+const years = ['All', '2025', '2024', '2023', '2022', '2021', '2020']
+const seasons = ['All', 'WINTER', 'SPRING', 'SUMMER', 'FALL'] as const
+const formats = ['All', 'TV', 'MOVIE', 'OVA', 'SPECIAL'] as const
 
 export function Browse() {
   const [selected, setSelected] = useState<Anime | null>(null)
+  const [category, setCategory] = useState<(typeof categories)[number]['id']>('popular')
   const [genre, setGenre] = useState('All')
-  const popular = usePopular(24)
+  const [year, setYear] = useState('All')
+  const [season, setSeason] = useState<(typeof seasons)[number]>('All')
+  const [format, setFormat] = useState<(typeof formats)[number]>('All')
 
-  const filtered = useMemo(() => {
-    if (!popular.data) return []
-    if (genre === 'All') return popular.data
-    return popular.data.filter((a) => a.genres.includes(genre))
-  }, [popular.data, genre])
+  const cat = categories.find(c => c.id === category)!
+
+  const browse = useBrowse({
+    sort: cat.sort,
+    status: (cat as any).status,
+    genre: genre === 'All' ? undefined : genre,
+    seasonYear: year === 'All' ? undefined : Number(year),
+    season: season === 'All' ? undefined : season,
+    format: format === 'All' ? undefined : format,
+    perPage: 24,
+  })
 
   return (
     <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-12">
-      <div className="flex flex-wrap items-center gap-2 py-2">
-        {genres.map((g) => (
+      <h1 className="text-[18px] font-semibold tracking-tight text-white">Browse</h1>
+      <p className="text-xs text-white/50">Discover anime by category and filters • AniList</p>
+
+      {/* Category tabs */}
+      <div className="mt-4 flex gap-2 overflow-x-auto no-scrollbar">
+        {categories.map(c => (
           <button
-            key={g}
-            onClick={() => setGenre(g)}
-            className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-              genre === g ? 'bg-white text-black' : 'bg-white/10 text-white/80 hover:bg-white/15 hover:text-white'
+            key={c.id}
+            onClick={() => setCategory(c.id)}
+            className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium transition ${
+              category === c.id ? 'bg-white text-black' : 'bg-white/10 text-white/70 hover:bg-white/15 hover:text-white'
             }`}
           >
-            {g}
+            {c.label}
           </button>
         ))}
       </div>
 
-      {popular.loading ? (
+      {/* Filters — compact, Netflix-like minimal */}
+      <div className="mt-3 flex flex-wrap gap-2">
+        <select
+          value={genre}
+          onChange={e => setGenre(e.target.value)}
+          aria-label="Filter by genre"
+          className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs text-white focus:border-white/20 focus:outline-none"
+        >
+          <option className="bg-[#141416]" value="All">All Genres</option>
+          {genres.slice(1).map(g => (
+            <option key={g} className="bg-[#141416]" value={g}>{g}</option>
+          ))}
+        </select>
+
+        <select
+          value={year}
+          onChange={e => setYear(e.target.value)}
+          aria-label="Filter by year"
+          className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs text-white focus:border-white/20 focus:outline-none"
+        >
+          {years.map(y => (
+            <option key={y} className="bg-[#141416]" value={y}>{y === 'All' ? 'All Years' : y}</option>
+          ))}
+        </select>
+
+        <select
+          value={season}
+          onChange={e => setSeason(e.target.value as any)}
+          aria-label="Filter by season"
+          className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs text-white focus:border-white/20 focus:outline-none"
+        >
+          <option className="bg-[#141416]" value="All">All Seasons</option>
+          <option className="bg-[#141416]" value="WINTER">Winter</option>
+          <option className="bg-[#141416]" value="SPRING">Spring</option>
+          <option className="bg-[#141416]" value="SUMMER">Summer</option>
+          <option className="bg-[#141416]" value="FALL">Fall</option>
+        </select>
+
+        <select
+          value={format}
+          onChange={e => setFormat(e.target.value as any)}
+          aria-label="Filter by format"
+          className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs text-white focus:border-white/20 focus:outline-none"
+        >
+          <option className="bg-[#141416]" value="All">All Formats</option>
+          <option className="bg-[#141416]" value="TV">TV</option>
+          <option className="bg-[#141416]" value="MOVIE">Movie</option>
+          <option className="bg-[#141416]" value="OVA">OVA</option>
+          <option className="bg-[#141416]" value="SPECIAL">Special</option>
+        </select>
+
+        {(genre !== 'All' || year !== 'All' || season !== 'All' || format !== 'All') && (
+          <button
+            onClick={() => { setGenre('All'); setYear('All'); setSeason('All'); setFormat('All') }}
+            className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-white/70 hover:bg-white/15 hover:text-white"
+          >
+            Clear filters
+          </button>
+        )}
+      </div>
+
+      {/* Results */}
+      {browse.loading && !browse.data ? (
         <div className="mt-6">
-          <RowSkeleton title="Browse" />
-          <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {Array.from({ length: 12 }).map((_, i) => (
               <div key={i} className="aspect-[16/9] animate-pulse rounded bg-white/5" />
             ))}
           </div>
+          <p className="sr-only">Loading</p>
         </div>
-      ) : popular.error ? (
-        <div className="mt-6 rounded-lg border border-white/10 bg-white/[0.03] px-4 py-6 text-center text-xs text-amber-200/70">
-          {popular.error}
+      ) : browse.error && !browse.data ? (
+        <div className="mt-6 rounded-lg border border-white/10 bg-white/[0.03] px-4 py-6 text-center">
+          <p className="text-sm text-amber-200/80">{browse.error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="mt-3 rounded-full bg-white/10 px-4 py-1.5 text-xs font-medium text-white hover:bg-white/15"
+          >
+            Retry
+          </button>
         </div>
       ) : (
-        <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-          {filtered.map((a) => (
-            <div key={a.identity.internalId} className="flex justify-center">
-              <AnimeCard anime={a} onSelect={setSelected} />
-            </div>
-          ))}
-        </div>
-      )}
+        <>
+          <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+            {(browse.data ?? []).map(a => (
+              <div key={a.identity.internalId} className="flex justify-center">
+                <AnimeCard anime={a} onSelect={setSelected} />
+              </div>
+            ))}
+          </div>
 
-      {filtered.length === 0 && !popular.loading && !popular.error && (
-        <p className="mt-6 text-center text-sm text-white/50">No titles for “{genre}”.</p>
+          {browse.data && browse.data.length === 0 && (
+            <p className="mt-12 text-center text-sm text-white/50">No titles match your filters.</p>
+          )}
+
+          {browse.hasNextPage && browse.data && browse.data.length > 0 && (
+            <div className="mt-6 flex justify-center">
+              <button
+                onClick={browse.loadMore}
+                disabled={browse.loading}
+                className="rounded-full bg-white px-6 py-2 text-sm font-semibold text-black hover:bg-white/90 disabled:opacity-50"
+              >
+                {browse.loading ? 'Loading…' : 'Load more'}
+              </button>
+            </div>
+          )}
+
+          {browse.loading && browse.data && browse.data.length > 0 && (
+            <p className="mt-4 text-center text-xs text-white/40">Loading more…</p>
+          )}
+        </>
       )}
 
       {selected && <DetailModal anime={selected} onClose={() => setSelected(null)} />}

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AnimeCard } from '../components/cards/AnimeCard'
 import { DetailModal } from '../components/detail/DetailModal'
@@ -11,8 +11,12 @@ export function Search() {
   const [selected, setSelected] = useState<Anime | null>(null)
   const [input, setInput] = useState(q)
 
-  // Real AniList search, debounced inside hook (300ms), works for all users
-  const { data: results, loading, error } = useAnimeSearch(q, 12)
+  // Live search while typing (debounced 300ms inside hook)
+  const liveQuery = input.trim()
+  const { data: results, loading, error } = useAnimeSearch(liveQuery, 12)
+
+  // Keep input in sync with URL on navigation (back/forward) and update URL on submit
+  useEffect(() => { setInput(q) }, [q])
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -20,8 +24,17 @@ export function Search() {
     else setParams({})
   }
 
-  // Keep input in sync with q param (e.g. back navigation)
-  // Use effect would be ideal but simple check here
+  // Update URL as user types (debounced via hook, but keep URL for deep link/share)
+  useEffect(() => {
+    const t = setTimeout(() => {
+      const trimmed = input.trim()
+      if (trimmed !== q) {
+        if (trimmed) setParams({ q: trimmed }, { replace: true })
+        else if (q) setParams({}, { replace: true })
+      }
+    }, 400)
+    return () => clearTimeout(t)
+  }, [input, q, setParams])
 
   return (
     <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-12">
@@ -45,7 +58,7 @@ export function Search() {
       </form>
 
       <div className="mt-8">
-        {!q ? (
+        {!liveQuery ? (
           <p className="text-center text-sm text-white/50">Type something to search. Try “Frieren” or “Sci-Fi”.</p>
         ) : loading ? (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
@@ -54,13 +67,21 @@ export function Search() {
             ))}
           </div>
         ) : error ? (
-          <p className="text-center text-sm text-amber-200/80">{error}</p>
+          <div className="text-center">
+            <p className="text-sm text-amber-200/80">{error}</p>
+            <button
+              onClick={() => setInput(liveQuery)}
+              className="mt-3 rounded-full bg-white/10 px-4 py-1.5 text-xs font-medium text-white hover:bg-white/15"
+            >
+              Retry
+            </button>
+          </div>
         ) : !results || results.length === 0 ? (
-          <p className="text-center text-sm text-white/60">No results for “{q}”.</p>
+          <p className="text-center text-sm text-white/60">No results for “{liveQuery}”.</p>
         ) : (
           <>
             <p className="mb-3 text-xs text-white/50">
-              {results.length} results for “{q}” • AniList
+              {results.length} results for “{liveQuery}” • AniList
             </p>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
               {results.map((a) => (
