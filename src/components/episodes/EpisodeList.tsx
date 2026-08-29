@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import type { Anime } from '../../types/anime'
+import { useAniList } from '../../contexts/AniListContext'
 
 function mockEpisodes(anime: Anime, count = 10) {
   const n = Math.min(anime.episodes ?? count, count)
@@ -19,7 +20,17 @@ function mockEpisodes(anime: Anime, count = 10) {
 
 export function EpisodeList({ anime }: { anime: Anime }) {
   const episodes = mockEpisodes(anime)
-  const progressEp = anime.progress?.episode ?? 0
+  const { isAuthenticated, animeList, updateProgress } = useAniList()
+  const anilistId = anime.identity.anilistId?.toString() ?? (anime.identity.internalId.startsWith('anilist-') ? anime.identity.internalId.replace('anilist-', '') : null)
+  const entry = isAuthenticated && anilistId ? animeList?.find((e) => e.anime.identity.anilistId?.toString() === anilistId) : null
+  const progressEp = entry?.progress ?? anime.progress?.episode ?? 0
+
+  const handleSelect = (epNum: number) => {
+    if (isAuthenticated && anilistId) {
+      // fire and forget sync
+      updateProgress(anilistId, epNum).catch(() => {})
+    }
+  }
 
   return (
     <div className="space-y-1">
@@ -36,6 +47,7 @@ export function EpisodeList({ anime }: { anime: Anime }) {
             <Link
               key={ep.number}
               to={`/watch/${anime.identity.internalId}/${ep.number}`}
+              onClick={() => handleSelect(ep.number)}
               className={`flex items-center gap-3 px-3 py-3 text-left transition ${
                 isCurrent ? 'bg-white/[0.06]' : 'bg-[#18181b] hover:bg-white/[0.04]'
               } ${ep.number !== episodes.length ? 'border-b border-white/5' : ''}`}

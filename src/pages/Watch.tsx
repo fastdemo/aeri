@@ -1,10 +1,27 @@
+import { useEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { mockAnime } from '../data/mockAnime'
+import { useAniList } from '../contexts/AniListContext'
 
 export function Watch() {
   const { id, episode } = useParams<{ id: string; episode: string }>()
-  const anime = mockAnime.find((a) => a.identity.internalId === id)
+  const { isAuthenticated, animeList, updateProgress } = useAniList()
   const epNum = Number(episode ?? 1)
+  // Prefer AniList entry if available, otherwise mock
+  const anilistEntry = isAuthenticated && id ? animeList?.find((e) => e.anime.identity.internalId === id || e.anime.identity.anilistId?.toString() === id || e.anime.identity.internalId.startsWith(`anilist-${id}`)) : null
+  const anime = anilistEntry?.anime ?? mockAnime.find((a) => a.identity.internalId === id)
+
+  useEffect(() => {
+    if (!isAuthenticated || !anime) return
+    const anilistId = anime.identity.anilistId?.toString() ?? (anime.identity.internalId.startsWith('anilist-') ? anime.identity.internalId.replace('anilist-', '') : null)
+    if (!anilistId) return
+    // Sync progress — fire and forget, don't block UI
+    updateProgress(anilistId, epNum).catch(() => {})
+    // Also persist locally for demo
+    try {
+      localStorage.setItem(`aeri:progress:${anime.identity.internalId}`, String(epNum))
+    } catch {}
+  }, [isAuthenticated, anime, epNum, updateProgress])
 
   if (!anime) {
     return (

@@ -6,6 +6,7 @@ import { Search } from './pages/Search'
 import { MyList } from './pages/MyList'
 import { Watch } from './pages/Watch'
 import { AnimeDetail } from './pages/AnimeDetail'
+import { AniListProvider } from './contexts/AniListContext'
 
 function Layout() {
   return (
@@ -32,7 +33,9 @@ function Layout() {
 export default function App() {
   return (
     <HashRouter>
-      <Layout />
+      <AniListProvider>
+        <Layout />
+      </AniListProvider>
     </HashRouter>
   )
 }

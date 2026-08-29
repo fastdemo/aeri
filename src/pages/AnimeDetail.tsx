@@ -1,11 +1,52 @@
 import { useParams, Link } from 'react-router-dom'
+import { useEffect, useState } from 'react'
 import { mockAnime } from '../data/mockAnime'
 import { EpisodeList } from '../components/episodes/EpisodeList'
+import { useAniList } from '../contexts/AniListContext'
+import { aniListProvider } from '../providers/anilist/provider'
+import type { Anime } from '../types/anime'
 
 export function AnimeDetail() {
   const { id } = useParams<{ id: string }>()
-  const anime = mockAnime.find((a) => a.identity.internalId === id)
+  const { animeList } = useAniList()
+  const [remote, setRemote] = useState<Anime | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
 
+  const mock = id ? mockAnime.find((a) => a.identity.internalId === id) : null
+  const fromList = id ? animeList?.find((e) => e.anime.identity.internalId === id || e.anime.identity.anilistId?.toString() === id || `anilist-${e.anime.identity.anilistId}` === id)?.anime : null
+
+  useEffect(() => {
+    if (mock || fromList || !id) return
+    // Try to fetch via AniList if id looks like anilist-
+    const isAnilist = id.startsWith('anilist-') || /^\d+$/.test(id)
+    if (!isAnilist) return
+    setLoading(true)
+    setErr(null)
+    aniListProvider
+      .getAnime(id)
+      .then(setRemote)
+      .catch((e) => setErr(e instanceof Error ? e.message : 'Not found'))
+      .finally(() => setLoading(false))
+  }, [id, mock, fromList])
+
+  const anime = fromList ?? mock ?? remote
+
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-[1200px] px-4 py-16">
+        <div className="h-[420px] animate-pulse rounded-xl bg-white/5" />
+      </div>
+    )
+  }
+  if (err) {
+    return (
+      <div className="mx-auto max-w-[1200px] px-4 py-16 text-center">
+        <p className="text-amber-200/80">{err}</p>
+        <Link to="/" className="mt-4 inline-block text-sm text-white/60 underline">Back</Link>
+      </div>
+    )
+  }
   if (!anime) {
     return (
       <div className="mx-auto max-w-[1200px] px-4 py-16 text-center">

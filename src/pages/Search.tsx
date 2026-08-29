@@ -1,17 +1,56 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AnimeCard } from '../components/cards/AnimeCard'
 import { DetailModal } from '../components/detail/DetailModal'
 import { mockAnime } from '../data/mockAnime'
 import type { Anime } from '../types/anime'
+import { useAniList } from '../contexts/AniListContext'
+import { aniListProvider } from '../providers/anilist/provider'
 
 export function Search() {
   const [params, setParams] = useSearchParams()
   const q = params.get('q') ?? ''
   const [selected, setSelected] = useState<Anime | null>(null)
   const [input, setInput] = useState(q)
+  const { isAuthenticated } = useAniList()
+  const [debouncedQ, setDebouncedQ] = useState(q)
+  const [remoteResults, setRemoteResults] = useState<Anime[] | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [err, setErr] = useState<string | null>(null)
 
-  const results = useMemo(() => {
+  // debounce 300ms
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(q), 300)
+    return () => clearTimeout(t)
+  }, [q])
+
+  // AniList search when authenticated and debounced query present
+  useEffect(() => {
+    if (!isAuthenticated || !debouncedQ.trim()) {
+      setRemoteResults(null)
+      setLoading(false)
+      return
+    }
+    let cancelled = false
+    setLoading(true)
+    setErr(null)
+    aniListProvider
+      .search(debouncedQ.trim())
+      .then((res) => {
+        if (!cancelled) setRemoteResults(res)
+      })
+      .catch((e) => {
+        if (!cancelled) setErr(e instanceof Error ? e.message : 'Search failed')
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [isAuthenticated, debouncedQ])
+
+  const mockResults = useMemo(() => {
     if (!q.trim()) return []
     const lower = q.toLowerCase()
     return mockAnime.filter(
@@ -22,6 +61,8 @@ export function Search() {
         a.genres.join(' ').toLowerCase().includes(lower),
     )
   }, [q])
+
+  const results = isAuthenticated && debouncedQ.trim() ? (remoteResults ?? []) : mockResults
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -52,11 +93,21 @@ export function Search() {
       <div className="mt-8">
         {!q ? (
           <p className="text-center text-sm text-white/50">Type something to search. Try “Frieren” or “Sci-Fi”.</p>
+        ) : loading ? (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="aspect-[16/9] animate-pulse rounded bg-white/5" />
+            ))}
+          </div>
+        ) : err ? (
+          <p className="text-center text-sm text-amber-200/80">{err}</p>
         ) : results.length === 0 ? (
           <p className="text-center text-sm text-white/60">No results for “{q}”.</p>
         ) : (
           <>
-            <p className="mb-3 text-xs text-white/50">{results.length} results for “{q}”</p>
+            <p className="mb-3 text-xs text-white/50">
+              {results.length} results for “{q}”{isAuthenticated ? ' • AniList' : ''}
+            </p>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
               {results.map((a) => (
                 <AnimeCard key={a.identity.internalId} anime={a} onSelect={setSelected} />

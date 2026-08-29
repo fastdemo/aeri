@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
+import { useAniList } from '../../contexts/AniListContext'
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false)
@@ -7,6 +8,7 @@ export function Navbar() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [query, setQuery] = useState('')
   const navigate = useNavigate()
+  const { user, isAuthenticated } = useAniList()
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10)
@@ -126,9 +128,14 @@ export function Navbar() {
           <Link
             to="/list"
             aria-label="Profile"
-            className="h-7 w-7 overflow-hidden rounded bg-gradient-to-br from-violet-600 to-indigo-600"
+            className="relative h-7 w-7 overflow-hidden rounded bg-gradient-to-br from-violet-600 to-indigo-600"
           >
-            <span className="grid h-full w-full place-items-center text-[11px] font-semibold text-white">A</span>
+            {isAuthenticated && user?.avatar?.large ? (
+              <img src={user.avatar.large} alt={user.name} className="h-full w-full object-cover" loading="lazy" />
+            ) : (
+              <span className="grid h-full w-full place-items-center text-[11px] font-semibold text-white">A</span>
+            )}
+            {isAuthenticated && <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border border-[var(--bg)] bg-emerald-500" aria-hidden />}
           </Link>
         </div>
       </div>

@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import type { Anime } from '../../types/anime'
+import type { Anime, AnimeStatus } from '../../types/anime'
 import { EpisodeList } from '../episodes/EpisodeList'
+import { useAniList } from '../../contexts/AniListContext'
 
 export function DetailModal({
   anime,
@@ -11,6 +12,17 @@ export function DetailModal({
   onClose: () => void
 }) {
   const dialogRef = useRef<HTMLDivElement>(null)
+  const { isAuthenticated, animeList, updateStatus, updateRating, error: anilistError } = useAniList()
+  const [syncing, setSyncing] = useState<string | null>(null)
+  const [localError, setLocalError] = useState<string | null>(null)
+  const [showStatusPicker, setShowStatusPicker] = useState(false)
+  const [showRatingPicker, setShowRatingPicker] = useState(false)
+
+  const anilistId = anime.identity.anilistId?.toString() ?? (anime.identity.internalId.startsWith('anilist-') ? anime.identity.internalId.replace('anilist-', '') : null)
+  const entry = isAuthenticated && anilistId ? animeList?.find((e) => e.anime.identity.anilistId?.toString() === anilistId || e.anime.identity.internalId === anime.identity.internalId) : null
+  const currentStatus: AnimeStatus | null = entry?.status ?? anime.listStatus ?? null
+  const currentScore = entry?.score ?? null
+  const displayAnime = entry?.anime ?? anime
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -87,47 +99,172 @@ export function DetailModal({
           {/* Controls over artwork */}
           <div className="absolute bottom-0 left-0 right-0 flex flex-wrap items-center gap-2 px-4 pb-4 sm:px-6">
             {/* progress line */}
-            {anime.progress && (
+            {displayAnime.progress && (
               <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10">
-                <div className="h-full bg-[#e50914]" style={{ width: `${anime.progress.percent}%` }} />
+                <div className="h-full bg-[#e50914]" style={{ width: `${displayAnime.progress.percent}%` }} />
               </div>
             )}
 
             <Link
-              to={`/watch/${anime.identity.internalId}/${anime.progress ? anime.progress.episode : 1}`}
+              to={`/watch/${anime.identity.internalId}/${displayAnime.progress ? displayAnime.progress.episode : 1}`}
               className="inline-flex h-8 items-center gap-1.5 rounded bg-white px-4 text-[13px] font-semibold text-black hover:bg-white/90"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M8 5.14v13.72L19 12z" />
               </svg>
-              {anime.progress ? 'Resume' : 'Play'}
+              {displayAnime.progress ? 'Resume' : 'Play'}
             </Link>
-            {anime.progress && (
+            {displayAnime.progress && (
               <span className="text-xs text-white/70">
-                {anime.progress.episode} of {anime.episodes ?? '?'} • {anime.progress.percent}% watched
+                {displayAnime.progress.episode} of {displayAnime.episodes ?? '?'} • {displayAnime.progress.percent}% watched
               </span>
             )}
 
             <div className="ml-auto flex items-center gap-2">
-              <button
-                aria-label="Add to My List"
-                className="grid h-8 w-8 place-items-center rounded-full border border-white/20 bg-black/30 text-white backdrop-blur hover:bg-white/10"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M12 5v14M5 12h14" />
-                </svg>
-              </button>
-              <button
-                aria-label="Rate"
-                className="grid h-8 w-8 place-items-center rounded-full border border-white/20 bg-black/30 text-white backdrop-blur hover:bg-white/10"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                  <path d="M12 17 6 21l1.5-6.5L2 9l6.5-.6L12 2l3.5 6.4L22 9l-5.5 5.5L18 21z" />
-                </svg>
-              </button>
+              <div className="relative">
+                <button
+                  aria-label={currentStatus ? `Status: ${currentStatus}` : 'Add to My List'}
+                  onClick={async () => {
+                    if (!isAuthenticated || !anilistId) {
+                      setLocalError(isAuthenticated ? 'This title has no AniList ID.' : 'Connect AniList in My List to track.')
+                      setTimeout(() => setLocalError(null), 2500)
+                      return
+                    }
+                    if (!currentStatus) {
+                      setSyncing('status')
+                      try {
+                        await updateStatus(anilistId, 'watching')
+                      } catch (e) {
+                        setLocalError(e instanceof Error ? e.message : 'Couldn’t update status')
+                      } finally {
+                        setSyncing(null)
+                      }
+                    } else {
+                      setShowStatusPicker((v) => !v)
+                    }
+                  }}
+                  className={`grid h-8 w-8 place-items-center rounded-full border bg-black/30 backdrop-blur hover:bg-white/10 ${currentStatus ? 'border-white/30 text-white bg-white/10' : 'border-white/20 text-white'}`}
+                >
+                  {syncing === 'status' ? (
+                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                  ) : currentStatus ? (
+                    <span className="text-[10px] font-bold">{currentStatus === 'watching' ? '●' : currentStatus === 'completed' ? '✓' : '+'}</span>
+                  ) : (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 5v14M5 12h14" />
+                    </svg>
+                  )}
+                </button>
+                {showStatusPicker && (
+                  <div className="absolute right-0 top-9 z-10 w-40 overflow-hidden rounded-lg border border-white/10 bg-[#1c1c1e] shadow-xl">
+                    {(['watching', 'completed', 'planned', 'on_hold', 'dropped'] as AnimeStatus[]).map((s) => (
+                      <button
+                        key={s}
+                        onClick={async () => {
+                          setSyncing('status')
+                          setShowStatusPicker(false)
+                          try {
+                            await updateStatus(anilistId!, s)
+                          } catch (e) {
+                            setLocalError(e instanceof Error ? e.message : 'Couldn’t update status')
+                          } finally {
+                            setSyncing(null)
+                          }
+                        }}
+                        className={`flex w-full items-center justify-between px-3 py-2 text-xs hover:bg-white/10 ${currentStatus === s ? 'bg-white/10 text-white' : 'text-white/70'}`}
+                      >
+                        <span className="capitalize">{s.replace('_', ' ')}</span>
+                        {currentStatus === s && <span className="text-[10px]">●</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="relative">
+                <button
+                  aria-label={currentScore ? `Rated ${currentScore}` : 'Rate'}
+                  onClick={() => {
+                    if (!isAuthenticated || !anilistId) {
+                      setLocalError(isAuthenticated ? 'This title has no AniList ID.' : 'Connect AniList to rate.')
+                      setTimeout(() => setLocalError(null), 2500)
+                      return
+                    }
+                    setShowRatingPicker((v) => !v)
+                  }}
+                  className={`grid h-8 w-8 place-items-center rounded-full border bg-black/30 backdrop-blur hover:bg-white/10 ${currentScore ? 'border-amber-400/40 text-amber-300' : 'border-white/20 text-white'}`}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill={currentScore ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8">
+                    <path d="M12 17 6 21l1.5-6.5L2 9l6.5-.6L12 2l3.5 6.4L22 9l-5.5 5.5L18 21z" />
+                  </svg>
+                </button>
+                {showRatingPicker && (
+                  <div className="absolute right-0 top-9 z-10 w-48 rounded-lg border border-white/10 bg-[#1c1c1e] p-3 shadow-xl">
+                    <p className="mb-2 text-xs font-medium text-white">Rate</p>
+                    <div className="grid grid-cols-5 gap-1">
+                      {[2, 4, 6, 8, 10].map((score) => (
+                        <button
+                          key={score}
+                          onClick={async () => {
+                            setSyncing('rating')
+                            setShowRatingPicker(false)
+                            try {
+                              await updateRating(anilistId!, score)
+                            } catch (e) {
+                              setLocalError(e instanceof Error ? e.message : 'Couldn’t save rating')
+                            } finally {
+                              setSyncing(null)
+                            }
+                          }}
+                          className={`rounded px-2 py-1 text-xs font-medium ${currentScore === score ? 'bg-white text-black' : 'bg-white/10 text-white hover:bg-white/15'}`}
+                        >
+                          {score}
+                        </button>
+                      ))}
+                    </div>
+                    <button
+                      onClick={async () => {
+                        setSyncing('rating')
+                        setShowRatingPicker(false)
+                        try {
+                          await updateRating(anilistId!, 0)
+                        } catch (e) {
+                          setLocalError(e instanceof Error ? e.message : 'Couldn’t clear rating')
+                        } finally {
+                          setSyncing(null)
+                        }
+                      }}
+                      className="mt-2 w-full rounded bg-white/5 py-1 text-xs text-white/60 hover:bg-white/10"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>
+
+        {/* Sync feedback */}
+        {(localError || anilistError) && (
+          <div className="mx-4 mt-3 rounded border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-200/90 sm:mx-6">
+            {localError ?? anilistError}
+          </div>
+        )}
+        {isAuthenticated && (currentStatus || currentScore !== null) && (
+          <div className="flex flex-wrap gap-2 px-4 pt-3 text-[11px] sm:px-6">
+            {currentStatus && (
+              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-white/70">
+                Status: <span className="capitalize text-white">{currentStatus.replace('_', ' ')}</span>
+              </span>
+            )}
+            {currentScore !== null && currentScore > 0 && (
+              <span className="rounded-full border border-amber-400/20 bg-amber-500/10 px-2 py-1 text-amber-200/90">
+                ★ {currentScore}/10
+              </span>
+            )}
+            {syncing && <span className="px-2 py-1 text-white/50">Syncing…</span>}
+          </div>
+        )}
 
         {/* Body */}
         <div className="grid gap-6 px-4 py-5 sm:px-6 lg:grid-cols-[1.7fr_0.9fr]">
@@ -139,7 +276,7 @@ export function DetailModal({
             </div>
 
             <p className="mt-2 text-[12px] font-semibold text-white/90">
-              S1:E{anime.progress?.episode ?? 1} “Let You Down” — Premiere
+              S1:E{displayAnime.progress?.episode ?? 1} “Let You Down” — Premiere
             </p>
             <p className="mt-1 line-clamp-3 text-[13px] leading-6 text-white/70">
               {anime.description} After a night of impossible choices, a rundown future collides with a fragile hope for a different life.
