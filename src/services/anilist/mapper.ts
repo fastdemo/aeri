@@ -22,9 +22,11 @@ export interface AniListMedia {
   status?: string | null // FINISHED, RELEASING, NOT_YET_RELEASED etc
   averageScore?: number | null // 0-100
   genres?: string[] | null
-  studios?: { nodes?: { name: string }[] | null } | null
+  studios?: { nodes?: { name: string; isAnimationStudio: boolean }[] | null; edges?: { isMain: boolean }[] | null } | null
   format?: string | null // TV, MOVIE etc
   popularity?: number | null
+  streamingEpisodes?: { title?: string | null; thumbnail?: string | null; url?: string | null; site?: string | null }[] | null
+  isAdult?: boolean | null
 }
 
 export interface AniListMediaListEntryRaw {
@@ -96,6 +98,33 @@ export function mapAniListMediaToAnime(media: AniListMedia): Anime {
   // averageScore is 0-100, convert to 0-10
   const rating = media.averageScore ? Math.round((media.averageScore / 10) * 10) / 10 : undefined
 
+  // Only animation studios — not all studios (producers are not studios)
+  const studios = (() => {
+    const nodes = media.studios?.nodes ?? []
+    const edges = media.studios?.edges ?? []
+    // Prefer main animation studio if available, otherwise all animation studios
+    const animNodes = nodes.filter(n => n.isAnimationStudio)
+    if (animNodes.length > 0) {
+      // If edges available, prefer isMain
+      if (edges.length === nodes.length) {
+        const mainIdx = edges.findIndex(e => e.isMain)
+        if (mainIdx >= 0 && nodes[mainIdx]?.isAnimationStudio) {
+          return [nodes[mainIdx].name].filter(Boolean) as string[]
+        }
+      }
+      return animNodes.map(n => n.name).filter(Boolean) as string[]
+    }
+    // Fallback: if no animationStudio flag, return all (older data)
+    return nodes.map(n => n.name).filter(Boolean) as string[]
+  })()
+
+  const streamingEpisodes = media.streamingEpisodes?.filter(e => e.title || e.thumbnail).map(e => ({
+    title: e.title ?? undefined,
+    thumbnail: e.thumbnail ?? undefined,
+    url: e.url ?? undefined,
+    site: e.site ?? undefined,
+  })) ?? undefined
+
   return {
     identity: {
       internalId: `anilist-${media.id}`,
@@ -114,9 +143,12 @@ export function mapAniListMediaToAnime(media: AniListMedia): Anime {
     status: media.status ?? undefined,
     rating,
     genres: media.genres ?? [],
-    studios: media.studios?.nodes?.map((n) => n.name).filter(Boolean) ?? [],
+    studios,
     format: media.format ?? undefined,
     popularity: media.popularity ?? undefined,
+    streamingEpisodes,
+    // isAdult is NOT an age rating — do not map to T18/PG-13. If needed, expose as isAdult separately.
+    isAdult: media.isAdult ?? undefined,
   }
 }
 

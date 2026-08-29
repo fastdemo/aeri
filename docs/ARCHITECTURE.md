@@ -100,24 +100,27 @@ Reuses `RowSkeleton`/`Skeleton` mirroring final layout, no new spinner design.
 - **Phase 6:** Homepage still 4 parallel `Page` (trending/popular/airing/new, each `perPage:12`, second load cached 0 new), Browse `perPage:24` with `page` pagination (`hasNextPage` + `Load more`, append), filters server-side via `browse` (single request per filter change, deduped by `anilist:browse:…` key), Search live while typing debounced 300ms + 400ms URL sync, no duplicate/stale (hook `cancelled` + `clearTimeout` + `inflight` dedup). No dozens of requests, no huge datasets.
 - No heavy carousel library.
 
-## Video Provider Architecture (Phase 7)
+## Video Provider Architecture (Phase 7 → 7.1)
 
 ```
-Watch.tsx
-  ├─ useAnimeDetail (real anime) ──→ Anime
-  ├─ resolveEpisodesWithFallback(Anime) ──→ VideoEpisode[] (via registry, cached, fallback to Mock)
+Watch.tsx (shell renders immediately with anime title/backdrop, episode list immediate from anime.episodes/streamingEpisodes)
+  ├─ useAnimeDetail (real anime) ──→ Anime (with streamingEpisodes)
+  ├─ immediateEpisodes (derived from anime, no provider wait, shown instantly)
+  ├─ resolveEpisodesWithFallback(Anime) ──→ VideoEpisode[] (parallel, 4s timeout, via registry, cached, fallback to Mock, does NOT block UI)
   │     ├─ AllAnime (CORS but query exact, Cloudflare)
-  │     ├─ AnimePahe (CORS blocked)
-  │     ├─ AniKoto (DNS fail)
+  │     ├─ AnimePahe (CORS blocked, 3.5s timeout)
+  │     ├─ AniKoto (DNS fail, 3.5s)
   │     ├─ MegaPlay (200 but HTML Error)
   │     ├─ AnimeParadise (CORS blocked)
   │     ├─ AniNeko (no stable API)
   │     └─ Mock (episode list only, no video, ensures navigation)
-  ├─ resolveSourcesWithFallback(VideoEpisode) ──→ VideoSourceEnhanced[] (tried[] isolated, only selected episode)
-  │     └─ VideoPlayer (embed iframe vs direct video, controls, subtitles, source selector if >1)
-  ├─ TrackingContext.updateProgress(anime, epNum) (isolated, throttled)
+  ├─ resolveSourcesWithFallback(VideoEpisode) ──→ VideoSourceEnhanced[] (parallel, 4s, tried[] isolated, only selected episode, not all)
+  │     └─ VideoPlayer (embed iframe vs direct video, controls, subtitles, source selector if >1, loading/error/no-source distinct)
+  ├─ TrackingContext.updateProgress(anime, epNum) (isolated, throttled 5s)
   └─ storage/db.ts watchPos (putWatchPos/getWatchPos/clearWatchPos, DB v2, resume prompt)
 ```
+
+**Performance (Phase 7.1):** Shell renders 85ms, Home 4 parallel `POST graphql.anilist.co` at 141ms (all at same time, not waterfall), responses 840ms, hero 1.4s, first row 1.4s, cached Home 0 new (IDB), Watch shell 29ms, title 873ms, episode list 876ms immediate, source no-source 2.3s (parallel 3.5s max, not 21s sequential). `anilistGraphQL` now has 8s `AbortController` timeout (AniList p95 <1.5s, 8s allows slow nets without freezing shell), `fetchWithTimeout` 3500ms for video, `registry` 4000ms parallel.
 
 - `src/providers/video/types.ts` + `base.ts` (cachedFetch, isCorsError) + `registry.ts` (priority, fallback) + 6 stubs + `mock.ts` + `src/components/player/VideoPlayer.tsx` (native + embed, loading/error, source switch, sub/dub, subtitles)
 - **No backend/proxy:** All real providers are browser-incompatible on GH Pages (CORS `No Allow-Origin` → `ERR_FAILED`), so Watch shows no-source UI with `Tried:` and retry, not blank. Episode navigation still works via Mock. Future browser-compatible provider would just be added to `videoProviders[]` with no UI change.

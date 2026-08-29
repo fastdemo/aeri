@@ -1,6 +1,6 @@
 import type { Anime } from '../../types/anime'
 import type { VideoProvider, VideoEpisode, VideoSourceEnhanced, ProviderCapabilities } from './types'
-import { cachedFetch, isCorsError } from './base'
+import { cachedFetch, isCorsError, fetchWithTimeout } from './base'
 
 export class MegaPlayProvider implements VideoProvider {
   id = 'megaplay'
@@ -25,7 +25,7 @@ export class MegaPlayProvider implements VideoProvider {
   async resolveAnimeId(anime: Anime): Promise<string | null> {
     return cachedFetch(`video:megaplay:resolve:${anime.identity.internalId}`, async () => {
       try {
-        const res = await fetch(`https://megaplay.buzz/api/search?q=${encodeURIComponent(anime.title.romaji)}`)
+        const res = await fetchWithTimeout(`https://megaplay.buzz/api/search?q=${encodeURIComponent(anime.title.romaji)}`)
         if (!res.ok) return null
         const json: any = await res.json().catch(() => null)
         if (!json || typeof json !== 'object') return null

@@ -18,9 +18,11 @@ const MEDIA_FIELDS = `
   status
   averageScore
   genres
-  studios { nodes { name } }
+  studios { edges { isMain } nodes { name isAnimationStudio } }
   format
   popularity
+  streamingEpisodes { title thumbnail url site }
+  isAdult
 `
 
 function buildPageQuery(sort: string, extra?: string): string {

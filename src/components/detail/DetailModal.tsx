@@ -52,7 +52,7 @@ export function DetailModal({
     dialogRef.current?.focus()
   }, [])
 
-  const meta = `${anime.year ?? ''}  ${anime.episodes ? `${anime.episodes} Episodes` : ''}  HD`
+  const meta = [anime.format, anime.year ? String(anime.year) : null, anime.season ? anime.season.charAt(0) + anime.season.slice(1).toLowerCase() : null, anime.episodes ? `${anime.episodes} Episodes` : null, anime.status ? anime.status.charAt(0) + anime.status.slice(1).toLowerCase() : null].filter(Boolean).join(' · ') + ' · HD'
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/75 p-2 backdrop-blur-[2px] sm:p-6 lg:p-8">
@@ -264,15 +264,23 @@ export function DetailModal({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2 text-[12px] text-white/70">
               <span>{meta}</span>
-              <span className="rounded border border-white/15 px-1 py-0 text-[10px] font-semibold">T18</span>
-              <span className="text-white/50">nudity, violence, language, sex</span>
+              {anime.rating && <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold">★ {anime.rating.toFixed(1)}</span>}
             </div>
 
-            <p className="mt-2 text-[12px] font-semibold text-white/90">
-              S1:E{displayAnime.progress?.episode ?? 1} “Let You Down” — Premiere
-            </p>
+            {(() => {
+              const firstEp = anime.streamingEpisodes?.[0]
+              const epNum = displayAnime.progress?.episode ?? 1
+              const epTitle = anime.streamingEpisodes?.[epNum - 1]?.title ?? firstEp?.title
+              // Only show episode line if we have real title or progress
+              if (!epTitle && !displayAnime.progress) return null
+              return (
+                <p className="mt-2 text-[12px] font-semibold text-white/90">
+                  {displayAnime.progress ? `S1:E${epNum}` : 'S1:E1'} {epTitle ? `· ${epTitle}` : ''}
+                </p>
+              )
+            })()}
             <p className="mt-1 line-clamp-3 text-[13px] leading-6 text-white/70">
-              {anime.description} After a night of impossible choices, a rundown future collides with a fragile hope for a different life.
+              {anime.description || 'No description available.'}
             </p>
 
             <h3 className="mt-6 text-[14px] font-semibold text-white">Episodes</h3>
@@ -282,23 +290,36 @@ export function DetailModal({
           </div>
 
           <div className="space-y-3 border-t border-white/10 pt-4 lg:border-t-0 lg:pt-0">
-            <div className="text-xs leading-5">
-              <span className="text-white/50">Cast: </span>
-              <span className="text-white/80">KENN, Aoi Yuki, Hiroki Touchi</span>
-              <span className="text-white/50">, more</span>
-            </div>
-            <div className="text-xs leading-5">
-              <span className="text-white/50">Genres: </span>
-              <span className="text-white/80">{anime.genres.join(', ')}</span>
-            </div>
-            <div className="text-xs leading-5">
-              <span className="text-white/50">Studios: </span>
-              <span className="text-white/80">{(anime.studios ?? []).join(', ')}</span>
-            </div>
-            <div className="text-xs leading-5">
-              <span className="text-white/50">This series is: </span>
-              <span className="text-white/80">Explosive, Gritty, Emotional</span>
-            </div>
+            {anime.genres.length > 0 && (
+              <div className="text-xs leading-5">
+                <span className="text-white/50">Genres: </span>
+                <span className="text-white/80">{anime.genres.join(', ')}</span>
+              </div>
+            )}
+            {anime.studios && anime.studios.length > 0 && (
+              <div className="text-xs leading-5">
+                <span className="text-white/50">Studios: </span>
+                <span className="text-white/80">{anime.studios.join(', ')}</span>
+              </div>
+            )}
+            {anime.format && (
+              <div className="text-xs leading-5">
+                <span className="text-white/50">Format: </span>
+                <span className="text-white/80">{anime.format}</span>
+              </div>
+            )}
+            {anime.status && (
+              <div className="text-xs leading-5">
+                <span className="text-white/50">Status: </span>
+                <span className="text-white/80">{anime.status}</span>
+              </div>
+            )}
+            {anime.year && (
+              <div className="text-xs leading-5">
+                <span className="text-white/50">Year: </span>
+                <span className="text-white/80">{anime.year}{anime.season ? ` • ${anime.season.charAt(0) + anime.season.slice(1).toLowerCase()}` : ''}</span>
+              </div>
+            )}
           </div>
         </div>
       </div>

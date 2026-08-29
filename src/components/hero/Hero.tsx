@@ -61,7 +61,6 @@ export function Hero({ anime, onMoreInfo }: { anime: Anime; onMoreInfo?: () => v
               <span className="ml-2 inline-flex items-center gap-1 rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-widest text-white/90">
                 HD
               </span>
-              <span className="ml-1 text-[11px] text-white/50">• T18</span>
             </p>
 
             <p className="line-clamp-2 max-w-[520px] text-[13px] leading-6 text-white/75 sm:line-clamp-3 sm:text-[14px]">

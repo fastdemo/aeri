@@ -4,7 +4,6 @@ import { AnimeCard } from '../components/cards/AnimeCard'
 import { ContentRow } from '../components/rows/ContentRow'
 import { DetailModal } from '../components/detail/DetailModal'
 import type { Anime } from '../types/anime'
-import { heroAnime } from '../data/mockAnime'
 import { useTracking } from '../contexts/TrackingContext'
 import { RowSkeleton } from '../components/ui/Skeleton'
 import { useTrending, usePopular, useAiring, useNewReleases } from '../hooks/useAnimeMetadata'
@@ -76,7 +75,7 @@ export function Home() {
     return []
   }, [isAuthenticated, combinedList])
 
-  const hero: Anime = trending.data?.[0] ?? heroAnime
+  const hero: Anime | null = trending.data?.[0] ?? null
 
   const becauseData = useMemo(() => {
     if (trending.data) {
@@ -99,8 +98,19 @@ export function Home() {
         <div className="px-0 sm:px-0">
           {trending.loading ? (
             <div className="aspect-[21/9] w-full animate-pulse rounded-xl bg-white/5 lg:min-h-[460px]" />
-          ) : (
+          ) : trending.error ? (
+            <div className="flex aspect-[21/9] w-full items-center justify-center rounded-xl bg-white/[0.03] px-6 text-center lg:min-h-[460px]">
+              <div>
+                <p className="text-sm text-amber-200/80">{trending.error}</p>
+                <p className="mt-1 text-xs text-white/40">Hero unavailable — other rows still work</p>
+              </div>
+            </div>
+          ) : hero ? (
             <Hero anime={hero} onMoreInfo={() => setSelected(hero)} />
+          ) : (
+            <div className="flex aspect-[21/9] w-full items-center justify-center rounded-xl bg-white/[0.03] lg:min-h-[460px]">
+              <p className="text-sm text-white/40">No hero available</p>
+            </div>
           )}
         </div>
       </div>

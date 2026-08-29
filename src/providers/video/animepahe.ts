@@ -1,6 +1,6 @@
 import type { Anime } from '../../types/anime'
 import type { VideoProvider, VideoEpisode, VideoSourceEnhanced, ProviderCapabilities } from './types'
-import { cachedFetch, isCorsError } from './base'
+import { cachedFetch, isCorsError, fetchWithTimeout } from './base'
 
 export class AnimePaheProvider implements VideoProvider {
   id = 'animepahe'
@@ -28,7 +28,7 @@ export class AnimePaheProvider implements VideoProvider {
     return cachedFetch(`video:animepahe:resolve:${anime.identity.anilistId ?? anime.identity.internalId}`, async () => {
       try {
         const url = `https://animepahe.ru/api?m=search&q=${encodeURIComponent(anime.title.romaji)}`
-        const res = await fetch(url)
+        const res = await fetchWithTimeout(url)
         if (!res.ok) return null
         const json: any = await res.json().catch(() => null)
         return json?.data?.[0]?.session ?? null
@@ -44,7 +44,7 @@ export class AnimePaheProvider implements VideoProvider {
     if (!pid) return []
     return cachedFetch(`video:animepahe:episodes:${pid}`, async () => {
       try {
-        const res = await fetch(`https://animepahe.ru/api?m=release&id=${encodeURIComponent(pid)}&sort=episode_asc&page=1`)
+        const res = await fetchWithTimeout(`https://animepahe.ru/api?m=release&id=${encodeURIComponent(pid)}&sort=episode_asc&page=1`)
         if (!res.ok) return []
         const json: any = await res.json().catch(() => null)
         const eps = json?.data ?? []

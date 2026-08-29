@@ -1,6 +1,6 @@
 import type { Anime } from '../../types/anime'
 import type { VideoProvider, VideoEpisode, VideoSourceEnhanced, ProviderCapabilities } from './types'
-import { cachedFetch, isCorsError } from './base'
+import { cachedFetch, isCorsError, fetchWithTimeout } from './base'
 
 export class AnimeParadiseProvider implements VideoProvider {
   id = 'animeparadise'
@@ -25,7 +25,7 @@ export class AnimeParadiseProvider implements VideoProvider {
   async resolveAnimeId(anime: Anime): Promise<string | null> {
     return cachedFetch(`video:animeparadise:resolve:${anime.identity.internalId}`, async () => {
       try {
-        const res = await fetch(`https://www.animeparadise.moe/api/search?q=${encodeURIComponent(anime.title.romaji)}`)
+        const res = await fetchWithTimeout(`https://www.animeparadise.moe/api/search?q=${encodeURIComponent(anime.title.romaji)}`)
         if (!res.ok) return null
         const json: any = await res.json().catch(() => null)
         return json?.data?.[0]?.id ?? null

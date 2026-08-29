@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { mockAnime } from '../data/mockAnime'
 import { useTracking } from '../contexts/TrackingContext'
 import { useAnimeDetail } from '../hooks/useAnimeMetadata'
 import { VideoPlayer } from '../components/player/VideoPlayer'
@@ -13,19 +12,16 @@ export function Watch() {
   const { isAuthenticated, combinedList, updateProgress } = useTracking()
   const epNum = Number(episode ?? 1)
 
-  const mock = id ? mockAnime.find((a) => a.identity.internalId === id) : null
   const trackingEntry = isAuthenticated && id ? combinedList?.find((e) => e.anime.identity.internalId === id || e.anime.identity.anilistId?.toString() === id || e.anime.identity.malId?.toString() === id || e.anime.identity.internalId.startsWith(`anilist-${id}`) || e.anime.identity.internalId.startsWith(`mal-${id}`)) : null
   const realId = (() => {
     if (!id) return undefined
     if (id.startsWith('anilist-') || id.startsWith('mal-') || /^\d+$/.test(id)) return id
-    if (mock?.identity.anilistId) return `anilist-${mock.identity.anilistId}`
     if (trackingEntry?.anime.identity.anilistId) return `anilist-${trackingEntry.anime.identity.anilistId}`
-    if (mock?.identity.malId) return `mal-${mock.identity.malId}`
     return id
   })()
 
   const { data: remote, loading: loadingAnime } = useAnimeDetail(realId)
-  const anime = trackingEntry?.anime ?? remote ?? mock
+  const anime = trackingEntry?.anime ?? remote
 
   // AniList progress sync (existing behavior, throttled)
   useEffect(() => {
@@ -36,37 +32,45 @@ export function Watch() {
     } catch {}
   }, [isAuthenticated, anime, epNum, updateProgress])
 
-  // Video provider: episodes
-  const [episodes, setEpisodes] = useState<VideoEpisode[] | null>(null)
-  const [episodesLoading, setEpisodesLoading] = useState(false)
-  const [episodesError, setEpisodesError] = useState<string | null>(null)
+  // Video provider: episodes — shell renders immediately, episode list is immediate from AniList metadata
+  // Video provider episodes are only for source mapping, not for UI list (which uses anime.episodes/streamingEpisodes directly)
+  const [providerEpisodes, setProviderEpisodes] = useState<VideoEpisode[] | null>(null)
+  const episodesLoading = false // episode list is immediate from AniList, not blocked by video provider
   const [providerId, setProviderId] = useState<string | null>(null)
 
+  // Immediate episode list from AniList metadata (no provider wait)
+  const immediateEpisodes = useMemo(() => {
+    if (!anime) return []
+    const count = anime.episodes ?? anime.streamingEpisodes?.length ?? 12
+    const n = Math.min(count, 24)
+    return Array.from({ length: n }, (_, i) => ({
+      number: i + 1,
+      title: anime.streamingEpisodes?.[i]?.title,
+    }))
+  }, [anime])
+
+  // Background: resolve provider episodes for source mapping (does not block UI)
   useEffect(() => {
     if (!anime) return
     let cancelled = false
-    setEpisodesLoading(true)
-    setEpisodesError(null)
     resolveEpisodesWithFallback(anime)
       .then(res => {
         if (cancelled) return
-        setEpisodes(res.episodes)
+        setProviderEpisodes(res.episodes)
         setProviderId(res.providerId)
-        setEpisodesLoading(false)
       })
-      .catch(e => {
+      .catch(() => {
         if (cancelled) return
-        setEpisodesError(e instanceof Error ? e.message : 'Couldn’t load episodes')
-        setEpisodesLoading(false)
+        // keep immediateEpisodes fallback
       })
     return () => { cancelled = true }
   }, [anime?.identity.internalId])
 
-  // Current episode
+  // Current episode (from provider, or fallback to immediate)
   const currentEpisode: VideoEpisode | null = useMemo(() => {
-    if (!episodes) return null
-    return episodes.find(e => e.number === epNum) ?? null
-  }, [episodes, epNum])
+    if (!providerEpisodes) return null
+    return providerEpisodes.find(e => e.number === epNum) ?? null
+  }, [providerEpisodes, epNum])
 
   // If episodes not yet loaded but we have anime.episodes count, synthesize a currentEpisode for source resolution
   const effectiveEpisode: VideoEpisode | null = useMemo(() => {
@@ -416,30 +420,26 @@ export function Watch() {
               <span className="rounded-full border border-white/10 px-4 py-1.5 text-xs text-white/30">Next →</span>
             )}
 
-            {episodesError && <span className="ml-2 text-xs text-amber-200/70">{episodesError}</span>}
-            {episodes && <span className="ml-2 text-xs text-white/40">{episodes.length} episodes • {providerId ?? 'mock'}</span>}
+            <span className="ml-2 text-xs text-white/40">{immediateEpisodes.length} episodes{providerId && providerId !== 'mock' ? ` • ${providerId}` : ''}</span>
           </div>
 
-          {/* Episode list (reuse provider episodes if available) */}
+          {/* Episode list — immediate from AniList metadata, not blocked by video provider */}
           <div className="mt-6">
             <h2 className="mb-2 text-sm font-semibold text-white">Episodes</h2>
-            {episodesLoading ? (
+            {immediateEpisodes.length > 0 ? (
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="aspect-video animate-pulse rounded bg-white/5" />
-                ))}
-              </div>
-            ) : episodes && episodes.length > 0 ? (
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                {episodes.map(ep => {
+                {immediateEpisodes.map(ep => {
                   const isCurrent = ep.number === epNum
+                  const realTitle = anime.streamingEpisodes?.[ep.number - 1]?.title
                   return (
                     <Link
-                      key={ep.id}
+                      key={ep.number}
                       to={`/watch/${id}/${ep.number}`}
-                      className={`relative flex aspect-video items-center justify-center overflow-hidden rounded bg-white/5 p-2 text-center transition ${isCurrent ? 'ring-1 ring-white/30 bg-white/10' : 'hover:bg-white/10'}`}
+                      className={`relative flex aspect-video flex-col items-center justify-center overflow-hidden rounded bg-white/5 p-2 text-center transition ${isCurrent ? 'ring-1 ring-white/30 bg-white/10' : 'hover:bg-white/10'}`}
+                      aria-label={`Watch Episode ${ep.number}${realTitle ? ` - ${realTitle}` : ''}`}
                     >
                       <span className={`text-xs font-medium ${isCurrent ? 'text-white' : 'text-white/70'}`}>Ep {ep.number}</span>
+                      {realTitle && <span className="mt-1 line-clamp-1 text-[10px] text-white/40">{realTitle}</span>}
                       {isCurrent && <span className="absolute bottom-1 left-1/2 h-0.5 w-8 -translate-x-1/2 bg-[#e50914]" />}
                     </Link>
                   )

@@ -1,6 +1,6 @@
 import type { Anime } from '../../types/anime'
 import type { VideoProvider, VideoEpisode, VideoSourceEnhanced, ProviderCapabilities } from './types'
-import { cachedFetch, isCorsError } from './base'
+import { cachedFetch, isCorsError, fetchWithTimeout } from './base'
 
 export class AniKotoProvider implements VideoProvider {
   id = 'anikoto'
@@ -25,7 +25,7 @@ export class AniKotoProvider implements VideoProvider {
   async resolveAnimeId(anime: Anime): Promise<string | null> {
     return cachedFetch(`video:anikoto:resolve:${anime.identity.internalId}`, async () => {
       try {
-        const res = await fetch(`https://anikoto.to/api/search?keyword=${encodeURIComponent(anime.title.romaji)}`)
+        const res = await fetchWithTimeout(`https://anikoto.to/api/search?keyword=${encodeURIComponent(anime.title.romaji)}`)
         if (!res.ok) return null
         const json: any = await res.json().catch(() => null)
         return json?.data?.[0]?.id ?? null

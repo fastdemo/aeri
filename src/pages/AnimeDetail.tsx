@@ -1,5 +1,4 @@
 import { useParams, Link } from 'react-router-dom'
-import { mockAnime } from '../data/mockAnime'
 import { EpisodeList } from '../components/episodes/EpisodeList'
 import { useAniList } from '../contexts/AniListContext'
 import { useAnimeDetail } from '../hooks/useAnimeMetadata'
@@ -18,20 +17,18 @@ export function AnimeDetail() {
       )?.anime
     : null
 
-  // For mock internalId like 'frieren', resolve its anilistId for real fetch
-  const mock = id ? mockAnime.find((a) => a.identity.internalId === id) : null
   const realId = (() => {
     if (!id) return undefined
     if (id.startsWith('anilist-') || /^\d+$/.test(id)) return id
-    if (mock?.identity.anilistId) return `anilist-${mock.identity.anilistId}`
     if (fromList?.identity.anilistId) return `anilist-${fromList.identity.anilistId}`
+    // Legacy slug like 'frieren' no longer resolves to mock — show not found instead of fake content
     return id
   })()
 
   const { data: remote, loading, error } = useAnimeDetail(realId)
 
-  // Prefer real remote data when available, else fromList, else mock fallback
-  const anime = remote ?? fromList ?? mock
+  // Prefer real remote data when available, else fromList (no mock fallback in production)
+  const anime = remote ?? fromList
 
   if (loading && !anime) {
     return (

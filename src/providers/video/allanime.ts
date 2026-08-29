@@ -1,6 +1,6 @@
 import type { Anime } from '../../types/anime'
 import type { VideoProvider, VideoEpisode, VideoSourceEnhanced, ProviderCapabilities } from './types'
-import { cachedFetch, isCorsError } from './base'
+import { cachedFetch, isCorsError, fetchWithTimeout } from './base'
 
 export class AllAnimeProvider implements VideoProvider {
   id = 'allanime'
@@ -33,7 +33,7 @@ export class AllAnimeProvider implements VideoProvider {
       try {
         // Minimal check: try a simple fetch to see if endpoint is reachable (will fail CORS or 400)
         // We intentionally do not throw, just return null to allow fallback
-        const res = await fetch('https://api.allanime.day/api', {
+        const res = await fetchWithTimeout('https://api.allanime.day/api', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

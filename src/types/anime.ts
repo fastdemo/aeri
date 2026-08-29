@@ -27,6 +27,8 @@ export interface Anime {
   studios?: string[]
   format?: string
   popularity?: number
+  streamingEpisodes?: { title?: string; thumbnail?: string; url?: string; site?: string }[]
+  isAdult?: boolean
   progress?: {
     episode: number
     percent: number // 0-100

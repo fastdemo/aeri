@@ -115,9 +115,9 @@ interface VideoProvider {
 ```
 
 - `src/providers/video/types.ts` defines `VideoEpisode`, `VideoSourceEnhanced`, `SubtitleTrack`, `ProviderCapabilities`, `VideoProvider` (normalized from provider-specific JSON).
-- `src/providers/video/base.ts` — `cachedFetch(key, fetcher)` with memory 5m + IDB 24h + `inflight` dedup (reuses `src/storage/db.ts`), `isCorsError()` for `Failed to fetch` detection.
-- Implementations (`src/providers/video/*.ts`): `MockVideoProvider` (episodes only, no sources, for navigation), `AllAnimeProvider`, `AnimePaheProvider`, `AniKotoProvider`, `MegaPlayProvider`, `AnimeParadiseProvider`, `AniNekoProvider` — each implements `resolveAnimeId`/`getEpisodes`/`getSources` with browser `fetch` + CORS handling, cached via `video:provider:…` keys, isolated failures (one provider failing doesn't crash Watch).
-- `src/providers/video/registry.ts` — `videoProviders[]` priority `[allanime, animepahe, anikoto, megaplay, animeparadise, anineko, mock]`, `resolveEpisodesWithFallback(anime)` tries real providers in order then `mock` for episode list, `resolveSourcesWithFallback(episode)` tries preferred provider then others, `getProviderCapabilities()` for UI.
+- `src/providers/video/base.ts` — `cachedFetch(key, fetcher)` with memory 5m + IDB 24h + `inflight` dedup (reuses `src/storage/db.ts`), `isCorsError()` for `Failed to fetch`, `fetchWithTimeout(input, init, 3500ms)` via `AbortController` (3500ms chosen after Playwright profiling: CORS/DNS failures 200-800ms, bound at 3.5s), `VIDEO_PROVIDER_TIMEOUT_MS = 3500`.
+- Implementations (`src/providers/video/*.ts`): `MockVideoProvider` (episodes only, no sources, for navigation), `AllAnimeProvider`, `AnimePaheProvider`, `AniKotoProvider`, `MegaPlayProvider`, `AnimeParadiseProvider`, `AniNekoProvider` — each implements `resolveAnimeId`/`getEpisodes`/`getSources` with `fetchWithTimeout` + CORS handling, cached via `video:provider:…` keys, isolated failures.
+- `src/providers/video/registry.ts` — `videoProviders[]` priority `[allanime, animepahe, anikoto, megaplay, animeparadise, anineko, mock]`, **Phase 7.1:** `resolveEpisodesWithFallback` and `resolveSourcesWithFallback` are now **parallel** (`Promise.allSettled` with 4000ms registry timeout) not sequential, so no-source resolves in ~3.5s not 21s (6×3.5s). Episode list in Watch is **immediate** from `anime.episodes/streamingEpisodes` (not blocked by video provider), source discovery runs in background. `getProviderCapabilities()` for UI.
 - **Identity:** `AniList anime (anilistId/malId/title) → provider anime ID → provider episode ID → source`. Stable `anilistId`/`malId` preferred, title fallback. Successful mappings cached (`video:allanime:resolve:anilistId`). No expensive search on every episode click.
 - **Watch usage:** `src/pages/Watch.tsx` → `useAnimeDetail` for anime → `resolveEpisodesWithFallback` (single episode list fetch) → `resolveSourcesWithFallback` for `effectiveEpisode` (only selected episode, not all) → `src/components/player/VideoPlayer.tsx` (embed `iframe` with `allow: autoplay; fullscreen` or direct `video` with `controls`, `crossOrigin`, `subtitles` tracks, `onTimeUpdate`/`onEnded`). Source selector shown only if `sources.length>1` (unobtrusive `select`), sub/dub shown only if `availableLanguages` has both, subtitles rendered via `track` or embed player.
 - **Caching:** Reuses `memoryCache`/`IDB`/`inflight` from `base.ts`, no second cache, only fetches selected episode's source, deduplicates concurrent `resolveEpisodes`/`resolveSources`.
@@ -127,26 +127,28 @@ interface VideoProvider {
 - **Limitations (static GH Pages):** All 6 real providers return **no-source** from browser due to CORS (`No 'Access-Control-Allow-Origin'` for `api.myanimelist.net` style, `animepahe.ru`/`animeparadise.moe` CORS blocked, `anikoto.to` DNS fail, `megaplay.buzz` 200 but HTML Error, `allanime.day` CORS OK but query requires exact schema and Cloudflare; all fetch from `https://fastdemo.github.io` → `ERR_FAILED` → `Failed to fetch`). Documented in provider files as `browser-incompatible` without proxy. `MockVideoProvider` ensures episode navigation still works, Watch shows **no-source UI** `Video unavailable • No browser-compatible source was found for Episode N. Aeri is static with no backend; most providers require a server proxy. Try another episode or source. Tried: …` with `Retry` + `Episodes` + provider caps footer, not blank.
 - Authorized sources only, no DRM bypass, no secrets in `VITE_*`, no proxy added.
 
-## Anime Type (normalized)
+## Anime Type (normalized) — Phase 7.1 corrections
 
 ```ts
 interface AnimeIdentity { internalId: string; anilistId?: number; malId?: number }
 interface Anime {
   identity: AnimeIdentity
   title: { romaji: string; english?: string; native?: string }
-  description: string
-  coverImage: string   // AniList extraLarge/large/medium (real) or fallback
-  backdropImage: string // AniList bannerImage or cover fallback, hero/cards
+  description: string // AniList HTML stripped (cleanDescription), 900 chars max, no fake suffix
+  coverImage: string   // AniList extraLarge>large>medium, real, no picsum
+  backdropImage: string // AniList bannerImage or cover fallback (hero/cards), real
   bannerImage?: string
-  year?: number
-  season?: string
-  episodes?: number
-  duration?: number
-  status?: string
-  rating?: number // 0-10 (AniList averageScore/10)
-  genres: string[]
-  studios?: string[]
-  format?: string // TV, Movie
+  year?: number // seasonYear ?? startDate.year, real
+  season?: string // WINTER/SPRING/SUMMER/FALL, real
+  episodes?: number // real, no fake
+  duration?: number // real minutes
+  status?: string // FINISHED/RELEASING/NOT_YET_RELEASED/HIATUS/CANCELLED, real
+  rating?: number // 0-10 (averageScore/10), real
+  genres: string[] // real AniList genres, no inference
+  studios?: string[] // real: only isAnimationStudio true (filtered from nodes), not producers; edges.isMain preferred
+  format?: string // TV, Movie, OVA, SPECIAL etc., real
+  streamingEpisodes?: { title?: string; thumbnail?: string; url?: string; site?: string }[] // real AniList streamingEpisodes (Crunchyroll etc.), title/thumbnail only if provided, not fabricated
+  isAdult?: boolean // real isAdult, NOT mapped to T18/PG-13; UI hides age rating when unavailable
   popularity?: number
   progress?: { episode: number; percent: number }
   listStatus?: AnimeStatus

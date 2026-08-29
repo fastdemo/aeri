@@ -2,24 +2,25 @@ import { Link } from 'react-router-dom'
 import type { Anime } from '../../types/anime'
 import { useTracking } from '../../contexts/TrackingContext'
 
-function mockEpisodes(anime: Anime, count = 10) {
-  const n = Math.min(anime.episodes ?? count, count)
-  return Array.from({ length: n }, (_, i) => ({
-    number: i + 1,
-    title:
-      i === 0
-        ? 'Let You Down'
-        : i === 1
-          ? 'Like A Boy'
-          : i === 2
-            ? 'What Happens Next'
-            : `Episode ${i + 1}`,
-    duration: anime.duration ?? 24,
-  }))
+function getEpisodes(anime: Anime) {
+  const count = anime.episodes ?? anime.streamingEpisodes?.length ?? 12
+  const n = Math.min(count, 24)
+  return Array.from({ length: n }, (_, i) => {
+    const se = anime.streamingEpisodes?.[i]
+    // Use real title only if AniList provides it; otherwise leave undefined (number is shown separately)
+    const title = se?.title?.trim() || undefined
+    const thumbnail = se?.thumbnail ?? undefined
+    return {
+      number: i + 1,
+      title,
+      thumbnail,
+      duration: anime.duration ?? 24,
+    }
+  })
 }
 
 export function EpisodeList({ anime }: { anime: Anime }) {
-  const episodes = mockEpisodes(anime)
+  const episodes = getEpisodes(anime)
   const { isAuthenticated, combinedList, updateProgress } = useTracking()
   const entry = (() => {
     if (!isAuthenticated || !combinedList) return null
@@ -62,12 +63,20 @@ export function EpisodeList({ anime }: { anime: Anime }) {
               <span className="w-6 text-center text-sm font-medium text-white/70">{String(ep.number).padStart(2, '0')}</span>
 
               <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded bg-white/5">
-                <img
-                  src={`https://picsum.photos/seed/${anime.identity.internalId}-ep${ep.number}/160/90`}
-                  alt=""
-                  className="h-full w-full object-cover"
-                  loading="lazy"
-                />
+                {ep.thumbnail ? (
+                  <img
+                    src={ep.thumbnail}
+                    alt=""
+                    className="h-full w-full object-cover"
+                    loading="lazy"
+                    decoding="async"
+                    onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = 'none')}
+                  />
+                ) : (
+                  <div className="grid h-full w-full place-items-center bg-white/[0.04] text-[10px] font-medium text-white/30">
+                    EP {String(ep.number).padStart(2, '0')}
+                  </div>
+                )}
                 {isWatched && (
                   <span className="absolute inset-0 grid place-items-center bg-black/40 text-white">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -79,9 +88,15 @@ export function EpisodeList({ anime }: { anime: Anime }) {
               </div>
 
               <div className="min-w-0 flex-1">
-                <p className={`truncate text-[13px] font-medium ${isCurrent ? 'text-white' : 'text-white/90'}`}>
-                  {ep.title}
-                </p>
+                {ep.title ? (
+                  <p className={`truncate text-[13px] font-medium ${isCurrent ? 'text-white' : 'text-white/90'}`}>
+                    {ep.title}
+                  </p>
+                ) : (
+                  <p className={`text-[13px] font-medium ${isCurrent ? 'text-white' : 'text-white/60'}`}>
+                    Episode {ep.number}
+                  </p>
+                )}
                 <p className="text-[11px] text-white/50">{ep.duration}m</p>
               </div>
 
