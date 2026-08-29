@@ -35,25 +35,35 @@ export function AnimeDetail() {
   // Series grouping (Netflix-like seasons)
   const [seriesGroup, setSeriesGroup] = useState<AnimeSeriesGroup | null>(null)
   const [selectedSeasonIdx, setSelectedSeasonIdx] = useState<number>(0)
+  const prevGroupRef = useState<{ rootId: number | null }>({ rootId: null })[0]
 
   useEffect(() => {
     if (!anime?.identity.anilistId) {
       setSeriesGroup(null)
       return
     }
+    const currentAnilistId = anime.identity.anilistId
     let cancelled = false
-    getSeriesGroup(anime.identity.anilistId).then(group => {
+    getSeriesGroup(currentAnilistId).then(group => {
       if (cancelled) return
       if (group && group.seasons.length > 1) {
+        const isNewGroup = prevGroupRef.rootId !== group.rootId
+        prevGroupRef.rootId = group.rootId
         setSeriesGroup(group)
-        // Find current season index
-        const idx = group.seasons.findIndex(s => s.identity.anilistId === anime.identity.anilistId)
-        setSelectedSeasonIdx(idx >= 0 ? idx : 0)
+        // Only set index if new group or still at initial 0 for this anime; don't clobber user selection for same group
+        if (isNewGroup) {
+          const idx = group.seasons.findIndex(s => s.identity.anilistId === currentAnilistId)
+          setSelectedSeasonIdx(idx >= 0 ? idx : 0)
+        }
       } else {
+        prevGroupRef.rootId = null
         setSeriesGroup(null)
       }
     }).catch(() => {
-      if (!cancelled) setSeriesGroup(null)
+      if (!cancelled) {
+        prevGroupRef.rootId = null
+        setSeriesGroup(null)
+      }
     })
     return () => { cancelled = true }
   }, [anime?.identity.anilistId])
@@ -154,7 +164,7 @@ export function AnimeDetail() {
             )}
 
             <div className="mt-6">
-              <EpisodeList anime={displayAnime} />
+              <EpisodeList key={displayAnime.identity.anilistId ?? displayAnime.identity.internalId} anime={displayAnime} seasonNumber={selectedSeasonIdx + 1} />
             </div>
           </div>
           <div className="space-y-3 text-xs leading-5">

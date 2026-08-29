@@ -3,11 +3,12 @@ import type { Anime } from '../../types/anime'
 import { useTracking } from '../../contexts/TrackingContext'
 
 function getEpisodes(anime: Anime) {
-  const count = anime.episodes ?? anime.streamingEpisodes?.length ?? 12
+  const count = anime.episodes ?? anime.streamingEpisodes?.length ?? 0
+  if (count === 0) return []
+  // Cap at 100 for perf; larger (One Piece) uses pagination via Watch immediateEpisodes
   const n = Math.min(count, 100)
   return Array.from({ length: n }, (_, i) => {
     const se = anime.streamingEpisodes?.[i]
-    // Use real title only if AniList provides it; otherwise leave undefined (number is shown separately)
     const title = se?.title?.trim() || undefined
     const thumbnail = se?.thumbnail ?? undefined
     return {
@@ -19,7 +20,7 @@ function getEpisodes(anime: Anime) {
   })
 }
 
-export function EpisodeList({ anime }: { anime: Anime }) {
+export function EpisodeList({ anime, seasonNumber = 1 }: { anime: Anime; seasonNumber?: number }) {
   const episodes = getEpisodes(anime)
   const { isAuthenticated, combinedList, updateProgress } = useTracking()
   const entry = (() => {
@@ -40,10 +41,18 @@ export function EpisodeList({ anime }: { anime: Anime }) {
     }
   }
 
+  if (episodes.length === 0) {
+    return (
+      <div className="rounded-lg border border-white/10 bg-white/[0.02] px-4 py-6 text-center text-xs text-white/40">
+        Episode information not available for this title.
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-1">
       <div className="mb-2 flex items-center gap-2">
-        <span className="rounded bg-white px-2 py-1 text-[11px] font-semibold text-black">S1</span>
+        <span className="rounded bg-white px-2 py-1 text-[11px] font-semibold text-black">S{seasonNumber}</span>
         <span className="text-xs text-white/50">{anime.episodes ?? episodes.length} episodes</span>
       </div>
 
@@ -53,7 +62,7 @@ export function EpisodeList({ anime }: { anime: Anime }) {
           const isCurrent = ep.number === progressEp
           return (
             <Link
-              key={ep.number}
+              key={`${anime.identity.anilistId ?? anime.identity.internalId}-${ep.number}`}
               to={`/watch/${anime.identity.internalId}/${ep.number}`}
               onClick={() => handleSelect(ep.number)}
               className={`flex items-center gap-3 px-3 py-3 text-left transition ${
@@ -65,12 +74,19 @@ export function EpisodeList({ anime }: { anime: Anime }) {
               <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded bg-white/5">
                 {ep.thumbnail ? (
                   <img
+                    key={`${anime.identity.anilistId ?? anime.identity.internalId}-${ep.number}-${ep.thumbnail}`}
                     src={ep.thumbnail}
                     alt=""
                     className="h-full w-full object-cover"
                     loading="lazy"
                     decoding="async"
-                    onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = 'none')}
+                    onError={(e) => {
+                      const img = e.currentTarget as HTMLImageElement
+                      img.style.display = 'none'
+                      // Also hide parent's fallback handling if needed
+                      const fallback = img.nextElementSibling as HTMLElement | null
+                      if (fallback) fallback.style.display = 'grid'
+                    }}
                   />
                 ) : (
                   <div className="grid h-full w-full place-items-center bg-white/[0.04] text-[10px] font-medium text-white/30">

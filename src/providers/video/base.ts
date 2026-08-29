@@ -54,14 +54,24 @@ export function isCorsError(e: unknown): boolean {
   return /Failed to fetch|NetworkError|Load failed|CORS|ERR_FAILED/i.test(msg)
 }
 
-export async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}, timeoutMs = VIDEO_PROVIDER_TIMEOUT_MS): Promise<Response> {
+export async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+  timeoutMs = VIDEO_PROVIDER_TIMEOUT_MS,
+  externalSignal?: AbortSignal,
+): Promise<Response> {
   const controller = new AbortController()
   const id = setTimeout(() => controller.abort(), timeoutMs)
+  if (externalSignal) {
+    if (externalSignal.aborted) controller.abort((externalSignal as any).reason)
+    else externalSignal.addEventListener('abort', () => controller.abort((externalSignal as any).reason), { once: true })
+  }
   try {
     const res = await fetch(input, { ...init, signal: controller.signal })
     return res
   } catch (e) {
     if ((e as any)?.name === 'AbortError') {
+      if (externalSignal?.aborted) throw e
       throw new Error(`Provider timeout after ${timeoutMs}ms`)
     }
     throw e

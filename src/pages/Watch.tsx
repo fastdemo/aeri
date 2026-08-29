@@ -39,32 +39,35 @@ export function Watch() {
   const episodesLoading = false // episode list is immediate from AniList, not blocked by video provider
   const [providerId, setProviderId] = useState<string | null>(null)
 
-  // Immediate episode list from AniList metadata (no provider wait) — authoritative Media.episodes, not streamingEpisodes length
+  // Immediate episode list from AniList metadata — authoritative Media.episodes, not streamingEpisodes length
+  // If episodes is null (ongoing/long like One Piece), fallback to streamingEpisodes length, else 0 (show empty state rather than fake 12)
   const immediateEpisodes = useMemo(() => {
     if (!anime) return []
-    const count = anime.episodes ?? anime.streamingEpisodes?.length ?? 12
+    const count = anime.episodes ?? anime.streamingEpisodes?.length ?? 0
+    if (count === 0) return []
     const n = Math.min(count, 100)
     return Array.from({ length: n }, (_, i) => ({
       number: i + 1,
       title: anime.streamingEpisodes?.[i]?.title,
+      thumbnail: anime.streamingEpisodes?.[i]?.thumbnail,
     }))
   }, [anime])
 
-  // Background: resolve provider episodes for source mapping (does not block UI)
+  // Background: resolve provider episodes for source mapping (does not block UI) — abortable
   useEffect(() => {
     if (!anime) return
+    const controller = new AbortController()
     let cancelled = false
-    resolveEpisodesWithFallback(anime)
+    resolveEpisodesWithFallback(anime, controller.signal)
       .then(res => {
-        if (cancelled) return
+        if (cancelled || controller.signal.aborted) return
         setProviderEpisodes(res.episodes)
         setProviderId(res.providerId)
       })
       .catch(() => {
         if (cancelled) return
-        // keep immediateEpisodes fallback
       })
-    return () => { cancelled = true }
+    return () => { cancelled = true; controller.abort() }
   }, [anime?.identity.internalId])
 
   // Current episode (from provider, or fallback to immediate)
@@ -74,19 +77,20 @@ export function Watch() {
   }, [providerEpisodes, epNum])
 
   // If episodes not yet loaded but we have anime.episodes count, synthesize a currentEpisode for source resolution
+  // Stable id (no providerId jitter) to avoid double fetch when providerId flips null->mock
   const effectiveEpisode: VideoEpisode | null = useMemo(() => {
     if (currentEpisode) return currentEpisode
     if (!anime) return null
-    // Fallback: create a synthetic episode so source resolution can still be attempted (will return no-source)
+    const stableId = `${anime.identity.internalId}-${epNum}`
     return {
-      id: `${anime.identity.internalId}-${epNum}`,
+      id: stableId,
       animeId: anime.identity.internalId,
       number: epNum,
       title: `Episode ${epNum}`,
       provider: providerId ?? 'mock',
-      providerEpisodeId: `${anime.identity.internalId}-${epNum}`,
+      providerEpisodeId: stableId,
     }
-  }, [currentEpisode, anime, epNum, providerId])
+  }, [currentEpisode, anime?.identity.internalId, epNum])
 
   // Video provider: sources for current episode (respects Settings preferences)
   const [sources, setSources] = useState<VideoSourceEnhanced[] | null>(null)
@@ -210,7 +214,7 @@ export function Watch() {
   }
 
   const prev = epNum > 1 ? epNum - 1 : null
-  const next = anime.episodes && epNum < anime.episodes ? epNum + 1 : null
+  const next = immediateEpisodes.length > 0 && epNum < immediateEpisodes.length ? epNum + 1 : null
   const backdrop = anime.backdropImage || anime.coverImage || ''
   const hasVideo = sources && sources.length > 0 && selectedSource && selectedSource.url
   const isLoadingVideo = episodesLoading || sourcesLoading

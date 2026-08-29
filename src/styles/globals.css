@@ -54,11 +54,17 @@ body {
   scrollbar-width: none;
 }
 
-/* Focus */
+/* Focus — preserve pill shape: use box-shadow for rounded-full, keep outline for others */
 :focus-visible {
   outline: 2px solid rgba(255,255,255,0.9);
   outline-offset: 2px;
-  border-radius: 2px;
+}
+input.rounded-full:focus-visible,
+select.rounded-full:focus-visible,
+button.rounded-full:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(255,255,255,0.9), 0 0 0 4px rgba(255,255,255,0.15);
+  border-radius: 9999px;
 }
 
 /* Reduced motion */

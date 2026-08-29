@@ -1,13 +1,16 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAniList } from '../../contexts/AniListContext'
 import { useMAL } from '../../contexts/MALContext'
+import { SearchSuggestions } from '../search/SearchSuggestions'
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false)
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const searchRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
   const location = useLocation()
   const { user: anilistUser, isAuthenticated: anilistAuth } = useAniList()
@@ -25,7 +28,19 @@ export function Navbar() {
   useEffect(() => {
     setMobileNavOpen(false)
     setMobileSearchOpen(false)
+    setShowSuggestions(false)
   }, [location.pathname, location.search, location.hash])
+
+  // Close suggestions on outside click
+  useEffect(() => {
+    const onDown = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false)
+      }
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [])
 
   const dispatchNavigate = () => {
     try { window.dispatchEvent(new CustomEvent('aeri:navigate')) } catch {}
@@ -94,12 +109,15 @@ export function Navbar() {
 
         <div className="flex items-center gap-3">
           <form onSubmit={onSearch} className="hidden items-center md:flex">
-            <div className="relative">
+            <div ref={searchRef} className="relative">
               <input
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => { setQuery(e.target.value); setShowSuggestions(true) }}
+                onFocus={() => { if (query.trim().length >= 2) setShowSuggestions(true) }}
                 placeholder="Search"
                 aria-label="Search anime"
+                aria-expanded={showSuggestions}
+                aria-controls="search-suggestions"
                 className="h-8 w-[180px] rounded-full border border-white/10 bg-white/[0.08] py-0 pl-8 pr-3 text-[13px] text-white placeholder:text-white/50 backdrop-blur focus:w-[240px] focus:border-white/20 focus:bg-white/[0.12] focus:outline-none lg:w-[200px] transition-all"
               />
               <svg
@@ -113,6 +131,9 @@ export function Navbar() {
                 <circle cx="11" cy="11" r="7" />
                 <path d="m20 20-3.5-3.5" />
               </svg>
+              {showSuggestions && query.trim().length >= 2 && (
+                <SearchSuggestions query={query} onClose={() => setShowSuggestions(false)} />
+              )}
             </div>
           </form>
 
@@ -163,7 +184,8 @@ export function Navbar() {
             <input
               autoFocus
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => { setQuery(e.target.value); setShowSuggestions(true) }}
+              onFocus={() => { if (query.trim().length >= 2) setShowSuggestions(true) }}
               placeholder="Search anime"
               className="flex-1 rounded-full border border-white/10 bg-white/[0.08] px-4 py-2 text-sm text-white placeholder:text-white/50 focus:border-white/20 focus:outline-none"
             />
@@ -171,6 +193,11 @@ export function Navbar() {
               Go
             </button>
           </form>
+          {showSuggestions && query.trim().length >= 2 && (
+            <div className="relative mt-2">
+              <SearchSuggestions query={query} onClose={() => { setShowSuggestions(false); setMobileSearchOpen(false) }} />
+            </div>
+          )}
         </div>
       )}
       {mobileNavOpen && (

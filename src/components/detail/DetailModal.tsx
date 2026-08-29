@@ -37,25 +37,32 @@ export function DetailModal({
   const currentScore = entry?.score ?? null
   const baseAnime = entry?.anime ?? anime
 
-  // Series grouping
+  // Series grouping — prevent clobbering user selection for same franchise
   const [seriesGroup, setSeriesGroup] = useState<AnimeSeriesGroup | null>(null)
   const [selectedSeasonIdx, setSelectedSeasonIdx] = useState(0)
+  const prevGroupRef = useState<{ rootId: number | null }>({ rootId: null })[0]
   useEffect(() => {
     if (!baseAnime.identity.anilistId) {
       setSeriesGroup(null)
       return
     }
+    const currentId = baseAnime.identity.anilistId
     let cancelled = false
-    getSeriesGroup(baseAnime.identity.anilistId).then(g => {
+    getSeriesGroup(currentId).then(g => {
       if (cancelled) return
       if (g && g.seasons.length > 1) {
+        const isNewGroup = prevGroupRef.rootId !== g.rootId
+        prevGroupRef.rootId = g.rootId
         setSeriesGroup(g)
-        const idx = g.seasons.findIndex(s => s.identity.anilistId === baseAnime.identity.anilistId)
-        setSelectedSeasonIdx(idx >= 0 ? idx : 0)
+        if (isNewGroup) {
+          const idx = g.seasons.findIndex(s => s.identity.anilistId === currentId)
+          setSelectedSeasonIdx(idx >= 0 ? idx : 0)
+        }
       } else {
+        prevGroupRef.rootId = null
         setSeriesGroup(null)
       }
-    }).catch(() => { if (!cancelled) setSeriesGroup(null) })
+    }).catch(() => { if (!cancelled) { prevGroupRef.rootId = null; setSeriesGroup(null) } })
     return () => { cancelled = true }
   }, [baseAnime.identity.anilistId])
   const displayAnime = seriesGroup ? seriesGroup.seasons[selectedSeasonIdx] ?? baseAnime : baseAnime
@@ -105,7 +112,7 @@ export function DetailModal({
         aria-modal="true"
         aria-label={anime.title.english ?? anime.title.romaji}
         tabIndex={-1}
-        className="relative my-2 flex max-h-none w-full max-w-[980px] flex-col overflow-hidden rounded-xl bg-[#0e0e10] shadow-[0_24px_64px_rgba(0,0,0,0.9)] outline-none sm:my-6"
+        className="relative my-2 flex max-h-none w-full max-w-[980px] flex-col overflow-visible rounded-xl bg-[#0e0e10] shadow-[0_24px_64px_rgba(0,0,0,0.9)] outline-none sm:my-6"
       >
         <button
           onClick={onClose}
@@ -117,7 +124,7 @@ export function DetailModal({
           </svg>
         </button>
 
-        <div className="relative h-[360px] w-full overflow-hidden sm:h-[420px]">
+        <div className="relative h-[360px] w-full overflow-hidden rounded-t-xl sm:h-[420px]">
           <img src={displayAnime.backdropImage || anime.backdropImage} alt="" className="h-full w-full object-cover" loading="eager" />
           <div
             aria-hidden
@@ -321,11 +328,11 @@ export function DetailModal({
               const firstEp = displayAnime.streamingEpisodes?.[0]
               const epNum = displayAnime.progress?.episode ?? 1
               const epTitle = displayAnime.streamingEpisodes?.[epNum - 1]?.title ?? firstEp?.title
-              // Only show episode line if we have real title or progress
               if (!epTitle && !displayAnime.progress) return null
+              const sNum = selectedSeasonIdx + 1
               return (
                 <p className="mt-2 text-[12px] font-semibold text-white/90">
-                  {displayAnime.progress ? `S1:E${epNum}` : 'S1:E1'} {epTitle ? `· ${epTitle}` : ''}
+                  {displayAnime.progress ? `S${sNum}:E${epNum}` : `S${sNum}:E1`} {epTitle ? `· ${epTitle}` : ''}
                 </p>
               )
             })()}
@@ -362,7 +369,7 @@ export function DetailModal({
 
             <h3 className="mt-6 text-[14px] font-semibold text-white">Episodes</h3>
             <div className="mt-3">
-              <EpisodeList anime={displayAnime} />
+              <EpisodeList key={displayAnime.identity.anilistId ?? displayAnime.identity.internalId} anime={displayAnime} seasonNumber={selectedSeasonIdx + 1} />
             </div>
           </div>
 

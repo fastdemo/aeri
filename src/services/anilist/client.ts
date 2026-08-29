@@ -23,21 +23,24 @@ export async function anilistGraphQL<T>(
   const externalSignal = opts?.signal
 
   const mKey = cacheKey ?? memKey(query, variables)
-
-  // deduplicate inflight BEFORE IDB (prevents duplicate fetches on rapid filter changes)
   const dedupKey = `${mKey}::${token ?? 'anon'}`
-  if (inflight.has(dedupKey)) {
-    return inflight.get(dedupKey) as Promise<T>
-  }
 
-  // memory cache check
+  // Memory hit fast path (no inflight)
   if (useCache && !force) {
     const hit = memoryCache.get(mKey)
     if (hit && hit.expiry > Date.now()) {
       return hit.value as T
     }
-    // IndexedDB cache check (24h) - async but after inflight dedup
-    if (cacheKey) {
+  }
+
+  // Deduplicate inflight BEFORE IDB — prevents duplicate fetches on rapid filter changes
+  if (inflight.has(dedupKey)) {
+    return inflight.get(dedupKey) as Promise<T>
+  }
+
+  const p = (async () => {
+    // IDB check after dedupe (so concurrent callers share same IDB+fetch promise)
+    if (useCache && !force && cacheKey) {
       try {
         const cached = await getCache<T>(cacheKey)
         if (cached) {
@@ -45,14 +48,12 @@ export async function anilistGraphQL<T>(
           return cached
         }
       } catch {}
+      if (externalSignal?.aborted) throw externalSignal.reason ?? new DOMException('Aborted', 'AbortError')
     }
-  }
 
-  const p = (async () => {
     let res: Response
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 8000)
-    // If external signal aborts, abort our controller as well
     if (externalSignal) {
       if (externalSignal.aborted) controller.abort((externalSignal as any).reason)
       else externalSignal.addEventListener('abort', () => controller.abort((externalSignal as any).reason), { once: true })
@@ -70,7 +71,6 @@ export async function anilistGraphQL<T>(
       })
     } catch (e) {
       if ((e as any)?.name === 'AbortError') {
-        // If external abort, propagate as abort (caller will ignore)
         if (externalSignal?.aborted) throw e
         throw new ProviderError('NETWORK', 'AniList is taking too long to respond. Showing cached content where available.', true)
       }
@@ -92,14 +92,17 @@ export async function anilistGraphQL<T>(
         throw new ProviderError('NOT_FOUND', 'We couldn’t find that anime.', false)
       }
       if (status === 429) {
-        // Simple retry with backoff for 429 (rate limit)
         const retryAfter = Number(res.headers.get('Retry-After') ?? '2') * 1000 || 2000
         if (!externalSignal?.aborted) {
           await new Promise(r => setTimeout(r, Math.min(retryAfter, 5000)))
-          // Retry once by re-fetching (bypass inflight dedup)
           if (externalSignal?.aborted) throw new ProviderError('NETWORK', 'AniList is rate-limited. Try again in a moment.', true)
-          // Do single retry without recursion to avoid loop
           try {
+            const retryController = new AbortController()
+            const retryTimeout = setTimeout(() => retryController.abort(), 8000)
+            if (externalSignal) {
+              if (externalSignal.aborted) retryController.abort((externalSignal as any).reason)
+              else externalSignal.addEventListener('abort', () => retryController.abort((externalSignal as any).reason), { once: true })
+            }
             const retryRes = await fetch(ANILIST_GRAPHQL, {
               method: 'POST',
               headers: {
@@ -108,8 +111,9 @@ export async function anilistGraphQL<T>(
                 ...(token ? { Authorization: `Bearer ${token}` } : {}),
               },
               body: JSON.stringify({ query, variables }),
-              signal: controller.signal,
+              signal: retryController.signal,
             })
+            clearTimeout(retryTimeout)
             const retryJson = await retryRes.json().catch(() => null)
             if (retryRes.ok && !retryJson?.errors) {
               const data = retryJson.data as T
@@ -133,7 +137,6 @@ export async function anilistGraphQL<T>(
     if (useCache) {
       memoryCache.set(mKey, { value: data, expiry: Date.now() + MEMORY_TTL })
       if (cacheKey) {
-        // fire and forget IDB
         putCache(cacheKey, data).catch(() => {})
       }
     }

@@ -66,7 +66,7 @@ export function Browse() {
           value={genre}
           onChange={e => setGenre(e.target.value)}
           aria-label="Filter by genre"
-          className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs text-white focus:border-white/20 focus:outline-none"
+          className="min-h-[36px] rounded-full border border-white/10 bg-white/[0.06] px-3 py-2 text-xs text-white focus:border-white/20 focus:outline-none sm:min-h-[40px]"
         >
           <option className="bg-[#141416]" value="All">All Genres</option>
           {genres.slice(1).map(g => (
@@ -78,7 +78,7 @@ export function Browse() {
           value={year}
           onChange={e => setYear(e.target.value)}
           aria-label="Filter by year"
-          className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs text-white focus:border-white/20 focus:outline-none"
+          className="min-h-[36px] rounded-full border border-white/10 bg-white/[0.06] px-3 py-2 text-xs text-white focus:border-white/20 focus:outline-none sm:min-h-[40px]"
         >
           {years.map(y => (
             <option key={y} className="bg-[#141416]" value={y}>{y === 'All' ? 'All Years' : y}</option>
@@ -89,7 +89,7 @@ export function Browse() {
           value={season}
           onChange={e => setSeason(e.target.value as any)}
           aria-label="Filter by season"
-          className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs text-white focus:border-white/20 focus:outline-none"
+          className="min-h-[36px] rounded-full border border-white/10 bg-white/[0.06] px-3 py-2 text-xs text-white focus:border-white/20 focus:outline-none sm:min-h-[40px]"
         >
           <option className="bg-[#141416]" value="All">All Seasons</option>
           <option className="bg-[#141416]" value="WINTER">Winter</option>
@@ -102,7 +102,7 @@ export function Browse() {
           value={format}
           onChange={e => setFormat(e.target.value as any)}
           aria-label="Filter by format"
-          className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs text-white focus:border-white/20 focus:outline-none"
+          className="min-h-[36px] rounded-full border border-white/10 bg-white/[0.06] px-3 py-2 text-xs text-white focus:border-white/20 focus:outline-none sm:min-h-[40px]"
         >
           <option className="bg-[#141416]" value="All">All Formats</option>
           <option className="bg-[#141416]" value="TV">TV</option>
