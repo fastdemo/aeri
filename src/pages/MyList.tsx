@@ -116,7 +116,9 @@ export function MyList() {
         <>
           <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
             {filtered.map((a) => (
-              <AnimeCard key={a.identity.internalId} anime={a} variant={a.progress ? 'continue' : 'default'} onSelect={setSelected} />
+              <div key={a.identity.internalId} className="min-w-0">
+                <AnimeCard anime={a} variant={a.progress ? 'continue' : 'default'} onSelect={setSelected} fullWidth />
+              </div>
             ))}
           </div>
           {filtered.length === 0 && !loading && !error && (

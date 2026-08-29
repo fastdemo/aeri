@@ -118,12 +118,23 @@ export function mapAniListMediaToAnime(media: AniListMedia): Anime {
     return nodes.map(n => n.name).filter(Boolean) as string[]
   })()
 
-  const streamingEpisodes = media.streamingEpisodes?.filter(e => e.title || e.thumbnail).map(e => ({
-    title: e.title ?? undefined,
-    thumbnail: e.thumbnail ?? undefined,
-    url: e.url ?? undefined,
-    site: e.site ?? undefined,
-  })) ?? undefined
+  // Preserve original order/length for index-based episode normalization.
+  // Do NOT filter by title/thumbnail — an entry with only url is still an episode slot,
+  // filtering would compress the array and shift subsequent titles (Death Note bug).
+  // Only discard truly empty entries (no title, no thumbnail, no url, no site).
+  const streamingEpisodes = (() => {
+    const raw = media.streamingEpisodes
+    if (!raw || raw.length === 0) return undefined
+    const mapped = raw
+      .map(e => ({
+        title: e.title?.trim() ? e.title.trim() : undefined,
+        thumbnail: e.thumbnail?.trim() ? e.thumbnail.trim() : undefined,
+        url: e.url ?? undefined,
+        site: e.site ?? undefined,
+      }))
+      .filter(e => !!(e.title || e.thumbnail || e.url || e.site))
+    return mapped.length ? mapped : undefined
+  })()
 
   return {
     identity: {

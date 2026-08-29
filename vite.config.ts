@@ -1,13 +1,20 @@
 import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 
-// Base for GitHub Pages: /aeri/  (env-aware for forks)
 const base = process.env.GITHUB_REPOSITORY
   ? `/${process.env.GITHUB_REPOSITORY.split('/')[1]}/`
   : '/aeri/'
 
-export default defineConfig({
-  base,
-  plugins: [react(), tailwindcss()],
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  // process.env (CI secret) takes precedence over .env file so production uses the deployed Worker URL
+  const videoApiUrl = process.env.VITE_VIDEO_API_URL || env.VITE_VIDEO_API_URL || ''
+  return {
+    base,
+    plugins: [react(), tailwindcss()],
+    define: {
+      'import.meta.env.VITE_VIDEO_API_URL': JSON.stringify(videoApiUrl),
+    },
+  }
 })

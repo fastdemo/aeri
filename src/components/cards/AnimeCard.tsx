@@ -8,13 +8,18 @@ export function AnimeCard({
   anime,
   variant = 'default',
   onSelect,
+  fullWidth,
 }: {
   anime: Anime
   variant?: Variant
   onSelect?: (a: Anime) => void
+  fullWidth?: boolean
 }) {
-  const width =
-    variant === 'compact' ? 'w-[148px] sm:w-[180px]' : 'w-[168px] sm:w-[200px] lg:w-[236px]'
+  const width = fullWidth
+    ? 'w-full'
+    : variant === 'compact'
+      ? 'w-[148px] sm:w-[180px]'
+      : 'w-[168px] sm:w-[200px] lg:w-[236px]'
 
   const fallbackSrc = anime.backdropImage || anime.coverImage || ""
   const primaryTitle = getPrimaryTitle(anime)
@@ -75,7 +80,7 @@ export function AnimeCard({
     return (
       <button
         onClick={() => onSelect(anime)}
-        className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+        className={`text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 ${fullWidth ? 'w-full' : ''}`}
         aria-label={`Open ${primaryTitle}`}
       >
         {content}
@@ -87,7 +92,7 @@ export function AnimeCard({
     <Link
       to={`/anime/${anime.identity.internalId}`}
       aria-label={`Open ${primaryTitle}`}
-      className="focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 block"
+      className={`focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 block ${fullWidth ? 'w-full' : ''}`}
     >
       {content}
     </Link>

@@ -87,7 +87,9 @@ export function Search() {
             </p>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
               {results.map((a) => (
-                <AnimeCard key={a.identity.internalId} anime={a} onSelect={setSelected} />
+                <div key={a.identity.internalId} className="min-w-0">
+                  <AnimeCard key={a.identity.internalId} anime={a} onSelect={setSelected} fullWidth />
+                </div>
               ))}
             </div>
           </>

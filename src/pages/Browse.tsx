@@ -145,8 +145,8 @@ export function Browse() {
         <>
           <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {(browse.data ?? []).map(a => (
-              <div key={a.identity.internalId} className="flex justify-center">
-                <AnimeCard anime={a} onSelect={setSelected} />
+              <div key={a.identity.internalId} className="min-w-0">
+                <AnimeCard anime={a} onSelect={setSelected} fullWidth />
               </div>
             ))}
           </div>

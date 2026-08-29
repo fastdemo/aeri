@@ -24,8 +24,13 @@ export class MockVideoProvider implements VideoProvider {
 
   async getEpisodes(anime: Anime): Promise<VideoEpisode[]> {
     return cachedFetch(`video:mock:episodes:${anime.identity.internalId}`, async () => {
-      const n = anime.episodes ?? 12
-      return Array.from({ length: Math.min(n, 24) }, (_, i) => ({
+      // Mock is fallback for navigation only — do NOT invent count when anime.episodes is missing.
+      // Return [] for null/0 to avoid arbitrary "12" / "24 cap" (One Piece would be 0 vs provider's 1123).
+      // When count exists, generate full count without 24/100 cap — virtualization handles large lists.
+      // Titles are generic "Episode N" which normalizeEpisodes treats as not legitimate (fallback).
+      const count = anime.episodes
+      if (typeof count !== 'number' || count <= 0) return []
+      return Array.from({ length: count }, (_, i) => ({
         id: `${anime.identity.internalId}-${i + 1}`,
         animeId: anime.identity.internalId,
         number: i + 1,

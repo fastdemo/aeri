@@ -31,9 +31,10 @@ export function EpisodeList({ anime, seasonNumber = 1 }: { anime: Anime; seasonN
     anime.streamingEpisodes,
     anime.duration,
   ])
-  const { isAuthenticated, combinedList, updateProgress } = useTracking()
   // Movies must never show an episode list — guarded also by callers but defensive here
+  // Placed after hooks to preserve hook order when switching MOVIE <-> TV seasons
   if (anime.format?.toUpperCase() === 'MOVIE') return null
+  const { isAuthenticated, combinedList, updateProgress } = useTracking()
   const entry = (() => {
     if (!isAuthenticated || !combinedList) return null
     const malId = anime.identity.malId
