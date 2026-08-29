@@ -1,26 +1,60 @@
 import type { Anime, Episode, VideoSource } from '../../types/anime'
 
-export interface VideoProvider {
-  id: string
-  getEpisodes(anime: Anime): Promise<Episode[]>
-  getSources(episode: Episode): Promise<VideoSource[]>
+export type VideoLanguage = 'sub' | 'dub'
+export type VideoType = 'hls' | 'mp4' | 'embed' | 'mock'
+
+export interface SubtitleTrack {
+  language: string
+  label: string
+  url: string
+  type?: string // 'vtt' | 'srt'
 }
 
-// Mock authorized provider — returns no real video, respects spec
-export class MockVideoProvider implements VideoProvider {
-  id = 'mock'
-  async getEpisodes(anime: Anime): Promise<Episode[]> {
-    const n = anime.episodes ?? 12
-    return Array.from({ length: Math.min(n, 12) }, (_, i) => ({
-      id: `${anime.identity.internalId}-${i + 1}`,
-      animeId: anime.identity.internalId,
-      number: i + 1,
-      title: `Episode ${i + 1}`,
-      duration: anime.duration ?? 24,
-    }))
-  }
-  async getSources(_episode: Episode): Promise<VideoSource[]> {
-    // No real source — UI shows placeholder
-    return [{ url: '', quality: '1080p', type: 'mock' }]
-  }
+export interface VideoEpisode {
+  id: string
+  animeId: string
+  number: number
+  title?: string
+  thumbnail?: string
+  duration?: number
+  language?: VideoLanguage
+  provider: string
+  providerEpisodeId: string
+  availableLanguages?: VideoLanguage[]
 }
+
+export interface VideoSourceEnhanced extends VideoSource {
+  provider: string
+  language?: VideoLanguage
+  subtitles?: SubtitleTrack[]
+  embed?: boolean // true if url is an embed iframe src, false if direct video
+  headers?: Record<string, string>
+}
+
+export interface ProviderCapabilities {
+  id: string
+  name: string
+  displayName: string
+  languages: VideoLanguage[]
+  subtitles: boolean
+  embed: boolean
+  directVideo: boolean
+  search: boolean
+  episodes: boolean
+  sources: boolean
+}
+
+export interface VideoProvider {
+  id: string
+  name: string
+  capabilities: ProviderCapabilities
+  // Resolve provider anime ID from Aeri Anime (via AniList/MAL id or title)
+  resolveAnimeId(anime: Anime): Promise<string | null>
+  // Get episodes for anime
+  getEpisodes(anime: Anime): Promise<VideoEpisode[]>
+  // Get sources for episode
+  getSources(episode: VideoEpisode): Promise<VideoSourceEnhanced[]>
+}
+
+// Re-export for convenience
+export type { Anime, Episode, VideoSource }

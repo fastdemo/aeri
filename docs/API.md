@@ -98,18 +98,34 @@ type BrowseParams = { sort?: string; status?: string; genre?: string; seasonYear
 - **Detail usage:** `src/pages/AnimeDetail.tsx` + `DetailModal` fetch via `useAnimeDetail` / `anilistMetadataProvider.getAnime` for real metadata (title, alt titles, description, cover/banner, episodes/duration/status/year/season/genres/studios/score/popularity/external IDs). Fallback to `fromList` or `mock` only if remote fails or legacy slug (`frieren` → `anilist-154587` resolver) for deep-link compat; otherwise no fake display.
 - **Images (Phase 6):** Real content uses `coverImage.extraLarge/large` and `bannerImage` from AniList; `AnimeCard` `loading="lazy"` + `fallbackSrc = backdropImage || coverImage` with `onError` hide, `decoding="async"`, `Hero`/`Watch` `loading="eager"` `fetchPriority="high"` for LCP. No huge artwork loading below fold; Picsum remains only in `mockAnime.ts` fallback/test fixture.
 
-### VideoProvider
+### VideoProvider (Phase 7)
 
 ```ts
+type VideoLanguage = 'sub' | 'dub'
+interface VideoEpisode { id: string; animeId: string; number: number; title?: string; provider: string; providerEpisodeId: string; language?: VideoLanguage }
+interface VideoSourceEnhanced extends VideoSource { provider: string; language?: VideoLanguage; subtitles?: SubtitleTrack[]; embed?: boolean; quality: string; type: string; url: string }
+interface SubtitleTrack { language: string; label: string; url: string; type?: string }
+interface ProviderCapabilities { id: string; name: string; displayName: string; languages: VideoLanguage[]; subtitles: boolean; embed: boolean; directVideo: boolean; search: boolean; episodes: boolean; sources: boolean }
 interface VideoProvider {
-  id: string
-  getEpisodes(anime: Anime): Promise<Episode[]>
-  getSources(episode: Episode): Promise<VideoSource[]>
+  id: string; name: string; capabilities: ProviderCapabilities
+  resolveAnimeId(anime: Anime): Promise<string | null>
+  getEpisodes(anime: Anime): Promise<VideoEpisode[]>
+  getSources(episode: VideoEpisode): Promise<VideoSourceEnhanced[]>
 }
 ```
 
-- Player calls only this interface.
-- Authorized sources only. No DRM bypass.
+- `src/providers/video/types.ts` defines `VideoEpisode`, `VideoSourceEnhanced`, `SubtitleTrack`, `ProviderCapabilities`, `VideoProvider` (normalized from provider-specific JSON).
+- `src/providers/video/base.ts` — `cachedFetch(key, fetcher)` with memory 5m + IDB 24h + `inflight` dedup (reuses `src/storage/db.ts`), `isCorsError()` for `Failed to fetch` detection.
+- Implementations (`src/providers/video/*.ts`): `MockVideoProvider` (episodes only, no sources, for navigation), `AllAnimeProvider`, `AnimePaheProvider`, `AniKotoProvider`, `MegaPlayProvider`, `AnimeParadiseProvider`, `AniNekoProvider` — each implements `resolveAnimeId`/`getEpisodes`/`getSources` with browser `fetch` + CORS handling, cached via `video:provider:…` keys, isolated failures (one provider failing doesn't crash Watch).
+- `src/providers/video/registry.ts` — `videoProviders[]` priority `[allanime, animepahe, anikoto, megaplay, animeparadise, anineko, mock]`, `resolveEpisodesWithFallback(anime)` tries real providers in order then `mock` for episode list, `resolveSourcesWithFallback(episode)` tries preferred provider then others, `getProviderCapabilities()` for UI.
+- **Identity:** `AniList anime (anilistId/malId/title) → provider anime ID → provider episode ID → source`. Stable `anilistId`/`malId` preferred, title fallback. Successful mappings cached (`video:allanime:resolve:anilistId`). No expensive search on every episode click.
+- **Watch usage:** `src/pages/Watch.tsx` → `useAnimeDetail` for anime → `resolveEpisodesWithFallback` (single episode list fetch) → `resolveSourcesWithFallback` for `effectiveEpisode` (only selected episode, not all) → `src/components/player/VideoPlayer.tsx` (embed `iframe` with `allow: autoplay; fullscreen` or direct `video` with `controls`, `crossOrigin`, `subtitles` tracks, `onTimeUpdate`/`onEnded`). Source selector shown only if `sources.length>1` (unobtrusive `select`), sub/dub shown only if `availableLanguages` has both, subtitles rendered via `track` or embed player.
+- **Caching:** Reuses `memoryCache`/`IDB`/`inflight` from `base.ts`, no second cache, only fetches selected episode's source, deduplicates concurrent `resolveEpisodes`/`resolveSources`.
+- **Playback:** `VideoPlayer` supports `play/pause/seek/volume/fullscreen/loading/buffering/error` via native controls or embed controls, `aspect-video` container, `loading` spin, `error` retry, `isLoadingVideo` separate states, `requestAnimationFrame`-free, `prefers-reduced-motion` respected.
+- **Progress sync:** `Watch → TrackingContext → AniList` (isolated): `useEffect` on mount calls `updateProgress(anime, epNum)` + `localStorage aeri:progress:…`, `handleTimeUpdate` throttled 5s via `putWatchPos`, near end `>92%` calls `updateProgress`, `onEnded` clears `watchPos` + updates progress. No coupling `VideoProvider → AniList`.
+- **Local watch position:** `src/storage/db.ts` `DB_VERSION 2` adds `watchPos` store `{id, episode, currentTime, duration, updatedAt}`, `putWatchPos`/`getWatchPos`/`clearWatchPos`, `onTimeUpdate` throttled, `getWatchPos` on load shows resume prompt `Resume from M:SS?` if `>30s && <90%` and same episode, otherwise auto-seek, `clearWatchPos` on near-complete or Restart.
+- **Limitations (static GH Pages):** All 6 real providers return **no-source** from browser due to CORS (`No 'Access-Control-Allow-Origin'` for `api.myanimelist.net` style, `animepahe.ru`/`animeparadise.moe` CORS blocked, `anikoto.to` DNS fail, `megaplay.buzz` 200 but HTML Error, `allanime.day` CORS OK but query requires exact schema and Cloudflare; all fetch from `https://fastdemo.github.io` → `ERR_FAILED` → `Failed to fetch`). Documented in provider files as `browser-incompatible` without proxy. `MockVideoProvider` ensures episode navigation still works, Watch shows **no-source UI** `Video unavailable • No browser-compatible source was found for Episode N. Aeri is static with no backend; most providers require a server proxy. Try another episode or source. Tried: …` with `Retry` + `Episodes` + provider caps footer, not blank.
+- Authorized sources only, no DRM bypass, no secrets in `VITE_*`, no proxy added.
 
 ## Anime Type (normalized)
 

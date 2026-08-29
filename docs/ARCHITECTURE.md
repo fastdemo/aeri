@@ -100,8 +100,31 @@ Reuses `RowSkeleton`/`Skeleton` mirroring final layout, no new spinner design.
 - **Phase 6:** Homepage still 4 parallel `Page` (trending/popular/airing/new, each `perPage:12`, second load cached 0 new), Browse `perPage:24` with `page` pagination (`hasNextPage` + `Load more`, append), filters server-side via `browse` (single request per filter change, deduped by `anilist:browse:…` key), Search live while typing debounced 300ms + 400ms URL sync, no duplicate/stale (hook `cancelled` + `clearTimeout` + `inflight` dedup). No dozens of requests, no huge datasets.
 - No heavy carousel library.
 
+## Video Provider Architecture (Phase 7)
+
+```
+Watch.tsx
+  ├─ useAnimeDetail (real anime) ──→ Anime
+  ├─ resolveEpisodesWithFallback(Anime) ──→ VideoEpisode[] (via registry, cached, fallback to Mock)
+  │     ├─ AllAnime (CORS but query exact, Cloudflare)
+  │     ├─ AnimePahe (CORS blocked)
+  │     ├─ AniKoto (DNS fail)
+  │     ├─ MegaPlay (200 but HTML Error)
+  │     ├─ AnimeParadise (CORS blocked)
+  │     ├─ AniNeko (no stable API)
+  │     └─ Mock (episode list only, no video, ensures navigation)
+  ├─ resolveSourcesWithFallback(VideoEpisode) ──→ VideoSourceEnhanced[] (tried[] isolated, only selected episode)
+  │     └─ VideoPlayer (embed iframe vs direct video, controls, subtitles, source selector if >1)
+  ├─ TrackingContext.updateProgress(anime, epNum) (isolated, throttled)
+  └─ storage/db.ts watchPos (putWatchPos/getWatchPos/clearWatchPos, DB v2, resume prompt)
+```
+
+- `src/providers/video/types.ts` + `base.ts` (cachedFetch, isCorsError) + `registry.ts` (priority, fallback) + 6 stubs + `mock.ts` + `src/components/player/VideoPlayer.tsx` (native + embed, loading/error, source switch, sub/dub, subtitles)
+- **No backend/proxy:** All real providers are browser-incompatible on GH Pages (CORS `No Allow-Origin` → `ERR_FAILED`), so Watch shows no-source UI with `Tried:` and retry, not blank. Episode navigation still works via Mock. Future browser-compatible provider would just be added to `videoProviders[]` with no UI change.
+- **Performance:** Only selected episode's source is fetched (not all), inflight dedup, memory+IDB cache, no video pre-download, no dozens of requests.
+
 ## Future Extensibility
 
 - New metadata provider: implement `AnimeMetadataProvider` (e.g. MAL, Kitsu) — requires only `map` + `identity` extension, no UI change.
 - New tracking provider: implement `TrackingProvider`.
-- New video source: implement `VideoProvider`.
+- New video source: implement `VideoProvider` (add to `registry.ts` priority, handle CORS/embed as above).

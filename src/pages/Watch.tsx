@@ -1,8 +1,12 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { mockAnime } from '../data/mockAnime'
 import { useTracking } from '../contexts/TrackingContext'
 import { useAnimeDetail } from '../hooks/useAnimeMetadata'
+import { VideoPlayer } from '../components/player/VideoPlayer'
+import { resolveEpisodesWithFallback, resolveSourcesWithFallback, getProviderCapabilities } from '../providers/video/registry'
+import type { VideoEpisode, VideoSourceEnhanced } from '../providers/video/types'
+import { getWatchPos, putWatchPos, clearWatchPos } from '../storage/db'
 
 export function Watch() {
   const { id, episode } = useParams<{ id: string; episode: string }>()
@@ -20,9 +24,10 @@ export function Watch() {
     return id
   })()
 
-  const { data: remote, loading } = useAnimeDetail(realId)
+  const { data: remote, loading: loadingAnime } = useAnimeDetail(realId)
   const anime = trackingEntry?.anime ?? remote ?? mock
 
+  // AniList progress sync (existing behavior, throttled)
   useEffect(() => {
     if (!isAuthenticated || !anime) return
     updateProgress(anime, epNum).catch(() => {})
@@ -31,7 +36,150 @@ export function Watch() {
     } catch {}
   }, [isAuthenticated, anime, epNum, updateProgress])
 
-  if (loading && !anime) {
+  // Video provider: episodes
+  const [episodes, setEpisodes] = useState<VideoEpisode[] | null>(null)
+  const [episodesLoading, setEpisodesLoading] = useState(false)
+  const [episodesError, setEpisodesError] = useState<string | null>(null)
+  const [providerId, setProviderId] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!anime) return
+    let cancelled = false
+    setEpisodesLoading(true)
+    setEpisodesError(null)
+    resolveEpisodesWithFallback(anime)
+      .then(res => {
+        if (cancelled) return
+        setEpisodes(res.episodes)
+        setProviderId(res.providerId)
+        setEpisodesLoading(false)
+      })
+      .catch(e => {
+        if (cancelled) return
+        setEpisodesError(e instanceof Error ? e.message : 'Couldn’t load episodes')
+        setEpisodesLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [anime?.identity.internalId])
+
+  // Current episode
+  const currentEpisode: VideoEpisode | null = useMemo(() => {
+    if (!episodes) return null
+    return episodes.find(e => e.number === epNum) ?? null
+  }, [episodes, epNum])
+
+  // If episodes not yet loaded but we have anime.episodes count, synthesize a currentEpisode for source resolution
+  const effectiveEpisode: VideoEpisode | null = useMemo(() => {
+    if (currentEpisode) return currentEpisode
+    if (!anime) return null
+    // Fallback: create a synthetic episode so source resolution can still be attempted (will return no-source)
+    return {
+      id: `${anime.identity.internalId}-${epNum}`,
+      animeId: anime.identity.internalId,
+      number: epNum,
+      title: `Episode ${epNum}`,
+      provider: providerId ?? 'mock',
+      providerEpisodeId: `${anime.identity.internalId}-${epNum}`,
+    }
+  }, [currentEpisode, anime, epNum, providerId])
+
+  // Video provider: sources for current episode
+  const [sources, setSources] = useState<VideoSourceEnhanced[] | null>(null)
+  const [sourcesLoading, setSourcesLoading] = useState(false)
+  const [sourcesError, setSourcesError] = useState<string | null>(null)
+  const [selectedSource, setSelectedSource] = useState<VideoSourceEnhanced | null>(null)
+  const [triedProviders, setTriedProviders] = useState<string[]>([])
+
+  useEffect(() => {
+    if (!effectiveEpisode) return
+    let cancelled = false
+    setSourcesLoading(true)
+    setSourcesError(null)
+    setSources(null)
+    setSelectedSource(null)
+    setTriedProviders([])
+    // Only fetch for the selected episode, not all
+    resolveSourcesWithFallback(effectiveEpisode)
+      .then(res => {
+        if (cancelled) return
+        setSources(res.sources)
+        setTriedProviders(res.tried)
+        if (res.sources.length > 0) setSelectedSource(res.sources[0])
+        else setSourcesError(null) // no-source is not an error, just empty
+        setSourcesLoading(false)
+      })
+      .catch(e => {
+        if (cancelled) return
+        setSourcesError(e instanceof Error ? e.message : 'Couldn’t find video source')
+        setSourcesLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [effectiveEpisode?.id, effectiveEpisode?.providerEpisodeId])
+
+  // Local watch position (resume)
+  const [watchPos, setWatchPos] = useState<{ currentTime: number; duration: number } | null>(null)
+  const [showResume, setShowResume] = useState(false)
+  const hasShownResume = useRef(false)
+
+  useEffect(() => {
+    if (!anime) return
+    let cancelled = false
+    getWatchPos(anime.identity.internalId).then(pos => {
+      if (cancelled || !pos) return
+      // Only show resume if it's for the same episode and not near start ( >30s) and not near end ( <90% )
+      if (pos.episode === epNum && pos.currentTime > 30 && pos.duration > 0 && pos.currentTime < pos.duration * 0.9) {
+        if (!hasShownResume.current) {
+          setWatchPos({ currentTime: pos.currentTime, duration: pos.duration })
+          setShowResume(true)
+          hasShownResume.current = true
+        }
+      }
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [anime?.identity.internalId, epNum])
+
+  // When episode changes, reset resume flag
+  useEffect(() => { hasShownResume.current = false; setShowResume(false) }, [epNum])
+
+  const handleTimeUpdate = useCallback((currentTime: number, duration: number) => {
+    if (!anime || !duration || duration < 30) return
+    // Throttle: only store every 5 seconds or on significant change
+    const now = Date.now()
+    if ((handleTimeUpdate as any)._lastSave && now - (handleTimeUpdate as any)._lastSave < 5000) return
+    ;(handleTimeUpdate as any)._lastSave = now
+    putWatchPos({ id: anime.identity.internalId, episode: epNum, currentTime, duration, updatedAt: Date.now() }).catch(() => {})
+    // Near end (>90%) → consider completed for AniList (throttled, reuse existing updateProgress which is already called on mount, but we can also update on near-end)
+    if (currentTime / duration > 0.92 && isAuthenticated) {
+      // Only update once per episode
+      if (!(handleTimeUpdate as any)._hasCompleted) {
+        ;(handleTimeUpdate as any)._hasCompleted = true
+        updateProgress(anime, epNum).catch(() => {})
+      }
+    }
+  }, [anime, epNum, isAuthenticated, updateProgress])
+
+  const handleEnded = useCallback(() => {
+    if (!anime) return
+    // Clear watch pos for this anime (episode completed)
+    clearWatchPos(anime.identity.internalId).catch(() => {})
+    if (isAuthenticated) {
+      // Advance AniList progress if not already
+      updateProgress(anime, epNum).catch(() => {})
+    }
+  }, [anime, epNum, isAuthenticated, updateProgress])
+
+  const handleResume = () => {
+    setShowResume(false)
+    // VideoPlayer will seek via initialTime prop
+  }
+
+  const handleRestart = () => {
+    setShowResume(false)
+    setWatchPos(null)
+    if (anime) clearWatchPos(anime.identity.internalId).catch(() => {})
+  }
+
+  if (loadingAnime && !anime) {
     return (
       <div className="mx-auto max-w-[1280px] px-0 sm:px-4 lg:px-6">
         <div className="aspect-video w-full animate-pulse rounded-lg bg-white/5" />
@@ -53,31 +201,144 @@ export function Watch() {
   const prev = epNum > 1 ? epNum - 1 : null
   const next = anime.episodes && epNum < anime.episodes ? epNum + 1 : null
   const backdrop = anime.backdropImage || anime.coverImage || ''
+  const hasVideo = sources && sources.length > 0 && selectedSource && selectedSource.url
+  const isLoadingVideo = episodesLoading || sourcesLoading
+  const showNoSource = !isLoadingVideo && (!sources || sources.length === 0) && !sourcesError
+  const capabilities = getProviderCapabilities().filter(c => c.id !== 'mock')
 
   return (
     <div className="min-h-screen bg-black">
       <div className="mx-auto max-w-[1280px] px-0 sm:px-4 lg:px-6">
+        {/* Player area */}
         <div className="relative aspect-video w-full overflow-hidden bg-[#0a0a0a] sm:rounded-lg">
-          <img
-            src={backdrop}
-            alt=""
-            className="h-full w-full object-cover opacity-80"
-            loading="eager"
-            decoding="async"
-            onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = 'none')}
-          />
-          <div className="absolute inset-0 grid place-items-center">
-            <div className="text-center">
-              <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-white text-black">
-                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M8 5.14v13.72L19 12z" />
-                </svg>
-              </div>
-              <p className="mt-3 text-sm font-medium text-white">Episode {epNum}</p>
-              <p className="text-xs text-white/60">Authorised source playback • mock</p>
-            </div>
-          </div>
+          {/* Backdrop fallback (visible when no video) */}
+          {!hasVideo && (
+            <img
+              src={backdrop}
+              alt=""
+              className="absolute inset-0 h-full w-full object-cover opacity-80"
+              loading="eager"
+              decoding="async"
+              onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = 'none')}
+            />
+          )}
 
+          {/* Loading: episode finding */}
+          {isLoadingVideo && (
+            <div className="absolute inset-0 grid place-items-center bg-black/40 backdrop-blur-sm">
+              <div className="text-center">
+                <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+                <p className="mt-3 text-sm font-medium text-white">
+                  {episodesLoading ? 'Finding episodes…' : 'Finding video source…'}
+                </p>
+                <p className="text-xs text-white/50">Trying {providerId ?? 'providers'} • {triedProviders.join(', ') || '…'}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Video player when source available */}
+          {hasVideo && !isLoadingVideo && (
+            <VideoPlayer
+              sources={sources!}
+              selectedSource={selectedSource}
+              onSourceChange={setSelectedSource}
+              onTimeUpdate={handleTimeUpdate}
+              onEnded={handleEnded}
+              initialTime={showResume ? undefined : (watchPos?.currentTime ?? 0)}
+              animeTitle={anime.title.english ?? anime.title.romaji}
+              episodeNumber={epNum}
+            />
+          )}
+
+          {/* Resume prompt */}
+          {showResume && watchPos && hasVideo && (
+            <div className="absolute inset-x-4 bottom-16 flex justify-center sm:bottom-20">
+              <div className="flex items-center gap-2 rounded-full bg-black/80 px-4 py-2 text-xs text-white backdrop-blur">
+                <span>Resume from {Math.floor(watchPos.currentTime / 60)}:{String(Math.floor(watchPos.currentTime % 60)).padStart(2, '0')}?</span>
+                <button onClick={handleResume} className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-black hover:bg-white/90">Resume</button>
+                <button onClick={handleRestart} className="rounded-full bg-white/20 px-3 py-1 text-xs text-white hover:bg-white/30">Restart</button>
+              </div>
+            </div>
+          )}
+
+          {/* No-source placeholder (when no provider works) */}
+          {showNoSource && !isLoadingVideo && (
+            <div className="absolute inset-0 grid place-items-center bg-black/60 p-6 text-center backdrop-blur-[1px]">
+              <div className="max-w-md">
+                <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-white text-black">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                    <path d="M10 16l6-4-6-4v8z" />
+                    <circle cx="12" cy="12" r="10" />
+                  </svg>
+                </div>
+                <p className="mt-3 text-sm font-medium text-white">Video unavailable</p>
+                <p className="mx-auto mt-1 text-xs leading-5 text-white/60">
+                  No browser-compatible source was found for Episode {epNum}. Aeri is static with no backend; most providers require a server proxy (see docs). Try another episode or source.
+                </p>
+                {triedProviders.length > 0 && (
+                  <p className="mt-2 text-[11px] text-white/40">Tried: {triedProviders.join(' • ')}</p>
+                )}
+                <div className="mt-4 flex justify-center gap-2">
+                  <button
+                    onClick={() => {
+                      if (effectiveEpisode) {
+                        setSourcesLoading(true)
+                        resolveSourcesWithFallback(effectiveEpisode).then(res => {
+                          setSources(res.sources)
+                          setTriedProviders(res.tried)
+                          if (res.sources.length) setSelectedSource(res.sources[0])
+                          setSourcesLoading(false)
+                        })
+                      }
+                    }}
+                    className="rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-black hover:bg-white/90"
+                  >
+                    Retry
+                  </button>
+                  <Link to={`/anime/${id}`} className="rounded-full bg-white/15 px-4 py-1.5 text-xs font-medium text-white backdrop-blur hover:bg-white/20">
+                    Episodes
+                  </Link>
+                </div>
+                <div className="mt-4 flex flex-wrap justify-center gap-1.5">
+                  {capabilities.slice(0,4).map(c => (
+                    <span key={c.id} className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] text-white/50">
+                      {c.displayName}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Source error */}
+          {sourcesError && !isLoadingVideo && (
+            <div className="absolute inset-0 grid place-items-center bg-black/60 p-6 text-center">
+              <div>
+                <p className="text-sm font-medium text-white">Couldn’t load video</p>
+                <p className="mt-1 text-xs text-white/60">{sourcesError}</p>
+                <button
+                  onClick={() => {
+                    if (effectiveEpisode) {
+                      setSourcesLoading(true)
+                      setSourcesError(null)
+                      resolveSourcesWithFallback(effectiveEpisode).then(res => {
+                        setSources(res.sources)
+                        setTriedProviders(res.tried)
+                        if (res.sources.length) setSelectedSource(res.sources[0])
+                        else setSourcesError(null)
+                        setSourcesLoading(false)
+                      })
+                    }
+                  }}
+                  className="mt-3 rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-black"
+                >
+                  Retry
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Top bar */}
           <div className="absolute inset-x-0 top-0 flex items-center justify-between bg-gradient-to-b from-black/70 to-transparent px-4 py-3">
             <Link to={`/anime/${id}`} className="text-sm font-medium text-white hover:text-white/80">
               ← {anime.title.english ?? anime.title.romaji}
@@ -85,17 +346,46 @@ export function Watch() {
             <span className="text-xs text-white/60">E{String(epNum).padStart(2, '0')}</span>
           </div>
 
-          <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/60 to-transparent" />
+          {/* Bottom gradient when no video */}
+          {!hasVideo && <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/60 to-transparent" />}
         </div>
 
         <div className="px-4 py-5 sm:px-0">
-          <h1 className="text-[15px] font-semibold text-white">
-            {anime.title.english ?? anime.title.romaji} — Episode {epNum}
-          </h1>
-          <p className="mt-1 text-xs text-white/60">
-            {anime.title.romaji} • {anime.year} • {anime.duration}m
-          </p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h1 className="text-[15px] font-semibold text-white">
+                {anime.title.english ?? anime.title.romaji} — Episode {epNum}
+              </h1>
+              <p className="mt-1 text-xs text-white/60">
+                {anime.title.romaji} • {anime.year} • {anime.duration}m
+                {providerId && providerId !== 'mock' ? ` • ${providerId}` : ''}
+              </p>
+            </div>
 
+            {/* Source selector (when multiple) */}
+            {sources && sources.length > 1 && (
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-white/50">Source:</span>
+                <select
+                  value={selectedSource?.url ?? ''}
+                  onChange={e => {
+                    const s = sources.find(s => s.url === e.target.value)
+                    if (s) setSelectedSource(s)
+                  }}
+                  aria-label="Select video source"
+                  className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs text-white focus:border-white/20 focus:outline-none"
+                >
+                  {sources.map(s => (
+                    <option key={s.url} value={s.url} className="bg-[#141416]">
+                      {s.provider} {s.quality ? `• ${s.quality}` : ''} {s.language ? `• ${s.language}` : ''} {s.embed ? '• embed' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* Episode navigation */}
           <div className="mt-4 flex items-center gap-2">
             {prev ? (
               <Link
@@ -125,9 +415,51 @@ export function Watch() {
             ) : (
               <span className="rounded-full border border-white/10 px-4 py-1.5 text-xs text-white/30">Next →</span>
             )}
+
+            {episodesError && <span className="ml-2 text-xs text-amber-200/70">{episodesError}</span>}
+            {episodes && <span className="ml-2 text-xs text-white/40">{episodes.length} episodes • {providerId ?? 'mock'}</span>}
+          </div>
+
+          {/* Episode list (reuse provider episodes if available) */}
+          <div className="mt-6">
+            <h2 className="mb-2 text-sm font-semibold text-white">Episodes</h2>
+            {episodesLoading ? (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="aspect-video animate-pulse rounded bg-white/5" />
+                ))}
+              </div>
+            ) : episodes && episodes.length > 0 ? (
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                {episodes.map(ep => {
+                  const isCurrent = ep.number === epNum
+                  return (
+                    <Link
+                      key={ep.id}
+                      to={`/watch/${id}/${ep.number}`}
+                      className={`relative flex aspect-video items-center justify-center overflow-hidden rounded bg-white/5 p-2 text-center transition ${isCurrent ? 'ring-1 ring-white/30 bg-white/10' : 'hover:bg-white/10'}`}
+                    >
+                      <span className={`text-xs font-medium ${isCurrent ? 'text-white' : 'text-white/70'}`}>Ep {ep.number}</span>
+                      {isCurrent && <span className="absolute bottom-1 left-1/2 h-0.5 w-8 -translate-x-1/2 bg-[#e50914]" />}
+                    </Link>
+                  )
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-white/50">No episodes found. Try another anime.</p>
+            )}
           </div>
 
           <p className="mt-6 max-w-[720px] text-sm leading-6 text-white/70">{anime.description || 'No description available.'}</p>
+
+          {/* Provider capabilities footer (quiet) */}
+          <div className="mt-6 flex flex-wrap gap-1.5">
+            {getProviderCapabilities().filter(c => c.id !== 'mock').map(c => (
+              <span key={c.id} className="rounded-full border border-white/5 bg-white/[0.02] px-2 py-1 text-[10px] text-white/30">
+                {c.displayName} {c.languages.join('/')}
+              </span>
+            ))}
+          </div>
         </div>
       </div>
     </div>

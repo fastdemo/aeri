@@ -2,7 +2,7 @@
 // In production, use `idb` library; this is a minimal abstraction satisfying spec.
 
 const DB_NAME = 'aeri'
-const DB_VERSION = 1
+const DB_VERSION = 2
 
 function openDB(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -12,6 +12,7 @@ function openDB(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains('progress')) db.createObjectStore('progress', { keyPath: 'id' })
       if (!db.objectStoreNames.contains('cache')) db.createObjectStore('cache', { keyPath: 'key' })
       if (!db.objectStoreNames.contains('history')) db.createObjectStore('history', { keyPath: 'id' })
+      if (!db.objectStoreNames.contains('watchPos')) db.createObjectStore('watchPos', { keyPath: 'id' })
     }
     req.onsuccess = () => resolve(req.result)
     req.onerror = () => reject(req.error)
@@ -57,5 +58,42 @@ export async function getCache<T>(key: string): Promise<T | null> {
       res(row.value as T)
     }
     req.onerror = () => rej(req.error)
+  })
+}
+
+export interface WatchPos {
+  id: string // anime internalId
+  episode: number
+  currentTime: number
+  duration: number
+  updatedAt: number
+}
+
+export async function putWatchPos(pos: WatchPos): Promise<void> {
+  const db = await openDB()
+  return new Promise((res, rej) => {
+    const tx = db.transaction('watchPos', 'readwrite')
+    tx.objectStore('watchPos').put(pos)
+    tx.oncomplete = () => res()
+    tx.onerror = () => rej(tx.error)
+  })
+}
+
+export async function getWatchPos(id: string): Promise<WatchPos | null> {
+  const db = await openDB()
+  return new Promise((res, rej) => {
+    const req = db.transaction('watchPos', 'readonly').objectStore('watchPos').get(id)
+    req.onsuccess = () => res((req.result as WatchPos) ?? null)
+    req.onerror = () => rej(req.error)
+  })
+}
+
+export async function clearWatchPos(id: string): Promise<void> {
+  const db = await openDB()
+  return new Promise((res, rej) => {
+    const tx = db.transaction('watchPos', 'readwrite')
+    tx.objectStore('watchPos').delete(id)
+    tx.oncomplete = () => res()
+    tx.onerror = () => rej(tx.error)
   })
 }
