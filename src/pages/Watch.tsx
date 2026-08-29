@@ -7,6 +7,7 @@ import { resolveEpisodesWithFallback, resolveSourcesWithFallback, getProviderCap
 import type { VideoEpisode, VideoSourceEnhanced } from '../providers/video/types'
 import { getWatchPos, putWatchPos, clearWatchPos } from '../storage/db'
 import { getPreferences } from '../storage/preferences'
+import { getTitleHierarchy } from '../lib/titles'
 
 export function Watch() {
   const { id, episode } = useParams<{ id: string; episode: string }>()
@@ -40,7 +41,8 @@ export function Watch() {
   const [providerId, setProviderId] = useState<string | null>(null)
 
   // Immediate episode list from AniList metadata — authoritative Media.episodes, not streamingEpisodes length
-  // If episodes is null (ongoing/long like One Piece), fallback to streamingEpisodes length, else 0 (show empty state rather than fake 12)
+  // If episodes is null (ongoing/long like One Piece), fallback to streamingEpisodes length, else 0
+  // Explicit deps on anilistId/episodes avoid stale closure when anime object reference is stable but content changes (season switch)
   const immediateEpisodes = useMemo(() => {
     if (!anime) return []
     const count = anime.episodes ?? anime.streamingEpisodes?.length ?? 0
@@ -51,7 +53,7 @@ export function Watch() {
       title: anime.streamingEpisodes?.[i]?.title,
       thumbnail: anime.streamingEpisodes?.[i]?.thumbnail,
     }))
-  }, [anime])
+  }, [anime?.identity.anilistId, anime?.identity.internalId, anime?.episodes, anime?.streamingEpisodes])
 
   // Background: resolve provider episodes for source mapping (does not block UI) — abortable
   useEffect(() => {
@@ -213,9 +215,11 @@ export function Watch() {
     )
   }
 
-  const prev = epNum > 1 ? epNum - 1 : null
-  const next = immediateEpisodes.length > 0 && epNum < immediateEpisodes.length ? epNum + 1 : null
+  const isMovie = anime.format?.toUpperCase() === 'MOVIE'
+  const prev = !isMovie && epNum > 1 ? epNum - 1 : null
+  const next = !isMovie && immediateEpisodes.length > 0 && epNum < immediateEpisodes.length ? epNum + 1 : null
   const backdrop = anime.backdropImage || anime.coverImage || ''
+  const titles = getTitleHierarchy(anime, null)
   const hasVideo = sources && sources.length > 0 && selectedSource && selectedSource.url
   const isLoadingVideo = episodesLoading || sourcesLoading
   const showNoSource = !isLoadingVideo && (!sources || sources.length === 0) && !sourcesError
@@ -260,7 +264,7 @@ export function Watch() {
               onTimeUpdate={handleTimeUpdate}
               onEnded={handleEnded}
               initialTime={showResume ? undefined : (watchPos?.currentTime ?? 0)}
-              animeTitle={anime.title.english ?? anime.title.romaji}
+              animeTitle={titles.primary}
               episodeNumber={epNum}
             />
           )}
@@ -286,9 +290,9 @@ export function Watch() {
                     <circle cx="12" cy="12" r="10" />
                   </svg>
                 </div>
-                <p className="mt-3 text-sm font-medium text-white">No playable source is currently available for this episode.</p>
+                <p className="mt-3 text-sm font-medium text-white">No playable source is currently available for this {isMovie ? 'title' : 'episode'}.</p>
                 <p className="mx-auto mt-1 text-xs leading-5 text-white/60">
-                  This source isn&apos;t available right now. Try another source or episode. Aeri is static on GitHub Pages — most providers need a server proxy. Configure a video backend in Settings for playback.
+                  This source isn&apos;t available right now. Try another source{isMovie ? '' : ' or episode'}. Aeri is static on GitHub Pages — most providers need a server proxy. Configure a video backend in Settings for playback.
                 </p>
                 {triedProviders.length > 0 && (
                   <p className="mt-2 text-[11px] text-white/40">Tried: {triedProviders.join(' • ')}</p>
@@ -317,7 +321,7 @@ export function Watch() {
                     Change source
                   </Link>
                   <Link to={`/anime/${id}`} className="rounded-full bg-white/15 px-4 py-1.5 text-xs font-medium text-white backdrop-blur hover:bg-white/20">
-                    Episodes
+                    {isMovie ? 'Details' : 'Episodes'}
                   </Link>
                 </div>
                 <div className="mt-4 flex flex-wrap justify-center gap-1.5">
@@ -367,9 +371,9 @@ export function Watch() {
           {/* Top bar */}
           <div className="absolute inset-x-0 top-0 flex items-center justify-between bg-gradient-to-b from-black/70 to-transparent px-4 py-3">
             <Link to={`/anime/${id}`} className="text-sm font-medium text-white hover:text-white/80">
-              ← {anime.title.english ?? anime.title.romaji}
+              ← {titles.primary}
             </Link>
-            <span className="text-xs text-white/60">E{String(epNum).padStart(2, '0')}</span>
+            {!isMovie && <span className="text-xs text-white/60">E{String(epNum).padStart(2, '0')}</span>}
           </div>
 
           {/* Bottom gradient when no video */}
@@ -380,10 +384,12 @@ export function Watch() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h1 className="text-[15px] font-semibold text-white">
-                {anime.title.english ?? anime.title.romaji} — Episode {epNum}
+                {isMovie ? titles.primary : `${titles.primary} — Episode ${epNum}`}
               </h1>
+              {titles.native && <p className="text-xs text-white/55">{titles.native}</p>}
+              {titles.romaji && <p className="text-xs text-white/45">{titles.romaji}</p>}
               <p className="mt-1 text-xs text-white/60">
-                {anime.title.romaji} • {anime.year} • {anime.duration}m
+                {anime.year ? String(anime.year) : '—'} • {anime.format ?? '—'} • {anime.duration ? `${anime.duration}m` : '—'}
                 {providerId && providerId !== 'mock' ? ` • ${providerId}` : ''}
               </p>
             </div>
@@ -436,66 +442,79 @@ export function Watch() {
             </div>
           </div>
 
-          {/* Episode navigation */}
-          <div className="mt-4 flex items-center gap-2">
-            {prev ? (
-              <Link
-                to={`/watch/${id}/${prev}`}
-                className="rounded-full border border-white/15 bg-white/10 px-4 py-1.5 text-xs font-medium text-white hover:bg-white/15"
-              >
-                ← Previous
-              </Link>
-            ) : (
-              <span className="rounded-full border border-white/10 px-4 py-1.5 text-xs text-white/30">← Previous</span>
-            )}
+          {/* Episode navigation — hidden for movies */}
+          {!isMovie && (
+            <div className="mt-4 flex items-center gap-2">
+              {prev ? (
+                <Link
+                  to={`/watch/${id}/${prev}`}
+                  className="rounded-full border border-white/15 bg-white/10 px-4 py-1.5 text-xs font-medium text-white hover:bg-white/15"
+                >
+                  ← Previous
+                </Link>
+              ) : (
+                <span className="rounded-full border border-white/10 px-4 py-1.5 text-xs text-white/30">← Previous</span>
+              )}
 
-            <Link
-              to={`/anime/${id}`}
-              className="rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-black hover:bg-white/90"
-            >
-              Episodes
-            </Link>
-
-            {next ? (
               <Link
-                to={`/watch/${id}/${next}`}
+                to={`/anime/${id}`}
                 className="rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-black hover:bg-white/90"
               >
-                Next →
+                Episodes
               </Link>
-            ) : (
-              <span className="rounded-full border border-white/10 px-4 py-1.5 text-xs text-white/30">Next →</span>
-            )}
 
-            <span className="ml-2 text-xs text-white/40">{immediateEpisodes.length} episodes{providerId && providerId !== 'mock' ? ` • ${providerId}` : ''}</span>
-          </div>
+              {next ? (
+                <Link
+                  to={`/watch/${id}/${next}`}
+                  className="rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-black hover:bg-white/90"
+                >
+                  Next →
+                </Link>
+              ) : (
+                <span className="rounded-full border border-white/10 px-4 py-1.5 text-xs text-white/30">Next →</span>
+              )}
+
+              <span className="ml-2 text-xs text-white/40">{immediateEpisodes.length} episodes{providerId && providerId !== 'mock' ? ` • ${providerId}` : ''}</span>
+            </div>
+          )}
+          {!isMovie && (
+            <Link
+              to={`/anime/${id}`}
+              className={`mt-4 ${isMovie ? 'hidden' : 'inline-flex'} rounded-full bg-white/10 px-4 py-1.5 text-xs font-medium text-white hover:bg-white/15 sm:hidden`}
+            >
+              Details
+            </Link>
+          )}
 
           {/* Episode list — immediate from AniList metadata, not blocked by video provider */}
-          <div className="mt-6">
-            <h2 className="mb-2 text-sm font-semibold text-white">Episodes</h2>
-            {immediateEpisodes.length > 0 ? (
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                {immediateEpisodes.map(ep => {
-                  const isCurrent = ep.number === epNum
-                  const realTitle = anime.streamingEpisodes?.[ep.number - 1]?.title
-                  return (
-                    <Link
-                      key={ep.number}
-                      to={`/watch/${id}/${ep.number}`}
-                      className={`relative flex aspect-video flex-col items-center justify-center overflow-hidden rounded bg-white/5 p-2 text-center transition ${isCurrent ? 'ring-1 ring-white/30 bg-white/10' : 'hover:bg-white/10'}`}
-                      aria-label={`Watch Episode ${ep.number}${realTitle ? ` - ${realTitle}` : ''}`}
-                    >
-                      <span className={`text-xs font-medium ${isCurrent ? 'text-white' : 'text-white/70'}`}>Ep {ep.number}</span>
-                      {realTitle && <span className="mt-1 line-clamp-1 text-[10px] text-white/40">{realTitle}</span>}
-                      {isCurrent && <span className="absolute bottom-1 left-1/2 h-0.5 w-8 -translate-x-1/2 bg-[#e50914]" />}
-                    </Link>
-                  )
-                })}
-              </div>
-            ) : (
-              <p className="text-sm text-white/50">No episodes found. Try another anime.</p>
-            )}
-          </div>
+          {!isMovie && (
+            <div className="mt-6">
+              <h2 className="mb-2 text-sm font-semibold text-white">Episodes</h2>
+              {immediateEpisodes.length > 0 ? (
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                  {immediateEpisodes.map(ep => {
+                    const isCurrent = ep.number === epNum
+                    const realTitle = anime.streamingEpisodes?.[ep.number - 1]?.title
+                    const epKey = anime.identity.anilistId ? `anilist:${anime.identity.anilistId}-${ep.number}` : `${anime.identity.internalId}-${ep.number}`
+                    return (
+                      <Link
+                        key={epKey}
+                        to={`/watch/${id}/${ep.number}`}
+                        className={`relative flex aspect-video flex-col items-center justify-center overflow-hidden rounded bg-white/5 p-2 text-center transition ${isCurrent ? 'ring-1 ring-white/30 bg-white/10' : 'hover:bg-white/10'}`}
+                        aria-label={`Watch Episode ${ep.number}${realTitle ? ` - ${realTitle}` : ''}`}
+                      >
+                        <span className={`text-xs font-medium ${isCurrent ? 'text-white' : 'text-white/70'}`}>Ep {ep.number}</span>
+                        {realTitle && <span className="mt-1 line-clamp-1 text-[10px] text-white/40">{realTitle}</span>}
+                        {isCurrent && <span className="absolute bottom-1 left-1/2 h-0.5 w-8 -translate-x-1/2 bg-[#e50914]" />}
+                      </Link>
+                    )
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-white/50">No episodes found. Try another anime.</p>
+              )}
+            </div>
+          )}
 
           <p className="mt-6 max-w-[720px] text-sm leading-6 text-white/70">{anime.description || 'No description available.'}</p>
 

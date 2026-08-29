@@ -1,7 +1,9 @@
 import { Link } from 'react-router-dom'
 import type { Anime } from '../../types/anime'
+import { getTitleHierarchy } from '../../lib/titles'
 
 export function Hero({ anime, onMoreInfo }: { anime: Anime; onMoreInfo?: () => void }) {
+  const titles = getTitleHierarchy(anime, null)
   const meta = [anime.format ?? 'TV', anime.year, anime.episodes ? `${anime.episodes} Episodes` : null, anime.rating ? `${anime.rating.toFixed(1)}` : null]
     .filter(Boolean)
     .join(' · ')
@@ -47,13 +49,15 @@ export function Hero({ anime, onMoreInfo }: { anime: Anime; onMoreInfo?: () => v
         {/* Content */}
         <div className="absolute inset-0 flex">
           <div className="flex w-full max-w-[560px] flex-col justify-end gap-3 px-5 pb-6 pt-16 sm:px-8 sm:pb-8 lg:justify-center lg:pb-0 lg:pl-12 lg:pr-0">
-            {/* Title mimic — romaji/english */}
             <h1 className="text-[22px] font-semibold leading-[1.05] tracking-[-0.03em] text-white sm:text-[30px] lg:text-[34px]">
-              {anime.title.english ?? anime.title.romaji}
+              {titles.primary}
             </h1>
 
-            {anime.title.english && anime.title.romaji !== anime.title.english && (
-              <p className=" -mt-1 text-[11px] tracking-wide text-white/60">{anime.title.romaji}</p>
+            {titles.native && (
+              <p className="-mt-1 text-[12px] tracking-wide text-white/70">{titles.native}</p>
+            )}
+            {titles.romaji && (
+              <p className="-mt-1 text-[11px] tracking-wide text-white/50">{titles.romaji}</p>
             )}
 
             <p className="text-[12px] font-medium tracking-wide text-white/70">
@@ -80,7 +84,7 @@ export function Hero({ anime, onMoreInfo }: { anime: Anime; onMoreInfo?: () => v
               <button
                 onClick={onMoreInfo}
                 className="inline-flex h-8 items-center rounded-full bg-white/14 px-4 text-[13px] font-medium text-white backdrop-blur transition hover:bg-white/20"
-                aria-label={`More info about ${anime.title.english ?? anime.title.romaji}`}
+                aria-label={`More info about ${titles.primary}`}
               >
                 More Info
               </button>

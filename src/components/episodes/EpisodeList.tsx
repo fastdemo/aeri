@@ -1,8 +1,9 @@
 import { Link } from 'react-router-dom'
+import { useMemo } from 'react'
 import type { Anime } from '../../types/anime'
 import { useTracking } from '../../contexts/TrackingContext'
 
-function getEpisodes(anime: Anime) {
+export function getEpisodes(anime: Anime) {
   const count = anime.episodes ?? anime.streamingEpisodes?.length ?? 0
   if (count === 0) return []
   // Cap at 100 for perf; larger (One Piece) uses pagination via Watch immediateEpisodes
@@ -21,8 +22,18 @@ function getEpisodes(anime: Anime) {
 }
 
 export function EpisodeList({ anime, seasonNumber = 1 }: { anime: Anime; seasonNumber?: number }) {
-  const episodes = getEpisodes(anime)
+  // Explicit episode normalization from displayAnime — rebuilds when anilistId/episodes/streamingEpisodes change
+  // Using anilistId in deps ensures stale closures don't retain previous season's count (e.g., 25 vs 12)
+  const episodes = useMemo(() => getEpisodes(anime), [
+    anime.identity.anilistId,
+    anime.identity.internalId,
+    anime.episodes,
+    anime.streamingEpisodes,
+    anime.duration,
+  ])
   const { isAuthenticated, combinedList, updateProgress } = useTracking()
+  // Movies must never show an episode list — guarded also by callers but defensive here
+  if (anime.format?.toUpperCase() === 'MOVIE') return null
   const entry = (() => {
     if (!isAuthenticated || !combinedList) return null
     const malId = anime.identity.malId
@@ -60,9 +71,10 @@ export function EpisodeList({ anime, seasonNumber = 1 }: { anime: Anime; seasonN
         {episodes.map((ep) => {
           const isWatched = ep.number < progressEp
           const isCurrent = ep.number === progressEp
+          const seasonKey = anime.identity.anilistId ? `anilist:${anime.identity.anilistId}` : anime.identity.internalId
           return (
             <Link
-              key={`${anime.identity.anilistId ?? anime.identity.internalId}-${ep.number}`}
+              key={`${seasonKey}-${ep.number}`}
               to={`/watch/${anime.identity.internalId}/${ep.number}`}
               onClick={() => handleSelect(ep.number)}
               className={`flex items-center gap-3 px-3 py-3 text-left transition ${
@@ -74,7 +86,7 @@ export function EpisodeList({ anime, seasonNumber = 1 }: { anime: Anime; seasonN
               <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded bg-white/5">
                 {ep.thumbnail ? (
                   <img
-                    key={`${anime.identity.anilistId ?? anime.identity.internalId}-${ep.number}-${ep.thumbnail}`}
+                    key={`${seasonKey}-${ep.number}-${ep.thumbnail}`}
                     src={ep.thumbnail}
                     alt=""
                     className="h-full w-full object-cover"

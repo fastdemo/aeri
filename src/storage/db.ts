@@ -111,30 +111,60 @@ export interface WatchPos {
 }
 
 export async function putWatchPos(pos: WatchPos): Promise<void> {
-  const db = await openDB()
-  return new Promise((res, rej) => {
-    const tx = db.transaction('watchPos', 'readwrite')
-    tx.objectStore('watchPos').put(pos)
-    tx.oncomplete = () => res()
-    tx.onerror = () => rej(tx.error)
-  })
+  try {
+    const db = await withTimeout(openDB(), 1200, null as any)
+    if (!db) return
+    await withTimeout(
+      new Promise<void>((res, rej) => {
+        try {
+          const tx = db.transaction('watchPos', 'readwrite')
+          tx.objectStore('watchPos').put(pos)
+          tx.oncomplete = () => res()
+          tx.onerror = () => rej(tx.error)
+        } catch (e) { rej(e) }
+      }),
+      1200,
+      undefined as any,
+    )
+  } catch {}
 }
 
 export async function getWatchPos(id: string): Promise<WatchPos | null> {
-  const db = await openDB()
-  return new Promise((res, rej) => {
-    const req = db.transaction('watchPos', 'readonly').objectStore('watchPos').get(id)
-    req.onsuccess = () => res((req.result as WatchPos) ?? null)
-    req.onerror = () => rej(req.error)
-  })
+  try {
+    const db = await withTimeout(openDB(), 1200, null as any)
+    if (!db) return null
+    const result = await withTimeout(
+      new Promise<WatchPos | null>((res, rej) => {
+        try {
+          const req = db.transaction('watchPos', 'readonly').objectStore('watchPos').get(id)
+          req.onsuccess = () => res((req.result as WatchPos) ?? null)
+          req.onerror = () => rej(req.error)
+        } catch (e) { rej(e) }
+      }),
+      1200,
+      null as any,
+    )
+    return result
+  } catch {
+    return null
+  }
 }
 
 export async function clearWatchPos(id: string): Promise<void> {
-  const db = await openDB()
-  return new Promise((res, rej) => {
-    const tx = db.transaction('watchPos', 'readwrite')
-    tx.objectStore('watchPos').delete(id)
-    tx.oncomplete = () => res()
-    tx.onerror = () => rej(tx.error)
-  })
+  try {
+    const db = await withTimeout(openDB(), 1200, null as any)
+    if (!db) return
+    await withTimeout(
+      new Promise<void>((res, rej) => {
+        try {
+          const tx = db.transaction('watchPos', 'readwrite')
+          tx.objectStore('watchPos').delete(id)
+          tx.oncomplete = () => res()
+          tx.onerror = () => rej(tx.error)
+        } catch (e) { rej(e) }
+      }),
+      1200,
+      undefined as any,
+    )
+  } catch {}
 }

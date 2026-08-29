@@ -25,34 +25,45 @@ export function Navbar() {
   }, [])
 
   // Reset mobile transient UI on any route change (prevents overlay persisting and intercepting clicks)
+  // Must run AFTER navigation commit — location change is the signal, not the trigger
   useEffect(() => {
     setMobileNavOpen(false)
     setMobileSearchOpen(false)
     setShowSuggestions(false)
   }, [location.pathname, location.search, location.hash])
 
-  // Close suggestions on outside click
+  // Close suggestions on outside click — deferred so click→navigate isn't swallowed by synchronous setState
+  // (synchronous setState on mousedown can detach the click target before click fires)
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
-        setShowSuggestions(false)
+        queueMicrotask(() => setShowSuggestions(false))
       }
     }
     document.addEventListener('mousedown', onDown)
     return () => document.removeEventListener('mousedown', onDown)
   }, [])
 
+  // aeri:navigate closes DetailModal for same-hash clicks (no hashchange).
+  // Must be dispatched AFTER HashRouter's push so navigation is synchronous and cleanup is deferred.
   const dispatchNavigate = () => {
-    try { window.dispatchEvent(new CustomEvent('aeri:navigate')) } catch {}
+    queueMicrotask(() => {
+      try { window.dispatchEvent(new CustomEvent('aeri:navigate')) } catch {}
+    })
   }
 
   const onSearch = (e: React.FormEvent) => {
     e.preventDefault()
-    if (query.trim()) {
-      dispatchNavigate()
-      navigate(`/search?q=${encodeURIComponent(query.trim())}`)
+    const q = query.trim()
+    if (!q) return
+    // 1) synchronous route change — never wait for providers/IDB/HLS
+    navigate(`/search?q=${encodeURIComponent(q)}`)
+    // 2) deferred cleanup (suggestions, mobile, modal) — after commit, not before
+    queueMicrotask(() => {
+      try { window.dispatchEvent(new CustomEvent('aeri:navigate')) } catch {}
       setMobileSearchOpen(false)
-    }
+      setShowSuggestions(false)
+    })
   }
 
   return (
@@ -71,6 +82,7 @@ export function Navbar() {
             onClick={dispatchNavigate}
             className="text-[19px] font-semibold tracking-[-0.02em] text-white"
             aria-label="Aeri home"
+            // React Router's <Link> does push synchronously in its handler; our onClick only queues cleanup
           >
             Aeri
           </Link>
@@ -213,7 +225,11 @@ export function Navbar() {
               <Link
                 key={l.to}
                 to={l.to}
-                onClick={() => { setMobileNavOpen(false); dispatchNavigate() }}
+                // Let <Link> push synchronously; defer menu close + modal dispatch to after commit
+                onClick={() => {
+                  queueMicrotask(() => setMobileNavOpen(false))
+                  dispatchNavigate()
+                }}
                 className="rounded px-3 py-2 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white"
               >
                 {l.label}

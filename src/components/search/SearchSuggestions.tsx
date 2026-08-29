@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { anilistMetadataProvider } from '../../providers/metadata/anilistMetadata'
 import type { Anime } from '../../types/anime'
 import { deduplicateBySeries } from '../../services/anilist/series'
+import { getTitleHierarchy } from '../../lib/titles'
 
 type Props = {
   query: string
@@ -101,7 +102,9 @@ export function SearchSuggestions({ query, onClose }: Props) {
       role="listbox"
       className="absolute left-0 right-0 top-[calc(100%+8px)] z-[70] max-h-[min(68vh,420px)] overflow-y-auto overflow-hidden rounded-xl border border-white/10 bg-[#141416]/95 backdrop-blur-xl shadow-[0_16px_48px_rgba(0,0,0,0.6)]"
     >
-      {results.map((anime, idx) => (
+      {results.map((anime, idx) => {
+        const titles = getTitleHierarchy(anime, null)
+        return (
         <button
           key={anime.identity.internalId}
           role="option"
@@ -117,14 +120,17 @@ export function SearchSuggestions({ query, onClose }: Props) {
             <img src={anime.coverImage} alt="" className="h-full w-full object-cover" loading="lazy" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[13px] font-medium leading-tight text-white">{anime.title.english ?? anime.title.romaji}</p>
-            {anime.title.english && anime.title.romaji !== anime.title.english && (
-              <p className="truncate text-[11px] text-white/40">{anime.title.romaji}</p>
+            <p className="truncate text-[13px] font-medium leading-tight text-white">{titles.primary}</p>
+            {titles.native && (
+              <p className="truncate text-[11px] text-white/45">{titles.native}</p>
+            )}
+            {titles.romaji && (
+              <p className="truncate text-[11px] text-white/40">{titles.romaji}</p>
             )}
             <p className="text-[11px] text-white/50">{[anime.format, anime.year ? String(anime.year) : null].filter(Boolean).join(' · ')}</p>
           </div>
         </button>
-      ))}
+      )})}
       <button
         onClick={() => {
           navigate(`/search?q=${encodeURIComponent(query.trim())}`)

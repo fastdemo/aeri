@@ -2,6 +2,7 @@ import { anilistGraphQL } from './client'
 import { mapAniListMediaToAnime } from './mapper'
 import type { Anime } from '../../types/anime'
 import type { AniListMedia } from './mapper'
+import { getFranchiseTitle } from '../../lib/titles'
 
 export interface AnimeSeriesGroup {
   rootId: number
@@ -38,20 +39,8 @@ export function normalizeTitleStem(raw: string): string {
     .trim()
 }
 
-// Franchise title: strip known season/part suffixes for display, keep root title clean
-// e.g. "Shingeki no Kyojin Season 3" -> "Shingeki no Kyojin"
-// "Youkoso Jitsuryoku Shijou Shugi no Kyoushitsu e 2nd Season" -> "Youkoso Jitsuryoku Shijou Shugi no Kyoushitsu e"
-export function getFranchiseTitle(romaji: string): string {
-  // Remove trailing season/part markers
-  let t = romaji
-  // Remove "Season 2", "2nd Season", "3rd Season", "Part 2", "Final Season" etc.
-  t = t.replace(/\s*(season\s*\d+|\d+(st|nd|rd|th)\s*season|part\s*\d+|final\s*season.*|2nd\s*season|3rd\s*season|4th\s*season)\s*$/i, '')
-  t = t.replace(/\s*:\s*(season\s*\d+|part\s*\d+).*$/i, '')
-  t = t.trim()
-  // Handle "Shingeki no Kyojin: The Final Season" -> keep prefix before colon if suffix was season
-  // Already handled above, but keep fallback
-  return t || romaji
-}
+// Re-export canonical helper from lib/titles for backwards compat
+export { getFranchiseTitle } from '../../lib/titles'
 
 const RELATIONS_QUERY = `
 query ($id: Int) {
@@ -110,18 +99,19 @@ type RelationsResponse = {
   }
 }
 
-async function fetchWithRelations(id: number): Promise<AniListMedia & { relations: { edges: { relationType: string; node: AniListMedia }[] } }> {
-  const data = await anilistGraphQL<RelationsResponse>(RELATIONS_QUERY, { id }, { cacheKey: `anilist:relations:${id}`, useCache: true })
+async function fetchWithRelations(id: number, signal?: AbortSignal): Promise<AniListMedia & { relations: { edges: { relationType: string; node: AniListMedia }[] } }> {
+  const data = await anilistGraphQL<RelationsResponse>(RELATIONS_QUERY, { id }, { cacheKey: `anilist:relations:${id}`, useCache: true, signal })
   if (!data.Media) throw new Error('Not found')
   return data.Media as any
 }
 
 // Walk PREQUEL chain to find root (earliest season)
 // Now with mutual-link check and branching safety
-async function findRoot(media: AniListMedia & { relations: any }): Promise<AniListMedia & { relations: any }> {
+async function findRoot(media: AniListMedia & { relations: any }, signal?: AbortSignal): Promise<AniListMedia & { relations: any }> {
   let current = media
   const visited = new Set<number>([current.id])
   while (true) {
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
     const prequelEdges = current.relations?.edges?.filter((e: any) => e.relationType === 'PREQUEL' && isSeasonFormat(e.node.format)) ?? []
     if (prequelEdges.length !== 1) break // 0 = root, >1 = branching -> stop
     const prequelEdge = prequelEdges[0]
@@ -129,12 +119,13 @@ async function findRoot(media: AniListMedia & { relations: any }): Promise<AniLi
     if (visited.has(prequelId)) break
     visited.add(prequelId)
     try {
-      const prequelMedia = await fetchWithRelations(prequelId)
+      const prequelMedia = await fetchWithRelations(prequelId, signal)
       // Mutual link check: prequel should have SEQUEL back to current
       const backLink = prequelMedia.relations?.edges?.some((e: any) => e.relationType === 'SEQUEL' && e.node.id === current.id && isSeasonFormat(e.node.format))
       if (!backLink) break
       current = prequelMedia
-    } catch {
+    } catch (e) {
+      if ((e as any)?.name === 'AbortError') throw e
       break
     }
   }
@@ -142,13 +133,14 @@ async function findRoot(media: AniListMedia & { relations: any }): Promise<AniLi
 }
 
 // Walk SEQUEL chain from root to collect ordered seasons
-async function collectSeasons(root: AniListMedia & { relations: any }): Promise<{ seasons: AniListMedia[]; confidence: 'high' | 'medium' | 'low' }> {
+async function collectSeasons(root: AniListMedia & { relations: any }, signal?: AbortSignal): Promise<{ seasons: AniListMedia[]; confidence: 'high' | 'medium' | 'low' }> {
   const seasons: AniListMedia[] = []
   const visited = new Set<number>()
   let current: AniListMedia & { relations: any } | null = root
   let confidence: 'high' | 'medium' | 'low' = 'high'
 
   while (current && !visited.has(current.id)) {
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
     visited.add(current.id)
     if (isSeasonFormat(current.format)) {
       seasons.push(current)
@@ -160,13 +152,15 @@ async function collectSeasons(root: AniListMedia & { relations: any }): Promise<
       const currentStem = normalizeTitleStem(current.title?.romaji ?? '')
       const scored: { edge: any; node: any; hasBack: boolean; stemMatch: boolean; year: number }[] = await Promise.all(sequelEdges.map(async (edge: any) => {
         try {
-          const node = await fetchWithRelations(edge.node.id)
+          if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+          const node = await fetchWithRelations(edge.node.id, signal)
           const hasBack = node.relations?.edges?.some((e: any) => e.relationType === 'PREQUEL' && e.node.id === current!.id)
           const stem = normalizeTitleStem(edge.node.title?.romaji ?? '')
           const stemMatch = !!(currentStem && stem && (stem === currentStem || stem.startsWith(currentStem) || currentStem.startsWith(stem)))
           const year: number = edge.node.startDate?.year ?? edge.node.seasonYear ?? 9999
           return { edge, node, hasBack, stemMatch, year }
-        } catch {
+        } catch (e) {
+          if ((e as any)?.name === 'AbortError') throw e
           return { edge, node: null as any, hasBack: false, stemMatch: false, year: 9999 }
         }
       }))
@@ -205,7 +199,8 @@ async function collectSeasons(root: AniListMedia & { relations: any }): Promise<
     const nextId3 = sequelEdge2.node.id
     if (visited.has(nextId3)) break
     try {
-      const nextMedia3: any = await fetchWithRelations(nextId3)
+      if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+      const nextMedia3: any = await fetchWithRelations(nextId3, signal)
       const hasBack = nextMedia3.relations?.edges?.some((e: any) => e.relationType === 'PREQUEL' && e.node.id === current!.id)
       if (!hasBack) {
         // Check stem as advisory
@@ -216,21 +211,24 @@ async function collectSeasons(root: AniListMedia & { relations: any }): Promise<
         }
       }
       current = nextMedia3
-    } catch {
+    } catch (e) {
+      if ((e as any)?.name === 'AbortError') throw e
       break
     }
   }
   return { seasons, confidence }
 }
 
-export async function getSeriesGroup(animeId: number): Promise<AnimeSeriesGroup | null> {
+export async function getSeriesGroup(animeId: number, opts?: { signal?: AbortSignal }): Promise<AnimeSeriesGroup | null> {
+  const signal = opts?.signal
   try {
-    const initial = await fetchWithRelations(animeId)
+    if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+    const initial = await fetchWithRelations(animeId, signal)
     if (!isSeasonFormat(initial.format)) {
       return null
     }
-    const root = await findRoot(initial)
-    const { seasons: seasonMedias, confidence } = await collectSeasons(root)
+    const root = await findRoot(initial, signal)
+    const { seasons: seasonMedias, confidence } = await collectSeasons(root, signal)
     if (seasonMedias.length <= 1) return null
 
     const seasons: Anime[] = seasonMedias.map(m => mapAniListMediaToAnime(m as any))
@@ -254,7 +252,8 @@ export async function getSeriesGroup(animeId: number): Promise<AnimeSeriesGroup 
       confidence,
       span,
     }
-  } catch {
+  } catch (e) {
+    if ((e as any)?.name === 'AbortError') throw e
     return null
   }
 }

@@ -70,10 +70,16 @@ export async function resolveSourcesWithFallback(
   episode: VideoEpisode,
   options?: ResolveSourcesOptions,
 ): Promise<{ sources: VideoSourceEnhanced[]; tried: string[] }> {
+  if (options?.signal?.aborted) return { sources: [], tried: [] }
   const tried: string[] = []
   const timeoutMs = 4000
+  const signal = options?.signal
   const withTimeout = <T,>(p: Promise<T>): Promise<T> =>
-    Promise.race([p, new Promise<T>((_, reject) => setTimeout(() => reject(new Error('registry timeout')), timeoutMs))]) as Promise<T>
+    Promise.race([
+      p,
+      new Promise<T>((_, reject) => setTimeout(() => reject(new Error('registry timeout')), timeoutMs)),
+      ...(signal ? [new Promise<T>((_, reject) => signal.addEventListener('abort', () => reject(signal.reason ?? new DOMException('Aborted', 'AbortError')), { once: true }))] : []),
+    ]) as Promise<T>
 
   const preferredLanguage = options?.preferredLanguage
 

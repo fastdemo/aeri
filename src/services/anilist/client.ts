@@ -23,7 +23,7 @@ export async function anilistGraphQL<T>(
   const externalSignal = opts?.signal
 
   const mKey = cacheKey ?? memKey(query, variables)
-  const dedupKey = `${mKey}::${token ?? 'anon'}`
+  void `${mKey}::${token ?? 'anon'}`
 
   // Memory hit fast path (no inflight)
   if (useCache && !force) {
@@ -33,10 +33,11 @@ export async function anilistGraphQL<T>(
     }
   }
 
-  // Deduplicate inflight BEFORE IDB — prevents duplicate fetches on rapid filter changes
-  if (inflight.has(dedupKey)) {
-    return inflight.get(dedupKey) as Promise<T>
-  }
+  // Deduplicate inflight — disabled for StrictMode compatibility (would share aborted promise)
+  // if (inflight.has(dedupKey)) {
+  //   return inflight.get(dedupKey) as Promise<T>
+  // }
+  void inflight
 
   const p = (async () => {
     // IDB check after dedupe (so concurrent callers share same IDB+fetch promise)
@@ -143,11 +144,11 @@ export async function anilistGraphQL<T>(
     return data
   })()
 
-  inflight.set(dedupKey, p)
+  // inflight.set(dedupKey, p)
   try {
     return await p
   } finally {
-    inflight.delete(dedupKey)
+    // inflight.delete(dedupKey)
   }
 }
 

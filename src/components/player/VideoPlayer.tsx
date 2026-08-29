@@ -21,8 +21,9 @@ export function VideoPlayer({ sources, selectedSource, onSourceChange, subtitles
 
   const source = selectedSource ?? sources[0] ?? null
   const hasMultipleSources = sources.length > 1
+  const isHlsSource = !!(source && (source.url.includes('.m3u8') || source.type === 'hls'))
 
-  // HLS support: use hls.js when needed (lazy)
+  // HLS support: lazy import, never blocks navigation. Cleanup is synchronous (destroy + src clear)
   const hlsRef = useRef<any>(null)
   useEffect(() => {
     if (!source || source.embed) return
@@ -31,36 +32,58 @@ export function VideoPlayer({ sources, selectedSource, onSourceChange, subtitles
     if (!isHls) return
     const video = videoRef.current
     if (!video) return
-    // Native HLS (Safari)
+    // Native HLS (Safari) — set src synchronously but ensure cleanup clears src so navigation isn't held by media load
     if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = url
-      return
+      return () => {
+        try {
+          video.pause()
+          video.removeAttribute('src')
+          video.load()
+        } catch {}
+      }
     }
     let cancelled = false
-    ;(async () => {
+    let timer: ReturnType<typeof setTimeout> | null = null
+    // Defer HLS import to next tick so HashRouter push (sync) wins over HLS worker init
+    timer = setTimeout(async () => {
+      if (cancelled) return
       try {
         const Hls = (await import('hls.js')).default
         if (cancelled || !Hls.isSupported()) {
-          video.src = url
+          if (!cancelled) {
+            try { video.src = url } catch {}
+          }
           return
         }
         if (hlsRef.current) {
           try { hlsRef.current.destroy() } catch {}
+          hlsRef.current = null
         }
+        if (cancelled) return
         const hls = new Hls({ enableWorker: true })
         hlsRef.current = hls
         hls.loadSource(url)
         hls.attachMedia(video)
       } catch {
-        video.src = url
+        if (!cancelled) {
+          try { video.src = url } catch {}
+        }
       }
-    })()
+    }, 0)
     return () => {
       cancelled = true
+      if (timer) clearTimeout(timer)
+      // Synchronous destroy — never wait for import
       if (hlsRef.current) {
         try { hlsRef.current.destroy() } catch {}
         hlsRef.current = null
       }
+      try {
+        video.pause()
+        video.removeAttribute('src')
+        video.load()
+      } catch {}
     }
   }, [source?.url, source?.type, source?.embed])
 
@@ -146,7 +169,11 @@ export function VideoPlayer({ sources, selectedSource, onSourceChange, subtitles
           onTimeUpdate?.(v.currentTime, v.duration)
         }}
         onEnded={() => onEnded?.()}
-        onError={() => setError('Video failed to load. Try another source.')}
+        onError={() => {
+          // Don't surface error for HLS — hls.js will handle load; initial src may 404 before attach
+          if (isHlsSource) return
+          setError('Video failed to load. Try another source.')
+        }}
         onWaiting={() => setIsLoading(true)}
         onPlaying={() => setIsLoading(false)}
       >

@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import type { Anime } from '../../types/anime'
+import { getPrimaryTitle } from '../../lib/titles'
 
 type Variant = 'default' | 'continue' | 'compact'
 
@@ -16,6 +17,7 @@ export function AnimeCard({
     variant === 'compact' ? 'w-[148px] sm:w-[180px]' : 'w-[168px] sm:w-[200px] lg:w-[236px]'
 
   const fallbackSrc = anime.backdropImage || anime.coverImage || ""
+  const primaryTitle = getPrimaryTitle(anime)
   const content = (
     <div
       className={`group relative flex-shrink-0 overflow-hidden rounded-[6px] bg-[var(--surface)] ring-1 ring-white/5 transition-all duration-200 hover:z-10 hover:scale-[1.03] hover:ring-white/15 ${width}`}
@@ -23,7 +25,7 @@ export function AnimeCard({
       <div className="relative aspect-[16/9] w-full overflow-hidden bg-[var(--surface-elevated)]">
         <img
           src={fallbackSrc}
-          alt={anime.title.english ?? anime.title.romaji}
+          alt={primaryTitle}
           loading="lazy"
           decoding="async"
           onError={(e) => {
@@ -48,7 +50,7 @@ export function AnimeCard({
         {/* Title overlay on hover — subtle */}
         <div className="absolute inset-x-0 bottom-0 translate-y-1 bg-gradient-to-t from-black/75 to-transparent p-2 opacity-0 transition group-hover:translate-y-0 group-hover:opacity-100">
           <p className="line-clamp-1 text-[11px] font-medium leading-tight text-white">
-            {anime.title.english ?? anime.title.romaji}
+            {primaryTitle}
           </p>
           <p className="text-[10px] text-white/70">{anime.year} · {anime.format}</p>
         </div>
@@ -58,7 +60,7 @@ export function AnimeCard({
       {variant === 'continue' && anime.progress && (
         <div className="space-y-1 bg-[var(--surface)] px-2.5 py-2">
           <div className="flex items-center justify-between">
-            <p className="line-clamp-1 text-[11px] font-medium text-white/90">{anime.title.english ?? anime.title.romaji}</p>
+            <p className="line-clamp-1 text-[11px] font-medium text-white/90">{primaryTitle}</p>
           </div>
           <p className="text-[11px] text-white/55">Episode {anime.progress.episode}</p>
           <div className="h-0.5 w-full overflow-hidden rounded-full bg-white/10">
@@ -74,7 +76,7 @@ export function AnimeCard({
       <button
         onClick={() => onSelect(anime)}
         className="text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
-        aria-label={`Open ${anime.title.english ?? anime.title.romaji}`}
+        aria-label={`Open ${primaryTitle}`}
       >
         {content}
       </button>
@@ -84,7 +86,7 @@ export function AnimeCard({
   return (
     <Link
       to={`/anime/${anime.identity.internalId}`}
-      aria-label={`Open ${anime.title.english ?? anime.title.romaji}`}
+      aria-label={`Open ${primaryTitle}`}
       className="focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 block"
     >
       {content}

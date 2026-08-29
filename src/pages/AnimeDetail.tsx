@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { EpisodeList } from '../components/episodes/EpisodeList'
 import { useAniList } from '../contexts/AniListContext'
 import { useAnimeDetail } from '../hooks/useAnimeMetadata'
 import { getSeriesGroup, type AnimeSeriesGroup } from '../services/anilist/series'
+import { getTitleHierarchy } from '../lib/titles'
 
 export function AnimeDetail() {
   const { id } = useParams<{ id: string }>()
@@ -32,40 +33,73 @@ export function AnimeDetail() {
   // Prefer real remote data when available, else fromList (no mock fallback in production)
   const anime = remote ?? fromList
 
-  // Series grouping (Netflix-like seasons)
+  // Series grouping — abortable, selectedSeason === displayAnime invariant
+  // All hooks must be before any early return (Rules of Hooks)
   const [seriesGroup, setSeriesGroup] = useState<AnimeSeriesGroup | null>(null)
   const [selectedSeasonIdx, setSelectedSeasonIdx] = useState<number>(0)
-  const prevGroupRef = useState<{ rootId: number | null }>({ rootId: null })[0]
+  const requestIdRef = useRef(0)
+  const seriesGroupRef = useRef<AnimeSeriesGroup | null>(null)
+  seriesGroupRef.current = seriesGroup
+  const selectedIdxRef = useRef(0)
+  selectedIdxRef.current = selectedSeasonIdx
+
+  // Effective group guards against stale seriesGroup when anime switches franchise before new fetch resolves.
+  const effectiveGroup = useMemo(() => {
+    if (!seriesGroup || seriesGroup.seasons.length <= 1) return null
+    if (!anime?.identity.anilistId) return seriesGroup
+    const contains = seriesGroup.seasons.some(s => s.identity.anilistId === anime.identity.anilistId)
+    return contains ? seriesGroup : null
+  }, [seriesGroup, anime?.identity.anilistId])
+  const displayAnime = useMemo(() => {
+    if (!anime) return null as any
+    if (effectiveGroup) {
+      return effectiveGroup.seasons[selectedSeasonIdx] ?? anime
+    }
+    return anime
+  }, [effectiveGroup, selectedSeasonIdx, anime])
+  const titles = useMemo(() => {
+    if (!displayAnime) return { primary: '' } as any
+    return getTitleHierarchy(displayAnime, effectiveGroup)
+  }, [displayAnime, effectiveGroup])
+  const backdrop = displayAnime ? (displayAnime.backdropImage || displayAnime.coverImage || '') : ''
+  const displayKey = displayAnime ? (displayAnime.identity.anilistId ? `anilist:${displayAnime.identity.anilistId}` : displayAnime.identity.internalId) : 'none'
+  const isMovie = displayAnime ? displayAnime.format?.toUpperCase() === 'MOVIE' : false
 
   useEffect(() => {
     if (!anime?.identity.anilistId) {
       setSeriesGroup(null)
+      setSelectedSeasonIdx(0)
       return
     }
     const currentAnilistId = anime.identity.anilistId
-    let cancelled = false
-    getSeriesGroup(currentAnilistId).then(group => {
-      if (cancelled) return
-      if (group && group.seasons.length > 1) {
-        const isNewGroup = prevGroupRef.rootId !== group.rootId
-        prevGroupRef.rootId = group.rootId
-        setSeriesGroup(group)
-        // Only set index if new group or still at initial 0 for this anime; don't clobber user selection for same group
-        if (isNewGroup) {
+    const curGroup = seriesGroupRef.current
+    if (curGroup) {
+      const idxInCurrent = curGroup.seasons.findIndex(s => s.identity.anilistId === currentAnilistId)
+      if (idxInCurrent >= 0 && idxInCurrent !== selectedIdxRef.current) {
+        setSelectedSeasonIdx(idxInCurrent)
+      }
+    }
+    const reqId = ++requestIdRef.current
+    const controller = new AbortController()
+    getSeriesGroup(currentAnilistId, { signal: controller.signal })
+      .then(group => {
+        if (controller.signal.aborted || reqId !== requestIdRef.current) return
+        if (group && group.seasons.length > 1) {
+          setSeriesGroup(group)
           const idx = group.seasons.findIndex(s => s.identity.anilistId === currentAnilistId)
           setSelectedSeasonIdx(idx >= 0 ? idx : 0)
+        } else {
+          setSeriesGroup(null)
+          setSelectedSeasonIdx(0)
         }
-      } else {
-        prevGroupRef.rootId = null
+      })
+      .catch(e => {
+        if ((e as any)?.name === 'AbortError') return
+        if (reqId !== requestIdRef.current) return
         setSeriesGroup(null)
-      }
-    }).catch(() => {
-      if (!cancelled) {
-        prevGroupRef.rootId = null
-        setSeriesGroup(null)
-      }
-    })
-    return () => { cancelled = true }
+        setSelectedSeasonIdx(0)
+      })
+    return () => controller.abort()
   }, [anime?.identity.anilistId])
 
   if (loading && !anime) {
@@ -84,7 +118,7 @@ export function AnimeDetail() {
       </div>
     )
   }
-  if (!anime) {
+  if (!anime || !displayAnime) {
     return (
       <div className="mx-auto max-w-[1200px] px-4 py-16 text-center">
         <p className="text-white">Anime not found.</p>
@@ -92,11 +126,6 @@ export function AnimeDetail() {
       </div>
     )
   }
-
-  // When seriesGroup exists, the displayed anime is the selected season
-  const displayAnime = seriesGroup ? seriesGroup.seasons[selectedSeasonIdx] ?? anime : anime
-  const franchiseTitle = seriesGroup?.title.romaji ?? null
-  const backdrop = displayAnime.backdropImage || displayAnime.coverImage || ''
 
   return (
     <div className="mx-auto max-w-[1200px] px-4 pb-12 sm:px-6 lg:px-12">
@@ -113,14 +142,15 @@ export function AnimeDetail() {
           <div className="absolute inset-0" style={{ background: 'linear-gradient(0deg, #0e0e10 6%, rgba(14,14,16,0.75) 22%, transparent 58%)' }} />
           <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(7,7,8,0.85) 0%, transparent 62%)' }} />
           <div className="absolute bottom-0 left-0 p-6 sm:p-8">
-            <h1 className="text-2xl font-semibold text-white">{franchiseTitle ? (seriesGroup?.title.english ?? franchiseTitle) : (displayAnime.title.english ?? displayAnime.title.romaji)}</h1>
-            {franchiseTitle ? (
-              displayAnime.title.romaji !== franchiseTitle ? <p className="text-xs text-white/50">{displayAnime.title.romaji} • Season {selectedSeasonIdx + 1}</p> : null
-            ) : (
-              displayAnime.title.english && displayAnime.title.romaji !== displayAnime.title.english ? <p className="text-xs text-white/50">{displayAnime.title.romaji}</p> : null
+            <h1 className="text-2xl font-semibold text-white">{titles.primary}</h1>
+            {titles.native && (
+              <p className="text-xs text-white/60">{titles.native}</p>
+            )}
+            {titles.romaji && (
+              <p className="text-xs text-white/50">{titles.romaji}</p>
             )}
             <p className="mt-1 text-sm text-white/60">
-              {[displayAnime.year, displayAnime.format, displayAnime.episodes ? `${displayAnime.episodes} episodes` : null].filter(Boolean).join(' · ')}
+              {[displayAnime.year, displayAnime.format, !isMovie && displayAnime.episodes ? `${displayAnime.episodes} episodes` : null].filter(Boolean).join(' · ')}
               {displayAnime.rating ? ` · ${displayAnime.rating.toFixed(1)}` : ''}
             </p>
             <div className="mt-3 flex gap-2">
@@ -133,8 +163,8 @@ export function AnimeDetail() {
           <div>
             <p className="text-sm leading-6 text-white/70">{displayAnime.description || 'No description available.'}</p>
 
-            {/* Netflix-like season selector */}
-            {seriesGroup && seriesGroup.seasons.length > 1 && (
+            {/* Netflix-like season selector — uses effectiveGroup to avoid stale franchise */}
+            {!isMovie && effectiveGroup && (
               <div className="mt-6">
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-white/50">Season</span>
@@ -145,12 +175,12 @@ export function AnimeDetail() {
                       aria-label="Select season"
                       className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 pr-8 text-xs font-medium text-white focus:border-white/20 focus:outline-none"
                     >
-                      {seriesGroup.seasons.map((s, idx) => {
+                      {effectiveGroup.seasons.map((s, idx) => {
                         const parts = [`Season ${idx + 1}`]
                         if (s.year) parts.push(String(s.year))
                         if (s.episodes) parts.push(`${s.episodes} eps`)
                         return (
-                          <option key={s.identity.internalId} value={String(idx)} className="bg-[#141416]">
+                          <option key={s.identity.anilistId ? `anilist:${s.identity.anilistId}` : s.identity.internalId} value={String(idx)} className="bg-[#141416]">
                             {parts.join(' • ')}
                           </option>
                         )
@@ -158,14 +188,16 @@ export function AnimeDetail() {
                     </select>
                     <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-white/40">▼</span>
                   </div>
-                  <span className="text-xs text-white/30">{seriesGroup.totalSeasons} seasons • {displayAnime.identity.anilistId}</span>
+                  <span className="text-xs text-white/30">{effectiveGroup.totalSeasons} seasons • {displayAnime.identity.anilistId}</span>
                 </div>
               </div>
             )}
 
-            <div className="mt-6">
-              <EpisodeList key={displayAnime.identity.anilistId ?? displayAnime.identity.internalId} anime={displayAnime} seasonNumber={selectedSeasonIdx + 1} />
-            </div>
+            {!isMovie && (
+              <div className="mt-6">
+                <EpisodeList key={displayKey} anime={displayAnime} seasonNumber={selectedSeasonIdx + 1} />
+              </div>
+            )}
           </div>
           <div className="space-y-3 text-xs leading-5">
             <div><span className="text-white/50">Genres: </span><span className="text-white/80">{displayAnime.genres.join(', ') || '—'}</span></div>

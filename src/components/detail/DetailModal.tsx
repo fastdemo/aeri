@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { Anime, AnimeStatus } from '../../types/anime'
 import { EpisodeList } from '../episodes/EpisodeList'
 import { useTracking } from '../../contexts/TrackingContext'
 import { getSeriesGroup, type AnimeSeriesGroup } from '../../services/anilist/series'
+import { getTitleHierarchy } from '../../lib/titles'
 
 export function DetailModal({
   anime,
@@ -37,35 +38,67 @@ export function DetailModal({
   const currentScore = entry?.score ?? null
   const baseAnime = entry?.anime ?? anime
 
-  // Series grouping — prevent clobbering user selection for same franchise
+  // Series grouping — abortable, selectedSeason === displayAnime invariant
   const [seriesGroup, setSeriesGroup] = useState<AnimeSeriesGroup | null>(null)
   const [selectedSeasonIdx, setSelectedSeasonIdx] = useState(0)
-  const prevGroupRef = useState<{ rootId: number | null }>({ rootId: null })[0]
+  const requestIdRef = useRef(0)
+  const seriesGroupRef = useRef<AnimeSeriesGroup | null>(null)
+  seriesGroupRef.current = seriesGroup
+  const selectedIdxRef = useRef(0)
+  selectedIdxRef.current = selectedSeasonIdx
+
   useEffect(() => {
     if (!baseAnime.identity.anilistId) {
       setSeriesGroup(null)
+      setSelectedSeasonIdx(0)
       return
     }
     const currentId = baseAnime.identity.anilistId
-    let cancelled = false
-    getSeriesGroup(currentId).then(g => {
-      if (cancelled) return
-      if (g && g.seasons.length > 1) {
-        const isNewGroup = prevGroupRef.rootId !== g.rootId
-        prevGroupRef.rootId = g.rootId
-        setSeriesGroup(g)
-        if (isNewGroup) {
+    const curGroup = seriesGroupRef.current
+    if (curGroup) {
+      const idxInCurrent = curGroup.seasons.findIndex(s => s.identity.anilistId === currentId)
+      if (idxInCurrent >= 0 && idxInCurrent !== selectedIdxRef.current) {
+        setSelectedSeasonIdx(idxInCurrent)
+      }
+    }
+    const reqId = ++requestIdRef.current
+    const controller = new AbortController()
+    getSeriesGroup(currentId, { signal: controller.signal })
+      .then(g => {
+        if (controller.signal.aborted || reqId !== requestIdRef.current) return
+        if (g && g.seasons.length > 1) {
+          setSeriesGroup(g)
           const idx = g.seasons.findIndex(s => s.identity.anilistId === currentId)
           setSelectedSeasonIdx(idx >= 0 ? idx : 0)
+        } else {
+          setSeriesGroup(null)
+          setSelectedSeasonIdx(0)
         }
-      } else {
-        prevGroupRef.rootId = null
+      })
+      .catch(e => {
+        if ((e as any)?.name === 'AbortError') return
+        if (reqId !== requestIdRef.current) return
         setSeriesGroup(null)
-      }
-    }).catch(() => { if (!cancelled) { prevGroupRef.rootId = null; setSeriesGroup(null) } })
-    return () => { cancelled = true }
+        setSelectedSeasonIdx(0)
+      })
+    return () => controller.abort()
   }, [baseAnime.identity.anilistId])
-  const displayAnime = seriesGroup ? seriesGroup.seasons[selectedSeasonIdx] ?? baseAnime : baseAnime
+
+  const effectiveGroup = useMemo(() => {
+    if (!seriesGroup || seriesGroup.seasons.length <= 1) return null
+    if (!baseAnime.identity.anilistId) return seriesGroup
+    const contains = seriesGroup.seasons.some(s => s.identity.anilistId === baseAnime.identity.anilistId)
+    return contains ? seriesGroup : null
+  }, [seriesGroup, baseAnime.identity.anilistId])
+  const displayAnime = (() => {
+    if (effectiveGroup) {
+      return effectiveGroup.seasons[selectedSeasonIdx] ?? baseAnime
+    }
+    return baseAnime
+  })()
+  const displayKey = displayAnime.identity.anilistId ? `anilist:${displayAnime.identity.anilistId}` : displayAnime.identity.internalId
+  const titles = getTitleHierarchy(displayAnime, effectiveGroup)
+  const isMovie = displayAnime.format?.toUpperCase() === 'MOVIE'
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -75,12 +108,18 @@ export function DetailModal({
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  // Robust body lock: save previous overflow, restore on unmount, not dependent on onClose identity
+  // Body lock — must not delay navigation. Save/restore overflow synchronously on mount/unmount;
+  // hashchange/popstate will unmount this modal AFTER route has already changed (HashRouter push is sync).
   useEffect(() => {
-    const prev = document.body.style.overflow
+    const prevBody = document.body.style.overflow
+    const prevHtml = document.documentElement.style.overflow
+    // Prevent background scroll without creating a stacking context that captures pointer events
     document.body.style.overflow = 'hidden'
+    // iOS: also lock html to prevent rubber-band scroll from swallowing hashchange
+    // but keep pointer events on fixed header (z-50) unaffected — overflow hidden does not intercept clicks
     return () => {
-      document.body.style.overflow = prev
+      document.body.style.overflow = prevBody
+      document.documentElement.style.overflow = prevHtml
     }
   }, [])
 
@@ -88,20 +127,24 @@ export function DetailModal({
     dialogRef.current?.focus()
   }, [])
 
-  // Close on any navigation (including hashchange/popstate) and on explicit aeri:navigate event for same-hash clicks
+  // Close on any navigation — must not prevent HashRouter's hashchange.
+  // Listeners are passive; they only react AFTER route has changed.
+  // Use ref so we don't re-subscribe on every onClose identity change (avoids flicker that could swallow click).
+  const onCloseRef = useRef(onClose)
+  useEffect(() => { onCloseRef.current = onClose }, [onClose])
   useEffect(() => {
-    const close = () => onClose()
-    window.addEventListener('hashchange', close)
-    window.addEventListener('popstate', close)
-    window.addEventListener('aeri:navigate' as any, close)
+    const close = () => onCloseRef.current()
+    window.addEventListener('hashchange', close, { passive: true } as any)
+    window.addEventListener('popstate', close, { passive: true } as any)
+    window.addEventListener('aeri:navigate' as any, close, { passive: true } as any)
     return () => {
       window.removeEventListener('hashchange', close)
       window.removeEventListener('popstate', close)
       window.removeEventListener('aeri:navigate' as any, close)
     }
-  }, [onClose])
+  }, [])
 
-  const meta = [displayAnime.format, displayAnime.year ? String(displayAnime.year) : null, displayAnime.season ? displayAnime.season.charAt(0) + displayAnime.season.slice(1).toLowerCase() : null, displayAnime.episodes ? `${displayAnime.episodes} Episodes` : null, displayAnime.status ? displayAnime.status.charAt(0) + displayAnime.status.slice(1).toLowerCase() : null].filter(Boolean).join(' · ') + ' · HD'
+  const meta = [displayAnime.format, displayAnime.year ? String(displayAnime.year) : null, displayAnime.season ? displayAnime.season.charAt(0) + displayAnime.season.slice(1).toLowerCase() : null, !isMovie && displayAnime.episodes ? `${displayAnime.episodes} Episodes` : null, displayAnime.status ? displayAnime.status.charAt(0) + displayAnime.status.slice(1).toLowerCase() : null].filter(Boolean).join(' · ') + ' · HD'
 
   return (
     <div className="fixed inset-x-0 bottom-0 top-14 z-40 flex items-start justify-center overflow-y-auto bg-black/75 p-2 backdrop-blur-[2px] sm:p-6 lg:p-8">
@@ -110,7 +153,7 @@ export function DetailModal({
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-label={anime.title.english ?? anime.title.romaji}
+        aria-label={titles.primary}
         tabIndex={-1}
         className="relative my-2 flex max-h-none w-full max-w-[980px] flex-col overflow-visible rounded-xl bg-[#0e0e10] shadow-[0_24px_64px_rgba(0,0,0,0.9)] outline-none sm:my-6"
       >
@@ -136,18 +179,10 @@ export function DetailModal({
           />
           <div className="absolute left-6 top-6 hidden max-w-[520px] sm:block">
             <h2 className="text-[28px] font-semibold leading-none tracking-tighter text-white drop-shadow">
-              {seriesGroup ? (seriesGroup.title.english ?? seriesGroup.title.romaji) : (anime.title.english ?? anime.title.romaji)}
+              {titles.primary}
             </h2>
-            {seriesGroup ? (
-              displayAnime.title.romaji !== seriesGroup.title.romaji ? <p className="mt-1 text-[11px] tracking-wide text-white/50">{displayAnime.title.romaji} • Season {selectedSeasonIdx + 1}</p> : null
-            ) : (
-              <>
-                {anime.title.native && <p className="mt-1 text-xs text-white/60">{anime.title.native}</p>}
-                {anime.title.english && anime.title.romaji !== anime.title.english && (
-                  <p className="mt-1 text-[11px] tracking-wide text-white/50">{anime.title.romaji}</p>
-                )}
-              </>
-            )}
+            {titles.native && <p className="mt-1 text-xs text-white/65">{titles.native}</p>}
+            {titles.romaji && <p className="mt-1 text-[11px] tracking-wide text-white/50">{titles.romaji}</p>}
           </div>
 
           <div className="absolute bottom-0 left-0 right-0 flex flex-wrap items-center gap-2 px-4 pb-4 sm:px-6">
@@ -319,12 +354,18 @@ export function DetailModal({
 
         <div className="grid gap-6 px-4 py-5 sm:px-6 lg:grid-cols-[1.7fr_0.9fr]">
           <div className="min-w-0">
+            {/* Mobile title hierarchy — visible only when desktop overlay hidden */}
+            <div className="mb-3 sm:hidden">
+              <h2 className="text-[20px] font-semibold leading-none tracking-tighter text-white">{titles.primary}</h2>
+              {titles.native && <p className="mt-1 text-xs text-white/60">{titles.native}</p>}
+              {titles.romaji && <p className="mt-1 text-[11px] tracking-wide text-white/50">{titles.romaji}</p>}
+            </div>
             <div className="flex flex-wrap items-center gap-2 text-[12px] text-white/70">
               <span>{meta}</span>
               {displayAnime.rating && <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold">★ {displayAnime.rating.toFixed(1)}</span>}
             </div>
 
-            {(() => {
+            {!isMovie && (() => {
               const firstEp = displayAnime.streamingEpisodes?.[0]
               const epNum = displayAnime.progress?.episode ?? 1
               const epTitle = displayAnime.streamingEpisodes?.[epNum - 1]?.title ?? firstEp?.title
@@ -340,7 +381,7 @@ export function DetailModal({
               {displayAnime.description || 'No description available.'}
             </p>
 
-            {seriesGroup && seriesGroup.seasons.length > 1 && (
+            {!isMovie && effectiveGroup && (
               <div className="mt-4 flex items-center gap-2">
                 <span className="text-xs text-white/50">Season</span>
                 <div className="relative">
@@ -350,12 +391,12 @@ export function DetailModal({
                     aria-label="Select season"
                     className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 pr-8 text-xs font-medium text-white focus:border-white/20 focus:outline-none"
                   >
-                    {seriesGroup.seasons.map((s, idx) => {
+                    {effectiveGroup.seasons.map((s, idx) => {
                         const parts = [`Season ${idx + 1}`]
                         if (s.year) parts.push(String(s.year))
                         if (s.episodes) parts.push(`${s.episodes} eps`)
                         return (
-                          <option key={s.identity.internalId} value={String(idx)} className="bg-[#141416]">
+                          <option key={s.identity.anilistId ? `anilist:${s.identity.anilistId}` : s.identity.internalId} value={String(idx)} className="bg-[#141416]">
                             {parts.join(' • ')}
                           </option>
                         )
@@ -363,14 +404,18 @@ export function DetailModal({
                   </select>
                   <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-white/40">▼</span>
                 </div>
-                <span className="text-xs text-white/30">{seriesGroup.totalSeasons} seasons</span>
+                <span className="text-xs text-white/30">{effectiveGroup.totalSeasons} seasons</span>
               </div>
             )}
 
-            <h3 className="mt-6 text-[14px] font-semibold text-white">Episodes</h3>
-            <div className="mt-3">
-              <EpisodeList key={displayAnime.identity.anilistId ?? displayAnime.identity.internalId} anime={displayAnime} seasonNumber={selectedSeasonIdx + 1} />
-            </div>
+            {!isMovie && (
+              <>
+                <h3 className="mt-6 text-[14px] font-semibold text-white">Episodes</h3>
+                <div className="mt-3">
+                  <EpisodeList key={displayKey} anime={displayAnime} seasonNumber={selectedSeasonIdx + 1} />
+                </div>
+              </>
+            )}
           </div>
 
           <div className="space-y-3 border-t border-white/10 pt-4 lg:border-t-0 lg:pt-0">
