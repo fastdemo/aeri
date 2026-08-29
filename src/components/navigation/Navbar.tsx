@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { useAniList } from '../../contexts/AniListContext'
+import { useMAL } from '../../contexts/MALContext'
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false)
@@ -8,7 +9,10 @@ export function Navbar() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [query, setQuery] = useState('')
   const navigate = useNavigate()
-  const { user, isAuthenticated } = useAniList()
+  const { user: anilistUser, isAuthenticated: anilistAuth } = useAniList()
+  const { user: malUser, isAuthenticated: malAuth } = useMAL()
+  const isAuthenticated = anilistAuth || malAuth
+  const user = anilistUser ?? malUser ?? null
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10)
@@ -34,7 +38,6 @@ export function Navbar() {
       aria-label="Primary"
     >
       <div className="mx-auto flex h-full max-w-[1600px] items-center justify-between gap-6 px-4 sm:px-6 lg:px-12">
-        {/* Left */}
         <div className="flex items-center gap-8">
           <Link
             to="/"
@@ -63,7 +66,6 @@ export function Navbar() {
               </NavLink>
             ))}
           </nav>
-          {/* Mobile menu */}
           <button
             aria-label="Menu"
             onClick={() => setMobileNavOpen((v) => !v)}
@@ -75,9 +77,7 @@ export function Navbar() {
           </button>
         </div>
 
-        {/* Right */}
         <div className="flex items-center gap-3">
-          {/* Desktop search */}
           <form onSubmit={onSearch} className="hidden items-center md:flex">
             <div className="relative">
               <input
@@ -101,7 +101,6 @@ export function Navbar() {
             </div>
           </form>
 
-          {/* Mobile search toggle */}
           <button
             aria-label="Search"
             onClick={() => setMobileSearchOpen((v) => !v)}
@@ -132,6 +131,8 @@ export function Navbar() {
           >
             {isAuthenticated && user?.avatar?.large ? (
               <img src={user.avatar.large} alt={user.name} className="h-full w-full object-cover" loading="lazy" />
+            ) : isAuthenticated ? (
+              <span className="grid h-full w-full place-items-center text-[10px] font-bold text-white">{anilistAuth ? 'A' : 'M'}</span>
             ) : (
               <span className="grid h-full w-full place-items-center text-[11px] font-semibold text-white">A</span>
             )}
@@ -140,7 +141,6 @@ export function Navbar() {
         </div>
       </div>
 
-      {/* Mobile search bar */}
       {mobileSearchOpen && (
         <div className="border-t border-white/10 bg-[var(--bg)] px-4 py-3 md:hidden">
           <form onSubmit={onSearch} className="flex gap-2">
@@ -151,10 +151,7 @@ export function Navbar() {
               placeholder="Search anime"
               className="flex-1 rounded-full border border-white/10 bg-white/[0.08] px-4 py-2 text-sm text-white placeholder:text-white/50 focus:border-white/20 focus:outline-none"
             />
-            <button
-              type="submit"
-              className="rounded-full bg-white px-5 text-sm font-medium text-black"
-            >
+            <button type="submit" className="rounded-full bg-white px-5 text-sm font-medium text-black">
               Go
             </button>
           </form>

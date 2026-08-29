@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { Anime, AnimeStatus } from '../../types/anime'
 import { EpisodeList } from '../episodes/EpisodeList'
-import { useAniList } from '../../contexts/AniListContext'
+import { useTracking } from '../../contexts/TrackingContext'
 
 export function DetailModal({
   anime,
@@ -12,14 +12,26 @@ export function DetailModal({
   onClose: () => void
 }) {
   const dialogRef = useRef<HTMLDivElement>(null)
-  const { isAuthenticated, animeList, updateStatus, updateRating, error: anilistError } = useAniList()
+  const { isAuthenticated, combinedList, updateStatus, updateRating, error: trackingError } = useTracking()
   const [syncing, setSyncing] = useState<string | null>(null)
   const [localError, setLocalError] = useState<string | null>(null)
   const [showStatusPicker, setShowStatusPicker] = useState(false)
   const [showRatingPicker, setShowRatingPicker] = useState(false)
 
-  const anilistId = anime.identity.anilistId?.toString() ?? (anime.identity.internalId.startsWith('anilist-') ? anime.identity.internalId.replace('anilist-', '') : null)
-  const entry = isAuthenticated && anilistId ? animeList?.find((e) => e.anime.identity.anilistId?.toString() === anilistId || e.anime.identity.internalId === anime.identity.internalId) : null
+  // Find entry via combinedList using normalized identity (anilistId or malId or internalId)
+  const entry = (() => {
+    if (!isAuthenticated || !combinedList) return null
+    const malId = anime.identity.malId
+    const anilistId = anime.identity.anilistId
+    return combinedList.find((e) => {
+      if (malId && e.anime.identity.malId === malId) return true
+      if (anilistId && e.anime.identity.anilistId === anilistId) return true
+      if (e.anime.identity.internalId === anime.identity.internalId) return true
+      // Also check cross: if anime has anilistId but entry has malId that matches anime's malId (via AniList's idMal)
+      return false
+    }) ?? null
+  })()
+
   const currentStatus: AnimeStatus | null = entry?.status ?? anime.listStatus ?? null
   const currentScore = entry?.score ?? null
   const displayAnime = entry?.anime ?? anime
@@ -36,7 +48,6 @@ export function DetailModal({
     }
   }, [onClose])
 
-  // focus trap simple — focus close button
   useEffect(() => {
     dialogRef.current?.focus()
   }, [])
@@ -45,14 +56,7 @@ export function DetailModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/75 p-2 backdrop-blur-[2px] sm:p-6 lg:p-8">
-      {/* backdrop click */}
-      <button
-        aria-label="Close"
-        onClick={onClose}
-        className="fixed inset-0 cursor-default"
-        tabIndex={-1}
-      />
-
+      <button aria-label="Close" onClick={onClose} className="fixed inset-0 cursor-default" tabIndex={-1} />
       <div
         ref={dialogRef}
         role="dialog"
@@ -61,7 +65,6 @@ export function DetailModal({
         tabIndex={-1}
         className="relative my-2 flex max-h-none w-full max-w-[980px] flex-col overflow-hidden rounded-xl bg-[#0e0e10] shadow-[0_24px_64px_rgba(0,0,0,0.9)] outline-none sm:my-6"
       >
-        {/* Close */}
         <button
           onClick={onClose}
           aria-label="Close"
@@ -72,10 +75,8 @@ export function DetailModal({
           </svg>
         </button>
 
-        {/* Hero artwork */}
         <div className="relative h-[360px] w-full overflow-hidden sm:h-[420px]">
           <img src={anime.backdropImage} alt="" className="h-full w-full object-cover" loading="eager" />
-          {/* bottom fade */}
           <div
             aria-hidden
             className="absolute inset-0"
@@ -84,21 +85,15 @@ export function DetailModal({
                 'linear-gradient(0deg, #0e0e10 6%, rgba(14,14,16,0.85) 18%, rgba(14,14,16,0.35) 42%, transparent 68%)',
             }}
           />
-          {/* Netflix red subtle top? */}
           <div className="absolute left-6 top-6 hidden sm:block">
             <p className="text-[11px] font-bold tracking-[0.24em] text-[#e50914]">AERI</p>
-            {/* Title rendering — large but not image logo */}
             <h2 className="mt-3 max-w-[520px] text-[28px] font-semibold leading-none tracking-tighter text-white drop-shadow">
               {anime.title.english ?? anime.title.romaji}
             </h2>
-            {anime.title.native && (
-              <p className="mt-1 text-xs text-white/60">{anime.title.native}</p>
-            )}
+            {anime.title.native && <p className="mt-1 text-xs text-white/60">{anime.title.native}</p>}
           </div>
 
-          {/* Controls over artwork */}
           <div className="absolute bottom-0 left-0 right-0 flex flex-wrap items-center gap-2 px-4 pb-4 sm:px-6">
-            {/* progress line */}
             {displayAnime.progress && (
               <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10">
                 <div className="h-full bg-[#e50914]" style={{ width: `${displayAnime.progress.percent}%` }} />
@@ -125,15 +120,15 @@ export function DetailModal({
                 <button
                   aria-label={currentStatus ? `Status: ${currentStatus}` : 'Add to My List'}
                   onClick={async () => {
-                    if (!isAuthenticated || !anilistId) {
-                      setLocalError(isAuthenticated ? 'This title has no AniList ID.' : 'Connect AniList in My List to track.')
+                    if (!isAuthenticated) {
+                      setLocalError('Connect AniList or MyAnimeList in My List to track.')
                       setTimeout(() => setLocalError(null), 2500)
                       return
                     }
                     if (!currentStatus) {
                       setSyncing('status')
                       try {
-                        await updateStatus(anilistId, 'watching')
+                        await updateStatus(displayAnime, 'watching')
                       } catch (e) {
                         setLocalError(e instanceof Error ? e.message : 'Couldn’t update status')
                       } finally {
@@ -164,7 +159,7 @@ export function DetailModal({
                           setSyncing('status')
                           setShowStatusPicker(false)
                           try {
-                            await updateStatus(anilistId!, s)
+                            await updateStatus(displayAnime, s)
                           } catch (e) {
                             setLocalError(e instanceof Error ? e.message : 'Couldn’t update status')
                           } finally {
@@ -184,8 +179,8 @@ export function DetailModal({
                 <button
                   aria-label={currentScore ? `Rated ${currentScore}` : 'Rate'}
                   onClick={() => {
-                    if (!isAuthenticated || !anilistId) {
-                      setLocalError(isAuthenticated ? 'This title has no AniList ID.' : 'Connect AniList to rate.')
+                    if (!isAuthenticated) {
+                      setLocalError('Connect AniList or MyAnimeList to rate.')
                       setTimeout(() => setLocalError(null), 2500)
                       return
                     }
@@ -208,7 +203,7 @@ export function DetailModal({
                             setSyncing('rating')
                             setShowRatingPicker(false)
                             try {
-                              await updateRating(anilistId!, score)
+                              await updateRating(displayAnime, score)
                             } catch (e) {
                               setLocalError(e instanceof Error ? e.message : 'Couldn’t save rating')
                             } finally {
@@ -226,7 +221,7 @@ export function DetailModal({
                         setSyncing('rating')
                         setShowRatingPicker(false)
                         try {
-                          await updateRating(anilistId!, 0)
+                          await updateRating(displayAnime, 0)
                         } catch (e) {
                           setLocalError(e instanceof Error ? e.message : 'Couldn’t clear rating')
                         } finally {
@@ -244,10 +239,9 @@ export function DetailModal({
           </div>
         </div>
 
-        {/* Sync feedback */}
-        {(localError || anilistError) && (
+        {(localError || trackingError) && (
           <div className="mx-4 mt-3 rounded border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-200/90 sm:mx-6">
-            {localError ?? anilistError}
+            {localError ?? trackingError}
           </div>
         )}
         {isAuthenticated && (currentStatus || currentScore !== null) && (
@@ -266,7 +260,6 @@ export function DetailModal({
           </div>
         )}
 
-        {/* Body */}
         <div className="grid gap-6 px-4 py-5 sm:px-6 lg:grid-cols-[1.7fr_0.9fr]">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2 text-[12px] text-white/70">

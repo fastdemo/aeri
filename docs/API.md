@@ -41,6 +41,26 @@ interface TrackingProvider {
 
 **Local caching:** `src/services/anilist/client.ts:anilistGraphQL` — in-memory `Map<query+vars, {value, expiry}>` TTL 5 min, IndexedDB via `src/storage/db.ts:putCache/getCache` TTL 24 h, and `inflight` dedup map for concurrent requests. All queries use `cacheKey` where appropriate (viewer, list, anime, search). Mutations use `useCache:false`.
 
+#### MAL Tracking implementation (Phase 5)
+
+**Authentication (browser-safe, no backend, PKCE S256):** `GET https://myanimelist.net/v1/oauth2/authorize?response_type=code&client_id={VITE_MAL_CLIENT_ID}&code_challenge=<base64url-SHA256-verifier>&code_challenge_method=S256&state=<random>` via `src/services/mal/auth.ts:buildMalAuthorizeUrl`. `code_verifier` random 96 chars (43-128), `state` 32 chars, `code_challenge` is SHA256 base64url of verifier. Redirect URI `window.location.origin + import.meta.env.BASE_URL` (`https://fastdemo.github.io/aeri/`). Code is parsed from `window.location.search` (`?code=&state=`) in `src/contexts/MALContext.tsx` effect and `src/services/mal/auth.ts:handleMalOAuthCallback` (state validated, verifier retrieved from storage). Exchange `POST https://myanimelist.net/v1/oauth2/token` (`client_id, grant_type=authorization_code, code, code_verifier`, `Content-Type: application/x-www-form-urlencoded`, `Accept: application/json`) → `{ access_token, refresh_token, expires_in }`. Refresh via `grant_type=refresh_token` when expiry within 1 min (`isMalTokenExpired` buffer). Tokens stored via `src/storage/mal.ts` (`aeri:mal:access_token`, `aeri:mal:refresh_token`, `aeri:mal:token_expiry`, plus `aeri:mal:oauth_state`/`code_verifier` transient). No `client_secret`, no hard-coded secret — `VITE_MAL_CLIENT_ID` env (fallback empty, manual paste path). Manual paste fallback `parseMalManualToken` supports raw token or URL with `code`.
+
+**User:** `GET /users/@me` → `{ id, name, picture }` via `malFetch` (Bearer). Cached 5 min + 24 h + dedup. Mapped to `AniListUser` shape `{ id, name, avatar:{large} }`.
+
+**List:** `GET /users/@me/animelist?fields=list_status{status,score,num_episodes_watched,updated_at},num_episodes,genres,main_picture,alternative_titles,start_date,synopsis,mean,status,media_type,studios,nsfw&limit=1000&nsfw=true` with pagination via `paging.next` (stripped to relative, loop up to 500 safety). Maps each `MALListEntryRaw` via `src/services/mal/mapper.ts:mapMALEntryToAeri` (status `watching/completed/on_hold/dropped/plan_to_watch` → `watching/completed/on_hold/dropped/planned`, percent from `progress/episodes`, `inList/listStatus`, preserves `malId`). Cache key `mal:list` (first page) + `mal:viewer`.
+
+**Anime fetch:** `GET /anime/{id}?fields=id,title,main_picture,alternative_titles,start_date,synopsis,mean,num_episodes,status,genres,studios,media_type,nsfw,my_list_status{status,score,num_episodes_watched}` via `mapMALNodeToAnime` (title `ja→romaji`/`en→english`, `main_picture.large`, `mean` 0-10, `nsfw` passed). Cache key `mal:anime:<id>`.
+
+**Search (tracking-only):** `GET /anime?q=<query>&limit=12&fields=...&nsfw=true` → `mapMALNodeToAnime`. Cache key `mal:search:<lower>`. Not used for UI discovery (public `AnimeMetadataProvider` remains primary); kept for provider conformance.
+
+**Progress/status/rating sync:** `PUT /anime/{id}/my_list_status` (`Content-Type: application/x-www-form-urlencoded`, body `status`/`num_watched_episodes`/`score`). `updateProgress` fetches current `my_list_status` to preserve status then sends `num_watched_episodes`; `updateStatus` maps `watching→watching, completed→completed, planned→plan_to_watch, on_hold→on_hold, dropped→dropped` via `aeriStatusToMal`; `updateRating` sends `score` 0-10. Requires Bearer. On success `clearMalMemoryCache()` to force fresh list. `toMalId` resolves `mal-123` or numeric; throws `NOT_FOUND` friendly for `anilist-xxx` without `malId`.
+
+**My List integration:** `src/contexts/MALContext.tsx` mirrors `AniListContext` (`isAuthenticated, user, animeList, loadingUser/loadingList, error, authExpired`, `login/logout/setManualToken/refresh`, optimistic `updateProgress/updateStatus/updateRating` with `malId` resolution from `anime.identity` or `combinedList`). `src/contexts/TrackingContext.tsx` merges both: `dedupAndMerge` keys by `mal-<malId>` if present else `anilist-<id>`, AniList inserted first (richer banner), MAL second merges identity (`malId`/`anilistId`), picks max progress, keeps AniList status. Exposes `isAuthenticated/isAniListAuthenticated/isMALAuthenticated/combinedList/loading/error/authExpired` and `updateProgress(anime, ep)/updateStatus(anime, status)/updateRating(anime, rating)` fan-out to both providers where IDs exist. UI (`Home` Continue Watching, `MyList`, `DetailModal`, `EpisodeList`, `Watch`) uses `useTracking`, not direct provider.
+
+**Loading/error/auth-expired states:** `MalProviderError` same codes as `ProviderError`; `MALContext` clears tokens on 401/403 and surfaces `authExpired`; `MyList` shows `RowSkeleton`, retry buttons for both providers, amber `Session expired` banner, compact `MALConnectCompact` (MAL badge `#2e51a2`, paste token fallback, redirect URI hint). No raw dumps.
+
+**Local caching (shared):** `src/services/mal/client.ts:malFetch` reuses same `memoryCache` TTL 5 min + IDB `putCache/getCache` TTL 24 h + `inflight` dedup as `anilistGraphQL`, with `ensureFreshToken` auto-refresh (1 min buffer) and `clearMalTokens` on AUTH. Keys `mal:*`. Homepage discovery still 4 parallel AniList metadata requests (cached); MAL list only fetched when authenticated.
+
 ### AnimeMetadataProvider (public discovery, Phase 4)
 
 ```ts
@@ -113,15 +133,15 @@ interface Anime {
 
 ## Mapping
 
-`src/lib/identity.ts` holds map. Never equate `anilistId === malId`. `src/services/anilist/mapper.ts` handles AniList→Aeri: `mapAniListMediaToAnime` (strips HTML, picks `extraLarge→large→medium`, `banner→cover` fallback, `averageScore/10`, `stolabs`, preserves `idMal`), `mapAniListEntryToAeri` (status via `anilistStatusToAeri`, percent from `progress/episodes`, `inList/listStatus`).
+`src/lib/identity.ts` holds map. Never equate `anilistId === malId`. `src/services/anilist/mapper.ts` handles AniList→Aeri: `mapAniListMediaToAnime` (strips HTML, picks `extraLarge→large→medium`, `banner→cover` fallback, `averageScore/10`, `stolabs`, preserves `idMal`), `mapAniListEntryToAeri` (status via `anilistStatusToAeri`, percent from `progress/episodes`, `inList/listStatus`). `src/services/mal/mapper.ts` handles MAL→Aeri: `mapMALNodeToAnime`/`mapMALEntryToAeri` (`malStatusToAeri`/`aeriStatusToMal`, `mean` 0-10, `main_picture`, title `ja`/`en`, percent from `num_episodes_watched/num_episodes`, preserves `malId` for `TrackingContext` dedup).
 
 ## Caching
 
-- In-memory `Map<string,{value,expiry}>` TTL 5 min for all metadata (trending/popular/airing/new/search/anime + viewer/lists)
-- IndexedDB `cache` store keys `anilist:*` TTL 24 h via `putCache/getCache` (shared for tracking + metadata, no second system)
-- Deduplicate concurrent fetches via `inflight` promise map
-- Early hash token parsing in `src/main.tsx` avoids HashRouter conflict with `#access_token=...`
-- Public metadata cached same as tracking; homepage 4 parallel requests deduped and cached
+- In-memory `Map<string,{value,expiry}>` TTL 5 min for all metadata (trending/popular/airing/new/search/anime + viewer/lists) — shared by `anilistGraphQL` and `malFetch`
+- IndexedDB `cache` store keys `anilist:*` + `mal:*` TTL 24 h via `putCache/getCache` (shared for tracking + metadata + MAL, no second system)
+- Deduplicate concurrent fetches via `inflight` promise map (both clients)
+- Early hash token parsing in `src/main.tsx` avoids HashRouter conflict with `#access_token=...`; MAL `?code=` parsed in `MALContext` effect
+- Public metadata cached same as tracking; homepage 4 parallel requests deduped and cached; MAL user/list cached same TTL
 
 ## Search
 
@@ -133,10 +153,10 @@ Phase 2: `src/data/mockAnime.ts` satisfies same interfaces deterministically; no
 
 ## Error Handling
 
-All provider methods throw `ProviderError { code, message, retryable }` (`src/services/anilist/errors.ts`). Client clears token on 401/403 and throws `AUTH`. UI maps to friendly copy:
-- `NETWORK` → "Couldn’t reach AniList. Check your connection." / "AniList is rate-limited. Try again" / "temporarily unavailable" (retryable, `retry` button in MyList, `RowSkeleton`/`error` banner in Home/Browse)
-- `AUTH` → "Session expired. Reconnect." (amber banner, `AniListConnectCompact`)
-- `NOT_FOUND` → "We couldn’t find that anime."
+All provider methods throw `ProviderError`/`MalProviderError` `{ code, message, retryable }` (`src/services/anilist/errors.ts` / `src/services/mal/client.ts`). Client clears token on 401/403 and throws `AUTH`. UI maps to friendly copy:
+- `NETWORK` → "Couldn’t reach AniList/MyAnimeList. Check your connection." / "rate-limited. Try again" / "temporarily unavailable" (retryable, `retry` button in MyList, `RowSkeleton`/`error` banner in Home/Browse)
+- `AUTH` → "Session expired. Reconnect." (amber banner, `AniListConnectCompact` / `MALConnectCompact`; `MalProviderError: "MyAnimeList session expired. Please reconnect."`)
+- `NOT_FOUND` → "We couldn’t find that anime." / "We couldn’t find that anime on MyAnimeList. This title may not be linked to MAL."
 - Generic → "Something went wrong."
 
-No raw error dumps. `src/contexts/AniListContext` surfaces `error` + `authExpired` for skeletons/banners; `src/hooks/useAnimeMetadata` surfaces `error` for section error banners.
+No raw error dumps. `src/contexts/AniListContext` + `MALContext` surface `error` + `authExpired` for skeletons/banners; `src/contexts/TrackingContext` merges; `src/hooks/useAnimeMetadata` surfaces `error` for section error banners.

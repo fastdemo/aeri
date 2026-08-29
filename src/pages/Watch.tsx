@@ -1,33 +1,31 @@
 import { useEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { mockAnime } from '../data/mockAnime'
-import { useAniList } from '../contexts/AniListContext'
+import { useTracking } from '../contexts/TrackingContext'
 import { useAnimeDetail } from '../hooks/useAnimeMetadata'
 
 export function Watch() {
   const { id, episode } = useParams<{ id: string; episode: string }>()
-  const { isAuthenticated, animeList, updateProgress } = useAniList()
+  const { isAuthenticated, combinedList, updateProgress } = useTracking()
   const epNum = Number(episode ?? 1)
 
-  // Resolve real id for metadata fetch
   const mock = id ? mockAnime.find((a) => a.identity.internalId === id) : null
-  const anilistEntry = isAuthenticated && id ? animeList?.find((e) => e.anime.identity.internalId === id || e.anime.identity.anilistId?.toString() === id || e.anime.identity.internalId.startsWith(`anilist-${id}`)) : null
+  const trackingEntry = isAuthenticated && id ? combinedList?.find((e) => e.anime.identity.internalId === id || e.anime.identity.anilistId?.toString() === id || e.anime.identity.malId?.toString() === id || e.anime.identity.internalId.startsWith(`anilist-${id}`) || e.anime.identity.internalId.startsWith(`mal-${id}`)) : null
   const realId = (() => {
     if (!id) return undefined
-    if (id.startsWith('anilist-') || /^\d+$/.test(id)) return id
+    if (id.startsWith('anilist-') || id.startsWith('mal-') || /^\d+$/.test(id)) return id
     if (mock?.identity.anilistId) return `anilist-${mock.identity.anilistId}`
-    if (anilistEntry?.anime.identity.anilistId) return `anilist-${anilistEntry.anime.identity.anilistId}`
+    if (trackingEntry?.anime.identity.anilistId) return `anilist-${trackingEntry.anime.identity.anilistId}`
+    if (mock?.identity.malId) return `mal-${mock.identity.malId}`
     return id
   })()
 
   const { data: remote, loading } = useAnimeDetail(realId)
-  const anime = anilistEntry?.anime ?? remote ?? mock
+  const anime = trackingEntry?.anime ?? remote ?? mock
 
   useEffect(() => {
     if (!isAuthenticated || !anime) return
-    const anilistId = anime.identity.anilistId?.toString() ?? (anime.identity.internalId.startsWith('anilist-') ? anime.identity.internalId.replace('anilist-', '') : null)
-    if (!anilistId) return
-    updateProgress(anilistId, epNum).catch(() => {})
+    updateProgress(anime, epNum).catch(() => {})
     try {
       localStorage.setItem(`aeri:progress:${anime.identity.internalId}`, String(epNum))
     } catch {}
@@ -59,7 +57,6 @@ export function Watch() {
   return (
     <div className="min-h-screen bg-black">
       <div className="mx-auto max-w-[1280px] px-0 sm:px-4 lg:px-6">
-        {/* Player */}
         <div className="relative aspect-video w-full overflow-hidden bg-[#0a0a0a] sm:rounded-lg">
           <img
             src={backdrop}
@@ -81,7 +78,6 @@ export function Watch() {
             </div>
           </div>
 
-          {/* Top bar */}
           <div className="absolute inset-x-0 top-0 flex items-center justify-between bg-gradient-to-b from-black/70 to-transparent px-4 py-3">
             <Link to={`/anime/${id}`} className="text-sm font-medium text-white hover:text-white/80">
               ← {anime.title.english ?? anime.title.romaji}
@@ -89,11 +85,9 @@ export function Watch() {
             <span className="text-xs text-white/60">E{String(epNum).padStart(2, '0')}</span>
           </div>
 
-          {/* Bottom controls hint */}
           <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/60 to-transparent" />
         </div>
 
-        {/* Meta */}
         <div className="px-4 py-5 sm:px-0">
           <h1 className="text-[15px] font-semibold text-white">
             {anime.title.english ?? anime.title.romaji} — Episode {epNum}

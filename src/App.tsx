@@ -7,6 +7,8 @@ import { MyList } from './pages/MyList'
 import { Watch } from './pages/Watch'
 import { AnimeDetail } from './pages/AnimeDetail'
 import { AniListProvider } from './contexts/AniListContext'
+import { MALProvider } from './contexts/MALContext'
+import { TrackingProvider } from './contexts/TrackingContext'
 
 function Layout() {
   return (
@@ -24,7 +26,7 @@ function Layout() {
         </Routes>
       </main>
       <footer className="mx-auto max-w-[1600px] border-t border-white/5 px-4 py-8 text-center text-xs text-white/30 sm:px-6 lg:px-12">
-        Aeri — anime, quietly. • Mock data • No backend • <a href="https://github.com/fastdemo/aeri" className="underline hover:text-white/50">GitHub</a>
+        Aeri — anime, quietly. • No backend • <a href="https://github.com/fastdemo/aeri" className="underline hover:text-white/50">GitHub</a>
       </footer>
     </div>
   )
@@ -34,7 +36,11 @@ export default function App() {
   return (
     <HashRouter>
       <AniListProvider>
-        <Layout />
+        <MALProvider>
+          <TrackingProvider>
+            <Layout />
+          </TrackingProvider>
+        </MALProvider>
       </AniListProvider>
     </HashRouter>
   )

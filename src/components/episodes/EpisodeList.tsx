@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom'
 import type { Anime } from '../../types/anime'
-import { useAniList } from '../../contexts/AniListContext'
+import { useTracking } from '../../contexts/TrackingContext'
 
 function mockEpisodes(anime: Anime, count = 10) {
   const n = Math.min(anime.episodes ?? count, count)
@@ -20,15 +20,22 @@ function mockEpisodes(anime: Anime, count = 10) {
 
 export function EpisodeList({ anime }: { anime: Anime }) {
   const episodes = mockEpisodes(anime)
-  const { isAuthenticated, animeList, updateProgress } = useAniList()
-  const anilistId = anime.identity.anilistId?.toString() ?? (anime.identity.internalId.startsWith('anilist-') ? anime.identity.internalId.replace('anilist-', '') : null)
-  const entry = isAuthenticated && anilistId ? animeList?.find((e) => e.anime.identity.anilistId?.toString() === anilistId) : null
+  const { isAuthenticated, combinedList, updateProgress } = useTracking()
+  const entry = (() => {
+    if (!isAuthenticated || !combinedList) return null
+    const malId = anime.identity.malId
+    const anilistId = anime.identity.anilistId
+    return combinedList.find((e) => {
+      if (malId && e.anime.identity.malId === malId) return true
+      if (anilistId && e.anime.identity.anilistId === anilistId) return true
+      return e.anime.identity.internalId === anime.identity.internalId
+    }) ?? null
+  })()
   const progressEp = entry?.progress ?? anime.progress?.episode ?? 0
 
   const handleSelect = (epNum: number) => {
-    if (isAuthenticated && anilistId) {
-      // fire and forget sync
-      updateProgress(anilistId, epNum).catch(() => {})
+    if (isAuthenticated) {
+      updateProgress(anime, epNum).catch(() => {})
     }
   }
 

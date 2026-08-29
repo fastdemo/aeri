@@ -3,9 +3,12 @@ import { AnimeCard } from '../components/cards/AnimeCard'
 import { DetailModal } from '../components/detail/DetailModal'
 import { mockAnime } from '../data/mockAnime'
 import type { Anime, AnimeStatus } from '../types/anime'
-import { useAniList } from '../contexts/AniListContext'
+import { useTracking } from '../contexts/TrackingContext'
 import { AniListConnectCompact } from '../components/anilist/AniListConnect'
+import { MALConnectCompact } from '../components/mal/MALConnect'
 import { RowSkeleton } from '../components/ui/Skeleton'
+import { useAniList } from '../contexts/AniListContext'
+import { useMAL } from '../contexts/MALContext'
 
 const tabs: { id: AnimeStatus | 'all'; label: string }[] = [
   { id: 'all', label: 'All' },
@@ -18,43 +21,61 @@ const tabs: { id: AnimeStatus | 'all'; label: string }[] = [
 export function MyList() {
   const [tab, setTab] = useState<AnimeStatus | 'all'>('all')
   const [selected, setSelected] = useState<Anime | null>(null)
-  const { isAuthenticated, animeList, loadingList, error, authExpired, refresh } = useAniList()
+  const { isAuthenticated, isAniListAuthenticated, isMALAuthenticated, combinedList, loading, error, authExpired } = useTracking()
+  const ani = useAniList()
+  const mal = useMAL()
 
-  // Use AniList list when authenticated, otherwise fallback to mock demo data
-  const sourceList: Anime[] = isAuthenticated && animeList ? animeList.map((e) => e.anime) : mockAnime.filter((a) => a.inList)
-  // For status filtering when using AniList, map through entries to preserve status
+  // Source list: combined when authenticated, else mock
+  const sourceList: Anime[] = isAuthenticated && combinedList ? combinedList.map((e) => e.anime) : mockAnime.filter((a) => a.inList)
   const filtered: Anime[] = (() => {
-    if (!isAuthenticated || !animeList) {
+    if (!isAuthenticated || !combinedList) {
       return tab === 'all' ? sourceList : sourceList.filter((a) => a.listStatus === tab)
     }
-    const entries = tab === 'all' ? animeList : animeList.filter((e) => e.status === tab)
+    const entries = tab === 'all' ? combinedList : combinedList.filter((e) => e.status === tab)
     return entries.map((e) => e.anime)
   })()
   const listCount = sourceList.length
 
+  const syncLabel = isAniListAuthenticated && isMALAuthenticated
+    ? 'synced with AniList • MAL'
+    : isAniListAuthenticated
+      ? 'synced with AniList'
+      : isMALAuthenticated
+        ? 'synced with MyAnimeList'
+        : 'demo data — connect to sync'
+
   return (
     <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-12">
       <h1 className="text-[18px] font-semibold tracking-tight text-white">My List</h1>
-      <p className="text-xs text-white/50">{listCount} titles • {isAuthenticated ? 'synced with AniList' : 'demo data — connect AniList to sync'}</p>
+      <p className="text-xs text-white/50">{listCount} titles • {syncLabel}</p>
+      {(isAniListAuthenticated && isMALAuthenticated && combinedList) && (
+        <p className="mt-1 text-[11px] text-white/30">Merged • deduped by MAL ID where available • {combinedList.length} unique titles</p>
+      )}
 
-      <div className="mt-4">
+      <div className="mt-4 space-y-3">
         <AniListConnectCompact />
+        <MALConnectCompact />
       </div>
 
-      {isAuthenticated && loadingList && (
+      {isAuthenticated && loading && (
         <div className="mt-6">
-          <RowSkeleton title="Loading your AniList" />
+          <RowSkeleton title="Loading your list" />
         </div>
       )}
-      {isAuthenticated && !loadingList && error && (
+      {isAuthenticated && !loading && (error || authExpired) && (
         <div className="mt-6 rounded-lg border border-white/10 bg-white/[0.03] px-4 py-6 text-center">
-          <p className="text-sm text-white/80">{error}</p>
+          <p className="text-sm text-white/80">{error || 'Session expired'}</p>
           {authExpired ? (
-            <p className="mt-1 text-xs text-white/50">Your AniList session expired. Use the Connect button above.</p>
+            <p className="mt-1 text-xs text-white/50">A session expired. Reconnect above.</p>
           ) : (
-            <button onClick={refresh} className="mt-3 rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-black hover:bg-white/90">
-              Retry
-            </button>
+            <div className="mt-3 flex justify-center gap-2">
+              <button onClick={() => ani.refresh().catch(()=>{})} className="rounded-full bg-white/10 px-4 py-1.5 text-xs font-medium text-white hover:bg-white/15">
+                Retry AniList
+              </button>
+              <button onClick={() => mal.refresh().catch(()=>{})} className="rounded-full bg-white/10 px-4 py-1.5 text-xs font-medium text-white hover:bg-white/15">
+                Retry MAL
+              </button>
+            </div>
           )}
         </div>
       )}
@@ -73,14 +94,14 @@ export function MyList() {
         ))}
       </div>
 
-      {!isAuthenticated || !loadingList ? (
+      {!loading ? (
         <>
           <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
             {filtered.map((a) => (
               <AnimeCard key={a.identity.internalId} anime={a} variant={a.progress ? 'continue' : 'default'} onSelect={setSelected} />
             ))}
           </div>
-          {filtered.length === 0 && !loadingList && !error && (
+          {filtered.length === 0 && !loading && !error && (
             <p className="mt-12 text-center text-sm text-white/50">Nothing here yet.</p>
           )}
         </>

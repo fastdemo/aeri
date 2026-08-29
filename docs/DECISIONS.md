@@ -1,85 +1,65 @@
 # DECISIONS — Aeri
 
 ## D001 — Static-only hosting
-
-Decided: GitHub Pages, no backend. Rationale: spec-mandated, keeps ops trivial. Consequence: IndexedDB/localStorage only; all auth client-side.
+GitHub Pages, no backend, IDB/localStorage only.
 
 ## D002 — HashRouter
-
-Decided: `HashRouter` over `BrowserRouter`. GH Pages has no rewrite; hash URLs survive refresh without 404.html hack. Cleaner for forks. Tradeoff: URLs contain `#`.
+`HashRouter` to avoid 404 on Pages.
 
 ## D003 — Tailwind v4 via @tailwindcss/vite
 
-Decided: Tailwind v4 with Vite plugin. Single pass, no PostCSS config proliferation. Tokens via CSS variables.
-
 ## D004 — Mock-first visual prototype
+Phase 2 mock.
 
-Decided: Phase 2 builds full UI on `src/data/mockAnime.ts` before AniList/MAL. Rationale: visual quality bar requires iteration without API instability.
-
-## D005 — Single AnimeCard with variants
-
-Decided: one component with `variant="default|continue|compact"` rather than duplicated card types. Keeps design consistent.
+## D005 — Single AnimeCard
 
 ## D006 — No carousel library
 
-Decided: native scroll + snap. Avoids heavy deps, preserves momentum scrolling. Sufficient for Netflix-style rows.
-
 ## D007 — Identity normalization
 
-Decided: explicit `AnimeIdentity` with optional `anilistId`/`malId`. Prevents ID conflation and enables future providers.
-
-## D008 — Video provider abstraction deferred
-
-Decided: stub `VideoProvider` until Phase 7; player uses mock episodes initially. Avoids integrating unauthorized sources.
+## D008 — Video provider deferred
 
 ## D009 — Base path env-aware
 
-Decided: `base` derived from `GITHUB_REPOSITORY` env in CI, fallback `/aeri/` locally. Supports forks without code change.
-
-## D010 — AniList implicit grant for static hosting
-
-Decided: `response_type=token` implicit grant via `https://anilist.co/api/v2/oauth/authorize?client_id={VITE_ANILIST_CLIENT_ID}` with redirect `origin + BASE_URL` (`/aeri/`). No server, no client secret. Token parsed from hash fragment and stored via `src/storage/anilist.ts` (`aeri:anilist:token`). Manual paste fallback (`parseManualToken`) for dev without registered client. Tradeoff: token lives in localStorage; expiry handled via `aeri:anilist:token_expiry`.
+## D010 — AniList implicit grant
+`response_type=token`, hash before HashRouter, `aeri:anilist:token`.
 
 ## D011 — Early hash parsing before HashRouter
 
-Decided: parse `#access_token=...` in `src/main.tsx` before `createRoot`, then clean URL to `#/` via `history.replaceState`. Prevents HashRouter interpreting `#access_token=...` as route. Also handled in `src/services/anilist/auth.ts:handleAnilistOAuthCallback` for in-app fallback.
+## D012 — AniList mapper/status
 
-## D012 — AniList mapper and status translation
+## D013 — Caching memory 5m + IDB 24h + dedup
 
-Decided: central `src/services/anilist/mapper.ts` for `AriListMedia → Anime` (HTML stripped, `averageScore/10`, `extraLarge→large→medium` fallback, `banner→cover`). Status maps: `CURRENT/REPEATING→watching`, `COMPLETED→completed`, `PLANNING→planned`, `PAUSED→on_hold`, `DROPPED→dropped` and inverse for mutations. Ensures normalized `Anime`/`AnimeListEntry` for all providers.
+## D014 — AniList context optimistic
 
-## D013 — Caching: memory 5 min + IndexedDB 24 h + inflight dedup
+## D015 — No visual redesign Phase 3
 
-Decided: `src/services/anilist/client.ts:anilistGraphQL` uses in-memory `Map` TTL 5 min, IndexedDB `cache` via `src/storage/db.ts` TTL 24 h (keys `anilist:viewer`, `anilist:list:<userId>`, `anilist:anime:<id>`, `anilist:search:<q>`), and `inflight` promise map to deduplicate concurrent fetches. Mutations bypass cache and clear memory to force refresh.
+## D016 — AnimeMetadataProvider (Phase 4)
 
-## D014 — AniList context with optimistic updates
+## D017 — Home real discovery
 
-Decided: `src/contexts/AniListContext.tsx` provides `isAuthenticated, user, animeList, loadingUser/loadingList, error, authExpired, login/logout/setManualToken/refresh/updateProgress/updateStatus/updateRating`. `updateProgress/Status/Rating` optimistically patch `animeList` then `SaveMediaListEntry` mutation and reload list. Surfaced via `ProviderError` codes for UI skeletons/banners. Keeps visual design unchanged (MyList rows, Home Continue Watching, DetailModal badges, EpisodeList/water page sync remain quiet).
+## D018 — Search always real
 
-## D015 — No visual redesign for Phase 3
+## D019 — Browse real
 
-Decided: MyList and Home keep streaming row aesthetic; connection state via minimal `AniListConnectCompact` bar and Navbar avatar dot (emerald/auth, amber/expired, white/unauthenticated). No dashboard. Spec: "Do not redesign the existing UI."
-
-## D016 — AnimeMetadataProvider abstraction (Phase 4)
-
-Decided: `src/providers/metadata/types.ts` defines `AnimeMetadataProvider` (`getAnime/search/getTrending/getPopular/getAiring/getNewReleases`) returning normalized `Anime`. `src/providers/metadata/anilistMetadata.ts` is first implementation via `anilistGraphQL` + `mapAniListMediaToAnime`. UI imports only `Anime`, never AniList GraphQL types. Extends shared cache (memory/IDB/dedup) with keys `anilist:trending`, `anilist:popular`, `anilist:airing`, `anilist:new`, `anilist:search`, `anilist:anime`. Keeps `TrackingProvider` for user-specific mutations.
-
-## D017 — Home real discovery (Phase 4)
-
-Decided: `src/pages/Home.tsx` uses hooks `useTrending/usePopular/useAiring/useNewReleases` (4 parallel `Page` requests, cached) for `Trending Now`/`Popular on Aeri`/`Currently Airing`/`New Releases` + `Because you watched` (deterministic filter of trending by Fantasy/Adventure). Hero is `trending[0]` banner (fallback `heroAnime` mock while loading). `Continue Watching`/`My List` remain `AniListContext` user-specific (hidden when unauthenticated, which still gets useful public discovery). Prevents dozens of requests via 4 cached queries + `Section` helper handling loading (RowSkeleton) / error (friendly banner, fallback) without raw dump.
-
-## D018 — Search always real (Phase 4)
-
-Decided: `src/pages/Search.tsx` now always uses `useAnimeSearch` → `anilistMetadataProvider.search` (public, debounced 300 ms inside hook) regardless of auth; previous Phase 3 gated by `isAuthenticated`. Handles loading (pulse), empty (`No results`), network/rate-limit (`ProviderError` → friendly string). No mock fallback in production; mock retained only as test fixture.
-
-## D019 — Browse real (Phase 4)
-
-Decided: `src/pages/Browse.tsx` uses `usePopular(24)` (single request) with client-side genre filter, instead of `mockAnime` filter. Shows `RowSkeleton` + grid pulse while loading, friendly error on failure.
-
-## D020 — Detail/Watch real metadata + images (Phase 4)
-
-Decided: `src/pages/AnimeDetail.tsx` + `Watch.tsx` resolve real `anilistId` from param/mock/list, then `useAnimeDetail` → `anilistMetadataProvider.getAnime` for title/alt titles/description/cover/banner/episodes/duration/status/year/season/genres/studios/score/popularity/`idMal`. `DetailModal` already receives real `Anime` from Home rows. `AnimeCard` now `loading="lazy"` + `fallbackSrc = backdrop||cover` + `onError` hide, `Hero`/`Watch` `loading="eager"` for LCP. Picsum remains only in `mockAnime.ts` fallback.
+## D020 — Detail/Watch real metadata + images lazy
 
 ## D021 — Mock as fallback only (Phase 4)
 
-Decided: `src/data/mockAnime.ts` kept but production `Home`/`Browse`/`Search`/`AnimeDetail`/`Watch` no longer depend on mock when real data available; they use `AnimeMetadataProvider` with mock only as fallback if remote fails (Section fallback) or for unauthenticated empty states. Ensures real metadata source while preserving test fixture.
+## D022 — MAL PKCE for static (Phase 5)
+`code_verifier` random 96, `code_challenge` S256 SHA256 base64url, `state` 32, `GET https://myanimelist.net/v1/oauth2/authorize?response_type=code&client_id={VITE_MAL_CLIENT_ID}&code_challenge=S256&state`, redirect `origin+BASE_URL` (`/aeri/`), `POST https://myanimelist.net/v1/oauth2/token` (`client_id, code, code_verifier, grant_type=authorization_code`) via `fetch` (CORS, form urlencoded), `refresh_token` flow, tokens in `aeri:mal:*` via `storage/mal.ts`, no secret committed, `VITE_MAL_CLIENT_ID` env like AniList. Early search `?code` handling in `MALContext` + `main.tsx` not needed (search preserved). Manual paste fallback for dev.
+
+## D023 — MAL client reuse cache (Phase 5)
+`malFetch` reuses same memory 5m + IDB 24h + inflight dedup as `anilistGraphQL`, with `ensureFreshToken` auto-refresh 1min buffer, `clearMalTokens` on 401/403, friendly `MalProviderError`.
+
+## D024 — MAL mapper/status (Phase 5)
+`malStatusToAeri`/`aeriStatusToMal` (`watching/completed/on_hold/dropped/plan_to_watch` ↔ `watching/completed/planned/on_hold/dropped`), `mapMALNodeToAnime` (title `ja→romaji`, `en→english`, `mean` 0-10, `main_picture`, `genres/studios`), percent from `num_episodes_watched/num_episodes`, preserves `malId` for dedup.
+
+## D025 — Dual-provider dedup via malId (Phase 5)
+`TrackingContext:dedupAndMerge` keys by `mal-<malId>` if present else `anilist-<id>`, AniList first (richer banner), MAL second merges identity (`malId`/`anilistId`), picks max progress, keeps AniList status as primary. Prevents visually identical duplicates, no silent overwrite without explicit rule documented.
+
+## D026 — Unified Tracking abstraction (Phase 5)
+`TrackingContext` wraps `AniListContext` + `MALContext`, exposes `isAuthenticated/isAniListAuthenticated/isMALAuthenticated/combinedList/loading/error/authExpired/updateProgress/updateStatus/updateRating` that fan-out to both providers where IDs exist (`updateProgress(anime, ep)` resolves `anilistId`/`malId` from `anime.identity`). UI (Home Continue Watching, MyList, DetailModal, EpisodeList, Watch) uses `useTracking` not direct provider, stays provider-agnostic, no dashboard.
+
+## D027 — No visual redesign for MAL (Phase 5)
+MyList stacks `AniListConnectCompact` + `MALConnectCompact` (compact `MAL` badge `#2e51a2`), Navbar shows first authenticated avatar (AniList preferred) with emerald dot, Home sync label `AniList • MAL` when both, My List shows `Merged • deduped by MAL ID`. Same near-black, landscape cards, quiet gradients.

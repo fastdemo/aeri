@@ -5,7 +5,7 @@ import { ContentRow } from '../components/rows/ContentRow'
 import { DetailModal } from '../components/detail/DetailModal'
 import type { Anime } from '../types/anime'
 import { heroAnime } from '../data/mockAnime'
-import { useAniList } from '../contexts/AniListContext'
+import { useTracking } from '../contexts/TrackingContext'
 import { RowSkeleton } from '../components/ui/Skeleton'
 import { useTrending, usePopular, useAiring, useNewReleases } from '../hooks/useAnimeMetadata'
 
@@ -52,7 +52,7 @@ function Section({
 
 export function Home() {
   const [selected, setSelected] = useState<Anime | null>(null)
-  const { isAuthenticated, animeList, loadingList, error, authExpired } = useAniList()
+  const { isAuthenticated, isAniListAuthenticated, isMALAuthenticated, combinedList, loading, error, authExpired } = useTracking()
 
   const handleSelect = (a: Anime) => setSelected(a)
 
@@ -61,27 +61,23 @@ export function Home() {
   const airing = useAiring(12)
   const news = useNewReleases(12)
 
-  // Derive Continue Watching and My List from AniList when authenticated, else empty (discovery will still show)
   const continueWatching: Anime[] = useMemo(() => {
-    if (isAuthenticated && animeList) {
-      return animeList
+    if (isAuthenticated && combinedList) {
+      return combinedList
         .filter((e) => e.status === 'watching' || (e.progress > 0 && e.status !== 'completed'))
         .map((e) => e.anime)
         .slice(0, 10)
     }
     return []
-  }, [isAuthenticated, animeList])
+  }, [isAuthenticated, combinedList])
 
   const myList: Anime[] = useMemo(() => {
-    if (isAuthenticated && animeList) return animeList.map((e) => e.anime).slice(0, 12)
+    if (isAuthenticated && combinedList) return combinedList.map((e) => e.anime).slice(0, 12)
     return []
-  }, [isAuthenticated, animeList])
+  }, [isAuthenticated, combinedList])
 
-  // Hero: real trending top with banner, fallback to mock hero
   const hero: Anime = trending.data?.[0] ?? heroAnime
 
-  // Fallbacks for public sections when API fails: use trending/popular as fallback via Section prop
-  // Because You Watched: simple deterministic - filter trending by Fantasy if available
   const becauseData = useMemo(() => {
     if (trending.data) {
       const fantasy = trending.data.filter((a) => a.genres.includes('Fantasy') || a.genres.includes('Adventure')).slice(0, 8)
@@ -94,6 +90,8 @@ export function Home() {
     if (becauseData) return { data: becauseData, loading: trending.loading, error: trending.error }
     return trending
   }, [becauseData, trending])
+
+  const syncLabel = isAniListAuthenticated && isMALAuthenticated ? 'AniList • MAL' : isAniListAuthenticated ? 'AniList' : isMALAuthenticated ? 'MAL' : ''
 
   return (
     <div className="pb-10">
@@ -109,19 +107,19 @@ export function Home() {
 
       <div className="mx-auto max-w-[1600px] space-y-6 px-0 pt-5 sm:px-6 lg:px-12 lg:space-y-7">
         {isAuthenticated ? (
-          loadingList ? (
+          loading ? (
             <RowSkeleton title="Continue Watching" />
           ) : continueWatching.length > 0 ? (
-            <ContentRow title="Continue Watching" subtitle={`${continueWatching.length} titles • AniList`}>
+            <ContentRow title="Continue Watching" subtitle={`${continueWatching.length} titles${syncLabel ? ` • ${syncLabel}` : ''}`}>
               {continueWatching.map((a) => (
                 <AnimeCard key={a.identity.internalId} anime={a} variant="continue" onSelect={handleSelect} />
               ))}
             </ContentRow>
           ) : null
         ) : null}
-        {isAuthenticated && !loadingList && (error || authExpired) && (
+        {isAuthenticated && !loading && (error || authExpired) && (
           <div className="rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-white/60">
-            {authExpired ? 'AniList session expired. Reconnect in My List.' : error}
+            {authExpired ? 'Session expired. Reconnect in My List.' : error}
           </div>
         )}
 
@@ -130,14 +128,13 @@ export function Home() {
         <Section title="Currently Airing" state={airing} onSelect={handleSelect} />
         <Section title="New Releases" state={news} onSelect={handleSelect} />
 
-        {/* Deterministic recommendation placeholder */}
         <Section title="Because you watched Frieren" subtitle="Fantasy · Drama" state={becauseState} onSelect={handleSelect} />
 
         {isAuthenticated ? (
-          loadingList ? (
+          loading ? (
             <RowSkeleton title="My List" />
           ) : myList.length ? (
-            <ContentRow title="My List" subtitle={`${myList.length} titles • AniList`}>
+            <ContentRow title="My List" subtitle={`${myList.length} titles${syncLabel ? ` • ${syncLabel}` : ''}`}>
               {myList.map((a) => (
                 <AnimeCard key={a.identity.internalId} anime={a} onSelect={handleSelect} />
               ))}
