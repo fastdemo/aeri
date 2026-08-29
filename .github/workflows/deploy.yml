@@ -25,6 +25,9 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+        env:
+          VITE_ANILIST_CLIENT_ID: '49713'
+          VITE_MAL_CLIENT_ID: 'ce55a1d587f549b33c1fa36ec10fe8d2'
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
