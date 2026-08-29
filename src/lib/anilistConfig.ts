@@ -1,7 +1,7 @@
 export const ANILIST_CLIENT_ID: string =
   // Set VITE_ANILIST_CLIENT_ID in .env for your AniList app (https://anilist.co/settings/developer)
   // For local dev without a client, leave empty and use manual token paste in UI.
-  (import.meta.env.VITE_ANILIST_CLIENT_ID as string | undefined)?.trim() ?? ''
+  (import.meta.env.VITE_ANILIST_CLIENT_ID as string | undefined)?.trim() || '49713'
 
 export const ANILIST_AUTH_URL = 'https://anilist.co/api/v2/oauth/authorize'
 export const ANILIST_GRAPHQL = 'https://graphql.anilist.co'
