@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { AnimeCard } from '../components/cards/AnimeCard'
 import { DetailModal } from '../components/detail/DetailModal'
 import type { Anime } from '../types/anime'
 import { useBrowse } from '../hooks/useAnimeMetadata'
+import { useLocation } from 'react-router-dom'
 
 const categories = [
   { id: 'popular', label: 'Popular', sort: 'POPULARITY_DESC' as const },
@@ -20,6 +21,8 @@ const formats = ['All', 'TV', 'MOVIE', 'OVA', 'SPECIAL'] as const
 export function Browse() {
   const [selected, setSelected] = useState<Anime | null>(null)
   const [category, setCategory] = useState<(typeof categories)[number]['id']>('popular')
+  const location = useLocation()
+  useEffect(() => { setSelected(null) }, [location.pathname, location.hash, location.search])
   const [genre, setGenre] = useState('All')
   const [year, setYear] = useState('All')
   const [season, setSeason] = useState<(typeof seasons)[number]>('All')

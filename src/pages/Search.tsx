@@ -10,6 +10,8 @@ export function Search() {
   const q = params.get('q') ?? ''
   const [selected, setSelected] = useState<Anime | null>(null)
   const [input, setInput] = useState(q)
+  const location = params // use params as location dependency
+  useEffect(() => { setSelected(null) }, [location.toString()])
 
   // Live search while typing (debounced 300ms inside hook)
   const liveQuery = input.trim()

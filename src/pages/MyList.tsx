@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { AnimeCard } from '../components/cards/AnimeCard'
 import { DetailModal } from '../components/detail/DetailModal'
 import type { Anime, AnimeStatus } from '../types/anime'
-import { Link } from 'react-router-dom'
+import { Link, useLocation } from 'react-router-dom'
 import { useTracking } from '../contexts/TrackingContext'
 import { RowSkeleton } from '../components/ui/Skeleton'
 import { useAniList } from '../contexts/AniListContext'
@@ -20,6 +20,8 @@ export function MyList() {
   const [tab, setTab] = useState<AnimeStatus | 'all'>('all')
   const [selected, setSelected] = useState<Anime | null>(null)
   const { isAuthenticated, isAniListAuthenticated, isMALAuthenticated, combinedList, loading, error, authExpired } = useTracking()
+  const location = useLocation()
+  useEffect(() => { setSelected(null) }, [location.pathname, location.hash, location.search])
   const ani = useAniList()
   const mal = useMAL()
 

@@ -133,11 +133,16 @@ export function AnimeDetail() {
                       aria-label="Select season"
                       className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 pr-8 text-xs font-medium text-white focus:border-white/20 focus:outline-none"
                     >
-                      {seriesGroup.seasons.map((s, idx) => (
-                        <option key={s.identity.internalId} value={String(idx)} className="bg-[#141416]">
-                          Season {idx + 1} {s.year ? `• ${s.year}` : ''} {s.episodes ? `• ${s.episodes} eps` : ''}
-                        </option>
-                      ))}
+                      {seriesGroup.seasons.map((s, idx) => {
+                        const parts = [`Season ${idx + 1}`]
+                        if (s.year) parts.push(String(s.year))
+                        if (s.episodes) parts.push(`${s.episodes} eps`)
+                        return (
+                          <option key={s.identity.internalId} value={String(idx)} className="bg-[#141416]">
+                            {parts.join(' • ')}
+                          </option>
+                        )
+                      })}
                     </select>
                     <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-white/40">▼</span>
                   </div>

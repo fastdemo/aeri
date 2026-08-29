@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { Hero } from '../components/hero/Hero'
 import { AnimeCard } from '../components/cards/AnimeCard'
 import { ContentRow } from '../components/rows/ContentRow'
@@ -7,6 +7,7 @@ import type { Anime } from '../types/anime'
 import { useTracking } from '../contexts/TrackingContext'
 import { RowSkeleton } from '../components/ui/Skeleton'
 import { useTrending, usePopular, useAiring, useNewReleases } from '../hooks/useAnimeMetadata'
+import { useLocation } from 'react-router-dom'
 
 function Section({
   title,
@@ -52,6 +53,10 @@ function Section({
 export function Home() {
   const [selected, setSelected] = useState<Anime | null>(null)
   const { isAuthenticated, isAniListAuthenticated, isMALAuthenticated, combinedList, loading, error, authExpired } = useTracking()
+  const location = useLocation()
+
+  // Close modal on navigation (fixes navbar Home click while modal open)
+  useEffect(() => { setSelected(null) }, [location.pathname, location.hash, location.search])
 
   const handleSelect = (a: Anime) => setSelected(a)
 

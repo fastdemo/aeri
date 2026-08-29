@@ -30,7 +30,7 @@ export function Navbar() {
 
   return (
     <header
-      className={`fixed inset-x-0 top-0 z-40 h-14 transition-colors duration-300 ${
+      className={`fixed inset-x-0 top-0 z-50 h-14 transition-colors duration-300 ${
         scrolled
           ? 'bg-[var(--bg)]/95 backdrop-blur-md border-b border-[var(--border)]'
           : 'bg-gradient-to-b from-black/70 via-black/20 to-transparent'

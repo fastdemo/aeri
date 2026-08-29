@@ -76,11 +76,23 @@ export function DetailModal({
     dialogRef.current?.focus()
   }, [])
 
+  // Close on navbar navigation even when hash doesn't change (e.g., Home modal open and user clicks Home again)
+  useEffect(() => {
+    const onNavClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (target.closest('nav a, header a')) {
+        onClose()
+      }
+    }
+    document.addEventListener('click', onNavClick)
+    return () => document.removeEventListener('click', onNavClick)
+  }, [onClose])
+
   const meta = [displayAnime.format, displayAnime.year ? String(displayAnime.year) : null, displayAnime.season ? displayAnime.season.charAt(0) + displayAnime.season.slice(1).toLowerCase() : null, displayAnime.episodes ? `${displayAnime.episodes} Episodes` : null, displayAnime.status ? displayAnime.status.charAt(0) + displayAnime.status.slice(1).toLowerCase() : null].filter(Boolean).join(' · ') + ' · HD'
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/75 p-2 backdrop-blur-[2px] sm:p-6 lg:p-8">
-      <button aria-label="Close" onClick={onClose} className="fixed inset-0 cursor-default" tabIndex={-1} />
+    <div className="fixed inset-x-0 bottom-0 top-14 z-40 flex items-start justify-center overflow-y-auto bg-black/75 p-2 backdrop-blur-[2px] sm:p-6 lg:p-8">
+      <button aria-label="Close" onClick={onClose} className="fixed inset-0 top-14 cursor-default" tabIndex={-1} />
       <div
         ref={dialogRef}
         role="dialog"
@@ -319,11 +331,16 @@ export function DetailModal({
                     aria-label="Select season"
                     className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 pr-8 text-xs font-medium text-white focus:border-white/20 focus:outline-none"
                   >
-                    {seriesGroup.seasons.map((s, idx) => (
-                      <option key={s.identity.internalId} value={String(idx)} className="bg-[#141416]">
-                        Season {idx + 1} {s.year ? `• ${s.year}` : ''} {s.episodes ? `• ${s.episodes} eps` : ''}
-                      </option>
-                    ))}
+                    {seriesGroup.seasons.map((s, idx) => {
+                        const parts = [`Season ${idx + 1}`]
+                        if (s.year) parts.push(String(s.year))
+                        if (s.episodes) parts.push(`${s.episodes} eps`)
+                        return (
+                          <option key={s.identity.internalId} value={String(idx)} className="bg-[#141416]">
+                            {parts.join(' • ')}
+                          </option>
+                        )
+                      })}
                   </select>
                   <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-white/40">▼</span>
                 </div>
