@@ -2,26 +2,44 @@ import { useEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { mockAnime } from '../data/mockAnime'
 import { useAniList } from '../contexts/AniListContext'
+import { useAnimeDetail } from '../hooks/useAnimeMetadata'
 
 export function Watch() {
   const { id, episode } = useParams<{ id: string; episode: string }>()
   const { isAuthenticated, animeList, updateProgress } = useAniList()
   const epNum = Number(episode ?? 1)
-  // Prefer AniList entry if available, otherwise mock
+
+  // Resolve real id for metadata fetch
+  const mock = id ? mockAnime.find((a) => a.identity.internalId === id) : null
   const anilistEntry = isAuthenticated && id ? animeList?.find((e) => e.anime.identity.internalId === id || e.anime.identity.anilistId?.toString() === id || e.anime.identity.internalId.startsWith(`anilist-${id}`)) : null
-  const anime = anilistEntry?.anime ?? mockAnime.find((a) => a.identity.internalId === id)
+  const realId = (() => {
+    if (!id) return undefined
+    if (id.startsWith('anilist-') || /^\d+$/.test(id)) return id
+    if (mock?.identity.anilistId) return `anilist-${mock.identity.anilistId}`
+    if (anilistEntry?.anime.identity.anilistId) return `anilist-${anilistEntry.anime.identity.anilistId}`
+    return id
+  })()
+
+  const { data: remote, loading } = useAnimeDetail(realId)
+  const anime = anilistEntry?.anime ?? remote ?? mock
 
   useEffect(() => {
     if (!isAuthenticated || !anime) return
     const anilistId = anime.identity.anilistId?.toString() ?? (anime.identity.internalId.startsWith('anilist-') ? anime.identity.internalId.replace('anilist-', '') : null)
     if (!anilistId) return
-    // Sync progress — fire and forget, don't block UI
     updateProgress(anilistId, epNum).catch(() => {})
-    // Also persist locally for demo
     try {
       localStorage.setItem(`aeri:progress:${anime.identity.internalId}`, String(epNum))
     } catch {}
   }, [isAuthenticated, anime, epNum, updateProgress])
+
+  if (loading && !anime) {
+    return (
+      <div className="mx-auto max-w-[1280px] px-0 sm:px-4 lg:px-6">
+        <div className="aspect-video w-full animate-pulse rounded-lg bg-white/5" />
+      </div>
+    )
+  }
 
   if (!anime) {
     return (
@@ -36,6 +54,7 @@ export function Watch() {
 
   const prev = epNum > 1 ? epNum - 1 : null
   const next = anime.episodes && epNum < anime.episodes ? epNum + 1 : null
+  const backdrop = anime.backdropImage || anime.coverImage || ''
 
   return (
     <div className="min-h-screen bg-black">
@@ -43,9 +62,12 @@ export function Watch() {
         {/* Player */}
         <div className="relative aspect-video w-full overflow-hidden bg-[#0a0a0a] sm:rounded-lg">
           <img
-            src={anime.backdropImage}
+            src={backdrop}
             alt=""
             className="h-full w-full object-cover opacity-80"
+            loading="eager"
+            decoding="async"
+            onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = 'none')}
           />
           <div className="absolute inset-0 grid place-items-center">
             <div className="text-center">
@@ -111,7 +133,7 @@ export function Watch() {
             )}
           </div>
 
-          <p className="mt-6 max-w-[720px] text-sm leading-6 text-white/70">{anime.description}</p>
+          <p className="mt-6 max-w-[720px] text-sm leading-6 text-white/70">{anime.description || 'No description available.'}</p>
         </div>
       </div>
     </div>

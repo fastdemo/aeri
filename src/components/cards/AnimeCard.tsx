@@ -15,15 +15,16 @@ export function AnimeCard({
   const width =
     variant === 'compact' ? 'w-[148px] sm:w-[180px]' : 'w-[168px] sm:w-[200px] lg:w-[236px]'
 
+  const fallbackSrc = anime.backdropImage || anime.coverImage || ""
   const content = (
     <div
       className={`group relative flex-shrink-0 overflow-hidden rounded-[6px] bg-[var(--surface)] ring-1 ring-white/5 transition-all duration-200 hover:z-10 hover:scale-[1.03] hover:ring-white/15 ${width}`}
     >
       <div className="relative aspect-[16/9] w-full overflow-hidden bg-[var(--surface-elevated)]">
         <img
-          src={anime.backdropImage}
+          src={fallbackSrc}
           alt={anime.title.english ?? anime.title.romaji}
-          loading="eager"
+          loading="lazy"
           decoding="async"
           onError={(e) => {
             const t = e.currentTarget

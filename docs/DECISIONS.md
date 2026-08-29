@@ -59,3 +59,27 @@ Decided: `src/contexts/AniListContext.tsx` provides `isAuthenticated, user, anim
 ## D015 — No visual redesign for Phase 3
 
 Decided: MyList and Home keep streaming row aesthetic; connection state via minimal `AniListConnectCompact` bar and Navbar avatar dot (emerald/auth, amber/expired, white/unauthenticated). No dashboard. Spec: "Do not redesign the existing UI."
+
+## D016 — AnimeMetadataProvider abstraction (Phase 4)
+
+Decided: `src/providers/metadata/types.ts` defines `AnimeMetadataProvider` (`getAnime/search/getTrending/getPopular/getAiring/getNewReleases`) returning normalized `Anime`. `src/providers/metadata/anilistMetadata.ts` is first implementation via `anilistGraphQL` + `mapAniListMediaToAnime`. UI imports only `Anime`, never AniList GraphQL types. Extends shared cache (memory/IDB/dedup) with keys `anilist:trending`, `anilist:popular`, `anilist:airing`, `anilist:new`, `anilist:search`, `anilist:anime`. Keeps `TrackingProvider` for user-specific mutations.
+
+## D017 — Home real discovery (Phase 4)
+
+Decided: `src/pages/Home.tsx` uses hooks `useTrending/usePopular/useAiring/useNewReleases` (4 parallel `Page` requests, cached) for `Trending Now`/`Popular on Aeri`/`Currently Airing`/`New Releases` + `Because you watched` (deterministic filter of trending by Fantasy/Adventure). Hero is `trending[0]` banner (fallback `heroAnime` mock while loading). `Continue Watching`/`My List` remain `AniListContext` user-specific (hidden when unauthenticated, which still gets useful public discovery). Prevents dozens of requests via 4 cached queries + `Section` helper handling loading (RowSkeleton) / error (friendly banner, fallback) without raw dump.
+
+## D018 — Search always real (Phase 4)
+
+Decided: `src/pages/Search.tsx` now always uses `useAnimeSearch` → `anilistMetadataProvider.search` (public, debounced 300 ms inside hook) regardless of auth; previous Phase 3 gated by `isAuthenticated`. Handles loading (pulse), empty (`No results`), network/rate-limit (`ProviderError` → friendly string). No mock fallback in production; mock retained only as test fixture.
+
+## D019 — Browse real (Phase 4)
+
+Decided: `src/pages/Browse.tsx` uses `usePopular(24)` (single request) with client-side genre filter, instead of `mockAnime` filter. Shows `RowSkeleton` + grid pulse while loading, friendly error on failure.
+
+## D020 — Detail/Watch real metadata + images (Phase 4)
+
+Decided: `src/pages/AnimeDetail.tsx` + `Watch.tsx` resolve real `anilistId` from param/mock/list, then `useAnimeDetail` → `anilistMetadataProvider.getAnime` for title/alt titles/description/cover/banner/episodes/duration/status/year/season/genres/studios/score/popularity/`idMal`. `DetailModal` already receives real `Anime` from Home rows. `AnimeCard` now `loading="lazy"` + `fallbackSrc = backdrop||cover` + `onError` hide, `Hero`/`Watch` `loading="eager"` for LCP. Picsum remains only in `mockAnime.ts` fallback.
+
+## D021 — Mock as fallback only (Phase 4)
+
+Decided: `src/data/mockAnime.ts` kept but production `Home`/`Browse`/`Search`/`AnimeDetail`/`Watch` no longer depend on mock when real data available; they use `AnimeMetadataProvider` with mock only as fallback if remote fails (Section fallback) or for unauthenticated empty states. Ensures real metadata source while preserving test fixture.
