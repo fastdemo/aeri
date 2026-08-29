@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import type { Anime, AnimeStatus } from '../../types/anime'
 import { EpisodeList } from '../episodes/EpisodeList'
 import { useTracking } from '../../contexts/TrackingContext'
+import { getSeriesGroup, type AnimeSeriesGroup } from '../../services/anilist/series'
 
 export function DetailModal({
   anime,
@@ -34,7 +35,30 @@ export function DetailModal({
 
   const currentStatus: AnimeStatus | null = entry?.status ?? anime.listStatus ?? null
   const currentScore = entry?.score ?? null
-  const displayAnime = entry?.anime ?? anime
+  const baseAnime = entry?.anime ?? anime
+
+  // Series grouping
+  const [seriesGroup, setSeriesGroup] = useState<AnimeSeriesGroup | null>(null)
+  const [selectedSeasonIdx, setSelectedSeasonIdx] = useState(0)
+  useEffect(() => {
+    if (!baseAnime.identity.anilistId) {
+      setSeriesGroup(null)
+      return
+    }
+    let cancelled = false
+    getSeriesGroup(baseAnime.identity.anilistId).then(g => {
+      if (cancelled) return
+      if (g && g.seasons.length > 1) {
+        setSeriesGroup(g)
+        const idx = g.seasons.findIndex(s => s.identity.anilistId === baseAnime.identity.anilistId)
+        setSelectedSeasonIdx(idx >= 0 ? idx : 0)
+      } else {
+        setSeriesGroup(null)
+      }
+    }).catch(() => { if (!cancelled) setSeriesGroup(null) })
+    return () => { cancelled = true }
+  }, [baseAnime.identity.anilistId])
+  const displayAnime = seriesGroup ? seriesGroup.seasons[selectedSeasonIdx] ?? baseAnime : baseAnime
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -52,7 +76,7 @@ export function DetailModal({
     dialogRef.current?.focus()
   }, [])
 
-  const meta = [anime.format, anime.year ? String(anime.year) : null, anime.season ? anime.season.charAt(0) + anime.season.slice(1).toLowerCase() : null, anime.episodes ? `${anime.episodes} Episodes` : null, anime.status ? anime.status.charAt(0) + anime.status.slice(1).toLowerCase() : null].filter(Boolean).join(' · ') + ' · HD'
+  const meta = [displayAnime.format, displayAnime.year ? String(displayAnime.year) : null, displayAnime.season ? displayAnime.season.charAt(0) + displayAnime.season.slice(1).toLowerCase() : null, displayAnime.episodes ? `${displayAnime.episodes} Episodes` : null, displayAnime.status ? displayAnime.status.charAt(0) + displayAnime.status.slice(1).toLowerCase() : null].filter(Boolean).join(' · ') + ' · HD'
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/75 p-2 backdrop-blur-[2px] sm:p-6 lg:p-8">
@@ -85,12 +109,14 @@ export function DetailModal({
                 'linear-gradient(0deg, #0e0e10 6%, rgba(14,14,16,0.85) 18%, rgba(14,14,16,0.35) 42%, transparent 68%)',
             }}
           />
-          <div className="absolute left-6 top-6 hidden sm:block">
-            <p className="text-[11px] font-bold tracking-[0.24em] text-[#e50914]">AERI</p>
-            <h2 className="mt-3 max-w-[520px] text-[28px] font-semibold leading-none tracking-tighter text-white drop-shadow">
+          <div className="absolute left-6 top-6 hidden max-w-[520px] sm:block">
+            <h2 className="text-[28px] font-semibold leading-none tracking-tighter text-white drop-shadow">
               {anime.title.english ?? anime.title.romaji}
             </h2>
             {anime.title.native && <p className="mt-1 text-xs text-white/60">{anime.title.native}</p>}
+            {anime.title.english && anime.title.romaji !== anime.title.english && (
+              <p className="mt-1 text-[11px] tracking-wide text-white/50">{anime.title.romaji}</p>
+            )}
           </div>
 
           <div className="absolute bottom-0 left-0 right-0 flex flex-wrap items-center gap-2 px-4 pb-4 sm:px-6">
@@ -264,13 +290,13 @@ export function DetailModal({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2 text-[12px] text-white/70">
               <span>{meta}</span>
-              {anime.rating && <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold">★ {anime.rating.toFixed(1)}</span>}
+              {displayAnime.rating && <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold">★ {displayAnime.rating.toFixed(1)}</span>}
             </div>
 
             {(() => {
-              const firstEp = anime.streamingEpisodes?.[0]
+              const firstEp = displayAnime.streamingEpisodes?.[0]
               const epNum = displayAnime.progress?.episode ?? 1
-              const epTitle = anime.streamingEpisodes?.[epNum - 1]?.title ?? firstEp?.title
+              const epTitle = displayAnime.streamingEpisodes?.[epNum - 1]?.title ?? firstEp?.title
               // Only show episode line if we have real title or progress
               if (!epTitle && !displayAnime.progress) return null
               return (
@@ -280,44 +306,66 @@ export function DetailModal({
               )
             })()}
             <p className="mt-1 line-clamp-3 text-[13px] leading-6 text-white/70">
-              {anime.description || 'No description available.'}
+              {displayAnime.description || 'No description available.'}
             </p>
+
+            {seriesGroup && seriesGroup.seasons.length > 1 && (
+              <div className="mt-4 flex items-center gap-2">
+                <span className="text-xs text-white/50">Season</span>
+                <div className="relative">
+                  <select
+                    value={String(selectedSeasonIdx)}
+                    onChange={e => setSelectedSeasonIdx(Number(e.target.value))}
+                    aria-label="Select season"
+                    className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 pr-8 text-xs font-medium text-white focus:border-white/20 focus:outline-none"
+                  >
+                    {seriesGroup.seasons.map((s, idx) => (
+                      <option key={s.identity.internalId} value={String(idx)} className="bg-[#141416]">
+                        Season {idx + 1} {s.year ? `• ${s.year}` : ''} {s.episodes ? `• ${s.episodes} eps` : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-white/40">▼</span>
+                </div>
+                <span className="text-xs text-white/30">{seriesGroup.totalSeasons} seasons</span>
+              </div>
+            )}
 
             <h3 className="mt-6 text-[14px] font-semibold text-white">Episodes</h3>
             <div className="mt-3">
-              <EpisodeList anime={anime} />
+              <EpisodeList anime={displayAnime} />
             </div>
           </div>
 
           <div className="space-y-3 border-t border-white/10 pt-4 lg:border-t-0 lg:pt-0">
-            {anime.genres.length > 0 && (
+            {displayAnime.genres.length > 0 && (
               <div className="text-xs leading-5">
                 <span className="text-white/50">Genres: </span>
-                <span className="text-white/80">{anime.genres.join(', ')}</span>
+                <span className="text-white/80">{displayAnime.genres.join(', ')}</span>
               </div>
             )}
-            {anime.studios && anime.studios.length > 0 && (
+            {displayAnime.studios && displayAnime.studios.length > 0 && (
               <div className="text-xs leading-5">
                 <span className="text-white/50">Studios: </span>
-                <span className="text-white/80">{anime.studios.join(', ')}</span>
+                <span className="text-white/80">{displayAnime.studios.join(', ')}</span>
               </div>
             )}
-            {anime.format && (
+            {displayAnime.format && (
               <div className="text-xs leading-5">
                 <span className="text-white/50">Format: </span>
-                <span className="text-white/80">{anime.format}</span>
+                <span className="text-white/80">{displayAnime.format}</span>
               </div>
             )}
-            {anime.status && (
+            {displayAnime.status && (
               <div className="text-xs leading-5">
                 <span className="text-white/50">Status: </span>
-                <span className="text-white/80">{anime.status}</span>
+                <span className="text-white/80">{displayAnime.status}</span>
               </div>
             )}
-            {anime.year && (
+            {displayAnime.year && (
               <div className="text-xs leading-5">
                 <span className="text-white/50">Year: </span>
-                <span className="text-white/80">{anime.year}{anime.season ? ` • ${anime.season.charAt(0) + anime.season.slice(1).toLowerCase()}` : ''}</span>
+                <span className="text-white/80">{displayAnime.year}{displayAnime.season ? ` • ${displayAnime.season.charAt(0) + displayAnime.season.slice(1).toLowerCase()}` : ''}</span>
               </div>
             )}
           </div>

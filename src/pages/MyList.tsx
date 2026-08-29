@@ -2,9 +2,8 @@ import { useState } from 'react'
 import { AnimeCard } from '../components/cards/AnimeCard'
 import { DetailModal } from '../components/detail/DetailModal'
 import type { Anime, AnimeStatus } from '../types/anime'
+import { Link } from 'react-router-dom'
 import { useTracking } from '../contexts/TrackingContext'
-import { AniListConnectCompact } from '../components/anilist/AniListConnect'
-import { MALConnectCompact } from '../components/mal/MALConnect'
 import { RowSkeleton } from '../components/ui/Skeleton'
 import { useAniList } from '../contexts/AniListContext'
 import { useMAL } from '../contexts/MALContext'
@@ -49,10 +48,23 @@ export function MyList() {
         <p className="mt-1 text-[11px] text-white/30">Merged • deduped by MAL ID where available • {combinedList.length} unique titles</p>
       )}
 
-      <div className="mt-4 space-y-3">
-        <AniListConnectCompact />
-        <MALConnectCompact />
-      </div>
+      {!isAuthenticated && (
+        <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3 flex items-center justify-between gap-3">
+          <p className="text-xs text-white/60">Connect AniList to sync your list and track progress.</p>
+          <Link to="/settings" className="whitespace-nowrap rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-black hover:bg-white/90">
+            Go to Settings
+          </Link>
+        </div>
+      )}
+
+      {isAuthenticated && (isAniListAuthenticated || isMALAuthenticated) && (
+        <div className="mt-4 flex items-center gap-2 text-xs">
+          <span className="text-white/40">Connected:</span>
+          {isAniListAuthenticated && ani.user && <span className="rounded-full bg-white/10 px-2.5 py-1 text-white/70">{ani.user.name} • AniList</span>}
+          {isMALAuthenticated && mal.user && <span className="rounded-full bg-white/10 px-2.5 py-1 text-white/70">{mal.user.name} • MAL</span>}
+          <Link to="/settings" className="ml-auto text-xs text-white/50 underline hover:text-white/80">Manage in Settings</Link>
+        </div>
+      )}
 
       {isAuthenticated && loading && (
         <div className="mt-6">

@@ -38,11 +38,11 @@ export function Watch() {
   const episodesLoading = false // episode list is immediate from AniList, not blocked by video provider
   const [providerId, setProviderId] = useState<string | null>(null)
 
-  // Immediate episode list from AniList metadata (no provider wait)
+  // Immediate episode list from AniList metadata (no provider wait) — authoritative Media.episodes, not streamingEpisodes length
   const immediateEpisodes = useMemo(() => {
     if (!anime) return []
     const count = anime.episodes ?? anime.streamingEpisodes?.length ?? 12
-    const n = Math.min(count, 24)
+    const n = Math.min(count, 100)
     return Array.from({ length: n }, (_, i) => ({
       number: i + 1,
       title: anime.streamingEpisodes?.[i]?.title,

@@ -74,9 +74,10 @@ http://localhost:4173/aeri/#/list
 
 - [x] Phase 1 — foundation (Vite, tokens, routing, GH Pages)
 - [x] Phase 2 — visual prototype on mock data (nav, hero, rows, cards, detail, watch, search, my list)
-- [ ] Phase 3 — AniList
-- [ ] Phase 4 — MAL
-- [ ] Phase 5 — persistence
-- [ ] Phase 6 — recommendations
-- [ ] Phase 7 — video
-- [ ] Phase 8 — polish
+- [x] Phase 3 — AniList integration (auth, list sync, progress/status/rating, tracking provider)
+- [x] Phase 4 — Real Anime Discovery & Metadata (AnimeMetadataProvider, Trending/Popular/Airing/New, Search real, hero real)
+- [x] Phase 5 — MyAnimeList integration (PKCE, MALProvider, TrackingContext dedup, GH Pages VITE_MAL_CLIENT_ID, parked: CORS)
+- [x] Phase 6 — Complete AniList Discovery & Core Experience (Browse tabs+filters+pagination, Search live, Detail real, MyList empty, episode progress, caching, responsive)
+- [x] Phase 7 — Real Video Playback & Multi-Provider Streaming (VideoProvider, 6 providers investigated, no browser-compatible source without backend, Watch no-source UI, local watchPos, parked as static)
+- [x] Phase 7.1 — Performance, Metadata Accuracy & Remove All Placeholder Content (parallel Home, 8s/3.5s timeouts, studios filtered, T18/Let You Down/picsum removed, episode real titles, Watch immediate episode list, no fake fallback)
+- [x] Phase 8 — Series Grouping, Episode Completeness, UI Cleanup, Streaming Research & Settings (Netflix-style seasons via relations, Top 10 removed, episodes authoritative, AERI removed, Settings tab, embed investigation, no backend)

@@ -36,13 +36,6 @@ export function AnimeCard({
         {/* subtle inner gradient for text legibility if needed */}
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent opacity-60 group-hover:opacity-70 transition-opacity" />
 
-        {/* Top badge — only for very popular */}
-        {anime.popularity && anime.popularity >= 97 && (
-          <div className="absolute bottom-1 left-1 rounded bg-[#e50914] px-1.5 py-0.5 text-[9px] font-bold leading-none tracking-wide text-white">
-            Top 10
-          </div>
-        )}
-
         {/* Hover play affordance */}
         <div className="absolute inset-0 grid place-items-center opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
           <div className="grid h-8 w-8 place-items-center rounded-full bg-white text-black shadow-lg">

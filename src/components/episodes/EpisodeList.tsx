@@ -4,7 +4,7 @@ import { useTracking } from '../../contexts/TrackingContext'
 
 function getEpisodes(anime: Anime) {
   const count = anime.episodes ?? anime.streamingEpisodes?.length ?? 12
-  const n = Math.min(count, 24)
+  const n = Math.min(count, 100)
   return Array.from({ length: n }, (_, i) => {
     const se = anime.streamingEpisodes?.[i]
     // Use real title only if AniList provides it; otherwise leave undefined (number is shown separately)

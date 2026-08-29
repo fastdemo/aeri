@@ -52,6 +52,7 @@ export function Navbar() {
               { to: '/', label: 'Home' },
               { to: '/browse', label: 'Browse' },
               { to: '/list', label: 'My List' },
+              { to: '/settings', label: 'Settings' },
             ].map((l) => (
               <NavLink
                 key={l.to}
@@ -165,6 +166,7 @@ export function Navbar() {
               { to: '/browse', label: 'Browse' },
               { to: '/list', label: 'My List' },
               { to: '/search', label: 'Search' },
+              { to: '/settings', label: 'Settings' },
             ].map((l) => (
               <Link
                 key={l.to}

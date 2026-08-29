@@ -6,6 +6,7 @@ import { Search } from './pages/Search'
 import { MyList } from './pages/MyList'
 import { Watch } from './pages/Watch'
 import { AnimeDetail } from './pages/AnimeDetail'
+import { Settings } from './pages/Settings'
 import { AniListProvider } from './contexts/AniListContext'
 import { MALProvider } from './contexts/MALContext'
 import { TrackingProvider } from './contexts/TrackingContext'
@@ -22,6 +23,7 @@ function Layout() {
           <Route path="/list" element={<MyList />} />
           <Route path="/anime/:id" element={<AnimeDetail />} />
           <Route path="/watch/:id/:episode" element={<Watch />} />
+          <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
