@@ -76,7 +76,15 @@ export async function malFetch<T>(path: string, opts: RequestInit & { cacheKey?:
     let res: Response
     try {
       res = await fetch(url, { ...opts, method, headers })
-    } catch {
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      if (/Failed to fetch|NetworkError|Load failed|CORS/i.test(msg) || /CORS/i.test(String(e))) {
+        throw new MalProviderError(
+          'NETWORK',
+          'MyAnimeList blocked the request (CORS). Aeri runs on GitHub Pages with no backend, and the MAL API (api.myanimelist.net / myanimelist.net/v1/oauth2) does not send CORS headers for browser fetches. The token and REST calls will fail from this origin — this is a MAL API limitation for static sites. Your AniList sync still works.',
+          false
+        )
+      }
       throw new MalProviderError('NETWORK', 'Couldn’t reach MyAnimeList. Check your connection.', true)
     }
 

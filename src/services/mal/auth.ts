@@ -45,12 +45,9 @@ export async function buildMalAuthorizeUrl(): Promise<string> {
   url.searchParams.set('code_challenge', challenge)
   url.searchParams.set('code_challenge_method', 'S256')
   url.searchParams.set('state', state)
-  // MAL uses redirect_uri implicitly from app settings? But we can pass if configured; use getMalRedirectUri()
-  // Spec: MAL requires exact redirect_uri match; we include it to be explicit if app configured
-  // For GitHub Pages, redirect is https://fastdemo.github.io/aeri/
-  // Only include if needed; omit to avoid mismatch if not configured
-  // We will include to be safe if app has it set
-  // url.searchParams.set('redirect_uri', getMalRedirectUri())
+  // MAL requires exact redirect_uri match with the value registered in the MAL app settings.
+  // For Aeri on GitHub Pages the registered value is exactly https://fastdemo.github.io/aeri/
+  url.searchParams.set('redirect_uri', getMalRedirectUri())
   return url.toString()
 }
 
@@ -69,15 +66,30 @@ export async function exchangeMalCodeForToken(code: string, verifier: string): P
   body.set('grant_type', 'authorization_code')
   body.set('code', code)
   body.set('code_verifier', verifier)
+  // Must match the redirect_uri sent to /authorize (exact string registered in MAL app)
+  try {
+    body.set('redirect_uri', getMalRedirectUri())
+  } catch {}
 
-  const res = await fetch(MAL_TOKEN_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Accept: 'application/json',
-    },
-    body: body.toString(),
-  })
+  let res: Response
+  try {
+    res = await fetch(MAL_TOKEN_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Accept: 'application/json',
+      },
+      body: body.toString(),
+    })
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (/Failed to fetch|NetworkError|Load failed|CORS/i.test(msg)) {
+      throw new Error(
+        'MyAnimeList blocked the token request (CORS). Aeri is a static GitHub Pages site with no backend, and MAL’s OAuth endpoint does not allow browser fetches from this origin. This is a MAL API limitation, not an Aeri bug.'
+      )
+    }
+    throw e
+  }
 
   const json = await res.json().catch(() => null)
   if (!res.ok || json?.error) {
@@ -93,14 +105,25 @@ export async function refreshMalToken(refreshToken: string): Promise<{ access_to
   body.set('grant_type', 'refresh_token')
   body.set('refresh_token', refreshToken)
 
-  const res = await fetch(MAL_TOKEN_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/x-www-form-urlencoded',
-      Accept: 'application/json',
-    },
-    body: body.toString(),
-  })
+  let res: Response
+  try {
+    res = await fetch(MAL_TOKEN_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        Accept: 'application/json',
+      },
+      body: body.toString(),
+    })
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (/Failed to fetch|NetworkError|Load failed|CORS/i.test(msg)) {
+      throw new Error(
+        'MyAnimeList blocked the refresh request (CORS). Aeri is static-only (no backend) and MAL’s endpoint does not allow browser fetches from GitHub Pages.'
+      )
+    }
+    throw e
+  }
   const json = await res.json().catch(() => null)
   if (!res.ok || json?.error) {
     const msg = json?.error_description || json?.error || res.statusText
