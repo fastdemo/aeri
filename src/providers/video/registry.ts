@@ -1,5 +1,5 @@
 import type { Anime } from '../../types/anime'
-import type { VideoProvider, VideoEpisode, VideoSourceEnhanced } from './types'
+import type { VideoProvider, VideoEpisode, VideoSourceEnhanced, VideoLanguage } from './types'
 import { mockVideoProvider } from './mock'
 import { allAnimeProvider } from './allanime'
 import { animePaheProvider } from './animepahe'
@@ -7,15 +7,15 @@ import { aniKotoProvider } from './anikoto'
 import { megaPlayProvider } from './megaplay'
 import { animeParadiseProvider } from './animeparadise'
 import { aniNekoProvider } from './anineko'
+import { miruroProvider } from './miruro'
 
 // Priority order determined from actual browser CORS testing 2026-08-29:
-// - AllAnime: CORS header present for https://fastdemo.github.io but query requires exact schema; most promising if query fixed
-// - MegaPlay: CORS * but returns HTML error, not JSON
-// - Others: CORS blocked or DNS fail
-// For now, all real providers return no-source on static Pages; mock is last for episode list only (no video)
-// Priority: try real providers first (for future if they become browser-compatible), then mock for episodes
-
+// Miruro (if VITE_VIDEO_API_URL set) is first — it's the only path to real HLS on GH Pages via Worker/VPS
+// AllAnime: CORS header present for https://fastdemo.github.io but sources need backend (clock + crypto)
+// Others: CORS blocked/DNS fail — kept for future if they become browser-compatible
+// Mock is last for episode list only (no video)
 export const videoProviders: VideoProvider[] = [
+  miruroProvider,
   allAnimeProvider,
   animePaheProvider,
   aniKotoProvider,
@@ -60,35 +60,67 @@ export async function resolveEpisodesWithFallback(anime: Anime): Promise<{ episo
   }
 }
 
-export async function resolveSourcesWithFallback(episode: VideoEpisode): Promise<{ sources: VideoSourceEnhanced[]; tried: string[] }> {
-  // Phase 7.1: Parallel source discovery — previously sequential would wait for each provider's 3.5s timeout
-  // Now we try preferred provider first (if known) then remaining in parallel, bounded at 4s total.
-  // No provider caches huge video files; only the selected episode's source is fetched, deduplicated.
+export interface ResolveSourcesOptions {
+  preferredProvider?: string | null
+  preferredLanguage?: VideoLanguage
+  signal?: AbortSignal
+}
+
+export async function resolveSourcesWithFallback(
+  episode: VideoEpisode,
+  options?: ResolveSourcesOptions,
+): Promise<{ sources: VideoSourceEnhanced[]; tried: string[] }> {
   const tried: string[] = []
-  const preferred = getProviderById(episode.provider)
   const timeoutMs = 4000
   const withTimeout = <T,>(p: Promise<T>): Promise<T> =>
     Promise.race([p, new Promise<T>((_, reject) => setTimeout(() => reject(new Error('registry timeout')), timeoutMs))]) as Promise<T>
 
-  if (preferred && preferred.id !== 'mock') {
-    tried.push(preferred.id)
-    try {
-      const srcs = await withTimeout(preferred.getSources(episode))
-      if (srcs.length > 0) return { sources: srcs, tried }
-    } catch {}
+  const preferredLanguage = options?.preferredLanguage
+
+  // Build priority: preferred provider first if valid, then remaining in registry order
+  const preferredId = options?.preferredProvider
+  const preferred = preferredId ? getProviderById(preferredId) : getProviderById(episode.provider)
+  const ordered: VideoProvider[] = []
+  if (preferred && preferred.id !== 'mock' && primaryVideoProviders.some(p => p.id === preferred.id)) {
+    ordered.push(preferred)
   }
-  const remaining = primaryVideoProviders.filter(p => !tried.includes(p.id))
-  if (remaining.length > 0) {
-    const results = await Promise.allSettled(
-      remaining.map(p => {
-        tried.push(p.id)
-        return withTimeout(p.getSources(episode)).catch(() => [] as VideoSourceEnhanced[])
-      })
-    )
-    for (let i = 0; i < remaining.length; i++) {
-      const r = results[i]
-      if (r.status === 'fulfilled' && r.value.length > 0) {
-        return { sources: r.value, tried }
+  for (const p of primaryVideoProviders) {
+    if (!ordered.some(o => o.id === p.id)) ordered.push(p)
+  }
+
+  // Try in priority order but with parallel batching to avoid 20s wait: first try preferred alone with timeout,
+  // then remaining in parallel. Use options.language filtering.
+  if (ordered.length > 0) {
+    const first = ordered[0]
+    tried.push(first.id)
+    try {
+      const srcs = await withTimeout(first.getSources(episode, { preferredLanguage, signal: options?.signal }))
+      const filtered = preferredLanguage ? srcs.filter(s => !s.language || s.language === preferredLanguage) : srcs
+      const toReturn = filtered.length ? filtered : srcs
+      if (toReturn.length > 0) return { sources: toReturn, tried }
+    } catch {}
+    const remaining = ordered.slice(1)
+    if (remaining.length > 0) {
+      const results = await Promise.allSettled(
+        remaining.map(p => {
+          tried.push(p.id)
+          return withTimeout(p.getSources(episode, { preferredLanguage, signal: options?.signal })).catch(() => [] as VideoSourceEnhanced[])
+        }),
+      )
+      for (let i = 0; i < remaining.length; i++) {
+        const r = results[i]
+        if (r.status === 'fulfilled' && r.value.length > 0) {
+          const filtered = preferredLanguage ? r.value.filter(s => !s.language || s.language === preferredLanguage) : r.value
+          const toReturn = filtered.length ? filtered : r.value
+          if (toReturn.length > 0) return { sources: toReturn, tried }
+        }
+      }
+      // If no filtered match, return first available unfiltered as fallback
+      for (let i = 0; i < remaining.length; i++) {
+        const r = results[i]
+        if (r.status === 'fulfilled' && r.value.length > 0) {
+          return { sources: r.value, tried }
+        }
       }
     }
   }

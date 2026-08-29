@@ -1,10 +1,14 @@
 const KEY = 'aeri:prefs'
 
+import type { VideoLanguage } from '../providers/video/types'
+
 export interface Preferences {
   autoplay: boolean
   subtitles: boolean
   volume: number
   theme: 'dark'
+  preferredAudio: VideoLanguage
+  preferredProvider: string | null
 }
 
 const defaults: Preferences = {
@@ -12,6 +16,8 @@ const defaults: Preferences = {
   subtitles: true,
   volume: 1,
   theme: 'dark',
+  preferredAudio: 'sub',
+  preferredProvider: null,
 }
 
 export function getPreferences(): Preferences {

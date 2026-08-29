@@ -6,6 +6,7 @@ import { VideoPlayer } from '../components/player/VideoPlayer'
 import { resolveEpisodesWithFallback, resolveSourcesWithFallback, getProviderCapabilities } from '../providers/video/registry'
 import type { VideoEpisode, VideoSourceEnhanced } from '../providers/video/types'
 import { getWatchPos, putWatchPos, clearWatchPos } from '../storage/db'
+import { getPreferences } from '../storage/preferences'
 
 export function Watch() {
   const { id, episode } = useParams<{ id: string; episode: string }>()
@@ -87,38 +88,44 @@ export function Watch() {
     }
   }, [currentEpisode, anime, epNum, providerId])
 
-  // Video provider: sources for current episode
+  // Video provider: sources for current episode (respects Settings preferences)
   const [sources, setSources] = useState<VideoSourceEnhanced[] | null>(null)
   const [sourcesLoading, setSourcesLoading] = useState(false)
   const [sourcesError, setSourcesError] = useState<string | null>(null)
   const [selectedSource, setSelectedSource] = useState<VideoSourceEnhanced | null>(null)
   const [triedProviders, setTriedProviders] = useState<string[]>([])
+  const prefs = getPreferences()
+  const preferredProvider = prefs.preferredProvider
+  const preferredAudio = prefs.preferredAudio
 
   useEffect(() => {
     if (!effectiveEpisode) return
     let cancelled = false
+    const controller = new AbortController()
     setSourcesLoading(true)
     setSourcesError(null)
     setSources(null)
     setSelectedSource(null)
     setTriedProviders([])
-    // Only fetch for the selected episode, not all
-    resolveSourcesWithFallback(effectiveEpisode)
+    resolveSourcesWithFallback(effectiveEpisode, { preferredProvider, preferredLanguage: preferredAudio, signal: controller.signal })
       .then(res => {
-        if (cancelled) return
+        if (cancelled || controller.signal.aborted) return
         setSources(res.sources)
         setTriedProviders(res.tried)
-        if (res.sources.length > 0) setSelectedSource(res.sources[0])
-        else setSourcesError(null) // no-source is not an error, just empty
+        if (res.sources.length > 0) {
+          // Prefer language matching preference, else first
+          const preferred = res.sources.find(s => s.language === preferredAudio)
+          setSelectedSource(preferred ?? res.sources[0])
+        } else setSourcesError(null)
         setSourcesLoading(false)
       })
       .catch(e => {
-        if (cancelled) return
+        if (cancelled || controller.signal.aborted || (e as any)?.name === 'AbortError') return
         setSourcesError(e instanceof Error ? e.message : 'Couldn’t find video source')
         setSourcesLoading(false)
       })
-    return () => { cancelled = true }
-  }, [effectiveEpisode?.id, effectiveEpisode?.providerEpisodeId])
+    return () => { cancelled = true; controller.abort() }
+  }, [effectiveEpisode?.id, effectiveEpisode?.providerEpisodeId, preferredProvider, preferredAudio])
 
   // Local watch position (resume)
   const [watchPos, setWatchPos] = useState<{ currentTime: number; duration: number } | null>(null)
@@ -275,22 +282,25 @@ export function Watch() {
                     <circle cx="12" cy="12" r="10" />
                   </svg>
                 </div>
-                <p className="mt-3 text-sm font-medium text-white">Video unavailable</p>
+                <p className="mt-3 text-sm font-medium text-white">No playable source is currently available for this episode.</p>
                 <p className="mx-auto mt-1 text-xs leading-5 text-white/60">
-                  No browser-compatible source was found for Episode {epNum}. Aeri is static with no backend; most providers require a server proxy (see docs). Try another episode or source.
+                  This source isn&apos;t available right now. Try another source or episode. Aeri is static on GitHub Pages — most providers need a server proxy. Configure a video backend in Settings for playback.
                 </p>
                 {triedProviders.length > 0 && (
                   <p className="mt-2 text-[11px] text-white/40">Tried: {triedProviders.join(' • ')}</p>
                 )}
-                <div className="mt-4 flex justify-center gap-2">
+                <div className="mt-4 flex flex-wrap justify-center gap-2">
                   <button
                     onClick={() => {
                       if (effectiveEpisode) {
                         setSourcesLoading(true)
-                        resolveSourcesWithFallback(effectiveEpisode).then(res => {
+                        resolveSourcesWithFallback(effectiveEpisode, { preferredProvider, preferredLanguage: preferredAudio }).then(res => {
                           setSources(res.sources)
                           setTriedProviders(res.tried)
-                          if (res.sources.length) setSelectedSource(res.sources[0])
+                          if (res.sources.length) {
+                            const pref = res.sources.find(s => s.language === preferredAudio)
+                            setSelectedSource(pref ?? res.sources[0])
+                          }
                           setSourcesLoading(false)
                         })
                       }
@@ -299,6 +309,9 @@ export function Watch() {
                   >
                     Retry
                   </button>
+                  <Link to="/settings" className="rounded-full bg-white/15 px-4 py-1.5 text-xs font-medium text-white backdrop-blur hover:bg-white/20">
+                    Change source
+                  </Link>
                   <Link to={`/anime/${id}`} className="rounded-full bg-white/15 px-4 py-1.5 text-xs font-medium text-white backdrop-blur hover:bg-white/20">
                     Episodes
                   </Link>
@@ -318,26 +331,31 @@ export function Watch() {
           {sourcesError && !isLoadingVideo && (
             <div className="absolute inset-0 grid place-items-center bg-black/60 p-6 text-center">
               <div>
-                <p className="text-sm font-medium text-white">Couldn’t load video</p>
+                <p className="text-sm font-medium text-white">This source isn&apos;t available right now.</p>
                 <p className="mt-1 text-xs text-white/60">{sourcesError}</p>
-                <button
-                  onClick={() => {
-                    if (effectiveEpisode) {
-                      setSourcesLoading(true)
-                      setSourcesError(null)
-                      resolveSourcesWithFallback(effectiveEpisode).then(res => {
-                        setSources(res.sources)
-                        setTriedProviders(res.tried)
-                        if (res.sources.length) setSelectedSource(res.sources[0])
-                        else setSourcesError(null)
-                        setSourcesLoading(false)
-                      })
-                    }
-                  }}
-                  className="mt-3 rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-black"
-                >
-                  Retry
-                </button>
+                <div className="mt-3 flex justify-center gap-2">
+                  <button
+                    onClick={() => {
+                      if (effectiveEpisode) {
+                        setSourcesLoading(true)
+                        setSourcesError(null)
+                        resolveSourcesWithFallback(effectiveEpisode, { preferredProvider, preferredLanguage: preferredAudio }).then(res => {
+                          setSources(res.sources)
+                          setTriedProviders(res.tried)
+                          if (res.sources.length) {
+                            const pref = res.sources.find(s => s.language === preferredAudio)
+                            setSelectedSource(pref ?? res.sources[0])
+                          } else setSourcesError(null)
+                          setSourcesLoading(false)
+                        })
+                      }
+                    }}
+                    className="rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-black"
+                  >
+                    Try another source
+                  </button>
+                  <Link to="/settings" className="rounded-full bg-white/15 px-4 py-1.5 text-xs font-medium text-white">Change source</Link>
+                </div>
               </div>
             </div>
           )}
@@ -366,27 +384,52 @@ export function Watch() {
               </p>
             </div>
 
-            {/* Source selector (when multiple) */}
-            {sources && sources.length > 1 && (
-              <div className="flex items-center gap-2">
-                <span className="text-xs text-white/50">Source:</span>
-                <select
-                  value={selectedSource?.url ?? ''}
-                  onChange={e => {
-                    const s = sources.find(s => s.url === e.target.value)
-                    if (s) setSelectedSource(s)
-                  }}
-                  aria-label="Select video source"
-                  className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs text-white focus:border-white/20 focus:outline-none"
-                >
-                  {sources.map(s => (
-                    <option key={s.url} value={s.url} className="bg-[#141416]">
-                      {s.provider} {s.quality ? `• ${s.quality}` : ''} {s.language ? `• ${s.language}` : ''} {s.embed ? '• embed' : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Source selector */}
+              {sources && sources.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-white/50">Source:</span>
+                  <select
+                    value={selectedSource?.url ?? ''}
+                    onChange={e => {
+                      const s = sources.find(s => s.url === e.target.value)
+                      if (s) setSelectedSource(s)
+                    }}
+                    aria-label="Select video source"
+                    className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 pr-8 text-xs text-white focus:border-white/20 focus:outline-none"
+                  >
+                    {sources.map(s => (
+                      <option key={s.url} value={s.url} className="bg-[#141416]">
+                        {s.provider} {s.quality ? `• ${s.quality}` : ''} {s.language ? `• ${s.language}` : ''} {s.embed ? '• embed' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-[10px] text-white/30">{preferredProvider ? `Preferred: ${preferredProvider}` : 'Auto'}</span>
+                </div>
+              )}
+              {/* SUB/DUB toggle when available */}
+              {sources && sources.some(s => s.language) && (
+                <div className="flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] p-1">
+                  {(['sub','dub'] as const).map(lang => {
+                    const hasLang = sources.some(s => s.language === lang)
+                    const isActive = selectedSource?.language === lang || (!selectedSource?.language && preferredAudio === lang)
+                    return (
+                      <button
+                        key={lang}
+                        disabled={!hasLang}
+                        onClick={() => {
+                          const match = sources.find(s => s.language === lang)
+                          if (match) setSelectedSource(match)
+                        }}
+                        className={`rounded-full px-3 py-1 text-xs font-medium ${isActive ? 'bg-white text-black' : hasLang ? 'text-white/70 hover:text-white' : 'text-white/20'}`}
+                      >
+                        {lang.toUpperCase()}
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Episode navigation */}

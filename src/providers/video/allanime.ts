@@ -27,28 +27,24 @@ export class AllAnimeProvider implements VideoProvider {
 
   async resolveAnimeId(anime: Anime): Promise<string | null> {
     return cachedFetch(`video:allanime:resolve:${anime.identity.anilistId ?? anime.identity.internalId}`, async () => {
-      // Attempt browser fetch — will be CORS-blocked or require precise query
-      // For now, do not perform expensive title search every click; return null to trigger fallback
-      // If AllAnime were to be enabled, we would cache successful mappings via anime.identity.internalId
       try {
-        // Minimal check: try a simple fetch to see if endpoint is reachable (will fail CORS or 400)
-        // We intentionally do not throw, just return null to allow fallback
+        const safeTitle = anime.title.romaji.replace(/"/g, '\\"')
+        // Correct AllAnime query per docs: allowAdult/allowUnknown/query
         const res = await fetchWithTimeout('https://api.allanime.day/api', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            query: `query { shows(search: {search:"${anime.title.romaji.replace(/"/g, '\\"')}"}) { edges { _id } } }`,
+            query: `query { shows(search: {allowAdult: false, allowUnknown: false, query: "${safeTitle}"}) { edges { _id name } } }`,
           }),
         })
         if (!res.ok) return null
         const json: any = await res.json().catch(() => null)
-        const id = json?.data?.shows?.edges?.[0]?._id
-        return id ?? null
+        const edges = json?.data?.shows?.edges ?? []
+        // Prefer exact title match, else first
+        const exact = edges.find((e: any) => e.name?.toLowerCase() === anime.title.romaji.toLowerCase())
+        return (exact?._id ?? edges[0]?._id ?? null) as string | null
       } catch (e) {
-        if (isCorsError(e)) {
-          // CORS or network — expected for static Pages, treat as no mapping
-          return null
-        }
+        if (isCorsError(e)) return null
         return null
       }
     })

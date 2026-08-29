@@ -199,6 +199,57 @@ export function Settings() {
         </div>
       </section>
 
+      {/* Video Sources */}
+      <section className="mt-6 rounded-xl border border-white/10 bg-white/[0.02] p-4 sm:p-5">
+        <h2 className="text-sm font-semibold text-white">Playback Sources</h2>
+        <p className="mt-1 text-xs text-white/50">Choose how Aeri picks video sources. Most sources need a backend on GitHub Pages.</p>
+        <div className="mt-4 space-y-4">
+          <div>
+            <p className="text-xs font-medium text-white">Preferred audio</p>
+            <p className="text-[11px] text-white/50">Sub: Japanese with subtitles. Dub: English where available. Falls back if missing.</p>
+            <div className="mt-2 inline-flex rounded-full border border-white/10 bg-white/[0.04] p-1" role="radiogroup" aria-label="Preferred audio">
+              {(['sub','dub'] as const).map(lang => (
+                <button
+                  key={lang}
+                  role="radio"
+                  aria-checked={prefs.preferredAudio === lang}
+                  onClick={() => updatePref({ preferredAudio: lang })}
+                  className={`rounded-full px-4 py-1 text-xs font-medium ${prefs.preferredAudio === lang ? 'bg-white text-black' : 'text-white/70 hover:text-white'}`}
+                >
+                  {lang === 'sub' ? 'Sub' : 'Dub'}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div>
+            <p className="text-xs font-medium text-white">Preferred source</p>
+            <p className="text-[11px] text-white/50">Auto tries your choice first, then others.</p>
+            <select
+              value={prefs.preferredProvider ?? ''}
+              onChange={e => updatePref({ preferredProvider: e.target.value || null })}
+              aria-label="Preferred source"
+              className="mt-2 w-full max-w-[260px] rounded-full border border-white/10 bg-white/[0.06] px-3 py-2 text-xs text-white focus:border-white/20 focus:outline-none"
+            >
+              <option value="" className="bg-[#141416]">Auto (Recommended)</option>
+              {videoCaps.map(c => (
+                <option key={c.id} value={c.id} className="bg-[#141416]">{c.displayName}</option>
+              ))}
+            </select>
+            <p className="mt-1 text-[11px] text-white/30">
+              {prefs.preferredProvider ? `Trying ${prefs.preferredProvider} first, then fallback.` : 'Auto picks the best available source.'}
+              {!(import.meta.env.VITE_VIDEO_API_URL as string | undefined) && ' Add VITE_VIDEO_API_URL for real playback.'}
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-1.5 pt-2">
+            {videoCaps.map(c => (
+              <span key={c.id} className={`rounded-full border px-2 py-1 text-[10px] ${prefs.preferredProvider === c.id ? 'border-white/20 bg-white/10 text-white' : 'border-white/10 bg-white/[0.03] text-white/40'}`}>
+                {c.displayName} {c.languages.join('/')} {c.embed ? '• embed' : ''} {c.directVideo ? '• video' : ''}
+              </span>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Appearance */}
       <section className="mt-6 rounded-xl border border-white/10 bg-white/[0.02] p-4 sm:p-5">
         <h2 className="text-sm font-semibold text-white">Appearance</h2>

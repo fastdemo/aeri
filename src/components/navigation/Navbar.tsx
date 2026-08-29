@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Link, NavLink, useNavigate } from 'react-router-dom'
+import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAniList } from '../../contexts/AniListContext'
 import { useMAL } from '../../contexts/MALContext'
 
@@ -9,6 +9,7 @@ export function Navbar() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [query, setQuery] = useState('')
   const navigate = useNavigate()
+  const location = useLocation()
   const { user: anilistUser, isAuthenticated: anilistAuth } = useAniList()
   const { user: malUser, isAuthenticated: malAuth } = useMAL()
   const isAuthenticated = anilistAuth || malAuth
@@ -20,9 +21,20 @@ export function Navbar() {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
+  // Reset mobile transient UI on any route change (prevents overlay persisting and intercepting clicks)
+  useEffect(() => {
+    setMobileNavOpen(false)
+    setMobileSearchOpen(false)
+  }, [location.pathname, location.search, location.hash])
+
+  const dispatchNavigate = () => {
+    try { window.dispatchEvent(new CustomEvent('aeri:navigate')) } catch {}
+  }
+
   const onSearch = (e: React.FormEvent) => {
     e.preventDefault()
     if (query.trim()) {
+      dispatchNavigate()
       navigate(`/search?q=${encodeURIComponent(query.trim())}`)
       setMobileSearchOpen(false)
     }
@@ -41,6 +53,7 @@ export function Navbar() {
         <div className="flex items-center gap-8">
           <Link
             to="/"
+            onClick={dispatchNavigate}
             className="text-[19px] font-semibold tracking-[-0.02em] text-white"
             aria-label="Aeri home"
           >
@@ -57,6 +70,7 @@ export function Navbar() {
               <NavLink
                 key={l.to}
                 to={l.to}
+                onClick={dispatchNavigate}
                 className={({ isActive }) =>
                   `text-[13px] font-medium transition-colors ${
                     isActive ? 'text-white' : 'text-white/70 hover:text-white'
@@ -127,6 +141,7 @@ export function Navbar() {
 
           <Link
             to="/list"
+            onClick={dispatchNavigate}
             aria-label="Profile"
             className="relative h-7 w-7 overflow-hidden rounded bg-gradient-to-br from-violet-600 to-indigo-600"
           >
@@ -171,7 +186,7 @@ export function Navbar() {
               <Link
                 key={l.to}
                 to={l.to}
-                onClick={() => setMobileNavOpen(false)}
+                onClick={() => { setMobileNavOpen(false); dispatchNavigate() }}
                 className="rounded px-3 py-2 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white"
               >
                 {l.label}

@@ -85,7 +85,7 @@ export function AnimeDetail() {
 
   // When seriesGroup exists, the displayed anime is the selected season
   const displayAnime = seriesGroup ? seriesGroup.seasons[selectedSeasonIdx] ?? anime : anime
-
+  const franchiseTitle = seriesGroup?.title.romaji ?? null
   const backdrop = displayAnime.backdropImage || displayAnime.coverImage || ''
 
   return (
@@ -103,9 +103,11 @@ export function AnimeDetail() {
           <div className="absolute inset-0" style={{ background: 'linear-gradient(0deg, #0e0e10 6%, rgba(14,14,16,0.75) 22%, transparent 58%)' }} />
           <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(7,7,8,0.85) 0%, transparent 62%)' }} />
           <div className="absolute bottom-0 left-0 p-6 sm:p-8">
-            <h1 className="text-2xl font-semibold text-white">{displayAnime.title.english ?? displayAnime.title.romaji}</h1>
-            {displayAnime.title.english && displayAnime.title.romaji !== displayAnime.title.english && (
-              <p className="text-xs text-white/50">{displayAnime.title.romaji}</p>
+            <h1 className="text-2xl font-semibold text-white">{franchiseTitle ? (seriesGroup?.title.english ?? franchiseTitle) : (displayAnime.title.english ?? displayAnime.title.romaji)}</h1>
+            {franchiseTitle ? (
+              displayAnime.title.romaji !== franchiseTitle ? <p className="text-xs text-white/50">{displayAnime.title.romaji} • Season {selectedSeasonIdx + 1}</p> : null
+            ) : (
+              displayAnime.title.english && displayAnime.title.romaji !== displayAnime.title.english ? <p className="text-xs text-white/50">{displayAnime.title.romaji}</p> : null
             )}
             <p className="mt-1 text-sm text-white/60">
               {[displayAnime.year, displayAnime.format, displayAnime.episodes ? `${displayAnime.episodes} episodes` : null].filter(Boolean).join(' · ')}

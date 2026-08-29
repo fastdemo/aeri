@@ -11,7 +11,7 @@ const inflight = new Map<string, Promise<any>>()
 // without making the user wait through a sequential chain of 6×3.5s = 21s.
 export const VIDEO_PROVIDER_TIMEOUT_MS = 3500
 
-export async function cachedFetch<T>(key: string, fetcher: () => Promise<T>, useCache = true): Promise<T> {
+export async function cachedFetch<T>(key: string, fetcher: () => Promise<T>, useCache = true, ttlMs?: number): Promise<T> {
   if (useCache) {
     const hit = memoryCache.get(key)
     if (hit && hit.expiry > Date.now()) return hit.value as T
@@ -27,8 +27,16 @@ export async function cachedFetch<T>(key: string, fetcher: () => Promise<T>, use
   const p = (async () => {
     const data = await fetcher()
     if (useCache) {
-      memoryCache.set(key, { value: data, expiry: Date.now() + MEMORY_TTL })
-      putCache(key, data).catch(() => {})
+      const isEmptyArray = Array.isArray(data) && (data as any).length === 0
+      const memTtl = isEmptyArray ? 1000 * 60 * 2 : MEMORY_TTL // 2m for empty (negative cache), 5m for success
+      const idbTtl = ttlMs ?? (isEmptyArray ? 1000 * 60 * 5 : 1000 * 60 * 60) // 5m vs 1h for video
+      memoryCache.set(key, { value: data, expiry: Date.now() + memTtl })
+      if (!isEmptyArray || ttlMs !== undefined) {
+        putCache(key, data, idbTtl).catch(() => {})
+      } else {
+        // Don't persist empty long-term, but keep short negative cache for 5m to avoid spam
+        putCache(key, data, 1000 * 60 * 5).catch(() => {})
+      }
     }
     return data
   })()

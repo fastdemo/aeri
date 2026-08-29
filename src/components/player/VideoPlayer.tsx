@@ -22,6 +22,48 @@ export function VideoPlayer({ sources, selectedSource, onSourceChange, subtitles
   const source = selectedSource ?? sources[0] ?? null
   const hasMultipleSources = sources.length > 1
 
+  // HLS support: use hls.js when needed (lazy)
+  const hlsRef = useRef<any>(null)
+  useEffect(() => {
+    if (!source || source.embed) return
+    const url = source.url
+    const isHls = url.includes('.m3u8') || source.type === 'hls'
+    if (!isHls) return
+    const video = videoRef.current
+    if (!video) return
+    // Native HLS (Safari)
+    if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = url
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const Hls = (await import('hls.js')).default
+        if (cancelled || !Hls.isSupported()) {
+          video.src = url
+          return
+        }
+        if (hlsRef.current) {
+          try { hlsRef.current.destroy() } catch {}
+        }
+        const hls = new Hls({ enableWorker: true })
+        hlsRef.current = hls
+        hls.loadSource(url)
+        hls.attachMedia(video)
+      } catch {
+        video.src = url
+      }
+    })()
+    return () => {
+      cancelled = true
+      if (hlsRef.current) {
+        try { hlsRef.current.destroy() } catch {}
+        hlsRef.current = null
+      }
+    }
+  }, [source?.url, source?.type, source?.embed])
+
   // Resume from initialTime
   useEffect(() => {
     if (videoRef.current && initialTime && initialTime > 0 && initialTime < (videoRef.current.duration || Infinity) - 5) {

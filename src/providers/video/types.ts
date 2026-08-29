@@ -42,6 +42,20 @@ export interface ProviderCapabilities {
   search: boolean
   episodes: boolean
   sources: boolean
+  // Additional capability flags for new abstraction
+  hls?: boolean
+  mp4?: boolean
+}
+
+export interface ProviderAnimeMatch {
+  providerId: string
+  providerAnimeId: string
+  title?: string
+}
+
+export interface SourceOptions {
+  preferredLanguage?: VideoLanguage
+  signal?: AbortSignal
 }
 
 export interface VideoProvider {
@@ -50,10 +64,12 @@ export interface VideoProvider {
   capabilities: ProviderCapabilities
   // Resolve provider anime ID from Aeri Anime (via AniList/MAL id or title)
   resolveAnimeId(anime: Anime): Promise<string | null>
+  // Optional: resolve with metadata (for future aggregators like Miruro that need mapping)
+  resolveAnime?(anime: Anime): Promise<ProviderAnimeMatch | null>
   // Get episodes for anime
   getEpisodes(anime: Anime): Promise<VideoEpisode[]>
-  // Get sources for episode
-  getSources(episode: VideoEpisode): Promise<VideoSourceEnhanced[]>
+  // Get sources for episode (now with options)
+  getSources(episode: VideoEpisode, options?: SourceOptions): Promise<VideoSourceEnhanced[]>
 }
 
 // Re-export for convenience

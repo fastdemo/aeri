@@ -2,103 +2,60 @@ import { useEffect, useState } from 'react'
 import type { Anime } from '../types/anime'
 import { anilistMetadataProvider } from '../providers/metadata/anilistMetadata'
 import { ProviderError } from '../services/anilist/errors'
+import { deduplicateBySeries } from '../services/anilist/series'
 
 type State<T> = { data: T | null; loading: boolean; error: string | null }
 
-export function useTrending(perPage = 12): State<Anime[]> {
-  const [state, setState] = useState<State<Anime[]>>({ data: null, loading: true, error: null })
+function useData<T>(fetcher: (signal: AbortSignal) => Promise<T>, deps: any[], options?: { dedupe?: boolean }): State<T> {
+  const [state, setState] = useState<State<T>>({ data: null, loading: true, error: null })
   useEffect(() => {
+    const controller = new AbortController()
     let cancelled = false
-    setState({ data: null, loading: true, error: null })
-    anilistMetadataProvider.getTrending(perPage)
-      .then(d => { if (!cancelled) setState({ data: d, loading: false, error: null }) })
-      .catch(e => {
-        const msg = e instanceof ProviderError ? e.message : e instanceof Error ? e.message : 'Something went wrong.'
-        if (!cancelled) setState({ data: null, loading: false, error: msg })
+    // Preserve data while revalidating (stale-while-revalidate)
+    setState(s => ({ data: s.data, loading: true, error: null }))
+    fetcher(controller.signal)
+      .then(d => {
+        if (cancelled || controller.signal.aborted) return
+        // Optionally dedupe for series
+        const data = options?.dedupe && Array.isArray(d) ? deduplicateBySeries(d as any) as any : d
+        setState({ data, loading: false, error: null })
       })
-    return () => { cancelled = true }
-  }, [perPage])
+      .catch(e => {
+        if (cancelled || controller.signal.aborted || (e as any)?.name === 'AbortError') return
+        const msg = e instanceof ProviderError ? e.message : e instanceof Error ? e.message : 'Something went wrong.'
+        if (!cancelled) setState(s => ({ data: s.data, loading: false, error: msg }))
+      })
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps)
   return state
+}
+
+export function useTrending(perPage = 12): State<Anime[]> {
+  return useData<Anime[]>(signal => anilistMetadataProvider.getTrending(perPage, signal), [perPage])
 }
 
 export function usePopular(perPage = 12): State<Anime[]> {
-  const [state, setState] = useState<State<Anime[]>>({ data: null, loading: true, error: null })
-  useEffect(() => {
-    let cancelled = false
-    setState({ data: null, loading: true, error: null })
-    anilistMetadataProvider.getPopular(perPage)
-      .then(d => { if (!cancelled) setState({ data: d, loading: false, error: null }) })
-      .catch(e => {
-        const msg = e instanceof ProviderError ? e.message : e instanceof Error ? e.message : 'Something went wrong.'
-        if (!cancelled) setState({ data: null, loading: false, error: msg })
-      })
-    return () => { cancelled = true }
-  }, [perPage])
-  return state
+  return useData<Anime[]>(signal => anilistMetadataProvider.getPopular(perPage, signal), [perPage])
 }
 
 export function useAiring(perPage = 12): State<Anime[]> {
-  const [state, setState] = useState<State<Anime[]>>({ data: null, loading: true, error: null })
-  useEffect(() => {
-    let cancelled = false
-    setState({ data: null, loading: true, error: null })
-    anilistMetadataProvider.getAiring(perPage)
-      .then(d => { if (!cancelled) setState({ data: d, loading: false, error: null }) })
-      .catch(e => {
-        const msg = e instanceof ProviderError ? e.message : e instanceof Error ? e.message : 'Something went wrong.'
-        if (!cancelled) setState({ data: null, loading: false, error: msg })
-      })
-    return () => { cancelled = true }
-  }, [perPage])
-  return state
+  return useData<Anime[]>(signal => anilistMetadataProvider.getAiring(perPage, signal), [perPage])
 }
 
 export function useNewReleases(perPage = 12): State<Anime[]> {
-  const [state, setState] = useState<State<Anime[]>>({ data: null, loading: true, error: null })
-  useEffect(() => {
-    let cancelled = false
-    setState({ data: null, loading: true, error: null })
-    anilistMetadataProvider.getNewReleases(perPage)
-      .then(d => { if (!cancelled) setState({ data: d, loading: false, error: null }) })
-      .catch(e => {
-        const msg = e instanceof ProviderError ? e.message : e instanceof Error ? e.message : 'Something went wrong.'
-        if (!cancelled) setState({ data: null, loading: false, error: msg })
-      })
-    return () => { cancelled = true }
-  }, [perPage])
-  return state
+  return useData<Anime[]>(signal => anilistMetadataProvider.getNewReleases(perPage, signal), [perPage])
 }
 
 export function useUpcoming(perPage = 12): State<Anime[]> {
-  const [state, setState] = useState<State<Anime[]>>({ data: null, loading: true, error: null })
-  useEffect(() => {
-    let cancelled = false
-    setState({ data: null, loading: true, error: null })
-    anilistMetadataProvider.getUpcoming(perPage)
-      .then(d => { if (!cancelled) setState({ data: d, loading: false, error: null }) })
-      .catch(e => {
-        const msg = e instanceof ProviderError ? e.message : e instanceof Error ? e.message : 'Something went wrong.'
-        if (!cancelled) setState({ data: null, loading: false, error: msg })
-      })
-    return () => { cancelled = true }
-  }, [perPage])
-  return state
+  return useData<Anime[]>(signal => anilistMetadataProvider.getUpcoming(perPage, signal), [perPage])
 }
 
 export function useFinished(perPage = 12): State<Anime[]> {
-  const [state, setState] = useState<State<Anime[]>>({ data: null, loading: true, error: null })
-  useEffect(() => {
-    let cancelled = false
-    setState({ data: null, loading: true, error: null })
-    anilistMetadataProvider.getFinished(perPage)
-      .then(d => { if (!cancelled) setState({ data: d, loading: false, error: null }) })
-      .catch(e => {
-        const msg = e instanceof ProviderError ? e.message : e instanceof Error ? e.message : 'Something went wrong.'
-        if (!cancelled) setState({ data: null, loading: false, error: msg })
-      })
-    return () => { cancelled = true }
-  }, [perPage])
-  return state
+  return useData<Anime[]>(signal => anilistMetadataProvider.getFinished(perPage, signal), [perPage])
 }
 
 export type BrowseState = { data: Anime[] | null; loading: boolean; error: string | null; hasNextPage: boolean; page: number }
@@ -111,12 +68,13 @@ export function useBrowse(params: { sort?: string; status?: string; genre?: stri
   useEffect(() => { setPage(1) }, [sort, status, genre, seasonYear, season, format, perPage])
 
   useEffect(() => {
+    const controller = new AbortController()
     let cancelled = false
     setState(s => ({ ...s, loading: true, error: null }))
     const p = params.page ?? page
-    anilistMetadataProvider.browse({ sort: sort as any, status: status as any, genre, seasonYear, season: season as any, format: format as any, perPage, page: p })
+    anilistMetadataProvider.browse({ sort: sort as any, status: status as any, genre, seasonYear, season: season as any, format: format as any, perPage, page: p }, controller.signal)
       .then(res => {
-        if (cancelled) return
+        if (cancelled || controller.signal.aborted) return
         setState(prev => ({
           data: p === 1 ? res.data : [...(prev.data ?? []), ...res.data],
           loading: false,
@@ -126,10 +84,11 @@ export function useBrowse(params: { sort?: string; status?: string; genre?: stri
         }))
       })
       .catch(e => {
+        if (cancelled || controller.signal.aborted || (e as any)?.name === 'AbortError') return
         const msg = e instanceof ProviderError ? e.message : e instanceof Error ? e.message : 'Something went wrong.'
         if (!cancelled) setState(s => ({ ...s, loading: false, error: msg }))
       })
-    return () => { cancelled = true }
+    return () => { cancelled = true; controller.abort() }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sort, status, genre, seasonYear, season, format, perPage, page])
 
@@ -144,17 +103,23 @@ export function useAnimeSearch(query: string, perPage = 12): State<Anime[]> {
       setState({ data: [], loading: false, error: null })
       return
     }
+    const controller = new AbortController()
     let cancelled = false
     const t = setTimeout(() => {
-      setState({ data: null, loading: true, error: null })
-      anilistMetadataProvider.search(query.trim(), perPage)
-        .then(d => { if (!cancelled) setState({ data: d, loading: false, error: null }) })
+      setState(s => ({ data: s.data, loading: true, error: null }))
+      anilistMetadataProvider.search(query.trim(), perPage, controller.signal)
+        .then(d => {
+          if (cancelled || controller.signal.aborted) return
+          const deduped = deduplicateBySeries(d)
+          setState({ data: deduped, loading: false, error: null })
+        })
         .catch(e => {
+          if (cancelled || controller.signal.aborted || (e as any)?.name === 'AbortError') return
           const msg = e instanceof ProviderError ? e.message : e instanceof Error ? e.message : 'Search failed'
-          if (!cancelled) setState({ data: null, loading: false, error: msg })
+          if (!cancelled) setState(s => ({ data: s.data, loading: false, error: msg }))
         })
     }, 300)
-    return () => { clearTimeout(t); cancelled = true }
+    return () => { clearTimeout(t); cancelled = true; controller.abort() }
   }, [query, perPage])
   return state
 }
@@ -163,15 +128,17 @@ export function useAnimeDetail(id: string | undefined): State<Anime> {
   const [state, setState] = useState<State<Anime>>({ data: null, loading: !!id, error: null })
   useEffect(() => {
     if (!id) { setState({ data: null, loading: false, error: null }); return }
+    const controller = new AbortController()
     let cancelled = false
-    setState({ data: null, loading: true, error: null })
-    anilistMetadataProvider.getAnime(id)
-      .then(d => { if (!cancelled) setState({ data: d, loading: false, error: null }) })
+    setState(s => ({ data: s.data, loading: true, error: null }))
+    anilistMetadataProvider.getAnime(id, controller.signal)
+      .then(d => { if (!cancelled && !controller.signal.aborted) setState({ data: d, loading: false, error: null }) })
       .catch(e => {
+        if (cancelled || controller.signal.aborted || (e as any)?.name === 'AbortError') return
         const msg = e instanceof ProviderError ? e.message : e instanceof Error ? e.message : 'Not found'
-        if (!cancelled) setState({ data: null, loading: false, error: msg })
+        if (!cancelled) setState(s => ({ data: s.data, loading: false, error: msg }))
       })
-    return () => { cancelled = true }
+    return () => { cancelled = true; controller.abort() }
   }, [id])
   return state
 }

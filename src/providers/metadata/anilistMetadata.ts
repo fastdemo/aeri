@@ -103,62 +103,62 @@ function buildBrowseQuery(params: BrowseParams): { query: string; variables: Rec
 export class AniListMetadataProvider implements AnimeMetadataProvider {
   id = 'anilist-metadata' as const
 
-  async getTrending(perPage = 12): Promise<import('../../types/anime').Anime[]> {
+  async getTrending(perPage = 12, signal?: AbortSignal): Promise<import('../../types/anime').Anime[]> {
     type Res = { Page: { media: AniListMedia[] } }
-    const data = await anilistGraphQL<Res>(TRENDING_QUERY, { perPage }, { cacheKey: `anilist:trending:${perPage}`, useCache: true })
+    const data = await anilistGraphQL<Res>(TRENDING_QUERY, { perPage }, { cacheKey: `anilist:trending:${perPage}`, useCache: true, signal })
     return mapPage(data)
   }
 
-  async getPopular(perPage = 12): Promise<import('../../types/anime').Anime[]> {
+  async getPopular(perPage = 12, signal?: AbortSignal): Promise<import('../../types/anime').Anime[]> {
     type Res = { Page: { media: AniListMedia[] } }
-    const data = await anilistGraphQL<Res>(POPULAR_QUERY, { perPage }, { cacheKey: `anilist:popular:${perPage}`, useCache: true })
+    const data = await anilistGraphQL<Res>(POPULAR_QUERY, { perPage }, { cacheKey: `anilist:popular:${perPage}`, useCache: true, signal })
     return mapPage(data)
   }
 
-  async getAiring(perPage = 12): Promise<import('../../types/anime').Anime[]> {
+  async getAiring(perPage = 12, signal?: AbortSignal): Promise<import('../../types/anime').Anime[]> {
     type Res = { Page: { media: AniListMedia[] } }
-    const data = await anilistGraphQL<Res>(AIRING_QUERY, { perPage }, { cacheKey: `anilist:airing:${perPage}`, useCache: true })
+    const data = await anilistGraphQL<Res>(AIRING_QUERY, { perPage }, { cacheKey: `anilist:airing:${perPage}`, useCache: true, signal })
     return mapPage(data)
   }
 
-  async getNewReleases(perPage = 12): Promise<import('../../types/anime').Anime[]> {
+  async getNewReleases(perPage = 12, signal?: AbortSignal): Promise<import('../../types/anime').Anime[]> {
     type Res = { Page: { media: AniListMedia[] } }
-    const data = await anilistGraphQL<Res>(NEW_RELEASES_QUERY, { perPage }, { cacheKey: `anilist:new:${perPage}`, useCache: true })
+    const data = await anilistGraphQL<Res>(NEW_RELEASES_QUERY, { perPage }, { cacheKey: `anilist:new:${perPage}`, useCache: true, signal })
     return mapPage(data)
   }
 
-  async getUpcoming(perPage = 12): Promise<import('../../types/anime').Anime[]> {
+  async getUpcoming(perPage = 12, signal?: AbortSignal): Promise<import('../../types/anime').Anime[]> {
     type Res = { Page: { media: AniListMedia[] } }
-    const data = await anilistGraphQL<Res>(UPCOMING_QUERY, { perPage }, { cacheKey: `anilist:upcoming:${perPage}`, useCache: true })
+    const data = await anilistGraphQL<Res>(UPCOMING_QUERY, { perPage }, { cacheKey: `anilist:upcoming:${perPage}`, useCache: true, signal })
     return mapPage(data)
   }
 
-  async getFinished(perPage = 12): Promise<import('../../types/anime').Anime[]> {
+  async getFinished(perPage = 12, signal?: AbortSignal): Promise<import('../../types/anime').Anime[]> {
     type Res = { Page: { media: AniListMedia[] } }
-    const data = await anilistGraphQL<Res>(FINISHED_QUERY, { perPage }, { cacheKey: `anilist:finished:${perPage}`, useCache: true })
+    const data = await anilistGraphQL<Res>(FINISHED_QUERY, { perPage }, { cacheKey: `anilist:finished:${perPage}`, useCache: true, signal })
     return mapPage(data)
   }
 
-  async browse(params: BrowseParams): Promise<{ data: import('../../types/anime').Anime[]; hasNextPage: boolean; pageInfo: { currentPage: number; lastPage?: number } }> {
+  async browse(params: BrowseParams, signal?: AbortSignal): Promise<{ data: import('../../types/anime').Anime[]; hasNextPage: boolean; pageInfo: { currentPage: number; lastPage?: number } }> {
     const { query, variables, cacheKey } = buildBrowseQuery(params)
     type Res = { Page: { media: AniListMedia[]; pageInfo: { hasNextPage: boolean; currentPage: number; lastPage: number; total: number } } }
-    const data = await anilistGraphQL<Res>(query, variables, { cacheKey, useCache: true })
+    const data = await anilistGraphQL<Res>(query, variables, { cacheKey, useCache: true, signal })
     return { data: mapPage(data), hasNextPage: !!data.Page.pageInfo?.hasNextPage, pageInfo: { currentPage: data.Page.pageInfo?.currentPage ?? params.page ?? 1, lastPage: data.Page.pageInfo?.lastPage } }
   }
 
-  async getAnime(id: string): Promise<import('../../types/anime').Anime> {
+  async getAnime(id: string, signal?: AbortSignal): Promise<import('../../types/anime').Anime> {
     const anilistId = id.startsWith('anilist-') ? Number(id.replace('anilist-', '')) : Number(id)
     if (Number.isNaN(anilistId)) throw new ProviderError('NOT_FOUND', 'We couldn’t find that anime.', false)
     type Res = { Media: AniListMedia }
-    const data = await anilistGraphQL<Res>(MEDIA_QUERY, { id: anilistId }, { cacheKey: `anilist:anime:${anilistId}`, useCache: true })
+    const data = await anilistGraphQL<Res>(MEDIA_QUERY, { id: anilistId }, { cacheKey: `anilist:anime:${anilistId}`, useCache: true, signal })
     if (!data.Media) throw new ProviderError('NOT_FOUND', 'We couldn’t find that anime.', false)
     return mapAniListMediaToAnime(data.Media)
   }
 
-  async search(query: string, perPage = 12): Promise<import('../../types/anime').Anime[]> {
+  async search(query: string, perPage = 12, signal?: AbortSignal): Promise<import('../../types/anime').Anime[]> {
     if (!query.trim()) return []
     type Res = { Page: { media: AniListMedia[] } }
-    const data = await anilistGraphQL<Res>(SEARCH_QUERY, { search: query.trim(), perPage }, { cacheKey: `anilist:search:${query.trim().toLowerCase()}:${perPage}`, useCache: true })
+    const data = await anilistGraphQL<Res>(SEARCH_QUERY, { search: query.trim(), perPage }, { cacheKey: `anilist:search:${query.trim().toLowerCase()}:${perPage}`, useCache: true, signal })
     return mapPage(data)
   }
 }

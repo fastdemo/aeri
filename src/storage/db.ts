@@ -4,8 +4,10 @@
 const DB_NAME = 'aeri'
 const DB_VERSION = 2
 
+let dbPromise: Promise<IDBDatabase> | null = null
 function openDB(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
+  if (dbPromise) return dbPromise
+  dbPromise = new Promise((resolve, reject) => {
     const req = indexedDB.open(DB_NAME, DB_VERSION)
     req.onupgradeneeded = () => {
       const db = req.result
@@ -15,8 +17,15 @@ function openDB(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains('watchPos')) db.createObjectStore('watchPos', { keyPath: 'id' })
     }
     req.onsuccess = () => resolve(req.result)
-    req.onerror = () => reject(req.error)
+    req.onerror = () => {
+      dbPromise = null
+      reject(req.error)
+    }
+    req.onblocked = () => {
+      // still resolve when available
+    }
   })
+  return dbPromise
 }
 
 export async function putProgress(id: string, episode: number, percent: number) {

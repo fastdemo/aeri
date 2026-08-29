@@ -65,27 +65,33 @@ export function DetailModal({
       if (e.key === 'Escape') onClose()
     }
     document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  // Robust body lock: save previous overflow, restore on unmount, not dependent on onClose identity
+  useEffect(() => {
+    const prev = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     return () => {
-      document.removeEventListener('keydown', onKey)
-      document.body.style.overflow = ''
+      document.body.style.overflow = prev
     }
-  }, [onClose])
+  }, [])
 
   useEffect(() => {
     dialogRef.current?.focus()
   }, [])
 
-  // Close on navbar navigation even when hash doesn't change (e.g., Home modal open and user clicks Home again)
+  // Close on any navigation (including hashchange/popstate) and on explicit aeri:navigate event for same-hash clicks
   useEffect(() => {
-    const onNavClick = (e: MouseEvent) => {
-      const target = e.target as HTMLElement
-      if (target.closest('nav a, header a')) {
-        onClose()
-      }
+    const close = () => onClose()
+    window.addEventListener('hashchange', close)
+    window.addEventListener('popstate', close)
+    window.addEventListener('aeri:navigate' as any, close)
+    return () => {
+      window.removeEventListener('hashchange', close)
+      window.removeEventListener('popstate', close)
+      window.removeEventListener('aeri:navigate' as any, close)
     }
-    document.addEventListener('click', onNavClick)
-    return () => document.removeEventListener('click', onNavClick)
   }, [onClose])
 
   const meta = [displayAnime.format, displayAnime.year ? String(displayAnime.year) : null, displayAnime.season ? displayAnime.season.charAt(0) + displayAnime.season.slice(1).toLowerCase() : null, displayAnime.episodes ? `${displayAnime.episodes} Episodes` : null, displayAnime.status ? displayAnime.status.charAt(0) + displayAnime.status.slice(1).toLowerCase() : null].filter(Boolean).join(' · ') + ' · HD'
@@ -112,7 +118,7 @@ export function DetailModal({
         </button>
 
         <div className="relative h-[360px] w-full overflow-hidden sm:h-[420px]">
-          <img src={anime.backdropImage} alt="" className="h-full w-full object-cover" loading="eager" />
+          <img src={displayAnime.backdropImage || anime.backdropImage} alt="" className="h-full w-full object-cover" loading="eager" />
           <div
             aria-hidden
             className="absolute inset-0"
@@ -123,11 +129,17 @@ export function DetailModal({
           />
           <div className="absolute left-6 top-6 hidden max-w-[520px] sm:block">
             <h2 className="text-[28px] font-semibold leading-none tracking-tighter text-white drop-shadow">
-              {anime.title.english ?? anime.title.romaji}
+              {seriesGroup ? (seriesGroup.title.english ?? seriesGroup.title.romaji) : (anime.title.english ?? anime.title.romaji)}
             </h2>
-            {anime.title.native && <p className="mt-1 text-xs text-white/60">{anime.title.native}</p>}
-            {anime.title.english && anime.title.romaji !== anime.title.english && (
-              <p className="mt-1 text-[11px] tracking-wide text-white/50">{anime.title.romaji}</p>
+            {seriesGroup ? (
+              displayAnime.title.romaji !== seriesGroup.title.romaji ? <p className="mt-1 text-[11px] tracking-wide text-white/50">{displayAnime.title.romaji} • Season {selectedSeasonIdx + 1}</p> : null
+            ) : (
+              <>
+                {anime.title.native && <p className="mt-1 text-xs text-white/60">{anime.title.native}</p>}
+                {anime.title.english && anime.title.romaji !== anime.title.english && (
+                  <p className="mt-1 text-[11px] tracking-wide text-white/50">{anime.title.romaji}</p>
+                )}
+              </>
             )}
           </div>
 
@@ -139,7 +151,7 @@ export function DetailModal({
             )}
 
             <Link
-              to={`/watch/${anime.identity.internalId}/${displayAnime.progress ? displayAnime.progress.episode : 1}`}
+              to={`/watch/${displayAnime.identity.internalId}/${displayAnime.progress ? displayAnime.progress.episode : 1}`}
               className="inline-flex h-8 items-center gap-1.5 rounded bg-white px-4 text-[13px] font-semibold text-black hover:bg-white/90"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">

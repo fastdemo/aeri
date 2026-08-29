@@ -50,21 +50,15 @@ export function handleAnilistOAuthCallback(): string | null {
     const sec = expiresIn ? Number(expiresIn) : undefined
     setAnilistToken(token, sec)
 
-    // Clean URL: remove token from hash, keep route intact.
-    // If original hash was "#access_token=...", replace with "#/"
-    // If it was "#/access_token=..." or "#/?access_token" etc, normalize to "#/"
+    // Clean URL: remove token from hash. Use location.hash assignment so HashRouter receives hashchange.
     try {
-      const cleanHash = '#/'
-      // Prefer to keep query-less clean; don't disturb history length too much
-      if (window.history?.replaceState) {
-        const url = new URL(window.location.href)
-        url.hash = cleanHash
-        window.history.replaceState(null, '', url.toString())
-      } else {
-        window.location.hash = cleanHash
-      }
-    } catch {
       window.location.hash = '#/'
+    } catch {
+      try {
+        const url = new URL(window.location.href)
+        url.hash = '#/'
+        window.history.replaceState(null, '', url.toString())
+      } catch {}
     }
     return token
   }
