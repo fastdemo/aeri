@@ -115,7 +115,7 @@ export function VideoPlayer({ sources, selectedSource, onSourceChange, subtitles
           onError={() => setError('Embed failed to load. Try another source.')}
         />
         {isLoading && (
-          <div className="absolute inset-0 grid place-items-center bg-black/60">
+          <div className="pointer-events-none absolute inset-0 grid place-items-center bg-black/60">
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white" />
           </div>
         )}

@@ -244,9 +244,9 @@ export function Watch() {
             />
           )}
 
-          {/* Loading: episode finding */}
+          {/* Loading: episode finding - pointer-events-none so navbar remains clickable even while loading */}
           {isLoadingVideo && (
-            <div className="absolute inset-0 grid place-items-center bg-black/40 backdrop-blur-sm">
+            <div className="pointer-events-none absolute inset-0 grid place-items-center bg-black/40 backdrop-blur-sm">
               <div className="text-center">
                 <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white" />
                 <p className="mt-3 text-sm font-medium text-white">
