@@ -282,10 +282,10 @@ export function Watch() {
             </div>
           )}
 
-          {/* No-source placeholder (when no provider works) */}
+          {/* No-source placeholder (when no provider works) - outer pointer-events-none so navbar stays clickable, inner auto for buttons */}
           {showNoSource && !isLoadingVideo && (
-            <div className="absolute inset-0 grid place-items-center bg-black/60 p-6 text-center backdrop-blur-[1px]">
-              <div className="max-w-md">
+            <div className="pointer-events-none absolute inset-0 grid place-items-center bg-black/60 p-6 text-center backdrop-blur-[1px]">
+              <div className="pointer-events-auto max-w-md">
                 <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-white text-black">
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                     <path d="M10 16l6-4-6-4v8z" />
@@ -371,15 +371,15 @@ export function Watch() {
           )}
 
           {/* Top bar */}
-          <div className="absolute inset-x-0 top-0 flex items-center justify-between bg-gradient-to-b from-black/70 to-transparent px-4 py-3">
-            <Link to={`/anime/${id}`} className="text-sm font-medium text-white hover:text-white/80">
+          <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between bg-gradient-to-b from-black/70 to-transparent px-4 py-3">
+            <Link to={`/anime/${id}`} className="pointer-events-auto text-sm font-medium text-white hover:text-white/80">
               ← {titles.primary}
             </Link>
-            {!isMovie && <span className="text-xs text-white/60">E{String(epNum).padStart(2, '0')}</span>}
+            {!isMovie && <span className="pointer-events-auto text-xs text-white/60">E{String(epNum).padStart(2, '0')}</span>}
           </div>
 
           {/* Bottom gradient when no video */}
-          {!hasVideo && <div className="absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/60 to-transparent" />}
+          {!hasVideo && <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/60 to-transparent" />}
         </div>
 
         <div className="px-4 py-5 sm:px-0">
