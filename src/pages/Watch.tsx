@@ -8,6 +8,7 @@ import type { VideoEpisode, VideoSourceEnhanced } from '../providers/video/types
 import { getWatchPos, putWatchPos, clearWatchPos } from '../storage/db'
 import { getPreferences } from '../storage/preferences'
 import { getTitleHierarchy } from '../lib/titles'
+import { normalizeEpisodes, sanitizeAnimeForDisplay } from '../lib/episodes'
 
 export function Watch() {
   const { id, episode } = useParams<{ id: string; episode: string }>()
@@ -40,20 +41,21 @@ export function Watch() {
   const episodesLoading = false // episode list is immediate from AniList, not blocked by video provider
   const [providerId, setProviderId] = useState<string | null>(null)
 
-  // Immediate episode list from AniList metadata — authoritative Media.episodes, not streamingEpisodes length
-  // If episodes is null (ongoing/long like One Piece), fallback to streamingEpisodes length, else 0
-  // Explicit deps on anilistId/episodes avoid stale closure when anime object reference is stable but content changes (season switch)
+  const sanitizedAnimeForWatch = useMemo(() => {
+    if (!anime) return null
+    return sanitizeAnimeForDisplay(anime, null, null)
+  }, [anime])
   const immediateEpisodes = useMemo(() => {
-    if (!anime) return []
-    const count = anime.episodes ?? anime.streamingEpisodes?.length ?? 0
-    if (count === 0) return []
-    const n = Math.min(count, 100)
-    return Array.from({ length: n }, (_, i) => ({
-      number: i + 1,
-      title: anime.streamingEpisodes?.[i]?.title,
-      thumbnail: anime.streamingEpisodes?.[i]?.thumbnail,
+    if (!sanitizedAnimeForWatch) return []
+    const eps = normalizeEpisodes(sanitizedAnimeForWatch)
+    // Cap at 100 for perf, but allow larger via pagination in future
+    const capped = eps.slice(0, 100)
+    return capped.map(e => ({
+      number: e.number,
+      title: e.title,
+      thumbnail: e.thumbnail,
     }))
-  }, [anime?.identity.anilistId, anime?.identity.internalId, anime?.episodes, anime?.streamingEpisodes])
+  }, [sanitizedAnimeForWatch])
 
   // Background: resolve provider episodes for source mapping (does not block UI) — abortable
   useEffect(() => {
@@ -494,8 +496,8 @@ export function Watch() {
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                   {immediateEpisodes.map(ep => {
                     const isCurrent = ep.number === epNum
-                    const realTitle = anime.streamingEpisodes?.[ep.number - 1]?.title
-                    const epKey = anime.identity.anilistId ? `anilist:${anime.identity.anilistId}-${ep.number}` : `${anime.identity.internalId}-${ep.number}`
+                    const realTitle = ep.title
+                    const epKey = sanitizedAnimeForWatch?.identity.anilistId ? `anilist:${sanitizedAnimeForWatch.identity.anilistId}-${ep.number}` : `${sanitizedAnimeForWatch?.identity.internalId}-${ep.number}`
                     return (
                       <Link
                         key={epKey}

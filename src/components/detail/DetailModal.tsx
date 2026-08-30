@@ -5,6 +5,7 @@ import { EpisodeList } from '../episodes/EpisodeList'
 import { useTracking } from '../../contexts/TrackingContext'
 import { getSeriesGroup, type AnimeSeriesGroup } from '../../services/anilist/series'
 import { getTitleHierarchy } from '../../lib/titles'
+import { sanitizeAnimeForDisplay, sanitizeGroup } from '../../lib/episodes'
 
 export function DetailModal({
   anime,
@@ -84,18 +85,22 @@ export function DetailModal({
     return () => controller.abort()
   }, [baseAnime.identity.anilistId])
 
-  const effectiveGroup = useMemo(() => {
+  const effectiveGroupRaw = useMemo(() => {
     if (!seriesGroup || seriesGroup.seasons.length <= 1) return null
     if (!baseAnime.identity.anilistId) return seriesGroup
     const contains = seriesGroup.seasons.some(s => s.identity.anilistId === baseAnime.identity.anilistId)
     return contains ? seriesGroup : null
   }, [seriesGroup, baseAnime.identity.anilistId])
-  const displayAnime = (() => {
+  const effectiveGroup = useMemo(() => {
+    if (!effectiveGroupRaw) return null
+    return sanitizeGroup(effectiveGroupRaw)
+  }, [effectiveGroupRaw])
+  const displayAnime = useMemo(() => {
     if (effectiveGroup) {
       return effectiveGroup.seasons[selectedSeasonIdx] ?? baseAnime
     }
-    return baseAnime
-  })()
+    return sanitizeAnimeForDisplay(baseAnime, null, null)
+  }, [effectiveGroup, selectedSeasonIdx, baseAnime])
   const displayKey = displayAnime.identity.anilistId ? `anilist:${displayAnime.identity.anilistId}` : displayAnime.identity.internalId
   const titles = getTitleHierarchy(displayAnime, effectiveGroup)
   const isMovie = displayAnime.format?.toUpperCase() === 'MOVIE'

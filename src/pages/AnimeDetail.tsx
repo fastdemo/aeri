@@ -5,6 +5,7 @@ import { useAniList } from '../contexts/AniListContext'
 import { useAnimeDetail } from '../hooks/useAnimeMetadata'
 import { getSeriesGroup, type AnimeSeriesGroup } from '../services/anilist/series'
 import { getTitleHierarchy } from '../lib/titles'
+import { sanitizeAnimeForDisplay, sanitizeGroup } from '../lib/episodes'
 
 export function AnimeDetail() {
   const { id } = useParams<{ id: string }>()
@@ -44,18 +45,23 @@ export function AnimeDetail() {
   selectedIdxRef.current = selectedSeasonIdx
 
   // Effective group guards against stale seriesGroup when anime switches franchise before new fetch resolves.
-  const effectiveGroup = useMemo(() => {
+  const effectiveGroupRaw = useMemo(() => {
     if (!seriesGroup || seriesGroup.seasons.length <= 1) return null
     if (!anime?.identity.anilistId) return seriesGroup
     const contains = seriesGroup.seasons.some(s => s.identity.anilistId === anime.identity.anilistId)
     return contains ? seriesGroup : null
   }, [seriesGroup, anime?.identity.anilistId])
+  const effectiveGroup = useMemo(() => {
+    if (!effectiveGroupRaw) return null
+    return sanitizeGroup(effectiveGroupRaw)
+  }, [effectiveGroupRaw])
   const displayAnime = useMemo(() => {
     if (!anime) return null as any
     if (effectiveGroup) {
       return effectiveGroup.seasons[selectedSeasonIdx] ?? anime
     }
-    return anime
+    // sanitize standalone anime (sort, filter trailers, fix reverse, discard out-of-range)
+    return sanitizeAnimeForDisplay(anime, null, null)
   }, [effectiveGroup, selectedSeasonIdx, anime])
   const titles = useMemo(() => {
     if (!displayAnime) return { primary: '' } as any

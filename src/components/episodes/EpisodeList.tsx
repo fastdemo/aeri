@@ -2,37 +2,38 @@ import { Link } from 'react-router-dom'
 import { useMemo } from 'react'
 import type { Anime } from '../../types/anime'
 import { useTracking } from '../../contexts/TrackingContext'
+import { normalizeEpisodes } from '../../lib/episodes'
 
 export function getEpisodes(anime: Anime) {
-  const count = anime.episodes ?? anime.streamingEpisodes?.length ?? 0
-  if (count === 0) return []
-  // Cap at 100 for perf; larger (One Piece) uses pagination via Watch immediateEpisodes
-  const n = Math.min(count, 100)
-  return Array.from({ length: n }, (_, i) => {
-    const se = anime.streamingEpisodes?.[i]
-    const title = se?.title?.trim() || undefined
-    const thumbnail = se?.thumbnail ?? undefined
-    return {
-      number: i + 1,
-      title,
-      thumbnail,
-      duration: anime.duration ?? 24,
-    }
-  })
+  // Legacy wrapper for tests: now delegates to normalizeEpisodes (sorted, filtered, validated)
+  const eps = normalizeEpisodes(anime)
+  // Cap at 100 for perf on detail page; Watch handles larger via pagination
+  const capped = eps.slice(0, 100)
+  return capped.map(e => ({
+    number: e.number,
+    title: e.title,
+    thumbnail: e.thumbnail,
+    duration: e.duration ?? anime.duration ?? 24,
+  }))
 }
 
 export function EpisodeList({ anime, seasonNumber = 1 }: { anime: Anime; seasonNumber?: number }) {
-  // Explicit episode normalization from displayAnime — rebuilds when anilistId/episodes/streamingEpisodes change
-  // Using anilistId in deps ensures stale closures don't retain previous season's count (e.g., 25 vs 12)
-  const episodes = useMemo(() => getEpisodes(anime), [
+  const episodes = useMemo(() => {
+    const eps = normalizeEpisodes(anime)
+    const capped = eps.slice(0, 100)
+    return capped.map(e => ({
+      number: e.number,
+      title: e.title,
+      thumbnail: e.thumbnail,
+      duration: e.duration ?? anime.duration ?? 24,
+    }))
+  }, [
     anime.identity.anilistId,
     anime.identity.internalId,
     anime.episodes,
     anime.streamingEpisodes,
     anime.duration,
   ])
-  // Movies must never show an episode list — guarded also by callers but defensive here
-  // Placed after hooks to preserve hook order when switching MOVIE <-> TV seasons
   if (anime.format?.toUpperCase() === 'MOVIE') return null
   const { isAuthenticated, combinedList, updateProgress } = useTracking()
   const entry = (() => {
@@ -96,7 +97,6 @@ export function EpisodeList({ anime, seasonNumber = 1 }: { anime: Anime; seasonN
                     onError={(e) => {
                       const img = e.currentTarget as HTMLImageElement
                       img.style.display = 'none'
-                      // Also hide parent's fallback handling if needed
                       const fallback = img.nextElementSibling as HTMLElement | null
                       if (fallback) fallback.style.display = 'grid'
                     }}
