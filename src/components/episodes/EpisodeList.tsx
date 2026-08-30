@@ -19,25 +19,37 @@ export function getEpisodes(anime: Anime) {
 
 export function EpisodeList({ anime, seasonNumber = 1 }: { anime: Anime; seasonNumber?: number }) {
   const [providerEpisodes, setProviderEpisodes] = useState<VideoEpisode[] | null>(null)
+  const [providerDone, setProviderDone] = useState(false)
   const prevIdRef = useRef<string>('')
 
   useEffect(() => {
     const id = anime.identity.internalId
-    // Always reset when anime identity changes (covers season switches)
     prevIdRef.current = id
     setProviderEpisodes(null)
+    setProviderDone(false)
     const controller = new AbortController()
     let cancelled = false
+    let timeout: any = null
+    // Fallback timer: ensure we don't stay blank forever if provider hangs (e.g., rate limit)
+    timeout = setTimeout(() => {
+      if (!cancelled) setProviderDone(true)
+    }, 1800)
     resolveEpisodesWithFallback(anime, controller.signal)
       .then(res => {
         if (cancelled || controller.signal.aborted) return
         if (res.episodes && res.episodes.length) setProviderEpisodes(res.episodes)
       })
       .catch(() => {})
-    return () => { cancelled = true; controller.abort() }
+      .finally(() => {
+        clearTimeout(timeout)
+        if (!cancelled) setProviderDone(true)
+      })
+    return () => { cancelled = true; controller.abort(); clearTimeout(timeout) }
   }, [anime.identity.internalId, anime.identity.anilistId])
 
   const episodes = useMemo(() => {
+    // Don't compute final episodes until we have confirmed provider state (blank -> single update)
+    if (!providerDone) return null as any
     const eps = normalizeEpisodes(anime, providerEpisodes)
     const capped = eps.slice(0, 100)
     return capped.map(e => ({
@@ -53,9 +65,34 @@ export function EpisodeList({ anime, seasonNumber = 1 }: { anime: Anime; seasonN
     anime.streamingEpisodes,
     anime.duration,
     providerEpisodes,
+    providerDone,
   ])
 
   if (anime.format?.toUpperCase() === 'MOVIE') return null
+
+  // While confirming episode metadata (provider + AniList), show blank skeleton like before - single update after
+  if (!providerDone || episodes === null) {
+    return (
+      <div className="space-y-1">
+        <div className="mb-2 flex items-center gap-2">
+          <span className="rounded bg-white px-2 py-1 text-[11px] font-semibold text-black">S{seasonNumber}</span>
+          <span className="text-xs text-white/50">{anime.episodes ? `${anime.episodes} episodes` : 'Loading episodes...'}</span>
+        </div>
+        <div className="overflow-hidden rounded-lg border border-white/10">
+          {[1,2,3,4,5].map(i => (
+            <div key={i} className={`flex items-center gap-3 px-3 py-3 ${i!==5 ? 'border-b border-white/5' : ''} animate-pulse`}>
+              <span className="w-6 h-4 rounded bg-white/5" />
+              <div className="h-12 w-20 rounded bg-white/5" />
+              <div className="flex-1 space-y-2">
+                <div className="h-3 w-3/4 rounded bg-white/5" />
+                <div className="h-2 w-1/4 rounded bg-white/5" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
   const { isAuthenticated, combinedList, updateProgress } = useTracking()
   const entry = (() => {
     if (!isAuthenticated || !combinedList) return null
@@ -93,7 +130,7 @@ export function EpisodeList({ anime, seasonNumber = 1 }: { anime: Anime; seasonN
       </div>
 
       <div className="overflow-hidden rounded-lg border border-white/10">
-        {episodes.map((ep) => {
+        {episodes.map((ep: any) => {
           const isWatched = ep.number < progressEp
           const isCurrent = ep.number === progressEp
           const seasonKey = anime.identity.anilistId ? `anilist:${anime.identity.anilistId}` : anime.identity.internalId
