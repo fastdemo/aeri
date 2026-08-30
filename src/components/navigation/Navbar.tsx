@@ -46,18 +46,36 @@ export function Navbar() {
 
   // aeri:navigate closes DetailModal for same-hash clicks (no hashchange).
   // Must be dispatched AFTER HashRouter's push so navigation is synchronous and cleanup is deferred.
-  const dispatchNavigate = () => {
+  const dispatchNavigate = (to?: string) => {
     queueMicrotask(() => {
       try { window.dispatchEvent(new CustomEvent('aeri:navigate')) } catch {}
     })
+    // Hard fallback: if React Router's Link push doesn't change hash within 150ms (e.g., blocked by overlay or error), force hash
+    if (to) {
+      const expected = `#${to}`;
+      setTimeout(() => {
+        try {
+          if (window.location.hash !== expected) {
+            // For "/" the hash could be "#/" or "" - treat both as home
+            const isHome = to === '/' && (window.location.hash === '#/' || window.location.hash === '' || window.location.hash === '#');
+            if (!isHome) window.location.hash = to;
+          }
+        } catch {}
+      }, 180);
+    }
   }
 
   const onSearch = (e: React.FormEvent) => {
     e.preventDefault()
     const q = query.trim()
     if (!q) return
+    const target = `/search?q=${encodeURIComponent(q)}`;
     // 1) synchronous route change — never wait for providers/IDB/HLS
-    navigate(`/search?q=${encodeURIComponent(q)}`)
+    navigate(target)
+    // Hard fallback for hash
+    setTimeout(() => {
+      try { if (window.location.hash !== `#${target}`) window.location.hash = target; } catch {}
+    }, 180);
     // 2) deferred cleanup (suggestions, mobile, modal) — after commit, not before
     queueMicrotask(() => {
       try { window.dispatchEvent(new CustomEvent('aeri:navigate')) } catch {}
@@ -79,7 +97,7 @@ export function Navbar() {
         <div className="flex items-center gap-8">
           <Link
             to="/"
-            onClick={dispatchNavigate}
+            onClick={() => dispatchNavigate('/')}
             className="text-[19px] font-semibold tracking-[-0.02em] text-white"
             style={{ fontFamily: '"Cal Sans", sans-serif' }}
             aria-label="aeri home"
@@ -98,7 +116,7 @@ export function Navbar() {
               <NavLink
                 key={l.to}
                 to={l.to}
-                onClick={dispatchNavigate}
+                onClick={() => dispatchNavigate(l.to)}
                 className={({ isActive }) =>
                   `text-[13px] font-medium transition-colors ${
                     isActive ? 'text-white' : 'text-white/70 hover:text-white'
@@ -175,7 +193,7 @@ export function Navbar() {
 
           <Link
             to="/list"
-            onClick={dispatchNavigate}
+            onClick={() => dispatchNavigate('/list')}
             aria-label="Profile"
             className="relative h-7 w-7 overflow-hidden rounded bg-gradient-to-br from-violet-600 to-indigo-600"
           >
@@ -229,7 +247,7 @@ export function Navbar() {
                 // Let <Link> push synchronously; defer menu close + modal dispatch to after commit
                 onClick={() => {
                   queueMicrotask(() => setMobileNavOpen(false))
-                  dispatchNavigate()
+                  dispatchNavigate(l.to)
                 }}
                 className="rounded px-3 py-2 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white"
               >
