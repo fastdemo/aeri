@@ -1,6 +1,7 @@
 import type { Anime } from '../../types/anime'
-import type { VideoProvider, VideoEpisode, VideoSourceEnhanced, ProviderCapabilities } from './types'
-import { cachedFetch, isCorsError, fetchWithTimeout } from './base'
+import type { VideoProvider, VideoEpisode, VideoSourceEnhanced, ProviderCapabilities, SourceOptions } from './types'
+import { cachedFetch, fetchWithTimeout } from './base'
+import { getEffectiveVideoApiUrl } from '../../storage/preferences'
 
 export class AnimePaheProvider implements VideoProvider {
   id = 'animepahe'
@@ -18,54 +19,76 @@ export class AnimePaheProvider implements VideoProvider {
     sources: true,
   }
 
-  // Investigation 2026-08-29 from https://fastdemo.github.io origin:
-  // fetch("https://animepahe.ru/api?m=search&q=naruto") → CORS blocked: No 'Access-Control-Allow-Origin' header, ERR_FAILED
-  // fetch("https://animepahe.su/api?m=search&q=naruto") → same CORS blocked
-  // curl without Origin → 200 HTML, but browser is blocked. No CORS headers on api.*.
-  // Therefore browser-direct is impossible without proxy. Documented as browser-incompatible.
+  private get base(): string | null {
+    return getEffectiveVideoApiUrl()
+  }
 
   async resolveAnimeId(anime: Anime): Promise<string | null> {
-    return cachedFetch(`video:animepahe:resolve:${anime.identity.anilistId ?? anime.identity.internalId}`, async () => {
+    const base = this.base
+    if (!base || !anime.identity.anilistId) return null
+    return cachedFetch(`video:animepahe:resolve:${anime.identity.anilistId}`, async () => {
       try {
-        const url = `https://animepahe.ru/api?m=search&q=${encodeURIComponent(anime.title.romaji)}`
-        const res = await fetchWithTimeout(url)
+        const res = await fetchWithTimeout(`${base}/map/${anime.identity.anilistId}?provider=animepahe`, {}, 3500)
         if (!res.ok) return null
-        const json: any = await res.json().catch(() => null)
-        return json?.data?.[0]?.session ?? null
-      } catch (e) {
-        if (isCorsError(e)) return null
-        return null
-      }
+        const j: any = await res.json().catch(() => null)
+        return j?.providerAnimeId ?? null
+      } catch { return null }
     })
   }
 
-  async getEpisodes(anime: Anime): Promise<VideoEpisode[]> {
-    const pid = await this.resolveAnimeId(anime)
-    if (!pid) return []
-    return cachedFetch(`video:animepahe:episodes:${pid}`, async () => {
+  async getEpisodes(anime: Anime, signal?: AbortSignal): Promise<VideoEpisode[]> {
+    const base = this.base
+    if (!base || !anime.identity.anilistId) return []
+    return cachedFetch(`video:animepahe:episodes:${anime.identity.anilistId}`, async () => {
       try {
-        const res = await fetchWithTimeout(`https://animepahe.ru/api?m=release&id=${encodeURIComponent(pid)}&sort=episode_asc&page=1`)
+        const res = await fetchWithTimeout(`${base}/episodes/${anime.identity.anilistId}?provider=animepahe`, {}, 3500, signal)
         if (!res.ok) return []
-        const json: any = await res.json().catch(() => null)
-        const eps = json?.data ?? []
-        return eps.map((ep: any, i: number) => ({
-          id: `${anime.identity.internalId}-pahe-${ep.episode ?? i + 1}`,
+        const j: any = await res.json().catch(() => null)
+        const list = j?.episodes ?? []
+        if (!Array.isArray(list)) return []
+        return list.map((ep: any, idx: number) => ({
+          id: ep.id ?? `animepahe-${anime.identity.anilistId}-${ep.number ?? idx + 1}`,
           animeId: anime.identity.internalId,
-          number: ep.episode ?? i + 1,
-          title: `Episode ${ep.episode ?? i + 1}`,
-          provider: this.id,
-          providerEpisodeId: String(ep.id ?? ep.session ?? i + 1),
-        }))
-      } catch (e) {
-        if (isCorsError(e)) return []
-        return []
-      }
+          number: ep.number ?? idx + 1,
+          title: ep.title ?? `Episode ${ep.number ?? idx + 1}`,
+          thumbnail: ep.thumbnail,
+          provider: 'animepahe',
+          providerEpisodeId: ep.providerEpisodeId ?? `${anime.identity.anilistId}-${ep.number ?? idx + 1}`,
+          language: 'sub',
+          availableLanguages: ['sub'],
+        })) as VideoEpisode[]
+      } catch { return [] }
     })
   }
 
-  async getSources(_episode: VideoEpisode): Promise<VideoSourceEnhanced[]> {
-    // Would resolve kwik link to m3u8, but requires bypassing Cloudflare and CORS
-    return []
+  async getSources(episode: VideoEpisode, options?: SourceOptions): Promise<VideoSourceEnhanced[]> {
+    const base = this.base
+    if (!base) return []
+    if (options?.preferredLanguage === 'dub') return []
+    let anilistId: string | null = null
+    const m = episode.animeId.match(/anilist-(\d+)/)
+    if (m) anilistId = m[1]
+    if (!anilistId) return []
+    return cachedFetch(`video:animepahe:sources:${episode.providerEpisodeId}:sub`, async () => {
+      try {
+        const url = `${base}/sources/animepahe-${anilistId}-${episode.number}?language=sub&provider=animepahe`
+        const res = await fetchWithTimeout(url, {}, 5000, options?.signal)
+        if (!res.ok) return []
+        const j: any = await res.json().catch(() => null)
+        const srcs = j?.sources ?? []
+        if (!Array.isArray(srcs)) return []
+        return srcs.map((s: any) => ({
+          url: s.url,
+          type: s.type ?? (s.url?.includes('.m3u8') ? 'hls' : s.embed ? 'embed' : 'mp4'),
+          quality: s.quality ?? 'auto',
+          provider: 'animepahe',
+          language: 'sub' as const,
+          embed: !!s.embed,
+          subtitles: s.subtitles,
+          headers: s.headers,
+        })) as VideoSourceEnhanced[]
+      } catch { return [] }
+    })
   }
 }
 

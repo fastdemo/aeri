@@ -25,7 +25,18 @@ export function VideoPlayer({ sources, selectedSource, onSourceChange, subtitles
   const hasMultipleSources = sources.length > 1
   const isHlsSource = !!(source && (source.url.includes('.m3u8') || source.type === 'hls'))
 
-  // HLS support: lazy import, never blocks navigation. Cleanup is synchronous (destroy + src clear)
+  // Reset loading/error/time when source changes
+  useEffect(() => {
+    setError(null)
+    setIsLoading(true)
+    setCurrentTime(initialTime ?? 0)
+    // reset video element time as well (React state alone doesn't seek)
+    if (videoRef.current) {
+      try { videoRef.current.currentTime = initialTime ?? 0 } catch {}
+    }
+  }, [source?.url])
+
+  // HLS support: lazy import, never blocks navigation. Cleanup destroys hls instance but does NOT clear src (MP4 src is managed via JSX)
   const hlsRef = useRef<any>(null)
   useEffect(() => {
     setError(null)
@@ -37,8 +48,9 @@ export function VideoPlayer({ sources, selectedSource, onSourceChange, subtitles
     if (!video) return
     if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = url
+      // Native HLS: only pause on cleanup, do not clear src (next MP4 will set via JSX)
       return () => {
-        try { video.pause(); video.removeAttribute('src'); video.load() } catch {}
+        try { video.pause() } catch {}
       }
     }
     let cancelled = false
@@ -72,14 +84,27 @@ export function VideoPlayer({ sources, selectedSource, onSourceChange, subtitles
       cancelled = true
       if (timer) clearTimeout(timer)
       if (hlsRef.current) { try { hlsRef.current.destroy() } catch {}; hlsRef.current = null }
-      try { video.pause(); video.removeAttribute('src'); video.load() } catch {}
+      try { video.pause() } catch {}
     }
   }, [source?.url, source?.type, source?.embed])
 
-  // Resume from initialTime
+  // Resume from initialTime — seek only after metadata is available
   useEffect(() => {
-    if (videoRef.current && initialTime && initialTime > 0 && initialTime < (videoRef.current.duration || Infinity) - 5) {
-      videoRef.current.currentTime = initialTime
+    const v = videoRef.current
+    if (!v || !initialTime || initialTime <= 0) return
+    const trySeek = () => {
+      try {
+        const dur = v.duration
+        if (!isFinite(dur) || dur === 0) return
+        if (initialTime > 5 && initialTime < dur - 5) v.currentTime = initialTime
+      } catch {}
+    }
+    if (v.readyState >= 1) {
+      trySeek()
+    } else {
+      const onMeta = () => trySeek()
+      v.addEventListener('loadedmetadata', onMeta, { once: true })
+      return () => v.removeEventListener('loadedmetadata', onMeta)
     }
   }, [initialTime, source?.url])
 
@@ -93,14 +118,20 @@ export function VideoPlayer({ sources, selectedSource, onSourceChange, subtitles
     if (!subtitles || subtitles.length === 0) return
     const v = videoRef.current
     if (!v) return
-    const onLoaded = () => {
+    const apply = () => {
       for (let i = 0; i < v.textTracks.length; i++) {
         const tt = v.textTracks[i]
-        tt.mode = 'showing'
+        // only show subtitles, not captions/metadata
+        if (tt.kind === 'subtitles' || tt.kind === 'captions') tt.mode = 'showing'
       }
     }
-    v.addEventListener('loadedmetadata', onLoaded, { once: true })
-    return () => v.removeEventListener('loadedmetadata', onLoaded)
+    if (v.readyState >= 1) {
+      // metadata already loaded — apply immediately
+      apply()
+    }
+    // also listen for future metadata (when switching source)
+    v.addEventListener('loadedmetadata', apply, { once: true })
+    return () => v.removeEventListener('loadedmetadata', apply)
   }, [subtitles, source?.url])
 
   // No source — don't render video
@@ -131,16 +162,17 @@ export function VideoPlayer({ sources, selectedSource, onSourceChange, subtitles
         {hasMultipleSources && onSourceChange && (
           <div className="absolute bottom-2 right-2">
             <select
-              value={source.url}
+              value={`${source.url}::${source.quality ?? ''}::${source.language ?? ''}`}
               onChange={e => {
-                const s = sources.find(s => s.url === e.target.value)
+                const val = e.target.value
+                const s = sources.find(s => `${s.url}::${s.quality ?? ''}::${s.language ?? ''}` === val) ?? sources.find(s => s.url === val)
                 if (s) onSourceChange(s)
               }}
               aria-label="Select video source"
               className="rounded-full bg-black/70 px-3 py-1 text-xs text-white backdrop-blur"
             >
-              {sources.map(s => (
-                <option key={s.url} value={s.url} className="bg-black">
+              {sources.map((s, idx) => (
+                <option key={`${s.url}-${s.quality ?? ''}-${s.language ?? ''}-${idx}`} value={`${s.url}::${s.quality ?? ''}::${s.language ?? ''}`} className="bg-black">
                   {s.provider} {s.quality ? `• ${s.quality}` : ''} {s.language ? `• ${s.language}` : ''}
                 </option>
               ))}
@@ -153,6 +185,8 @@ export function VideoPlayer({ sources, selectedSource, onSourceChange, subtitles
   }
 
   // Direct video (hls/mp4)
+  // crossOrigin only when subtitles require it (CORS VTT) — avoids breaking non-CORS MP4s
+  const needsCors = !!(subtitles && subtitles.length > 0)
   return (
     <div className="relative aspect-video w-full overflow-hidden bg-black">
       {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
@@ -163,13 +197,13 @@ export function VideoPlayer({ sources, selectedSource, onSourceChange, subtitles
         autoPlay={!!autoplay}
         playsInline
         preload="metadata"
-        crossOrigin="anonymous"
+        crossOrigin={needsCors ? "anonymous" : undefined}
         className="h-full w-full object-contain"
         onLoadedMetadata={() => {
           setIsLoading(false)
           if (videoRef.current && initialTime && initialTime > 5) {
             const dur = videoRef.current.duration
-            if (initialTime < dur - 10) videoRef.current.currentTime = initialTime
+            if (Number.isFinite(dur) && initialTime < dur - 5) videoRef.current.currentTime = initialTime
           }
         }}
         onTimeUpdate={e => {
@@ -184,8 +218,8 @@ export function VideoPlayer({ sources, selectedSource, onSourceChange, subtitles
         onWaiting={() => setIsLoading(true)}
         onPlaying={() => setIsLoading(false)}
       >
-        {subtitles?.map(track => (
-          <track key={track.url} kind="subtitles" src={track.url} srcLang={track.language} label={track.label} />
+        {subtitles?.map((track, idx) => (
+          <track key={`${track.url}-${track.language}-${idx}`} kind="subtitles" src={track.url} srcLang={track.language} label={track.label} default={idx === 0} />
         ))}
         Your browser does not support video playback.
       </video>
@@ -199,16 +233,17 @@ export function VideoPlayer({ sources, selectedSource, onSourceChange, subtitles
       {hasMultipleSources && onSourceChange && (
         <div className="absolute bottom-12 right-2">
           <select
-            value={source.url}
+            value={`${source.url}::${source.quality ?? ''}::${source.language ?? ''}`}
             onChange={e => {
-              const s = sources.find(s => s.url === e.target.value)
+              const val = e.target.value
+              const s = sources.find(s => `${s.url}::${s.quality ?? ''}::${s.language ?? ''}` === val) ?? sources.find(s => s.url === val)
               if (s) onSourceChange(s)
             }}
             aria-label="Select video source"
             className="rounded-full bg-black/70 px-3 py-1 text-xs text-white backdrop-blur"
           >
-            {sources.map(s => (
-              <option key={s.url} value={s.url} className="bg-black">
+            {sources.map((s, idx) => (
+              <option key={`${s.url}-${s.quality ?? ''}-${s.language ?? ''}-${idx}`} value={`${s.url}::${s.quality ?? ''}::${s.language ?? ''}`} className="bg-black">
                 {s.provider} {s.quality ? `• ${s.quality}` : ''} {s.language ? `• ${s.language}` : ''}
               </option>
             ))}

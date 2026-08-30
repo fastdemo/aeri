@@ -33,12 +33,12 @@ export class OfficialProvider implements VideoProvider {
     languages: ['sub', 'dub'],
     subtitles: false,
     embed: true,
-    directVideo: true,
+    directVideo: false,
     search: false,
     episodes: true,
     sources: true,
-    hls: true,
-    mp4: true,
+    hls: false,
+    mp4: false,
   }
 
   async resolveAnimeId(anime: Anime): Promise<string | null> {
@@ -186,7 +186,8 @@ export class OfficialProvider implements VideoProvider {
         const trailer = j?.data?.Media?.trailer
         const sources: VideoSourceEnhanced[] = []
         if (trailer?.site === 'youtube' && trailer.id) {
-          const yt = trailer.id
+          const yt = String(trailer.id).trim()
+          if (!yt) return sources
           sources.push({
             url: `https://www.youtube-nocookie.com/embed/${yt}?rel=0&modestbranding=1`,
             type: 'embed',
@@ -204,18 +205,9 @@ export class OfficialProvider implements VideoProvider {
             embed: true,
           })
         }
-        // Direct-video fallback via archive MP4 via Worker proxy when available — ensures <video> path verifiable.
-        // No mux demo in production: demo HLS is kept only in worker DemoProvider for HLS regression.
-        if (WORKER_BASE) {
-          const gundam = 'https://archive.org/download/mobile-suit-gundam-narrative-long-trailer-eng-dub/Mobile%20Suit%20Gundam%20Narrative%20Long%20Tr%C3%A1iler%20Eng%20Dub.mp4'
-          const proxied = `${WORKER_BASE}/proxy?url=${encodeURIComponent(gundam)}`
-          // Insert proxied MP4 so direct video is always available alongside YouTube embed
-          sources.push({ url: proxied, type: 'mp4', quality: '1080p', provider: 'official', language: lang, embed: false })
-          // Also add Sintel as 720p fallback if Worker
-          const sintel = 'https://archive.org/download/Sintel/sintel-2048-surround.mp4'
-          const proxiedSintel = `${WORKER_BASE}/proxy?url=${encodeURIComponent(sintel)}`
-          sources.push({ url: proxiedSintel, type: 'mp4', quality: '720p', provider: 'official', language: lang, embed: false })
-        }
+        // No unrelated Archive fallback in production — only anime-specific YouTube trailer is honest.
+        // Previously returned Gundam/Sintel MP4s which are unrelated to the requested anime and violate full-episode contract.
+        // Keep only YouTube embeds here; Worker proxy for Archive is disabled for honesty.
         // In dev, allow mux demo HLS for local HLS testing without Worker
         if (import.meta.env.DEV && sources.length === 0) {
           const DEMO_HLS = 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'

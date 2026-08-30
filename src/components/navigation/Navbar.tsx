@@ -118,7 +118,7 @@ export function Navbar() {
                 to={l.to}
                 onClick={() => dispatchNavigate(l.to)}
                 className={({ isActive }) =>
-                  `text-[13px] font-medium transition-colors ${
+                  `text-[13px] font-medium transition-colors px-2 py-1.5 rounded -mx-2 ${
                     isActive ? 'text-white' : 'text-white/70 hover:text-white'
                   }`
                 }
@@ -130,7 +130,7 @@ export function Navbar() {
           <button
             aria-label="Menu"
             onClick={() => setMobileNavOpen((v) => !v)}
-            className="grid h-8 w-8 place-items-center rounded-full text-white/80 hover:bg-white/10 hover:text-white md:hidden"
+            className="grid h-11 w-11 place-items-center rounded-full text-white/80 hover:bg-white/10 hover:text-white md:hidden"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
               <path d="M4 7h16M4 12h16M4 17h16" />
@@ -171,7 +171,7 @@ export function Navbar() {
           <button
             aria-label="Search"
             onClick={() => setMobileSearchOpen((v) => !v)}
-            className="grid h-8 w-8 place-items-center rounded-full text-white/80 hover:bg-white/10 hover:text-white md:hidden"
+            className="grid h-11 w-11 place-items-center rounded-full text-white/80 hover:bg-white/10 hover:text-white md:hidden"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="11" cy="11" r="7" />
@@ -210,7 +210,7 @@ export function Navbar() {
       </div>
 
       {mobileSearchOpen && (
-        <div className="border-t border-white/10 bg-[var(--bg)] px-4 py-3 md:hidden">
+        <div className="absolute left-0 right-0 top-14 border-t border-white/10 bg-[var(--bg)] px-4 py-3 md:hidden shadow-lg shadow-black/20">
           <form onSubmit={onSearch} className="flex gap-2">
             <input
               autoFocus
@@ -232,7 +232,7 @@ export function Navbar() {
         </div>
       )}
       {mobileNavOpen && (
-        <nav className="border-t border-white/10 bg-[var(--bg)] px-4 py-3 md:hidden" aria-label="Mobile sections">
+        <nav className="absolute left-0 right-0 top-14 border-t border-white/10 bg-[var(--bg)] px-4 py-3 md:hidden shadow-lg shadow-black/20" aria-label="Mobile sections">
           <div className="flex flex-col gap-1">
             {[
               { to: '/', label: 'Home' },
@@ -249,7 +249,7 @@ export function Navbar() {
                   queueMicrotask(() => setMobileNavOpen(false))
                   dispatchNavigate(l.to)
                 }}
-                className="rounded px-3 py-2 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white"
+                className="rounded px-3 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white active:bg-white/5 touch-manipulation min-h-[44px] flex items-center"
               >
                 {l.label}
               </Link>

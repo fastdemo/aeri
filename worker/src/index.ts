@@ -8,7 +8,8 @@ import {
   MiruroAliasProvider,
   DemoProvider,
   AllAnimeStubProvider,
-  AnimePaheStubProvider,
+  AnimePaheProvider,
+  AnikotoProvider,
   GenericStubProvider,
   type VideoSourceProvider,
   type NormalizedSource,
@@ -52,18 +53,18 @@ const officialProvider = new OfficialTrailerProvider()
 const miruroAliasProvider = new MiruroAliasProvider()
 const demoProvider = new DemoProvider()
 const allAnimeStub = new AllAnimeStubProvider()
-const animePaheStub = new AnimePaheStubProvider()
-const anikotoStub = new GenericStubProvider('anikoto', 'AniKoto')
+const animePaheProvider = new AnimePaheProvider()
+const anikotoProvider = new AnikotoProvider()
 const megaPlayStub = new GenericStubProvider('megaplay', 'MegaPlay')
 const animeParadiseStub = new GenericStubProvider('animeparadise', 'AnimeParadise')
 const aniNekoStub = new GenericStubProvider('anineko', 'AniNeko')
 
 const providers: VideoSourceProvider[] = [
   officialProvider,
+  anikotoProvider,
+  animePaheProvider,
   miruroAliasProvider,
   allAnimeStub,
-  animePaheStub,
-  anikotoStub,
   megaPlayStub,
   animeParadiseStub,
   aniNekoStub,
@@ -214,6 +215,30 @@ export default {
       const anilistId = Number(epMatch[1])
       if (!Number.isFinite(anilistId) || anilistId <= 0) return json({ error: 'Invalid anilistId' }, 400, env, origin)
       const signal = request.signal
+      const providerParam = url.searchParams.get('provider')
+      // If provider param specified, delegate to that provider directly
+      if (providerParam) {
+        const p = getProviderById(providerParam)
+        if (p) {
+          try {
+            const eps = await withTimeout(p.getEpisodes(anilistId, signal), 5000, signal)
+            const episodes = eps.map(e => ({
+              id: `${p.id}-${anilistId}-${e.number}`,
+              number: e.number,
+              title: e.title,
+              thumbnail: e.thumbnail,
+              provider: p.id,
+              providerEpisodeId: `${p.id}-${anilistId}-${e.number}`,
+              language: 'sub' as const,
+              availableLanguages: p.capabilities.languages as any,
+            }))
+            return json({ episodes, count: episodes.length, anilistId: String(anilistId), provider: p.id }, 200, env, origin, { 'Cache-Control': CACHE_CONTROL_EPISODES })
+          } catch (e) {
+            if ((e as any)?.name === 'AbortError') return json({ error: 'Aborted' }, 499, env, origin)
+            return json({ episodes: [], error: String(e), anilistId: String(anilistId) }, 502, env, origin)
+          }
+        }
+      }
       try {
         const eps = await withTimeout(officialProvider.getEpisodes(anilistId, signal), 5000, signal)
         const episodes = eps.map(e => ({
@@ -274,11 +299,7 @@ export default {
       pushIfValid(preferredProviderParam)
       pushIfValid(parsed.providerHint)
       for (const p of providers) if (!ordered.some(o => o.id === p.id)) ordered.push(p)
-      // Limit sequential waste: only try official/miruro/demo first; stubs are empty and waste AniList quota sequentially.
-      // If those 3 have no source, others will also be empty — short-circuit after first 3 misses to keep latency < 8s.
-      const priorityProviders = ordered.filter(p => ['official','miruro','demo'].includes(p.id))
-      const otherProviders = ordered.filter(p => !priorityProviders.includes(p))
-      const tryOrdered = [...priorityProviders, ...otherProviders]
+      const tryOrdered = ordered
       for (const provider of tryOrdered) {
         if (signal.aborted) break
         tried.push(provider.id)

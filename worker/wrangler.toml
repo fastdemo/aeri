@@ -5,7 +5,7 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 # Public allowlist for /proxy — comma-separated host suffixes
-PROXY_ALLOWLIST = "archive.org,ia600200.us.archive.org,test-streams.mux.dev,mux.dev"
+PROXY_ALLOWLIST = "archive.org,ia600200.us.archive.org,test-streams.mux.dev,mux.dev,anikototv.to,www.anikotoapi.site,megaplay.buzz,animepahe.ru,kwik.cx,kwik.si,pahe.win"
 
 [env.production.vars]
 ALLOWED_ORIGIN = "https://fastdemo.github.io"

@@ -9,14 +9,15 @@ import { animeParadiseProvider } from './animeparadise'
 import { aniNekoProvider } from './anineko'
 import { miruroProvider } from './miruro'
 import { officialProvider } from './official'
-import { getPreferences } from '../../storage/preferences'
+import { customProvider } from './custom'
+import { getPreferences, getEffectiveVideoApiUrl } from '../../storage/preferences'
 import { fetchWithTimeout } from './base'
 
-// Priority order: official (real trailer + archive MP4, legit, no bypass) is first — works with and without Worker.
-// Miruro is alias to same Worker path for compat. Then others (CORS blocked) are stubs for future.
+// Priority order: official trailer is first (honest, no fake), custom endpoint (user self-hosted full-episode) is second when configured, then miruro alias, then stubs.
 // Mock is last for episode list only (no video)
 export const videoProviders: VideoProvider[] = [
   officialProvider,
+  customProvider,
   miruroProvider,
   allAnimeProvider,
   animePaheProvider,
@@ -55,17 +56,22 @@ function getOrderedProviders(list: VideoProvider[]): VideoProvider[] {
 }
 
 export async function checkProviderHealth(signal?: AbortSignal): Promise<Record<string, 'available' | 'unavailable'>> {
-  const base = (import.meta as any).env.VITE_VIDEO_API_URL as string | undefined
-  const trimmed = base?.trim().replace(/\/$/, '')
-  if (trimmed) {
+  const effective = getEffectiveVideoApiUrl()
+  const envBase = (import.meta as any).env.VITE_VIDEO_API_URL as string | undefined
+  const trimmedEnv = envBase?.trim().replace(/\/$/, '')
+  const hasWorker = !!(effective || trimmedEnv)
+  if (hasWorker) {
+    const baseToCheck = effective || trimmedEnv!
     try {
-      const res = await fetchWithTimeout(`${trimmed}/health`, {}, 4000, signal)
-      if (res.ok) return { official: 'available', miruro: 'available', demo: 'available', allanime: 'unavailable', animepahe: 'unavailable', anikoto: 'unavailable', megaplay: 'unavailable', animeparadise: 'unavailable', anineko: 'unavailable' }
+      const res = await fetchWithTimeout(`${baseToCheck}/health`, {}, 4000, signal)
+      if (res.ok) {
+        const baseMap: Record<string, 'available' | 'unavailable'> = { official: 'available', custom: effective ? 'available' : 'unavailable', miruro: 'available', demo: 'available', allanime: 'unavailable', animepahe: 'unavailable', anikoto: 'unavailable', megaplay: 'unavailable', animeparadise: 'unavailable', anineko: 'unavailable' }
+        return baseMap
+      }
     } catch {}
-    return { official: 'available', miruro: 'available' } as any
+    return { official: 'available', custom: effective ? 'unavailable' : 'unavailable', miruro: hasWorker ? 'available' : 'unavailable' } as any
   }
-  // Heuristic without Worker: official still available via browser-direct (AniList trailer), miruro unavailable, others unavailable
-  return { official: 'available', miruro: 'unavailable', allanime: 'unavailable', animepahe: 'unavailable', anikoto: 'unavailable', megaplay: 'unavailable', animeparadise: 'unavailable', anineko: 'unavailable', demo: 'available' }
+  return { official: 'available', custom: 'unavailable', miruro: 'unavailable', allanime: 'unavailable', animepahe: 'unavailable', anikoto: 'unavailable', megaplay: 'unavailable', animeparadise: 'unavailable', anineko: 'unavailable', demo: 'available' }
 }
 
 export function getProviderById(id: string): VideoProvider | undefined {
@@ -118,9 +124,12 @@ export async function resolveSourcesWithFallback(
       clearVideoMemoryCache()
     } catch {}
     try {
+      const lang = options.preferredLanguage ?? 'sub'
       const possibleKeys = [
-        `video:official:sources:${episode.providerEpisodeId}:${options.preferredLanguage ?? 'sub'}`,
-        `video:miruro:sources:${episode.providerEpisodeId}:${options.preferredLanguage ?? 'sub'}`,
+        `video:official:sources:${episode.providerEpisodeId}:${lang}`,
+        `video:miruro:sources:${episode.providerEpisodeId}:${lang}`,
+        `video:custom:sources:${episode.providerEpisodeId}:${lang}`,
+        `video:custom:episodes:${episode.animeId}`,
       ]
       for (const k of possibleKeys) {
         try { const { deleteCache } = await import('../../storage/db'); await deleteCache(k) } catch {}

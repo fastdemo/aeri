@@ -287,6 +287,37 @@ export function Settings() {
             </div>
             <p className="text-[11px] text-white/30">Disable providers you don’t want to try. Reorder with ↑/↓ — preferred source still tried first.</p>
           </div>
+          <div className="space-y-2 pt-4 border-t border-white/10">
+            <p className="text-xs font-medium text-white">Custom video endpoint (optional)</p>
+            <p className="text-[11px] text-white/50">Self-hosted full-episode backend. Must implement <code className="rounded bg-white/10 px-1 py-0.5">GET /health</code> <code className="rounded bg-white/10 px-1 py-0.5">/episodes/:id</code> <code className="rounded bg-white/10 px-1 py-0.5">/sources/:id?language=</code> and return normalized <code className="rounded bg-white/10 px-1 py-0.5">VideoSource</code> JSON. Leave empty to use build <code className="rounded bg-white/10 px-1 py-0.5">VITE_VIDEO_API_URL</code>.</p>
+            <div className="flex gap-2">
+              <input
+                type="url"
+                value={prefs.customVideoApiUrl ?? ''}
+                onChange={e => updatePref({ customVideoApiUrl: e.target.value.trim() ? e.target.value.trim() : null })}
+                placeholder="https://your-worker.workers.dev"
+                aria-label="Custom video endpoint"
+                className="flex-1 rounded-full border border-white/10 bg-white/[0.06] px-3 py-2 text-xs text-white placeholder:text-white/40 focus:border-white/20 focus:outline-none"
+              />
+              <button
+                onClick={async () => {
+                  const url = prefs.customVideoApiUrl?.trim().replace(/\/$/, '')
+                  if (!url) return
+                  try {
+                    const res = await fetch(`${url}/health`, { method: 'GET' })
+                    alert(res.ok ? `✓ Available — ${url}` : `✗ ${res.status} ${res.statusText}`)
+                  } catch (e) {
+                    alert(`✗ ${String(e).slice(0,120)}`)
+                  }
+                }}
+                disabled={!prefs.customVideoApiUrl}
+                className="rounded-full bg-white/10 px-4 py-2 text-xs font-medium text-white hover:bg-white/15 disabled:opacity-30"
+              >
+                Test
+              </button>
+            </div>
+            <p className="text-[11px] text-white/30">Example: <code className="rounded bg-white/10 px-1 py-0.5">https://aeri-video.your-subdomain.workers.dev</code> — see <code className="rounded bg-white/10 px-1 py-0.5">worker/README.md</code> for self-hosting. No secrets are stored here; the URL is public and fetched from your browser.</p>
+          </div>
         </div>
       </section>
 
