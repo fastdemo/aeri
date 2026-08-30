@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useNavigate } from 'react-router-dom'
 import { useTracking } from '../contexts/TrackingContext'
 import { useAnimeDetail } from '../hooks/useAnimeMetadata'
 import { VideoPlayer } from '../components/player/VideoPlayer'
@@ -12,6 +12,7 @@ import { normalizeEpisodes, sanitizeAnimeForDisplay } from '../lib/episodes'
 
 export function Watch() {
   const { id, episode } = useParams<{ id: string; episode: string }>()
+  const navigate = useNavigate()
   const { isAuthenticated, combinedList, updateProgress } = useTracking()
   const epNum = Number(episode ?? 1)
 
@@ -48,9 +49,8 @@ export function Watch() {
   const immediateEpisodes = useMemo(() => {
     if (!sanitizedAnimeForWatch) return []
     const eps = normalizeEpisodes(sanitizedAnimeForWatch)
-    // Cap at 100 for perf, but allow larger via pagination in future
-    const capped = eps.slice(0, 100)
-    return capped.map(e => ({
+    // No cap — One Piece has 1000+ episodes, truncate would break navigation
+    return eps.map(e => ({
       number: e.number,
       title: e.title,
       thumbnail: e.thumbnail,
@@ -160,32 +160,34 @@ export function Watch() {
   // When episode changes, reset resume flag
   useEffect(() => { hasShownResume.current = false; setShowResume(false) }, [epNum])
 
+  const lastSaveRef = useRef(0)
+  const hasCompletedRef = useRef(false)
+  useEffect(() => { hasCompletedRef.current = false }, [epNum])
+
   const handleTimeUpdate = useCallback((currentTime: number, duration: number) => {
     if (!anime || !duration || duration < 30) return
-    // Throttle: only store every 5 seconds or on significant change
     const now = Date.now()
-    if ((handleTimeUpdate as any)._lastSave && now - (handleTimeUpdate as any)._lastSave < 5000) return
-    ;(handleTimeUpdate as any)._lastSave = now
+    if (now - lastSaveRef.current < 5000) return
+    lastSaveRef.current = now
     putWatchPos({ id: anime.identity.internalId, episode: epNum, currentTime, duration, updatedAt: Date.now() }).catch(() => {})
-    // Near end (>90%) → consider completed for AniList (throttled, reuse existing updateProgress which is already called on mount, but we can also update on near-end)
-    if (currentTime / duration > 0.92 && isAuthenticated) {
-      // Only update once per episode
-      if (!(handleTimeUpdate as any)._hasCompleted) {
-        ;(handleTimeUpdate as any)._hasCompleted = true
-        updateProgress(anime, epNum).catch(() => {})
-      }
+    if (currentTime / duration > 0.92 && isAuthenticated && !hasCompletedRef.current) {
+      hasCompletedRef.current = true
+      updateProgress(anime, epNum).catch(() => {})
     }
   }, [anime, epNum, isAuthenticated, updateProgress])
 
   const handleEnded = useCallback(() => {
     if (!anime) return
-    // Clear watch pos for this anime (episode completed)
     clearWatchPos(anime.identity.internalId).catch(() => {})
-    if (isAuthenticated) {
-      // Advance AniList progress if not already
-      updateProgress(anime, epNum).catch(() => {})
-    }
-  }, [anime, epNum, isAuthenticated, updateProgress])
+    if (isAuthenticated) updateProgress(anime, epNum).catch(() => {})
+    try {
+      const prefs = getPreferences()
+      const isMovieNow = anime.format?.toUpperCase() === 'MOVIE'
+      if (prefs.autoplay && id && !isMovieNow && immediateEpisodes.length > 0 && epNum < immediateEpisodes.length) {
+        navigate(`/watch/${id}/${epNum + 1}`)
+      }
+    } catch {}
+  }, [anime, epNum, isAuthenticated, updateProgress, id, navigate, immediateEpisodes.length])
 
   const handleResume = () => {
     setShowResume(false)
@@ -268,6 +270,9 @@ export function Watch() {
               initialTime={showResume ? undefined : (watchPos?.currentTime ?? 0)}
               animeTitle={titles.primary}
               episodeNumber={epNum}
+              volume={getPreferences().volume}
+              autoplay={getPreferences().autoplay}
+              subtitles={getPreferences().subtitles ? selectedSource?.subtitles : undefined}
             />
           )}
 
@@ -304,7 +309,8 @@ export function Watch() {
                     onClick={() => {
                       if (effectiveEpisode) {
                         setSourcesLoading(true)
-                        resolveSourcesWithFallback(effectiveEpisode, { preferredProvider, preferredLanguage: preferredAudio }).then(res => {
+                        setSourcesError(null)
+                        resolveSourcesWithFallback(effectiveEpisode, { preferredProvider, preferredLanguage: preferredAudio, bypassCache: true }).then(res => {
                           setSources(res.sources)
                           setTriedProviders(res.tried)
                           if (res.sources.length) {
@@ -312,7 +318,7 @@ export function Watch() {
                             setSelectedSource(pref ?? res.sources[0])
                           }
                           setSourcesLoading(false)
-                        })
+                        }).catch(() => setSourcesLoading(false))
                       }
                     }}
                     className="rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-black hover:bg-white/90"
@@ -349,7 +355,7 @@ export function Watch() {
                       if (effectiveEpisode) {
                         setSourcesLoading(true)
                         setSourcesError(null)
-                        resolveSourcesWithFallback(effectiveEpisode, { preferredProvider, preferredLanguage: preferredAudio }).then(res => {
+                        resolveSourcesWithFallback(effectiveEpisode, { preferredProvider, preferredLanguage: preferredAudio, bypassCache: true }).then(res => {
                           setSources(res.sources)
                           setTriedProviders(res.tried)
                           if (res.sources.length) {
@@ -357,7 +363,7 @@ export function Watch() {
                             setSelectedSource(pref ?? res.sources[0])
                           } else setSourcesError(null)
                           setSourcesLoading(false)
-                        })
+                        }).catch(() => setSourcesLoading(false))
                       }
                     }}
                     className="rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-black"

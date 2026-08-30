@@ -15,6 +15,8 @@ export async function cachedFetch<T>(key: string, fetcher: () => Promise<T>, use
   if (useCache) {
     const hit = memoryCache.get(key)
     if (hit && hit.expiry > Date.now()) return hit.value as T
+    // If memory miss but we have a cached empty negative entry that is stale, we still want to try network for retry
+    // Manual retry can call clearVideoMemoryCache() + deleteCache(key) to force network.
     try {
       const cached = await getCache<T>(key)
       if (cached) {
@@ -47,6 +49,11 @@ export async function cachedFetch<T>(key: string, fetcher: () => Promise<T>, use
 export function clearVideoMemoryCache() {
   memoryCache.clear()
   inflight.clear()
+}
+
+export function deleteVideoCache(key: string) {
+  memoryCache.delete(key)
+  inflight.delete(key)
 }
 
 export function isCorsError(e: unknown): boolean {

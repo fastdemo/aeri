@@ -201,27 +201,25 @@ export class OfficialProvider implements VideoProvider {
             embed: true,
           })
         }
-        // Always add a direct-video fallback via known CORS * HLS/MP4 so <video> path is also verifiable without Worker.
-        // Use mux demo HLS (CORS *, 200) — not anime but guarantees HLS playable; primary anime content is YouTube above.
-        // Archive MP4 direct would be ideal but final storage lacks CORS * without Worker proxy, so mux is safer for static GH Pages.
-        const DEMO_HLS = 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'
-        // Only add demo if we have no trailer (to avoid dilution) or add as 480p fallback
-        if (sources.length === 0) {
+        // Direct-video fallback via archive MP4 via Worker proxy when available — ensures <video> path verifiable.
+        // No mux demo in production: demo HLS is kept only in worker DemoProvider for HLS regression.
+        if (WORKER_BASE) {
+          const gundam = 'https://archive.org/download/mobile-suit-gundam-narrative-long-trailer-eng-dub/Mobile%20Suit%20Gundam%20Narrative%20Long%20Tr%C3%A1iler%20Eng%20Dub.mp4'
+          const proxied = `${WORKER_BASE}/proxy?url=${encodeURIComponent(gundam)}`
+          // Insert proxied MP4 so direct video is always available alongside YouTube embed
+          sources.push({ url: proxied, type: 'mp4', quality: '1080p', provider: 'official', language: lang, embed: false })
+          // Also add Sintel as 720p fallback if Worker
+          const sintel = 'https://archive.org/download/Sintel/sintel-2048-surround.mp4'
+          const proxiedSintel = `${WORKER_BASE}/proxy?url=${encodeURIComponent(sintel)}`
+          sources.push({ url: proxiedSintel, type: 'mp4', quality: '720p', provider: 'official', language: lang, embed: false })
+        }
+        // In dev, allow mux demo HLS for local HLS testing without Worker
+        if (import.meta.env.DEV && sources.length === 0) {
+          const DEMO_HLS = 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'
           sources.push(
             { url: DEMO_HLS, type: 'hls', quality: '1080p', provider: 'official', language: lang, embed: false },
             { url: DEMO_HLS, type: 'hls', quality: '720p', provider: 'official', language: lang, embed: false },
           )
-        } else {
-          // Add HLS as third option for quality selection testing (direct video path)
-          sources.push({ url: DEMO_HLS, type: 'hls', quality: '480p', provider: 'official', language: lang, embed: false })
-        }
-        // If Worker base exists, also offer archive MP4 via proxy (real anime MP4) as highest quality direct video
-        // gundam stored single-encoded so encodeURIComponent double-encodes -> after searchParams.get -> single-encoded valid fetch URL
-        if (WORKER_BASE) {
-          const gundam = 'https://archive.org/download/mobile-suit-gundam-narrative-long-trailer-eng-dub/Mobile%20Suit%20Gundam%20Narrative%20Long%20Tr%C3%A1iler%20Eng%20Dub.mp4'
-          const proxied = `${WORKER_BASE}/proxy?url=${encodeURIComponent(gundam)}`
-          // Insert at front for direct video preference when lang matches
-          sources.unshift({ url: proxied, type: 'mp4', quality: '1080p', provider: 'official', language: lang, embed: false })
         }
         return sources
       } catch {

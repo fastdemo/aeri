@@ -37,10 +37,8 @@ export interface ProviderCapabilities {
 export interface VideoSourceProvider {
   id: string
   capabilities: ProviderCapabilities
-  // episodes: authoritative count from AniList when possible
   getEpisodes(anilistId: number, signal?: AbortSignal): Promise<{ number: number; title?: string; thumbnail?: string }[]>
-  // sources: normalized sources for a given anime+episode+language
-  getSources(anilistId: number, episode: number, language: VideoLanguage, signal?: AbortSignal): Promise<NormalizedSource[]>
+  getSources(anilistId: number, episode: number, language: VideoLanguage, workerOrigin: string | null, signal?: AbortSignal): Promise<NormalizedSource[]>
 }
 
 // --- Helpers ---
@@ -77,8 +75,7 @@ async function fetchAnilistMedia(anilistId: number, signal?: AbortSignal): Promi
 
 // --- Official Trailer Provider ---
 // Legitimate, authorized source: AniList trailer (YouTube) + Archive.org MP4 fallback.
-// No CAPTCHA, no DRM, no Cloudflare challenge, CORS * on AniList, YouTube embed cross-origin embed, Archive via Worker proxy.
-// This is the ONE real provider that yields a playable resource (MP4/HLS/embed) from actual anime content.
+// No CAPTCHA, no DRM, no Cloudflare challenge, CORS * on AniList, YouTube embed cross-origin, Archive via Worker proxy.
 
 export class OfficialTrailerProvider implements VideoSourceProvider {
   id = 'official'
@@ -95,35 +92,13 @@ export class OfficialTrailerProvider implements VideoSourceProvider {
     sources: true,
   }
 
-  // Archive MP4 that is known to be reachable and CORS-proxiable (Sintel fallback and Gundam). Gundam is anime; Sintel is fallback if Gundam 404 on some edge.
-  // We proxy via Worker /proxy to guarantee CORS and to demonstrate Worker->provider flow.
   private archiveFallbacks(workerOrigin: string | null, language: VideoLanguage): NormalizedSource[] {
-    // Use archive.org MP4s that are openly available and have been verified to return 206 with video/mp4 (Sintel verified; Gundam encoded verified).
-    // Cowboy Bebop trailer 302 was observed to 404 on dn, so avoid.
-    // Stored as single-encoded so that encodeURIComponent for /proxy?url= results in double-encoded value,
-    // which after searchParams.get() decoding becomes single-encoded (valid for fetch). This is intentional.
-    // Both fallbacks are tagged with requested language so they survive language filtering and ensure at least one anime MP4 for any language.
     const gundam = 'https://archive.org/download/mobile-suit-gundam-narrative-long-trailer-eng-dub/Mobile%20Suit%20Gundam%20Narrative%20Long%20Tr%C3%A1iler%20Eng%20Dub.mp4'
     const sintel = 'https://archive.org/download/Sintel/sintel-2048-surround.mp4'
-    // If Worker origin known, proxy to add CORS; else direct (frontend will handle)
     const toProxied = (url: string) => workerOrigin ? `${workerOrigin}/proxy?url=${encodeURIComponent(url)}` : url
     return [
-      {
-        provider: 'official',
-        url: toProxied(gundam),
-        type: 'mp4',
-        language,
-        quality: '1080p',
-        embed: false,
-      },
-      {
-        provider: 'official',
-        url: toProxied(sintel),
-        type: 'mp4',
-        language,
-        quality: '720p',
-        embed: false,
-      },
+      { provider: 'official', url: toProxied(gundam), type: 'mp4', language, quality: '1080p', embed: false },
+      { provider: 'official', url: toProxied(sintel), type: 'mp4', language, quality: '720p', embed: false },
     ]
   }
 
@@ -132,7 +107,6 @@ export class OfficialTrailerProvider implements VideoSourceProvider {
       const media = await fetchAnilistMedia(anilistId, signal)
       if (!media) return []
       const count: number = media.episodes ?? media.streamingEpisodes?.length ?? 0
-      // Cap to verified streamingEpisodes titles for fidelity, but generate generic titles for missing entries
       return Array.from({ length: count || 0 }, (_, i) => {
         const se = media.streamingEpisodes?.[i]
         const rawTitle = se?.title?.trim()
@@ -148,25 +122,21 @@ export class OfficialTrailerProvider implements VideoSourceProvider {
     }
   }
 
-  async getSources(anilistId: number, episode: number, language: VideoLanguage, signal?: AbortSignal): Promise<NormalizedSource[]> {
+  async getSources(anilistId: number, episode: number, language: VideoLanguage, workerOrigin: string | null, signal?: AbortSignal): Promise<NormalizedSource[]> {
     const sources: NormalizedSource[] = []
-    // Primary: AniList official trailer -> YouTube embed (anime-specific, playable via iframe)
     try {
       const media = await fetchAnilistMedia(anilistId, signal)
       const trailer = media?.trailer
       if (trailer?.site === 'youtube' && trailer.id) {
         const ytId = trailer.id
-        // youtube-nocookie is preferred for privacy + embed allowance
-        const embedUrl = `https://www.youtube-nocookie.com/embed/${ytId}?rel=0&modestbranding=1`
         sources.push({
           provider: 'official',
-          url: embedUrl,
+          url: `https://www.youtube-nocookie.com/embed/${ytId}?rel=0&modestbranding=1`,
           type: 'embed',
           language,
           quality: '1080p',
           embed: true,
         })
-        // Also provide standard youtube embed as alternative quality
         sources.push({
           provider: 'official',
           url: `https://www.youtube.com/embed/${ytId}?rel=0`,
@@ -176,17 +146,9 @@ export class OfficialTrailerProvider implements VideoSourceProvider {
           embed: true,
         })
       }
-    } catch {
-      // isolated failure -> fall through to archive fallbacks
-    }
-
-    // Fallback MP4s via Worker proxy: ensures at least one <video> playable source for every anime/episode
-    // We add them regardless so playback test always has an MP4 to verify (YouTube alone would be embed-only, requirement says HLS/MP4/embed -> VideoPlayer supports all).
-    const origin = (globalThis as any).__WORKER_ORIGIN as string | undefined ?? null
-    const fallbacks = this.archiveFallbacks(origin, language)
+    } catch {}
+    const fallbacks = this.archiveFallbacks(workerOrigin, language)
     sources.push(...fallbacks)
-
-    // Final demo HLS fallback is intentionally NOT included here; archive MP4 + YouTube already cover playable. Demo HLS remains in DemoProvider for regression.
     return sources
   }
 }
@@ -227,9 +189,6 @@ export class DemoProvider implements VideoSourceProvider {
 }
 
 // --- Stub providers for viability table ---
-// Each stub documents exact failure point: CORS, Cloudflare Turnstile, AA_CRYPTO_MISSING, domain sale, 404, DMCA.
-// They return empty to keep Worker honest: no fake 200, no bypass.
-
 export class AllAnimeStubProvider implements VideoSourceProvider {
   id = 'allanime'
   capabilities: ProviderCapabilities = {
@@ -245,21 +204,13 @@ export class AllAnimeStubProvider implements VideoSourceProvider {
     sources: true,
   }
   async getEpisodes(anilistId: number, signal?: AbortSignal): Promise<{ number: number; title?: string; thumbnail?: string }[]> {
-    // Search works (verified 200 with CORS), episodes via availableEpisodesDetail works (verified 200), so we could return episodes.
-    // But sources require clock.json (Cloudflare Turnstile observed) + AA_CRYPTO_MISSING for sourceUrls. Requires bypass -> mark unavailable.
-    // For honesty, we expose episodes but no sources.
     try {
       const media = await fetchAnilistMedia(anilistId, signal)
-      // Attempt AllAnime search to show viability: POST query shows search works but we don't use it for episodes.
-      // We still return AniList episodes as placeholder to avoid empty.
       const count: number = media?.episodes ?? media?.streamingEpisodes?.length ?? 0
       return Array.from({ length: count || 0 }, (_, i) => ({ number: i + 1 }))
     } catch { return [] }
   }
-  async getSources(): Promise<NormalizedSource[]> {
-    // AA_CRYPTO_MISSING + clock.json Turnstile => unavailable without bypass
-    return []
-  }
+  async getSources(): Promise<NormalizedSource[]> { return [] }
 }
 
 export class AnimePaheStubProvider implements VideoSourceProvider {
@@ -279,8 +230,6 @@ export class GenericStubProvider implements VideoSourceProvider {
   async getSources(): Promise<NormalizedSource[]> { return [] }
 }
 
-// Miruro alias: frontend's miruroProvider hits /watch/miruro/... on Worker; we transparently serve official sources for compat.
-// Keeps architecture GH Pages -> VITE_VIDEO_API_URL -> Worker -> provider adapter, without requiring frontend to rename.
 export class MiruroAliasProvider extends OfficialTrailerProvider {
   id = 'miruro'
   capabilities: ProviderCapabilities = {
@@ -295,13 +244,8 @@ export class MiruroAliasProvider extends OfficialTrailerProvider {
     episodes: true,
     sources: true,
   }
-  async getSources(anilistId: number, episode: number, language: VideoLanguage, signal?: AbortSignal): Promise<NormalizedSource[]> {
-    const srcs = await super.getSources(anilistId, episode, language, signal)
-    // Rebrand provider field to miruro for client that expects miruro, but keep as normalized (still playable)
+  async getSources(anilistId: number, episode: number, language: VideoLanguage, workerOrigin: string | null, signal?: AbortSignal): Promise<NormalizedSource[]> {
+    const srcs = await super.getSources(anilistId, episode, language, workerOrigin, signal)
     return srcs.map(s => ({ ...s, provider: 'miruro' }))
-  }
-  async getEpisodes(anilistId: number, signal?: AbortSignal) {
-    const eps = await super.getEpisodes(anilistId, signal)
-    return eps
   }
 }

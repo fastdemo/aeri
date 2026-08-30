@@ -1,12 +1,11 @@
 name = "aeri-video"
 main = "src/index.ts"
-compatibility_date = "2024-12-01"
+compatibility_date = "2025-09-01"
 compatibility_flags = ["nodejs_compat"]
 
 [vars]
-UPSTREAM_ALLANIME = "https://api.allanime.day"
-# Optional: set to a ScraperAPI or FlareSolverr URL if providers need bypass
-# SCRAPER_API_KEY = ""
+# Public allowlist for /proxy — comma-separated host suffixes
+PROXY_ALLOWLIST = "archive.org,ia600200.us.archive.org,test-streams.mux.dev,mux.dev"
 
 [env.production.vars]
 ALLOWED_ORIGIN = "https://fastdemo.github.io"

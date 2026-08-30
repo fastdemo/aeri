@@ -8,13 +8,15 @@ import { megaPlayProvider } from './megaplay'
 import { animeParadiseProvider } from './animeparadise'
 import { aniNekoProvider } from './anineko'
 import { miruroProvider } from './miruro'
+import { officialProvider } from './official'
+import { getPreferences } from '../../storage/preferences'
+import { fetchWithTimeout } from './base'
 
-// Priority order determined from actual browser CORS testing 2026-08-29:
-// Miruro (if VITE_VIDEO_API_URL set) is first — it's the only path to real HLS on GH Pages via Worker/VPS
-// AllAnime: CORS header present for https://fastdemo.github.io but sources need backend (clock + crypto)
-// Others: CORS blocked/DNS fail — kept for future if they become browser-compatible
+// Priority order: official (real trailer + archive MP4, legit, no bypass) is first — works with and without Worker.
+// Miruro is alias to same Worker path for compat. Then others (CORS blocked) are stubs for future.
 // Mock is last for episode list only (no video)
 export const videoProviders: VideoProvider[] = [
+  officialProvider,
   miruroProvider,
   allAnimeProvider,
   animePaheProvider,
@@ -26,6 +28,45 @@ export const videoProviders: VideoProvider[] = [
 ]
 
 export const primaryVideoProviders = videoProviders.filter(p => p.id !== 'mock')
+
+function getEnabledProviders(): VideoProvider[] {
+  try {
+    const prefs = getPreferences()
+    const enabled = prefs.enabledProviders
+    if (!enabled) return primaryVideoProviders
+    return primaryVideoProviders.filter(p => enabled[p.id] !== false)
+  } catch { return primaryVideoProviders }
+}
+
+function getOrderedProviders(list: VideoProvider[]): VideoProvider[] {
+  try {
+    const prefs = getPreferences()
+    const order = prefs.providerOrder
+    if (!order || !Array.isArray(order) || order.length === 0) return list
+    const map = new Map(list.map(p => [p.id, p] as const))
+    const ordered: VideoProvider[] = []
+    for (const id of order) {
+      const p = map.get(id)
+      if (p) { ordered.push(p); map.delete(id) }
+    }
+    for (const p of map.values()) ordered.push(p)
+    return ordered
+  } catch { return list }
+}
+
+export async function checkProviderHealth(signal?: AbortSignal): Promise<Record<string, 'available' | 'unavailable'>> {
+  const base = (import.meta as any).env.VITE_VIDEO_API_URL as string | undefined
+  const trimmed = base?.trim().replace(/\/$/, '')
+  if (trimmed) {
+    try {
+      const res = await fetchWithTimeout(`${trimmed}/health`, {}, 4000, signal)
+      if (res.ok) return { official: 'available', miruro: 'available', demo: 'available', allanime: 'unavailable', animepahe: 'unavailable', anikoto: 'unavailable', megaplay: 'unavailable', animeparadise: 'unavailable', anineko: 'unavailable' }
+    } catch {}
+    return { official: 'available', miruro: 'available' } as any
+  }
+  // Heuristic without Worker: official still available via browser-direct (AniList trailer), miruro unavailable, others unavailable
+  return { official: 'available', miruro: 'unavailable', allanime: 'unavailable', animepahe: 'unavailable', anikoto: 'unavailable', megaplay: 'unavailable', animeparadise: 'unavailable', anineko: 'unavailable', demo: 'available' }
+}
 
 export function getProviderById(id: string): VideoProvider | undefined {
   return videoProviders.find(p => p.id === id)
@@ -41,17 +82,16 @@ export async function resolveEpisodesWithFallback(anime: Anime, signal?: AbortSi
       ...(signal ? [new Promise<T>((_, reject) => signal.addEventListener('abort', () => reject(signal.reason ?? new DOMException('Aborted', 'AbortError')), { once: true }))] : []),
     ]) as Promise<T>
 
+  const enabled = getOrderedProviders(getEnabledProviders())
   const results = await Promise.allSettled(
-    primaryVideoProviders.map(p => withTimeout(p.getEpisodes(anime, signal)).catch(() => [] as VideoEpisode[]))
+    enabled.map(p => withTimeout(p.getEpisodes(anime, signal)).catch(() => [] as VideoEpisode[]))
   )
-  // Priority order: first provider with eps.length > 0 wins
-  for (let i = 0; i < primaryVideoProviders.length; i++) {
+  for (let i = 0; i < enabled.length; i++) {
     const r = results[i]
     if (r.status === 'fulfilled' && r.value.length > 0) {
-      return { episodes: r.value, providerId: primaryVideoProviders[i].id }
+      return { episodes: r.value, providerId: enabled[i].id }
     }
   }
-  // Fallback to mock for episode list (ensures episode navigation still works even without video)
   try {
     const eps = await mockVideoProvider.getEpisodes(anime)
     return { episodes: eps, providerId: 'mock' }
@@ -64,6 +104,7 @@ export interface ResolveSourcesOptions {
   preferredProvider?: string | null
   preferredLanguage?: VideoLanguage
   signal?: AbortSignal
+  bypassCache?: boolean
 }
 
 export async function resolveSourcesWithFallback(
@@ -71,6 +112,21 @@ export async function resolveSourcesWithFallback(
   options?: ResolveSourcesOptions,
 ): Promise<{ sources: VideoSourceEnhanced[]; tried: string[] }> {
   if (options?.signal?.aborted) return { sources: [], tried: [] }
+  if (options?.bypassCache) {
+    try {
+      const { clearVideoMemoryCache } = await import('./base')
+      clearVideoMemoryCache()
+    } catch {}
+    try {
+      const possibleKeys = [
+        `video:official:sources:${episode.providerEpisodeId}:${options.preferredLanguage ?? 'sub'}`,
+        `video:miruro:sources:${episode.providerEpisodeId}:${options.preferredLanguage ?? 'sub'}`,
+      ]
+      for (const k of possibleKeys) {
+        try { const { deleteCache } = await import('../../storage/db'); await deleteCache(k) } catch {}
+      }
+    } catch {}
+  }
   const tried: string[] = []
   const timeoutMs = 4000
   const signal = options?.signal
@@ -82,20 +138,18 @@ export async function resolveSourcesWithFallback(
     ]) as Promise<T>
 
   const preferredLanguage = options?.preferredLanguage
-
-  // Build priority: preferred provider first if valid, then remaining in registry order
   const preferredId = options?.preferredProvider
+  const enabledOrdered = getOrderedProviders(getEnabledProviders())
+  // Ensure preferred is valid and enabled
   const preferred = preferredId ? getProviderById(preferredId) : getProviderById(episode.provider)
   const ordered: VideoProvider[] = []
-  if (preferred && preferred.id !== 'mock' && primaryVideoProviders.some(p => p.id === preferred.id)) {
+  if (preferred && preferred.id !== 'mock' && enabledOrdered.some(p => p.id === preferred.id)) {
     ordered.push(preferred)
   }
-  for (const p of primaryVideoProviders) {
+  for (const p of enabledOrdered) {
     if (!ordered.some(o => o.id === p.id)) ordered.push(p)
   }
 
-  // Try in priority order but with parallel batching to avoid 20s wait: first try preferred alone with timeout,
-  // then remaining in parallel. Use options.language filtering.
   if (ordered.length > 0) {
     const first = ordered[0]
     tried.push(first.id)
@@ -107,12 +161,13 @@ export async function resolveSourcesWithFallback(
     } catch {}
     const remaining = ordered.slice(1)
     if (remaining.length > 0) {
+      // For accurate tried list, only push tried for providers that actually were attempted; we already pushed first.
+      // For remaining, we will collect after race — push all remaining as tried since we do parallel attempt.
       const results = await Promise.allSettled(
-        remaining.map(p => {
-          tried.push(p.id)
-          return withTimeout(p.getSources(episode, { preferredLanguage, signal: options?.signal })).catch(() => [] as VideoSourceEnhanced[])
-        }),
+        remaining.map(p => withTimeout(p.getSources(episode, { preferredLanguage, signal: options?.signal })).catch(() => [] as VideoSourceEnhanced[])),
       )
+      // Mark remaining as tried after the parallel attempt started
+      for (const p of remaining) tried.push(p.id)
       for (let i = 0; i < remaining.length; i++) {
         const r = results[i]
         if (r.status === 'fulfilled' && r.value.length > 0) {
@@ -121,7 +176,6 @@ export async function resolveSourcesWithFallback(
           if (toReturn.length > 0) return { sources: toReturn, tried }
         }
       }
-      // If no filtered match, return first available unfiltered as fallback
       for (let i = 0; i < remaining.length; i++) {
         const r = results[i]
         if (r.status === 'fulfilled' && r.value.length > 0) {

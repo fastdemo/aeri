@@ -4,7 +4,7 @@ import { useAniList } from '../contexts/AniListContext'
 import { useMAL } from '../contexts/MALContext'
 import { clearAnilistMemoryCache } from '../services/anilist/client'
 import { clearMalMemoryCache } from '../services/mal/client'
-import { getProviderCapabilities } from '../providers/video/registry'
+import { getProviderCapabilities, checkProviderHealth } from '../providers/video/registry'
 
 export function Settings() {
   const [prefs, setPrefs] = useState<Preferences>(() => getPreferences())
@@ -90,6 +90,41 @@ export function Settings() {
   }
 
   const videoCaps = getProviderCapabilities().filter(c => c.id !== 'mock')
+  const [health, setHealth] = useState<Record<string, 'available'|'unavailable'>|null>(null)
+  useEffect(() => {
+    const ctrl = new AbortController()
+    checkProviderHealth(ctrl.signal).then(setHealth).catch(()=>{})
+    return () => ctrl.abort()
+  }, [])
+  const isEnabled = (id: string) => prefs.enabledProviders?.[id] !== false
+  const toggleProvider = (id: string, enabled: boolean) => {
+    const next = { ...(prefs.enabledProviders ?? {}), [id]: enabled }
+    // If disabling preferred provider, clear preference
+    if (!enabled && prefs.preferredProvider === id) {
+      updatePref({ enabledProviders: next, preferredProvider: null })
+    } else {
+      updatePref({ enabledProviders: next })
+    }
+  }
+  const moveProvider = (id: string, dir: -1|1) => {
+    const currentOrder = prefs.providerOrder ?? videoCaps.map(c=>c.id)
+    const idx = currentOrder.indexOf(id)
+    if (idx < 0) return
+    const nIdx = idx + dir
+    if (nIdx < 0 || nIdx >= currentOrder.length) return
+    const next = [...currentOrder]
+    const tmp = next[idx]; next[idx]=next[nIdx]; next[nIdx]=tmp
+    updatePref({ providerOrder: next })
+  }
+  const orderedCaps = (() => {
+    const order = prefs.providerOrder
+    if (!order) return videoCaps
+    const map = new Map(videoCaps.map(c=>[c.id,c] as const))
+    const out: typeof videoCaps = []
+    for (const id of order) { const c = map.get(id); if (c) { out.push(c); map.delete(id) } }
+    for (const c of map.values()) out.push(c)
+    return out
+  })()
 
   return (
     <div className="mx-auto max-w-[900px] px-4 py-6 sm:px-6 lg:px-12">
@@ -231,7 +266,7 @@ export function Settings() {
               className="mt-2 w-full max-w-[260px] rounded-full border border-white/10 bg-white/[0.06] px-3 py-2 text-xs text-white focus:border-white/20 focus:outline-none"
             >
               <option value="" className="bg-[#141416]">Auto (Recommended)</option>
-              {videoCaps.map(c => (
+              {orderedCaps.filter(c=>isEnabled(c.id)).map(c => (
                 <option key={c.id} value={c.id} className="bg-[#141416]">{c.displayName}</option>
               ))}
             </select>
@@ -240,12 +275,37 @@ export function Settings() {
               {!(import.meta.env.VITE_VIDEO_API_URL as string | undefined) && ' Add VITE_VIDEO_API_URL for real playback.'}
             </p>
           </div>
-          <div className="flex flex-wrap gap-1.5 pt-2">
-            {videoCaps.map(c => (
-              <span key={c.id} className={`rounded-full border px-2 py-1 text-[10px] ${prefs.preferredProvider === c.id ? 'border-white/20 bg-white/10 text-white' : 'border-white/10 bg-white/[0.03] text-white/40'}`}>
-                {c.displayName} {c.languages.join('/')} {c.embed ? '• embed' : ''} {c.directVideo ? '• video' : ''}
-              </span>
-            ))}
+          <div className="space-y-2 pt-2">
+            <p className="text-xs font-medium text-white">Providers</p>
+            <div className="overflow-hidden rounded-lg border border-white/10">
+              {orderedCaps.map((c, idx) => {
+                const enabled = isEnabled(c.id)
+                const h = health?.[c.id]
+                const isAvailable = h === 'available'
+                const dotColor = h ? (isAvailable ? 'bg-emerald-400' : 'bg-white/20') : 'bg-white/10'
+                const label = h ? (isAvailable ? 'Available' : 'Unavailable') : '…'
+                return (
+                  <div key={c.id} className={`flex items-center justify-between gap-3 px-3 py-2.5 ${idx !== orderedCaps.length-1 ? 'border-b border-white/5' : ''} ${enabled ? 'bg-white/[0.02]' : 'bg-black/20 opacity-60'}`}>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className={`h-2 w-2 rounded-full shrink-0 ${dotColor}`} aria-hidden />
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-white truncate">{c.displayName}</p>
+                        <p className="text-[10px] text-white/40">{c.languages.join('/')} {c.embed ? '• embed' : ''} {c.directVideo ? '• video' : ''} • <span className={isAvailable ? 'text-emerald-300' : 'text-white/30'}>{label}</span>{h === 'unavailable' && <span className="text-white/20"> — Requires backend</span>}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button onClick={()=>moveProvider(c.id,-1)} disabled={idx===0} className="h-6 w-6 grid place-items-center rounded text-white/40 hover:text-white disabled:opacity-20" aria-label={`Move ${c.displayName} up`}>↑</button>
+                      <button onClick={()=>moveProvider(c.id,1)} disabled={idx===orderedCaps.length-1} className="h-6 w-6 grid place-items-center rounded text-white/40 hover:text-white disabled:opacity-20" aria-label={`Move ${c.displayName} down`}>↓</button>
+                      <label className="flex items-center gap-1.5 text-xs text-white/60">
+                        <input type="checkbox" checked={enabled} onChange={e=>toggleProvider(c.id, e.target.checked)} className="h-3.5 w-3.5 rounded border-white/20 bg-white/10" aria-label={`Enable ${c.displayName}`} />
+                        <span className="hidden sm:inline">Enable</span>
+                      </label>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+            <p className="text-[11px] text-white/30">Disable providers you don’t want to try. Reorder with ↑/↓ — preferred source still tried first.</p>
           </div>
         </div>
       </section>

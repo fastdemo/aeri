@@ -168,3 +168,33 @@ export async function clearWatchPos(id: string): Promise<void> {
     )
   } catch {}
 }
+
+export async function deleteCache(key: string): Promise<void> {
+  try {
+    const db = await withTimeout(openDB(), 1200, null as any)
+    if (!db) return
+    await withTimeout(new Promise<void>((res, rej) => {
+      try {
+        const tx = db.transaction('cache', 'readwrite')
+        tx.objectStore('cache').delete(key)
+        tx.oncomplete = () => res()
+        tx.onerror = () => rej(tx.error)
+      } catch (e) { rej(e) }
+    }), 1200, undefined as any)
+  } catch {}
+}
+
+export async function clearAllCache(): Promise<void> {
+  try {
+    const db = await withTimeout(openDB(), 1200, null as any)
+    if (!db) return
+    await withTimeout(new Promise<void>((res, rej) => {
+      try {
+        const tx = db.transaction('cache', 'readwrite')
+        tx.objectStore('cache').clear()
+        tx.oncomplete = () => res()
+        tx.onerror = () => rej(tx.error)
+      } catch (e) { rej(e) }
+    }), 1200, undefined as any)
+  } catch {}
+}

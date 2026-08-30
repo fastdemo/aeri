@@ -11,9 +11,11 @@ type Props = {
   initialTime?: number
   animeTitle?: string
   episodeNumber: number
+  volume?: number
+  autoplay?: boolean
 }
 
-export function VideoPlayer({ sources, selectedSource, onSourceChange, subtitles, onTimeUpdate, onEnded, initialTime, animeTitle, episodeNumber }: Props) {
+export function VideoPlayer({ sources, selectedSource, onSourceChange, subtitles, onTimeUpdate, onEnded, initialTime, animeTitle, episodeNumber, volume = 1, autoplay = false }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -26,64 +28,51 @@ export function VideoPlayer({ sources, selectedSource, onSourceChange, subtitles
   // HLS support: lazy import, never blocks navigation. Cleanup is synchronous (destroy + src clear)
   const hlsRef = useRef<any>(null)
   useEffect(() => {
+    setError(null)
     if (!source || source.embed) return
     const url = source.url
     const isHls = url.includes('.m3u8') || source.type === 'hls'
     if (!isHls) return
     const video = videoRef.current
     if (!video) return
-    // Native HLS (Safari) — set src synchronously but ensure cleanup clears src so navigation isn't held by media load
     if (video.canPlayType('application/vnd.apple.mpegurl')) {
       video.src = url
       return () => {
-        try {
-          video.pause()
-          video.removeAttribute('src')
-          video.load()
-        } catch {}
+        try { video.pause(); video.removeAttribute('src'); video.load() } catch {}
       }
     }
     let cancelled = false
     let timer: ReturnType<typeof setTimeout> | null = null
-    // Defer HLS import to next tick so HashRouter push (sync) wins over HLS worker init
     timer = setTimeout(async () => {
       if (cancelled) return
       try {
         const Hls = (await import('hls.js')).default
         if (cancelled || !Hls.isSupported()) {
-          if (!cancelled) {
-            try { video.src = url } catch {}
-          }
+          if (!cancelled) try { video.src = url } catch {}
           return
         }
-        if (hlsRef.current) {
-          try { hlsRef.current.destroy() } catch {}
-          hlsRef.current = null
-        }
+        if (hlsRef.current) { try { hlsRef.current.destroy() } catch {}; hlsRef.current = null }
         if (cancelled) return
         const hls = new Hls({ enableWorker: true })
         hlsRef.current = hls
+        hls.on(Hls.Events.ERROR, (_evt: any, data: any) => {
+          if (data?.fatal) {
+            try { hls.destroy() } catch {}
+            hlsRef.current = null
+            if (!cancelled) setError('Stream error. Try another source.')
+          }
+        })
         hls.loadSource(url)
         hls.attachMedia(video)
       } catch {
-        if (!cancelled) {
-          try { video.src = url } catch {}
-        }
+        if (!cancelled) try { video.src = url } catch {}
       }
     }, 0)
     return () => {
       cancelled = true
       if (timer) clearTimeout(timer)
-      // Synchronous destroy — never wait for import
-      if (hlsRef.current) {
-        try { hlsRef.current.destroy() } catch {}
-        hlsRef.current = null
-      }
-      try {
-        video.pause()
-        video.removeAttribute('src')
-        video.load()
-      } catch {}
+      if (hlsRef.current) { try { hlsRef.current.destroy() } catch {}; hlsRef.current = null }
+      try { video.pause(); video.removeAttribute('src'); video.load() } catch {}
     }
   }, [source?.url, source?.type, source?.embed])
 
@@ -93,6 +82,26 @@ export function VideoPlayer({ sources, selectedSource, onSourceChange, subtitles
       videoRef.current.currentTime = initialTime
     }
   }, [initialTime, source?.url])
+
+  // Volume control
+  useEffect(() => {
+    if (videoRef.current) videoRef.current.volume = Math.max(0, Math.min(1, volume))
+  }, [volume])
+
+  // Apply subtitles track mode when subtitles prop changes
+  useEffect(() => {
+    if (!subtitles || subtitles.length === 0) return
+    const v = videoRef.current
+    if (!v) return
+    const onLoaded = () => {
+      for (let i = 0; i < v.textTracks.length; i++) {
+        const tt = v.textTracks[i]
+        tt.mode = 'showing'
+      }
+    }
+    v.addEventListener('loadedmetadata', onLoaded, { once: true })
+    return () => v.removeEventListener('loadedmetadata', onLoaded)
+  }, [subtitles, source?.url])
 
   // No source — don't render video
   if (!source || !source.url) {
@@ -149,9 +158,9 @@ export function VideoPlayer({ sources, selectedSource, onSourceChange, subtitles
       {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
       <video
         ref={videoRef}
-        src={source.url}
+        src={isHlsSource ? undefined : source.url}
         controls
-        autoPlay={false}
+        autoPlay={!!autoplay}
         playsInline
         preload="metadata"
         crossOrigin="anonymous"
@@ -170,8 +179,6 @@ export function VideoPlayer({ sources, selectedSource, onSourceChange, subtitles
         }}
         onEnded={() => onEnded?.()}
         onError={() => {
-          // Don't surface error for HLS — hls.js will handle load; initial src may 404 before attach
-          if (isHlsSource) return
           setError('Video failed to load. Try another source.')
         }}
         onWaiting={() => setIsLoading(true)}

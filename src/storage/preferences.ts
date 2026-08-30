@@ -9,6 +9,8 @@ export interface Preferences {
   theme: 'dark'
   preferredAudio: VideoLanguage
   preferredProvider: string | null
+  enabledProviders?: Record<string, boolean> | null
+  providerOrder?: string[] | null
 }
 
 const defaults: Preferences = {
@@ -18,6 +20,8 @@ const defaults: Preferences = {
   theme: 'dark',
   preferredAudio: 'sub',
   preferredProvider: null,
+  enabledProviders: null,
+  providerOrder: null,
 }
 
 export function getPreferences(): Preferences {
