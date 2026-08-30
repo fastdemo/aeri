@@ -1,13 +1,13 @@
 import { Link } from 'react-router-dom'
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Anime } from '../../types/anime'
+import type { VideoEpisode } from '../../providers/video/types'
 import { useTracking } from '../../contexts/TrackingContext'
 import { normalizeEpisodes } from '../../lib/episodes'
+import { resolveEpisodesWithFallback } from '../../providers/video/registry'
 
 export function getEpisodes(anime: Anime) {
-  // Legacy wrapper for tests: now delegates to normalizeEpisodes (sorted, filtered, validated)
   const eps = normalizeEpisodes(anime)
-  // Cap at 100 for perf on detail page; Watch handles larger via pagination
   const capped = eps.slice(0, 100)
   return capped.map(e => ({
     number: e.number,
@@ -18,8 +18,27 @@ export function getEpisodes(anime: Anime) {
 }
 
 export function EpisodeList({ anime, seasonNumber = 1 }: { anime: Anime; seasonNumber?: number }) {
+  const [providerEpisodes, setProviderEpisodes] = useState<VideoEpisode[] | null>(null)
+  const prevIdRef = useRef<string>('')
+
+  useEffect(() => {
+    const id = anime.identity.internalId
+    // Always reset when anime identity changes (covers season switches)
+    prevIdRef.current = id
+    setProviderEpisodes(null)
+    const controller = new AbortController()
+    let cancelled = false
+    resolveEpisodesWithFallback(anime, controller.signal)
+      .then(res => {
+        if (cancelled || controller.signal.aborted) return
+        if (res.episodes && res.episodes.length) setProviderEpisodes(res.episodes)
+      })
+      .catch(() => {})
+    return () => { cancelled = true; controller.abort() }
+  }, [anime.identity.internalId, anime.identity.anilistId])
+
   const episodes = useMemo(() => {
-    const eps = normalizeEpisodes(anime)
+    const eps = normalizeEpisodes(anime, providerEpisodes)
     const capped = eps.slice(0, 100)
     return capped.map(e => ({
       number: e.number,
@@ -33,7 +52,9 @@ export function EpisodeList({ anime, seasonNumber = 1 }: { anime: Anime; seasonN
     anime.episodes,
     anime.streamingEpisodes,
     anime.duration,
+    providerEpisodes,
   ])
+
   if (anime.format?.toUpperCase() === 'MOVIE') return null
   const { isAuthenticated, combinedList, updateProgress } = useTracking()
   const entry = (() => {
@@ -62,6 +83,8 @@ export function EpisodeList({ anime, seasonNumber = 1 }: { anime: Anime; seasonN
     )
   }
 
+  const fallbackThumb = anime.coverImage || anime.backdropImage || ''
+
   return (
     <div className="space-y-1">
       <div className="mb-2 flex items-center gap-2">
@@ -74,6 +97,7 @@ export function EpisodeList({ anime, seasonNumber = 1 }: { anime: Anime; seasonN
           const isWatched = ep.number < progressEp
           const isCurrent = ep.number === progressEp
           const seasonKey = anime.identity.anilistId ? `anilist:${anime.identity.anilistId}` : anime.identity.internalId
+          const thumb = ep.thumbnail || fallbackThumb
           return (
             <Link
               key={`${seasonKey}-${ep.number}`}
@@ -86,10 +110,10 @@ export function EpisodeList({ anime, seasonNumber = 1 }: { anime: Anime; seasonN
               <span className="w-6 text-center text-sm font-medium text-white/70">{String(ep.number).padStart(2, '0')}</span>
 
               <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded bg-white/5">
-                {ep.thumbnail ? (
+                {thumb ? (
                   <img
-                    key={`${seasonKey}-${ep.number}-${ep.thumbnail}`}
-                    src={ep.thumbnail}
+                    key={`${seasonKey}-${ep.number}-${thumb}`}
+                    src={thumb}
                     alt=""
                     className="h-full w-full object-cover"
                     loading="lazy"
@@ -101,11 +125,16 @@ export function EpisodeList({ anime, seasonNumber = 1 }: { anime: Anime; seasonN
                       if (fallback) fallback.style.display = 'grid'
                     }}
                   />
-                ) : (
+                ) : null}
+                {!thumb && (
                   <div className="grid h-full w-full place-items-center bg-white/[0.04] text-[10px] font-medium text-white/30">
                     EP {String(ep.number).padStart(2, '0')}
                   </div>
                 )}
+                {/* fallback placeholder when img fails */}
+                <div className="hidden h-full w-full place-items-center bg-white/[0.04] text-[10px] font-medium text-white/30" style={{display: thumb ? 'none' : 'grid'}}>
+                  EP {String(ep.number).padStart(2, '0')}
+                </div>
                 {isWatched && (
                   <span className="absolute inset-0 grid place-items-center bg-black/40 text-white">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
