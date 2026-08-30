@@ -100,7 +100,7 @@ export function SearchSuggestions({ query, onClose }: Props) {
     <div
       ref={containerRef}
       role="listbox"
-      className="absolute left-0 right-0 top-[calc(100%+8px)] z-[70] max-h-[min(68vh,420px)] overflow-y-auto overflow-hidden rounded-xl border border-white/10 bg-[#141416]/95 backdrop-blur-xl shadow-[0_16px_48px_rgba(0,0,0,0.6)]"
+      className="absolute left-0 right-0 top-[calc(100%+8px)] z-[70] max-h-[min(68vh,420px)] overflow-x-hidden overflow-y-auto rounded-xl border border-white/10 bg-[#141416]/95 backdrop-blur-xl shadow-[0_16px_48px_rgba(0,0,0,0.6)]"
     >
       {results.map((anime, idx) => {
         const titles = getTitleHierarchy(anime, null)

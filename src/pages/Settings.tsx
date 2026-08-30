@@ -33,21 +33,10 @@ export function Settings() {
   const handleClearCache = async () => {
     setClearing('cache')
     try {
-      // Clear IDB cache store
-      const db = await new Promise<IDBDatabase>((res, rej) => {
-        const req = indexedDB.open('aeri', 2)
-        req.onsuccess = () => res(req.result)
-        req.onerror = () => rej(req.error)
-      })
-      await new Promise<void>((res, rej) => {
-        const tx = db.transaction('cache', 'readwrite')
-        tx.objectStore('cache').clear()
-        tx.oncomplete = () => res()
-        tx.onerror = () => rej(tx.error)
-      })
+      const { clearAllCache } = await import('../storage/db')
+      await clearAllCache()
       clearAnilistMemoryCache()
       clearMalMemoryCache()
-      // Also clear video memory cache via registry (import dynamically to avoid cycle)
       try {
         const { clearVideoMemoryCache } = await import('../providers/video/base')
         clearVideoMemoryCache()
@@ -59,17 +48,8 @@ export function Settings() {
   const handleClearWatchPos = async () => {
     setClearing('watchPos')
     try {
-      const db = await new Promise<IDBDatabase>((res, rej) => {
-        const req = indexedDB.open('aeri', 2)
-        req.onsuccess = () => res(req.result)
-        req.onerror = () => rej(req.error)
-      })
-      await new Promise<void>((res, rej) => {
-        const tx = db.transaction('watchPos', 'readwrite')
-        tx.objectStore('watchPos').clear()
-        tx.oncomplete = () => res()
-        tx.onerror = () => rej(tx.error)
-      })
+      const { clearAllWatchPos } = await import('../storage/db')
+      await clearAllWatchPos()
       localStorage.removeItem('aeri:progress:anilist-154587')
     } catch {}
     setTimeout(() => setClearing(null), 800)

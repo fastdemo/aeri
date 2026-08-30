@@ -8,7 +8,8 @@ import type { VideoEpisode, VideoSourceEnhanced } from '../providers/video/types
 import { getWatchPos, putWatchPos, clearWatchPos } from '../storage/db'
 import { getPreferences } from '../storage/preferences'
 import { getTitleHierarchy } from '../lib/titles'
-import { normalizeEpisodes, sanitizeAnimeForDisplay } from '../lib/episodes'
+import { normalizeEpisodes, sanitizeAnimeForDisplay, sanitizeGroup } from '../lib/episodes'
+import { getSeriesGroup, type AnimeSeriesGroup } from '../services/anilist/series'
 
 export function Watch() {
   const { id, episode } = useParams<{ id: string; episode: string }>()
@@ -42,14 +43,43 @@ export function Watch() {
   const episodesLoading = false // episode list is immediate from AniList, not blocked by video provider
   const [providerId, setProviderId] = useState<string | null>(null)
 
+  // Group-aware sanitization — ensures S2 doesn't get S1's streamingEpisodes duplicates
+  const [seriesGroup, setSeriesGroup] = useState<AnimeSeriesGroup | null>(null)
+  const requestIdRef = useRef(0)
+  useEffect(() => {
+    if (!anime || !anime.identity.anilistId) { setSeriesGroup(null); return }
+    const currentId = anime.identity.anilistId
+    const reqId = ++requestIdRef.current
+    const ctrl = new AbortController()
+    getSeriesGroup(currentId, { signal: ctrl.signal }).then(g => {
+      if (ctrl.signal.aborted || reqId !== requestIdRef.current) return
+      if (g && g.seasons.length > 1) setSeriesGroup(g)
+      else setSeriesGroup(null)
+    }).catch(e => {
+      if ((e as any)?.name === 'AbortError') return
+      if (reqId !== requestIdRef.current) return
+      setSeriesGroup(null)
+    })
+    return () => ctrl.abort()
+  }, [anime?.identity.anilistId])
+
   const sanitizedAnimeForWatch = useMemo(() => {
     if (!anime) return null
+    if (seriesGroup) {
+      const sanitizedGroup = sanitizeGroup(seriesGroup)
+      const idx = sanitizedGroup.seasons.findIndex(s => s.identity.anilistId === anime.identity.anilistId)
+      if (idx >= 0) return sanitizedGroup.seasons[idx]
+      // Stale group (anime switched before fetch) — fallback to standalone
+      if (seriesGroup.seasons.some(s => s.identity.anilistId === anime.identity.anilistId)) {
+        // Should not happen due to sanitized check, but keep
+        return sanitizeAnimeForDisplay(anime, seriesGroup, idx)
+      }
+    }
     return sanitizeAnimeForDisplay(anime, null, null)
-  }, [anime])
+  }, [anime, seriesGroup])
   const immediateEpisodes = useMemo(() => {
     if (!sanitizedAnimeForWatch) return []
     const eps = normalizeEpisodes(sanitizedAnimeForWatch)
-    // No cap — One Piece has 1000+ episodes, truncate would break navigation
     return eps.map(e => ({
       number: e.number,
       title: e.title,
@@ -72,7 +102,7 @@ export function Watch() {
         if (cancelled) return
       })
     return () => { cancelled = true; controller.abort() }
-  }, [anime?.identity.internalId])
+  }, [anime?.identity.internalId, anime?.identity.anilistId, anime?.episodes, anime?.streamingEpisodes?.length])
 
   // Current episode (from provider, or fallback to immediate)
   const currentEpisode: VideoEpisode | null = useMemo(() => {
@@ -345,8 +375,8 @@ export function Watch() {
 
           {/* Source error */}
           {sourcesError && !isLoadingVideo && (
-            <div className="absolute inset-0 grid place-items-center bg-black/60 p-6 text-center">
-              <div>
+            <div className="pointer-events-none absolute inset-0 grid place-items-center bg-black/60 p-6 text-center">
+              <div className="pointer-events-auto">
                 <p className="text-sm font-medium text-white">This source isn&apos;t available right now.</p>
                 <p className="mt-1 text-xs text-white/60">{sourcesError}</p>
                 <div className="mt-3 flex justify-center gap-2">

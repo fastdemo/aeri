@@ -73,16 +73,22 @@ export async function exchangeMalCodeForToken(code: string, verifier: string): P
 
   let res: Response
   try {
-    res = await fetch(MAL_TOKEN_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        Accept: 'application/json',
-      },
-      body: body.toString(),
-    })
+    const ctrl = new AbortController()
+    const tid = setTimeout(() => ctrl.abort(), 8000)
+    try {
+      res = await fetch(MAL_TOKEN_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Accept: 'application/json',
+        },
+        body: body.toString(),
+        signal: ctrl.signal,
+      })
+    } finally { clearTimeout(tid) }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
+    if ((e as any)?.name === 'AbortError') throw new Error('MyAnimeList request timed out after 8s')
     if (/Failed to fetch|NetworkError|Load failed|CORS/i.test(msg)) {
       throw new Error(
         'MyAnimeList blocked the token request (CORS). Aeri is a static GitHub Pages site with no backend, and MAL’s OAuth endpoint does not allow browser fetches from this origin. This is a MAL API limitation, not an Aeri bug.'
@@ -107,16 +113,22 @@ export async function refreshMalToken(refreshToken: string): Promise<{ access_to
 
   let res: Response
   try {
-    res = await fetch(MAL_TOKEN_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
-        Accept: 'application/json',
-      },
-      body: body.toString(),
-    })
+    const ctrl = new AbortController()
+    const tid = setTimeout(() => ctrl.abort(), 8000)
+    try {
+      res = await fetch(MAL_TOKEN_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Accept: 'application/json',
+        },
+        body: body.toString(),
+        signal: ctrl.signal,
+      })
+    } finally { clearTimeout(tid) }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
+    if ((e as any)?.name === 'AbortError') throw new Error('MyAnimeList request timed out after 8s')
     if (/Failed to fetch|NetworkError|Load failed|CORS/i.test(msg)) {
       throw new Error(
         'MyAnimeList blocked the refresh request (CORS). Aeri is static-only (no backend) and MAL’s endpoint does not allow browser fetches from GitHub Pages.'

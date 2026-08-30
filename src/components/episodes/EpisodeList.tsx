@@ -8,8 +8,7 @@ import { resolveEpisodesWithFallback } from '../../providers/video/registry'
 
 export function getEpisodes(anime: Anime) {
   const eps = normalizeEpisodes(anime)
-  const capped = eps.slice(0, 100)
-  return capped.map(e => ({
+  return eps.map(e => ({
     number: e.number,
     title: e.title,
     thumbnail: e.thumbnail,
@@ -30,7 +29,6 @@ export function EpisodeList({ anime, seasonNumber = 1 }: { anime: Anime; seasonN
     const controller = new AbortController()
     let cancelled = false
     let timeout: any = null
-    // Fallback timer: ensure we don't stay blank forever if provider hangs (e.g., rate limit)
     timeout = setTimeout(() => {
       if (!cancelled) setProviderDone(true)
     }, 1800)
@@ -45,14 +43,11 @@ export function EpisodeList({ anime, seasonNumber = 1 }: { anime: Anime; seasonN
         if (!cancelled) setProviderDone(true)
       })
     return () => { cancelled = true; controller.abort(); clearTimeout(timeout) }
-  }, [anime.identity.internalId, anime.identity.anilistId])
+  }, [anime.identity.internalId, anime.identity.anilistId, anime.episodes, anime.streamingEpisodes?.length])
 
   const episodes = useMemo(() => {
-    // Don't compute final episodes until we have confirmed provider state (blank -> single update)
-    if (!providerDone) return null as any
     const eps = normalizeEpisodes(anime, providerEpisodes)
-    const capped = eps.slice(0, 100)
-    return capped.map(e => ({
+    return eps.map(e => ({
       number: e.number,
       title: e.title,
       thumbnail: e.thumbnail,
@@ -65,13 +60,13 @@ export function EpisodeList({ anime, seasonNumber = 1 }: { anime: Anime; seasonN
     anime.streamingEpisodes,
     anime.duration,
     providerEpisodes,
-    providerDone,
   ])
 
   if (anime.format?.toUpperCase() === 'MOVIE') return null
 
-  // While confirming episode metadata (provider + AniList), show blank skeleton like before - single update after
-  if (!providerDone || episodes === null) {
+  // Show skeleton only while provider is still loading AND we have no anime data to display yet
+  // Otherwise render immediate episodes from AniList instantly, then enrich with provider when ready
+  if (!providerDone && episodes.length === 0) {
     return (
       <div className="space-y-1">
         <div className="mb-2 flex items-center gap-2">

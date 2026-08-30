@@ -97,15 +97,18 @@ export class OfficialProvider implements VideoProvider {
         const media = j?.data?.Media
         const count: number = media?.episodes ?? media?.streamingEpisodes?.length ?? 0
         if (!count) return []
+        // When episodes is null (e.g., One Piece), streaming may be global offset (130..62). Don't use offset titles for local EP1.
+        const isEpisodesUnknown = media?.episodes == null
         return Array.from({ length: count }, (_, i) => {
           const se = media?.streamingEpisodes?.[i]
           const raw = se?.title?.trim()
           const isGeneric = raw ? /^Episode\s+\d+$/i.test(raw) : true
+          const title = (isEpisodesUnknown || !raw || isGeneric) ? `Episode ${i + 1}` : raw
           return {
             id: `official-${anime.identity.internalId}-${i + 1}`,
             animeId: anime.identity.internalId,
             number: i + 1,
-            title: raw && !isGeneric ? raw : `Episode ${i + 1}`,
+            title,
             thumbnail: se?.thumbnail,
             provider: 'official',
             providerEpisodeId: `official-${anilistId ?? anime.identity.internalId}-${i + 1}`,

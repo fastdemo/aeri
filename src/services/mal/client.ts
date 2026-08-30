@@ -75,7 +75,16 @@ export async function malFetch<T>(path: string, opts: RequestInit & { cacheKey?:
 
     let res: Response
     try {
-      res = await fetch(url, { ...opts, method, headers })
+      const ctrl = new AbortController()
+      const tid = setTimeout(() => ctrl.abort(), 8000)
+      const sig = (opts as any).signal
+      if (sig) {
+        if (sig.aborted) ctrl.abort((sig as any).reason)
+        else sig.addEventListener('abort', () => ctrl.abort((sig as any).reason), { once: true })
+      }
+      try {
+        res = await fetch(url, { ...opts, method, headers, signal: ctrl.signal })
+      } finally { clearTimeout(tid) }
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       if (/Failed to fetch|NetworkError|Load failed|CORS/i.test(msg) || /CORS/i.test(String(e))) {

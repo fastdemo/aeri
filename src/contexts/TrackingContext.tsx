@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useMemo } from 'react'
+import React, { createContext, useContext, useMemo, useCallback } from 'react'
 import { useAniList } from './AniListContext'
 import { useMAL } from './MALContext'
 import type { Anime, AnimeListEntry, AnimeStatus } from '../types/anime'
@@ -92,53 +92,29 @@ export function TrackingProvider({ children }: { children: React.ReactNode }) {
   const error = ani.error || mal.error
   const authExpired = ani.authExpired || mal.authExpired
 
-  const updateProgress = async (anime: Anime, ep: number) => {
+  const updateProgress = useCallback(async (anime: Anime, ep: number) => {
     const promises: Promise<void>[] = []
-    // AniList path: if anime has anilistId or we can resolve via malId mapping
     if (ani.isAuthenticated) {
       const anilistId = anime.identity.anilistId?.toString() ?? (anime.identity.internalId.startsWith('anilist-') ? anime.identity.internalId.replace('anilist-', '') : null)
-      // If anime is MAL-only (mal-xxx), we may need to find corresponding anilistId via AniList search? For now, try to use malId to find anilist entry via list already, but if not found, skip AniList
-      // If anime has malId and is from MAL, try to find anilistId via existing combined? For now, just try anilistId if present
-      if (anilistId) {
-        promises.push(ani.updateProgress(anilistId, ep).catch(()=>{}))
-      } else if (anime.identity.malId) {
-        // Try to search AniList for this MAL id via idMal? Our provider getAnime via anilistId only, not malId. For simplicity, skip AniList if no anilistId
-      }
+      if (anilistId) promises.push(ani.updateProgress(anilistId, ep).catch(()=>{}))
     }
     if (mal.isAuthenticated) {
-      // MAL needs malId; if anime has malId use it, else if anilistId has known malId via AniList's idMal, use that
       let malId: string | null = anime.identity.malId ? `mal-${anime.identity.malId}` : null
-      if (!malId && anime.identity.anilistId) {
-        // Try to find malId from AniList's data: the anime from AniList already has malId if available
-        // If this anime came from AniList, its malId may be present in identity
-        // If not, we try to use anilistId as malId? Not correct, but fallback to anilistId string for MAL will fail gracefully
-        // For now, if no malId, try to use anilistId as malId? Better to skip MAL if no malId
-        // Actually MAL update requires malId, not anilistId, so skip if no malId
-        malId = null
-      }
-      if (malId) {
-        promises.push(mal.updateProgress(malId, ep).catch(()=>{}))
-      } else if (anime.identity.internalId.startsWith('mal-')) {
-        promises.push(mal.updateProgress(anime.identity.internalId, ep).catch(()=>{}))
-      }
-      // If anime is AniList-only but has malId via AniList's idMal, that malId is in identity, so above handles
+      if (!malId && anime.identity.internalId.startsWith('mal-')) malId = anime.identity.internalId
+      if (malId) promises.push(mal.updateProgress(malId, ep).catch(()=>{}))
     }
-    // If no provider handled, fallback to whichever authenticated provider can handle via internalId
     if (promises.length === 0) {
       if (ani.isAuthenticated && anime.identity.anilistId) promises.push(ani.updateProgress(`anilist-${anime.identity.anilistId}`, ep).catch(()=>{}))
       if (mal.isAuthenticated && anime.identity.malId) promises.push(mal.updateProgress(`mal-${anime.identity.malId}`, ep).catch(()=>{}))
     }
     await Promise.allSettled(promises)
-  }
+  }, [ani.isAuthenticated, ani.updateProgress, mal.isAuthenticated, mal.updateProgress])
 
-  const updateStatus = async (anime: Anime, status: AnimeStatus) => {
+  const updateStatus = useCallback(async (anime: Anime, status: AnimeStatus) => {
     const promises: Promise<void>[] = []
     if (ani.isAuthenticated) {
       const anilistId = anime.identity.anilistId?.toString() ?? (anime.identity.internalId.startsWith('anilist-') ? anime.identity.internalId.replace('anilist-', '') : null)
       if (anilistId) promises.push(ani.updateStatus(anilistId, status).catch(()=>{}))
-      else if (anime.identity.malId) {
-        // No anilistId, skip
-      }
     }
     if (mal.isAuthenticated) {
       let malId: string | null = anime.identity.malId ? `mal-${anime.identity.malId}` : null
@@ -150,9 +126,9 @@ export function TrackingProvider({ children }: { children: React.ReactNode }) {
       if (mal.isAuthenticated && anime.identity.malId) promises.push(mal.updateStatus(`mal-${anime.identity.malId}`, status).catch(()=>{}))
     }
     await Promise.allSettled(promises)
-  }
+  }, [ani.isAuthenticated, ani.updateStatus, mal.isAuthenticated, mal.updateStatus])
 
-  const updateRating = async (anime: Anime, rating: number) => {
+  const updateRating = useCallback(async (anime: Anime, rating: number) => {
     const promises: Promise<void>[] = []
     if (ani.isAuthenticated) {
       const anilistId = anime.identity.anilistId?.toString() ?? (anime.identity.internalId.startsWith('anilist-') ? anime.identity.internalId.replace('anilist-', '') : null)
@@ -168,9 +144,9 @@ export function TrackingProvider({ children }: { children: React.ReactNode }) {
       if (mal.isAuthenticated && anime.identity.malId) promises.push(mal.updateRating(`mal-${anime.identity.malId}`, rating).catch(()=>{}))
     }
     await Promise.allSettled(promises)
-  }
+  }, [ani.isAuthenticated, ani.updateRating, mal.isAuthenticated, mal.updateRating])
 
-  const value: UnifiedTracking = {
+  const value: UnifiedTracking = useMemo(() => ({
     isAuthenticated,
     isAniListAuthenticated: ani.isAuthenticated,
     isMALAuthenticated: mal.isAuthenticated,
@@ -181,7 +157,7 @@ export function TrackingProvider({ children }: { children: React.ReactNode }) {
     updateProgress,
     updateStatus,
     updateRating,
-  }
+  }), [isAuthenticated, ani.isAuthenticated, mal.isAuthenticated, combinedList, loading, error, authExpired, updateProgress, updateStatus, updateRating])
 
   return <TrackingContext.Provider value={value}>{children}</TrackingContext.Provider>
 }

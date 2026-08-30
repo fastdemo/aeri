@@ -211,20 +211,24 @@ export function normalizeEpisodes(
     : anime
   // Apply local mismatch discard before index mapping?
   let effectiveAnime = sortedAnime
+  let preDiscardCount: number | null = null
   if (sortedAnime.streamingEpisodes) {
     const countForCheck = resolveEpisodeCount(sortedAnime, providerEpisodes)
+    preDiscardCount = countForCheck
     const parsed = sortedAnime.streamingEpisodes.map(e => parseEpisodeNumber(typeof e.title === 'string' ? e.title : '')).filter(n => n !== null) as number[]
     if (parsed.length >= 2 && typeof sortedAnime.episodes === 'number' && sortedAnime.episodes > 0) {
       const outOfRange = parsed.filter(n => n > sortedAnime.episodes! + 0.6).length
       if (outOfRange / parsed.length > 0.7) {
         effectiveAnime = { ...sortedAnime, streamingEpisodes: undefined }
       }
+    } else if (parsed.length >= 2 && (sortedAnime.episodes == null) ) {
+      effectiveAnime = { ...sortedAnime, streamingEpisodes: undefined }
     }
-    // also if countForCheck !== sortedAnime.streamingEpisodes.length and outOfRange, already handled
-    void countForCheck
   }
 
-  const count = resolveEpisodeCount(effectiveAnime, providerEpisodes)
+  const count = (effectiveAnime.streamingEpisodes === undefined && preDiscardCount !== null && sortedAnime.episodes == null)
+    ? preDiscardCount
+    : resolveEpisodeCount(effectiveAnime, providerEpisodes)
   if (count === 0) return []
 
   const providerByNum = new Map<number, VideoEpisode>()
@@ -239,24 +243,59 @@ export function normalizeEpisodes(
   const baseDuration = effectiveAnime.duration
 
   // Build number-based lookup for streaming episodes when titles contain episode numbers
+  // Detect global offset (e.g., S2 episodes numbered 26..37 for local 1..12) vs local numbering
   const streamingByNumber = new Map<number, { title?: string; thumbnail?: string; url?: string; site?: string }>()
   let hasParseableNumbers = false
+  let minParsed: number | null = null
+  let maxParsed: number | null = null
   if (effectiveAnime.streamingEpisodes) {
     for (const se of effectiveAnime.streamingEpisodes) {
       const parsed = parseEpisodeNumber(typeof se.title === 'string' ? se.title : '')
       if (parsed !== null) {
         hasParseableNumbers = true
+        if (minParsed === null || parsed < minParsed) minParsed = parsed
+        if (maxParsed === null || parsed > maxParsed) maxParsed = parsed
         if (!streamingByNumber.has(parsed)) streamingByNumber.set(parsed, se)
       }
     }
   }
-  const useNumberMapping = hasParseableNumbers
+  // Determine offset for global numbering like S2 26..37
+  // Only use offset when episodes is known and numbers are clearly global contiguous covering count
+  let globalOffset = 0
+  let useNumberMapping = hasParseableNumbers
+  if (hasParseableNumbers && typeof effectiveAnime.episodes === 'number' && effectiveAnime.episodes > 0 && minParsed !== null && maxParsed !== null) {
+    const countMatchesGlobal = (maxParsed - minParsed + 1) === count && minParsed > count && minParsed <= count + 200
+    const allOutOfLocalRange = streamingByNumber.size >= Math.ceil(count * 0.8) && minParsed > count
+    if (countMatchesGlobal || allOutOfLocalRange) {
+      globalOffset = Math.round(minParsed - 1)
+    }
+    // One Piece case: episodes null -> do not use global offset, fallback to index if numbers out of range
+    // Already handled by episodes check above (episodes null => no offset)
+  }
+  // For episodes-null (count derived from streamingLen) with global numbers like 892..911, don't use number mapping if numbers are far beyond count
+  if (hasParseableNumbers && (effectiveAnime.episodes == null) && minParsed !== null && minParsed > count + 10) {
+    useNumberMapping = false
+  }
 
   return Array.from({ length: count }, (_, i) => {
     const n = i + 1
     let se: { title?: string; thumbnail?: string; url?: string; site?: string } | undefined
     if (useNumberMapping) {
-      se = streamingByNumber.get(n)
+      se = streamingByNumber.get(n) ?? (globalOffset ? streamingByNumber.get(n + globalOffset) : undefined)
+      // If still miss and globalOffset exists, don't fallback to index — keep undefined to avoid wrong-season title
+      // If no offset and miss, fallback to index for non-global case? Only if numbers are sparse
+      if (!se && !globalOffset) {
+        // Check if index fallback is safe: only when numbers are sparse and not all global
+        const idxSe = effectiveAnime.streamingEpisodes?.[i]
+        const idxParsed = idxSe ? parseEpisodeNumber(typeof idxSe.title === 'string' ? idxSe.title : '') : null
+        if (idxParsed === null || Math.abs((idxParsed ?? 0) - n) < 2) {
+          // Index title roughly matches local number, allow
+          // Don't use idxSe if its parsed number is far from n (would be wrong season)
+          if (idxParsed === null || idxParsed === n) {
+            se = idxSe
+          }
+        }
+      }
     } else {
       se = effectiveAnime.streamingEpisodes?.[i]
     }

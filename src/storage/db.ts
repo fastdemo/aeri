@@ -7,7 +7,7 @@ const DB_VERSION = 2
 let dbPromise: Promise<IDBDatabase> | null = null
 function openDB(): Promise<IDBDatabase> {
   if (dbPromise) return dbPromise
-  dbPromise = new Promise((resolve, reject) => {
+  const openPromise = new Promise<IDBDatabase>((resolve, reject) => {
     try {
       const req = indexedDB.open(DB_NAME, DB_VERSION)
       req.onupgradeneeded = () => {
@@ -23,8 +23,6 @@ function openDB(): Promise<IDBDatabase> {
         reject(req.error)
       }
       req.onblocked = () => {
-        // Blocked: another tab has old version open. Fail fast so callers don't hang 2 minutes.
-        // Give it a short grace then reject
         setTimeout(() => {
           try { req.result?.close() } catch {}
           dbPromise = null
@@ -36,6 +34,13 @@ function openDB(): Promise<IDBDatabase> {
       reject(e)
     }
   })
+  const timeoutPromise = new Promise<IDBDatabase>((_, reject) => setTimeout(() => {
+    dbPromise = null
+    reject(new Error('IDB open timeout'))
+  }, 1300))
+  dbPromise = Promise.race([openPromise, timeoutPromise]) as Promise<IDBDatabase>
+  // Ensure rejection clears cached promise
+  dbPromise.catch(() => { dbPromise = null })
   return dbPromise
 }
 
@@ -48,22 +53,33 @@ function withTimeout<T>(p: Promise<T>, ms = 1200, fallback: T): Promise<T> {
 }
 
 export async function putProgress(id: string, episode: number, percent: number) {
-  const db = await openDB()
-  return new Promise<void>((res, rej) => {
-    const tx = db.transaction('progress', 'readwrite')
-    tx.objectStore('progress').put({ id, episode, percent, updatedAt: Date.now() })
-    tx.oncomplete = () => res()
-    tx.onerror = () => rej(tx.error)
-  })
+  try {
+    const db = await withTimeout(openDB(), 1200, null as any)
+    if (!db) return
+    await withTimeout(new Promise<void>((res, rej) => {
+      try {
+        const tx = db.transaction('progress', 'readwrite')
+        tx.objectStore('progress').put({ id, episode, percent, updatedAt: Date.now() })
+        tx.oncomplete = () => res()
+        tx.onerror = () => rej(tx.error)
+      } catch (e) { rej(e) }
+    }), 1200, undefined as any)
+  } catch {}
 }
 
 export async function getProgress(id: string) {
-  const db = await openDB()
-  return new Promise<any>((res, rej) => {
-    const req = db.transaction('progress', 'readonly').objectStore('progress').get(id)
-    req.onsuccess = () => res(req.result)
-    req.onerror = () => rej(req.error)
-  })
+  try {
+    const db = await withTimeout(openDB(), 1200, null as any)
+    if (!db) return null
+    const res = await withTimeout(new Promise<any>((res, rej) => {
+      try {
+        const req = db.transaction('progress', 'readonly').objectStore('progress').get(id)
+        req.onsuccess = () => res(req.result)
+        req.onerror = () => rej(req.error)
+      } catch (e) { rej(e) }
+    }), 1200, null as any)
+    return res ?? null
+  } catch { return null }
 }
 
 export async function putCache(key: string, value: any, ttlMs = 1000 * 60 * 60 * 24) {
@@ -192,6 +208,21 @@ export async function clearAllCache(): Promise<void> {
       try {
         const tx = db.transaction('cache', 'readwrite')
         tx.objectStore('cache').clear()
+        tx.oncomplete = () => res()
+        tx.onerror = () => rej(tx.error)
+      } catch (e) { rej(e) }
+    }), 1200, undefined as any)
+  } catch {}
+}
+
+export async function clearAllWatchPos(): Promise<void> {
+  try {
+    const db = await withTimeout(openDB(), 1200, null as any)
+    if (!db) return
+    await withTimeout(new Promise<void>((res, rej) => {
+      try {
+        const tx = db.transaction('watchPos', 'readwrite')
+        tx.objectStore('watchPos').clear()
         tx.oncomplete = () => res()
         tx.onerror = () => rej(tx.error)
       } catch (e) { rej(e) }

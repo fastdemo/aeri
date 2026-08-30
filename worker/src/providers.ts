@@ -107,13 +107,17 @@ export class OfficialTrailerProvider implements VideoSourceProvider {
       const media = await fetchAnilistMedia(anilistId, signal)
       if (!media) return []
       const count: number = media.episodes ?? media.streamingEpisodes?.length ?? 0
+      if (!count) return []
+      const isEpisodesUnknown = media.episodes == null
       return Array.from({ length: count || 0 }, (_, i) => {
         const se = media.streamingEpisodes?.[i]
         const rawTitle = se?.title?.trim()
         const isGeneric = rawTitle ? /^Episode\s+\d+$/i.test(rawTitle) : true
+        // Don't use offset titles when episodes unknown (One Piece)
+        const title = (isEpisodesUnknown || !rawTitle || isGeneric) ? undefined : rawTitle
         return {
           number: i + 1,
-          title: rawTitle && !isGeneric ? rawTitle : undefined,
+          title,
           thumbnail: se?.thumbnail?.trim() || undefined,
         }
       })
