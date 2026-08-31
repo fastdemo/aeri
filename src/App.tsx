@@ -1,4 +1,5 @@
-import { HashRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { useEffect } from 'react'
+import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { Navbar } from './components/navigation/Navbar'
 import { Home } from './pages/Home'
 import { Browse } from './pages/Browse'
@@ -11,9 +12,34 @@ import { AniListProvider } from './contexts/AniListContext'
 import { MALProvider } from './contexts/MALContext'
 import { TrackingProvider } from './contexts/TrackingContext'
 
+function FaviconGuard() {
+  const { pathname, hash } = useLocation()
+  useEffect(() => {
+    const base = import.meta.env.BASE_URL || '/aeri/'
+    const b = base.endsWith('/') ? base : `${base}/`
+    const ensure = (rel: string, href: string, type?: string, sizes?: string) => {
+      if (document.querySelector(`link[rel="${rel}"][href="${href}"]`)) return
+      const el = document.createElement('link')
+      el.rel = rel
+      el.href = href
+      if (type) el.type = type
+      if (sizes) el.setAttribute('sizes', sizes)
+      document.head.appendChild(el)
+    }
+    // ensure all favicons exist with correct base (prevents 404 after hash nav / stale 404.html fallback)
+    ensure('icon', `${b}favicon.ico`, 'image/x-icon')
+    ensure('icon', `${b}favicon.png`, 'image/png', '32x32')
+    ensure('icon', `${b}favicon.svg`, 'image/svg+xml')
+    ensure('shortcut icon', `${b}favicon.ico`)
+    ensure('apple-touch-icon', `${b}apple-touch-icon.png`)
+  }, [pathname, hash])
+  return null
+}
+
 function Layout() {
   return (
     <div className="min-h-screen bg-[var(--bg)]">
+      <FaviconGuard />
       <Navbar />
       <main className="pt-14">
         <Routes>
