@@ -8,6 +8,7 @@ import { useTracking } from '../contexts/TrackingContext'
 import { RowSkeleton } from '../components/ui/Skeleton'
 import { useTrending, usePopular, useAiring, useNewReleases } from '../hooks/useAnimeMetadata'
 import { useLocation } from 'react-router-dom'
+import { getFranchiseTitle } from '../lib/titles'
 
 function Section({
   title,
@@ -66,13 +67,58 @@ export function Home() {
   const news = useNewReleases(12)
 
   const continueWatching: Anime[] = useMemo(() => {
-    if (isAuthenticated && combinedList) {
-      return combinedList
-        .filter((e) => e.status === 'watching' || (e.progress > 0 && e.status !== 'completed'))
-        .map((e) => e.anime)
-        .slice(0, 10)
+    if (!isAuthenticated || !combinedList) return []
+    const filtered = combinedList
+      .map((e, idx) => ({ e, idx }))
+      .filter(({ e }) => e.status === 'watching' || (e.progress > 0 && e.status !== 'completed'))
+    if (!filtered.length) return []
+
+    // Netflix-style: merge same franchise, keep only the later season the user is watching
+    const groups = new Map<string, { entries: typeof filtered; firstIdx: number }>()
+    for (const item of filtered) {
+      const anime = item.e.anime
+      const isTv = anime.format === 'TV' || anime.format === 'TV_SHORT' || !anime.format
+      let key: string
+      if (isTv) {
+        const raw = anime.title.english?.trim() || anime.title.romaji?.trim() || ''
+        const franchise = raw ? getFranchiseTitle(raw) : ''
+        // normalize: lower + single spaces
+        key = franchise
+          ? franchise.toLowerCase().replace(/\s+/g, ' ').trim()
+          : `id:${anime.identity.internalId}`
+      } else {
+        key = `id:${anime.identity.internalId}`
+      }
+      const g = groups.get(key)
+      if (!g) groups.set(key, { entries: [item], firstIdx: item.idx })
+      else {
+        g.entries.push(item)
+        if (item.idx < g.firstIdx) g.firstIdx = item.idx
+      }
     }
-    return []
+
+    const winners: { anime: Anime; sortIdx: number }[] = []
+    for (const [, g] of groups) {
+      if (g.entries.length === 1) {
+        winners.push({ anime: g.entries[0]!.e.anime, sortIdx: g.firstIdx })
+      } else {
+        // pick later season: higher year wins, then higher absolute progress, then watching status
+        const sorted = [...g.entries].sort((a, b) => {
+          const yearA = a.e.anime.year ?? 0
+          const yearB = b.e.anime.year ?? 0
+          if (yearB !== yearA) return yearB - yearA
+          if (b.e.progress !== a.e.progress) return b.e.progress - a.e.progress
+          const score = (x: (typeof filtered)[number]) => (x.e.status === 'watching' ? 2 : x.e.status === 'completed' ? 0 : 1)
+          return score(b) - score(a)
+        })
+        const winner = sorted[0]!
+        // order by winner's original position to keep recency (most recently updated seasons first)
+        winners.push({ anime: winner.e.anime, sortIdx: winner.idx })
+      }
+    }
+
+    winners.sort((a, b) => a.sortIdx - b.sortIdx)
+    return winners.map((w) => w.anime).slice(0, 10)
   }, [isAuthenticated, combinedList])
 
   const myList: Anime[] = useMemo(() => {
