@@ -62,6 +62,11 @@ More detailed project rules and architecture can be found in `AGENTS.md` and `do
 * [x] **Phase 7** - Video playback research and multi-provider streaming investigation
 * [x] **Phase 7.1** - Performance improvements, metadata accuracy, real episode titles, and removal of placeholder content
 * [x] **Phase 8** - Series grouping, season support, complete episode handling, UI cleanup, streaming research, and settings
+* [x] **Phase 9** - Episode data integrity, season-aware mapping, One Piece offset fix, and cache reliability
+* [x] **Phase 10** - Real video backend, provider abstraction, Worker architecture, and normalized sources
+* [x] **Phase 11** - Production streaming, navigation reliability, and episode integrity
+* [x] **Phase 12** - Full-episode streaming and production provider integration (honest trailer + custom endpoint)
+* [x] **Phase 13** - Authorized provider integration (AniKoto, AnimePahe via Worker, custom endpoint)
 
 ## Streaming
 
