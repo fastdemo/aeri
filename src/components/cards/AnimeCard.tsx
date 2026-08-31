@@ -4,6 +4,28 @@ import { getPrimaryTitle } from '../../lib/titles'
 
 type Variant = 'default' | 'continue' | 'compact'
 
+function getSeasonNumber(anime: Anime): number {
+  const raws = [anime.title.english, anime.title.romaji].filter(Boolean) as string[]
+  for (const raw of raws) {
+    const t = raw.toLowerCase()
+    // 2nd Season, 3rd season
+    let m = t.match(/(\d+)(?:st|nd|rd|th)\s+season/)
+    if (m) return Number(m[1])
+    // Season 2, Season 3
+    m = t.match(/season\s+(\d+)/)
+    if (m) return Number(m[1])
+    // Final Season special (common for AoT)
+    if (t.includes('final season')) {
+      if (t.includes('attack on titan') || t.includes('shingeki no kyojin')) return 4
+      // generic Final Season without number — treat as season 2 if we can't tell (most shows final = 2)
+      // keep searching other title candidate before defaulting
+      continue
+    }
+  }
+  // no explicit marker -> S1 (base season)
+  return 1
+}
+
 export function AnimeCard({
   anime,
   variant = 'default',
@@ -67,7 +89,9 @@ export function AnimeCard({
           <div className="flex items-center justify-between">
             <p className="line-clamp-1 text-[11px] font-medium text-white/90">{primaryTitle}</p>
           </div>
-          <p className="text-[11px] text-white/55">Episode {anime.progress.episode}</p>
+          <p className="text-[11px] text-white/55">
+            S{getSeasonNumber(anime)}:E{anime.progress.episode}
+          </p>
           <div className="h-0.5 w-full overflow-hidden rounded-full bg-white/10">
             <div className="h-full bg-[#e50914]" style={{ width: `${anime.progress.percent}%` }} />
           </div>
