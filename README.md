@@ -92,6 +92,6 @@ Apache License 2.0. See [LICENSE](LICENSE).
 
 - **AniList & MyAnimeList** - Aeri uses these for anime metadata and tracking.
 
-This is a completely open-source project made for the anime community. I have no plans to monetize this haha.
+This is a completely open-source project made by an anime enthusiast for anime enthusiasts. I have no plans to monetize this haha.
 
 Made with love by **@fastdemo** <3
