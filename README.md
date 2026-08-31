@@ -11,7 +11,7 @@ Aeri is built to feel more like a modern streaming service than an anime databas
 
 ## Preview
 
-![Aeri product thumbnail]()
+<img src="img/aerithumb.png" alt="Aeri product thumbnail" width="800" />
 
 ## Features
 
