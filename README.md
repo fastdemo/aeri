@@ -7,7 +7,7 @@ A minimal anime discovery, tracking, and streaming web app.
 
 Aeri is built to feel more like a modern streaming service than an anime database. Browse anime, keep track of what you're watching, and find something new from your favorite pirate bay sources without the ads and distractions!
 
-**Live:** `https://fastdemo.github.io/aeri/#/`
+**Live here at:** `https://fastdemo.github.io/aeri/#/`
 
 ## Preview
 
