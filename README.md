@@ -1,83 +1,92 @@
-# Aeri — minimal anime streaming
+![Aeri icon]()
 
-> A purpose-built anime discovery, tracking, and watching web app. Cinematic browsing like a modern streaming service, not a database.
+# Aeri
 
-**Live:** `https://fastdemo.github.io/aeri/#/` (GitHub Pages, HashRouter)
+A minimal anime discovery, tracking, and streaming web app.
 
-## Quick start
+Aeri is built to feel more like a modern streaming service than an anime database. Browse anime, keep track of what you're watching, and find something new without drowning in information.
 
-```bash
-npm install
-npm run dev      # http://localhost:5173/aeri/#/
-npm run build    # static dist/
-npm run preview  # http://localhost:4173/aeri/#/
-```
+**Live:** `https://fastdemo.github.io/aeri/#/`
 
-## Stack
+## Preview
 
-- Vite + React 19 + TypeScript (strict)
-- Tailwind CSS v4 (`@tailwindcss/vite`)
-- React Router `HashRouter` (GH Pages safe — no 404 on refresh)
-- IndexedDB + localStorage via `src/storage/` abstraction
-- PWA manifest (`public/manifest.webmanifest`)
+![Aeri product thumbnail]()
 
-No backend. All data is static + browser persistence + direct AniList/MAL calls via adapters (mock data in Phase 2).
+## Features
+
+* **Anime discovery**: Browse trending, popular, airing, and recently released anime.
+* **Search**: Search through real anime data with live results.
+* **Anime tracking**: Sync your watch status, ratings, and progress with AniList.
+* **MyAnimeList support**: Connect your MAL account and keep your lists in sync.
+* **Episode tracking**: Aeri remembers your episode progress locally.
+* **Anime details**: View descriptions, covers, studios, genres, characters, relations, and other metadata.
+* **Seasons & series**: Related anime are grouped together into series and seasons where possible.
+* **Responsive design**: Works across desktop and smaller screens.
+* **Caching**: Frequently used data is cached locally for a faster experience.
+* **PWA**: Install Aeri like an app on supported browsers.
+
+## Development
+
+Aeri is built with **React, TypeScript, Vite, and Tailwind CSS**. It runs entirely in the browser and is hosted through GitHub Pages.
+
+The project uses **HashRouter** so routes work properly on GitHub Pages without needing a backend.
+
+Anime data comes primarily from **AniList**, with **MyAnimeList** used for tracking support. Local preferences and watch progress are stored using `localStorage` and IndexedDB.
+
+There is currently **no backend**.
 
 ## Structure
 
-See `AGENTS.md` and `docs/ARCHITECTURE.md` for authoritative rules.
-
-```
+```text
 src/
-  components/navigation | hero | cards | rows | detail | episodes | player | ui
-  pages/  Home Browse Search MyList Watch AnimeDetail
-  data/mockAnime.ts  — deterministic 20-title catalog for visual prototype
-  types/anime.ts
-  storage/  preferences.ts (localStorage) + db.ts (IndexedDB)
-  providers/anilist|mal|video
-  recommendations/engine.ts
-  lib/identity.ts
-  styles/globals.css  — design tokens (near-black, quiet UI)
+  components/       UI components
+  pages/            Main application pages
+  providers/        AniList, MAL, and video integrations
+  storage/          Local storage and IndexedDB
+  recommendations/  Recommendation system
+  data/             Anime data and development content
+  lib/              Shared utilities
+  styles/           Global styles and design tokens
 ```
 
-## Design
+More detailed project rules and architecture can be found in `AGENTS.md` and `docs/`.
 
-`docs/DESIGN_SYSTEM.md` — near-black (#070708), cinematic hero with layered gradients, landscape 16:9 cards, horizontal rows, dark modal, restrained typography. Artwork provides color, UI stays quiet.
+## Development Phases
 
-## Deployment (GitHub Pages)
+* [x] **Phase 1** - Foundation, routing, design system, and GitHub Pages setup
+* [x] **Phase 2** - Full visual prototype with mock anime data
+* [x] **Phase 3** - AniList integration, authentication, list syncing, progress, status, and ratings
+* [x] **Phase 4** - Real anime discovery, metadata, trending, popular, airing, search, and dynamic hero content
+* [x] **Phase 5** - MyAnimeList integration with PKCE authentication and list syncing
+* [x] **Phase 6** - Complete AniList discovery, browse filters, pagination, live search, real anime details, My List, episode progress, caching, and responsive improvements
+* [x] **Phase 7** - Video playback research and multi-provider streaming investigation
+* [x] **Phase 7.1** - Performance improvements, metadata accuracy, real episode titles, and removal of placeholder content
+* [x] **Phase 8** - Series grouping, season support, complete episode handling, UI cleanup, streaming research, and settings
 
-- `vite.config.ts` `base` is env-aware: `/${GITHUB_REPOSITORY.split('/')[1]}/` in CI, `/aeri/` locally
-- HashRouter ensures `/#/anime/<id>` survives refresh
-- Workflow `.github/workflows/deploy.yml` → `npm ci && npm run build` → `actions/deploy-pages`
+## Streaming
 
-Test deep links after build:
+Streaming was one of the original goals for Aeri. After testing multiple providers, a reliable browser-only solution wasn't practical without a backend, so streaming is currently parked.
 
+## Deployment
+
+Aeri is hosted on **GitHub Pages**.
+
+**Website:** https://fastdemo.github.io/aeri/#/
+
+```bash
+npm install
+npm run dev
+npm run build
 ```
-http://localhost:4173/aeri/#/
-http://localhost:4173/aeri/#/browse
-http://localhost:4173/aeri/#/anime/frieren
-http://localhost:4173/aeri/#/watch/frieren/17
-http://localhost:4173/aeri/#/list
-```
 
-## Docs
+## License
 
-- `AGENTS.md` — must-read for contributors
-- `docs/ARCHITECTURE.md`
-- `docs/DESIGN_SYSTEM.md`
-- `docs/API.md`
-- `docs/DEPLOYMENT.md`
-- `docs/DECISIONS.md`
-- `.opencode/skills/` — frontend-design, browser-testing, github-pages, anime-data
+Apache License 2.0. See [LICENSE](LICENSE).
 
-## Phases
+## Credits
 
-- [x] Phase 1 — foundation (Vite, tokens, routing, GH Pages)
-- [x] Phase 2 — visual prototype on mock data (nav, hero, rows, cards, detail, watch, search, my list)
-- [x] Phase 3 — AniList integration (auth, list sync, progress/status/rating, tracking provider)
-- [x] Phase 4 — Real Anime Discovery & Metadata (AnimeMetadataProvider, Trending/Popular/Airing/New, Search real, hero real)
-- [x] Phase 5 — MyAnimeList integration (PKCE, MALProvider, TrackingContext dedup, GH Pages VITE_MAL_CLIENT_ID, parked: CORS)
-- [x] Phase 6 — Complete AniList Discovery & Core Experience (Browse tabs+filters+pagination, Search live, Detail real, MyList empty, episode progress, caching, responsive)
-- [x] Phase 7 — Real Video Playback & Multi-Provider Streaming (VideoProvider, 6 providers investigated, no browser-compatible source without backend, Watch no-source UI, local watchPos, parked as static)
-- [x] Phase 7.1 — Performance, Metadata Accuracy & Remove All Placeholder Content (parallel Home, 8s/3.5s timeouts, studios filtered, T18/Let You Down/picsum removed, episode real titles, Watch immediate episode list, no fake fallback)
-- [x] Phase 8 — Series Grouping, Episode Completeness, UI Cleanup, Streaming Research & Settings (Netflix-style seasons via relations, Top 10 removed, episodes authoritative, AERI removed, Settings tab, embed investigation, no backend)
+-- **AniList & MyAnimeList** - Aeri uses these for anime metadata and tracking.
+
+This is a completely open-source project made for the anime community. I have no plans to monetize this haha.
+
+Made with love by **@fastdemo** <3
