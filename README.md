@@ -10,6 +10,7 @@ Aeri is built to feel more like a modern streaming service than an anime databas
 **Live here at:** `https://fastdemo.github.io/aeri/#/`
 
 ## Preview
+
 <img src="img/aerithumb.png" alt="Aeri product thumbnail" width="800" />
 
 ## Features
