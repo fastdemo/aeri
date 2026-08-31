@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react'
-import { Hero } from '../components/hero/Hero'
+import { HeroCarousel } from '../components/hero/Hero'
 import { AnimeCard } from '../components/cards/AnimeCard'
 import { ContentRow } from '../components/rows/ContentRow'
 import { DetailModal } from '../components/detail/DetailModal'
@@ -80,7 +80,11 @@ export function Home() {
     return []
   }, [isAuthenticated, combinedList])
 
-  const hero: Anime | null = trending.data?.[0] ?? null
+  const heroes: Anime[] = useMemo(() => {
+    const src = trending.data ?? []
+    // pick 7 most trending with good backdrops, deduped
+    return src.filter((a) => !!a.backdropImage).slice(0, 7)
+  }, [trending.data])
 
   const becauseData = useMemo(() => {
     if (trending.data) {
@@ -110,8 +114,8 @@ export function Home() {
                 <p className="mt-1 text-xs text-white/40">Hero unavailable — other rows still work</p>
               </div>
             </div>
-          ) : hero ? (
-            <Hero anime={hero} onMoreInfo={() => setSelected(hero)} />
+          ) : heroes.length ? (
+            <HeroCarousel animes={heroes} onMoreInfo={setSelected} />
           ) : (
             <div className="flex aspect-[21/9] w-full items-center justify-center rounded-xl bg-white/[0.03] lg:min-h-[460px]">
               <p className="text-sm text-white/40">No hero available</p>
