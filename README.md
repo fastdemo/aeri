@@ -1,10 +1,11 @@
 ![Aeri icon]()
-
 # Aeri
 
 A minimal anime discovery, tracking, and streaming web app.
 
-Aeri is built to feel more like a modern streaming service than an anime database. Browse anime, keep track of what you're watching, and find something new without drowning in information.
+## Highlights
+
+Aeri is built to feel more like a modern streaming service than an anime database. Browse anime, keep track of what you're watching, and find something new from your favorite pirate bay sources without the ads and distractions!
 
 **Live:** `https://fastdemo.github.io/aeri/#/`
 
@@ -16,8 +17,7 @@ Aeri is built to feel more like a modern streaming service than an anime databas
 
 * **Anime discovery**: Browse trending, popular, airing, and recently released anime.
 * **Search**: Search through real anime data with live results.
-* **Anime tracking**: Sync your watch status, ratings, and progress with AniList.
-* **MyAnimeList support**: Connect your MAL account and keep your lists in sync.
+* **Anime tracking**: Sync your watch status, ratings, and progress with AniList & MyAnimeList.
 * **Episode tracking**: Aeri remembers your episode progress locally.
 * **Anime details**: View descriptions, covers, studios, genres, characters, relations, and other metadata.
 * **Seasons & series**: Related anime are grouped together into series and seasons where possible.
@@ -69,7 +69,7 @@ Streaming was one of the original goals for Aeri. After testing multiple provide
 
 ## Deployment
 
-Aeri is hosted on **GitHub Pages**.
+Aeri is entirely hosted on **GitHub Pages**.
 
 **Website:** https://fastdemo.github.io/aeri/#/
 
@@ -85,7 +85,7 @@ Apache License 2.0. See [LICENSE](LICENSE).
 
 ## Credits
 
--- **AniList & MyAnimeList** - Aeri uses these for anime metadata and tracking.
+- **AniList & MyAnimeList** - Aeri uses these for anime metadata and tracking.
 
 This is a completely open-source project made for the anime community. I have no plans to monetize this haha.
 
