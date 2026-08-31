@@ -1,4 +1,4 @@
-![Aeri icon]()
+<img src="img/aeri-icon.png" alt="Aeri icon" width="128" height="128" />
 # Aeri
 
 A minimal anime discovery, tracking, and streaming web app.
