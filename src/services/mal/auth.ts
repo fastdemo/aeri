@@ -94,7 +94,8 @@ export async function buildMalAuthorizeUrl(): Promise<string> {
   url.searchParams.set('code_challenge_method', 'S256')
   url.searchParams.set('state', state)
   // MAL requires exact redirect_uri match with the value registered in the MAL app settings.
-  // For Aeri on GitHub Pages the registered value is exactly https://fastdemo.github.io/aeri/
+  // For Cloudflare production this must be https://aeri.fastdemo.workers.dev/ (trailing slash, no hash)
+  // getMalRedirectUri() returns window.location.origin + BASE_URL which is that in production
   url.searchParams.set('redirect_uri', getMalRedirectUri())
   return url.toString()
 }

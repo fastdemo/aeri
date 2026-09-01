@@ -15,7 +15,7 @@ import { TrackingProvider } from './contexts/TrackingContext'
 function FaviconGuard() {
   const { pathname, hash } = useLocation()
   useEffect(() => {
-    const base = import.meta.env.BASE_URL || '/aeri/'
+    const base = import.meta.env.BASE_URL || '/'
     const b = base.endsWith('/') ? base : `${base}/`
     const ensure = (rel: string, href: string, type?: string, sizes?: string) => {
       if (document.querySelector(`link[rel="${rel}"][href="${href}"]`)) return

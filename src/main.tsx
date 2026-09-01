@@ -27,7 +27,7 @@ try {
 } catch {}
 
 // Early MAL OAuth callback handling before HashRouter — MAL uses ?code= & state= at the static document
-// Must handle at /aeri/ (no hash) and then hand back to HashRouter #/
+// Must handle at origin + base (e.g. https://aeri.fastdemo.workers.dev/ or legacy https://fastdemo.github.io/aeri/) (no hash) and then hand back to HashRouter #/
 try {
   const url = new URL(window.location.href)
   const code = url.searchParams.get('code')

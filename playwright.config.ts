@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test'
 
-const baseURL = process.env.PLAYBACK_BASE_URL || 'http://localhost:5173/aeri/'
+const baseURL = process.env.PLAYBACK_BASE_URL || 'http://localhost:5173/'
 
 export default defineConfig({
   testDir: 'tests',
@@ -22,7 +22,7 @@ export default defineConfig({
     ? undefined
     : {
         command: 'npm run dev -- --port 5173 --host 127.0.0.1',
-        url: 'http://127.0.0.1:5173/aeri/',
+        url: 'http://127.0.0.1:5173/',
         reuseExistingServer: true,
         timeout: 30_000,
       },

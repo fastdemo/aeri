@@ -14,7 +14,7 @@
   "env": {
     "production": {
       "vars": {
-        "ALLOWED_ORIGIN": "*"
+        "ALLOWED_ORIGIN": "https://aeri.fastdemo.workers.dev"
       }
     },
     "preview": {
