@@ -327,29 +327,26 @@ export class AnikotoProvider implements VideoSourceProvider {
     if (this.cache.has(key)) return this.cache.get(key)!.id
     try {
       const searchRes = await fetchWithTimeout(`https://anikototv.to/ajax/anime/search?keyword=${encodeURIComponent(title)}`, { headers: { 'X-Requested-With': 'XMLHttpRequest', 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://anikototv.to/' }, signal }, 4500)
-      if (!searchRes.ok) { console.log(`[anikoto] search not ok ${searchRes.status} for ${title}`); } else {
+      if (searchRes.ok) {
         const j:any = await searchRes.json().catch(()=>null)
         const html: string = j?.result?.html || ''
         const slugs = [...html.matchAll(/href="https:\/\/anikototv\.to\/watch\/([^"]+)"/g)].map(m=>m[1])
-        console.log(`[anikoto] search ${title} got ${slugs.length} slugs`, slugs.slice(0,2))
         for (const slug of slugs.slice(0,3)) {
           try {
             const pageRes = await fetchWithTimeout(`https://anikototv.to/watch/${slug}`, { headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://anikototv.to/' }, signal }, 4500)
-            if (!pageRes.ok) { console.log(`[anikoto] page not ok ${pageRes.status} for ${slug}`); continue }
+            if (!pageRes.ok) continue
             const html2 = await pageRes.text()
             const m = html2.match(/data-id="(\d+)"/)
-            if (!m) { console.log(`[anikoto] no data-id for ${slug}`); continue }
+            if (!m) continue
             const cand = Number(m[1])
             const verifyRes = await fetchWithTimeout(`https://www.anikotoapi.site/series/${cand}`, {}, 3500, signal)
-            if (!verifyRes.ok) { console.log(`[anikoto] verify not ok ${verifyRes.status} for ${cand}`); continue }
+            if (!verifyRes.ok) continue
             const v:any = await verifyRes.json().catch(()=>null)
-            console.log(`[anikoto] verify cand ${cand} ani_id ${v?.data?.anime?.ani_id} vs ${anilistId}`)
-            if (String(v?.data?.anime?.ani_id) === String(anilistId)) { this.cache.set(key, {id:cand, ani_id:String(anilistId)}); console.log(`[anikoto] resolved ${anilistId} -> ${cand}`); return cand }
-          } catch (e) { console.log(`[anikoto] slug ${slug} error`, String(e).slice(0,100)) }
+            if (String(v?.data?.anime?.ani_id) === String(anilistId)) { this.cache.set(key, {id:cand, ani_id:String(anilistId)}); return cand }
+          } catch {}
         }
       }
-    } catch (e) { console.log(`[anikoto] resolve error`, String(e).slice(0,200)) }
-    console.log(`[anikoto] failed to resolve ${anilistId} title ${title}`)
+    } catch {}
     return null
   }
   async getEpisodes(anilistId: number, signal?: AbortSignal): Promise<{ number: number; title?: string; thumbnail?: string }[]> {

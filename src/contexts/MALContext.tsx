@@ -116,9 +116,15 @@ export function MALProvider({ children }: { children: React.ReactNode }) {
   }, [loadUser, loadList])
 
   useEffect(() => {
-    // Handle MAL OAuth callback (code in search)
+    // Handle MAL OAuth callback (code in search) — only if MAL verifier/state present so we don't steal AniList ?code=
     const url = new URL(window.location.href)
-    if (url.searchParams.has('code')) {
+    const hasMalVerifier = (() => { try { return !!localStorage.getItem('aeri:mal:code_verifier') } catch { return false } })()
+    const hasMalState = (() => { try { return !!localStorage.getItem('aeri:mal:oauth_state') } catch { return false } })()
+    // If code looks like AniList (no MAL verifier/state and not MAL client), leave it for AniListContext
+    // But if MAL client is configured and no verifier (e.g. direct code paste), still try — handleMalOAuthCallback will show proper missing-verifier error
+    // To avoid stealing AniList code when both clients configured, prioritize MAL only when verifier/state exists
+    const isProbablyMal = hasMalVerifier || hasMalState
+    if (url.searchParams.has('code') && isProbablyMal) {
       handleMalOAuthCallback()
         .then((tok) => {
           if (tok) {
@@ -128,6 +134,28 @@ export function MALProvider({ children }: { children: React.ReactNode }) {
         })
         .catch((e) => setError(friendly(e)))
       return
+    }
+    // Fallback: if code exists but no verifier, still try MAL if no AniList token handling is pending
+    // Check if AniList already handling — we delay a tick and check again
+    if (url.searchParams.has('code') && !isProbablyMal) {
+      // Defer: let AniListContext handle ?code= first; if it was MAL code without verifier, the manual error will guide user
+      // We still attempt MAL after a short delay only if URL still has code (meaning AniList didn't consume it)
+      const t = setTimeout(() => {
+        try {
+          const u2 = new URL(window.location.href)
+          if (u2.searchParams.has('code')) {
+            handleMalOAuthCallback()
+              .then((tok) => {
+                if (tok) {
+                  setToken(tok)
+                  loadUser(tok).then(() => loadList(tok)).catch(()=>{})
+                }
+              })
+              .catch((e) => setError(friendly(e)))
+          }
+        } catch {}
+      }, 600)
+      return () => clearTimeout(t)
     }
     const existing = getMalToken()
     if (existing) {

@@ -24,3 +24,6 @@ dist-ssr
 *.sw?
 worker/.wrangler
 .wrangler/
+test-results/
+playwright-report/
+blob-report/

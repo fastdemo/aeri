@@ -4,6 +4,7 @@ export const ANILIST_CLIENT_ID: string =
   (import.meta.env.VITE_ANILIST_CLIENT_ID as string | undefined)?.trim() || '49713'
 
 export const ANILIST_AUTH_URL = 'https://anilist.co/api/v2/oauth/authorize'
+export const ANILIST_TOKEN_URL = 'https://anilist.co/api/v2/oauth/token'
 export const ANILIST_GRAPHQL = 'https://graphql.anilist.co'
 
 export function getAnilistRedirectUri(): string {

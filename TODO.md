@@ -1,6 +1,6 @@
 # TODO — Aeri
 
-## Now
+## Now (Phases 1–8 done)
 - [x] AGENTS.md + docs + skills (Phase 1)
 - [x] Vite/React/TS/Tailwind + HashRouter + GH Pages config
 - [x] Visual prototype on mock data
@@ -10,8 +10,6 @@
 - [x] MyAnimeList integration (Phase 5) — PKCE, MALProvider, mapper, MALContext + TrackingContext merged dedup via malId, MyList/Home/Detail/Watch/EpisodeList/Navbar compact, verified via Playwright (Home/Browse/Search/Detail/Watch, unauth/MAL/AniList/both, loading/empty/API failure/mobile), build passing
 - [x] MAL CORS diagnosis + feasibility (Parked) — redirect_uri fix, CORS-specific errors, docs/MAL_BROWSER_FEASIBILITY.md, GH Pages build with VITE_MAL_CLIENT_ID, Pages live
 - [x] Complete AniList Discovery & Core Experience (Phase 6) — Hero real, Trending/Popular/Airing/New real, Browse tabs (Popular/Trending/Airing/Upcoming/Finished) + genre/year/season/format filters + pagination (useBrowse), Search live while typing (debounced, stale-ignore, URL sync), Detail real, MyList empty when unauth (no mock), Episode/Watch progress via TrackingContext, loading/error/empty for all, caching 4 parallel Home + Browse perPage 24 + dedup, mobile 375/768/1440 no overflow, a11y, no mock discovery, tsc/build pass, GH Actions/Pages live
-
-## Now
 - [x] Performance: shell 85ms, Home 4 parallel at 141ms, hero 1.4s, Watch shell 29ms + episode list 876ms immediate + no-source 2.3s (was 21s), anilistGraphQL 8s Abort, video fetchWithTimeout 3.5s + parallel registry 4s — Phase 7.1
 - [x] Metadata accuracy: studios filtered isAnimationStudio/isMain, isAdult not T18, streamingEpisodes real titles/thumbnails via MEDIA_FIELDS, mapper corrected, UI labels accurate — Phase 7.1
 - [x] Remove placeholders: picsum only in mockAnime.ts fixture, T18/Let You Down/KENN/Explosive removed, EpisodeList real titles or Episode N without title + EP fallback div, DetailModal/Hero no fake, Watch/AnimeDetail legacy frieren mock resolver removed, Home hero no mock fallback (shows error), MyList empty when unauth, no production fake anime on API failure — Phase 7.1
@@ -23,13 +21,15 @@
 - [x] Settings: /settings with Account (AniList/MAL moved from My List), Playback (autoplay/subtitles/volume), Appearance (reduced motion), Data (clear cache/watchPos/reset), About (version/providers/storage), centralized preferences.ts, persists reload, no tokens exposed — Phase 8
 - [x] Video embed: API vs embed separately tested via Playwright from https://fastdemo.github.io origin, X-Frame-Options/CSP checked, no playable source without backend, documented — Phase 8
 - [x] Tests: Playwright 1440/768/375 for all above, tsc/build pass, GH Actions/Pages live — Phase 7.1 + 8
+- [x] Phases 9–13: Episode data integrity (One Piece offset guard, season-aware mapping, cache fixes), Worker architecture (Cloudflare Worker serves frontend + `/api` at same origin, `worker/src/index.ts` + `worker/src/providers.ts` normalized sources), MAL first-class via Worker proxy (`/mal/token`, `/mal/api/*`), real streaming providers (Official Trailer honest YouTube per-anime, Custom endpoint, AniKoto + AnimePahe via Worker), dynamic home feed (Because You Watched weighted random + shuffled rows), navigation reliability + episode integrity — verified, build passing, Pages + Worker live
 
 ## Next
-- [ ] Recommendation engine wiring
+- [x] Recommendation engine: scoring now genre-overlap primary (50×overlap + rating + log(popularity) + recency), filters zero-overlap, Home uses `getRecommendations` for Top Picks + Because You Watched with shuffle sampling — wired and varied per refresh
+- [ ] Tune recommendation diversity (collaborative/embedding) when more history signals available
 
 ## Later
 - [ ] PWA offline shell tuning
-- [ ] a11y + perf audits
+- [ ] a11y + perf audits (Lighthouse >90)
 
 ## Phase 7 Video (static, no backend) — Parked as no-source (Phase 7)
 - [x] VideoProvider abstraction (types `VideoEpisode`/`VideoSourceEnhanced`/`SubtitleTrack`/`ProviderCapabilities`, base cachedFetch, registry fallback)

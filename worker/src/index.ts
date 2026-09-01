@@ -1,6 +1,8 @@
 export interface Env {
   ALLOWED_ORIGIN?: string
   PROXY_ALLOWLIST?: string
+  ANILIST_CLIENT_ID?: string
+  ANILIST_CLIENT_SECRET?: string
   ASSETS?: Fetcher
 }
 
@@ -28,8 +30,8 @@ function corsHeaders(origin: string | null, env: Env) {
   }
   return {
     'Access-Control-Allow-Origin': allowOrigin,
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, Range, Accept',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, Range, Accept, X-MAL-CLIENT-ID',
     'Access-Control-Expose-Headers': 'Content-Length, Content-Range, Accept-Ranges',
     'Access-Control-Max-Age': '86400',
     'Vary': allowAll ? undefined : 'Origin',
@@ -339,6 +341,48 @@ export default {
       }
     }
 
+    // --- AniList token proxy (for Authorization Code flow when Implicit is not available) ---
+    // POST /anilist/token -> https://anilist.co/api/v2/oauth/token
+    if (url.pathname === '/anilist/token' || url.pathname === '/api/anilist/token') {
+      if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405, env, origin)
+      try {
+        let body = await request.text()
+        // If body lacks client_secret but worker has it in env, inject it (allows static frontend to use Code flow without secret)
+        try {
+          const params = new URLSearchParams(body)
+          if (!params.get('client_secret') && env.ANILIST_CLIENT_SECRET) {
+            params.set('client_secret', env.ANILIST_CLIENT_SECRET)
+            body = params.toString()
+          }
+          // Ensure grant_type present
+          if (!params.get('grant_type')) {
+            params.set('grant_type', 'authorization_code')
+            body = params.toString()
+          }
+        } catch {}
+        const upstream = await withTimeout(fetch('https://anilist.co/api/v2/oauth/token', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json',
+            'User-Agent': 'Mozilla/5.0',
+          },
+          body,
+          signal: request.signal,
+        }), 8000, request.signal)
+        const text = await upstream.text()
+        const h = new Headers(cors)
+        if (!h.get('Vary')) h.delete('Vary')
+        const ct = upstream.headers.get('Content-Type') || 'application/json'
+        h.set('Content-Type', ct.includes('json') ? 'application/json' : ct)
+        h.set('Cache-Control', 'no-store')
+        return new Response(text, { status: upstream.status, headers: h })
+      } catch (e) {
+        if ((e as any)?.name === 'AbortError') return json({ error: 'Aborted' }, 499, env, origin)
+        return json({ error: String(e) }, 502, env, origin)
+      }
+    }
+
     // --- MAL proxy (to bypass GH Pages CORS) ---
     // POST /mal/token  ->  https://myanimelist.net/v1/oauth2/token
     if (url.pathname === '/mal/token' || url.pathname === '/api/mal/token') {
@@ -490,6 +534,6 @@ export default {
       } catch {}
     }
 
-    return json({ error: 'Not found', path: url.pathname, available: ['/', '/health', '/api/health', '/api/mal/token', '/api/mal/*', '/api/map/:anilistId', '/api/episodes/:anilistId', '/api/sources/:episodeId?language=sub', '/api/video/*', '/proxy?url='] }, 404, env, origin)
+    return json({ error: 'Not found', path: url.pathname, available: ['/', '/health', '/api/health', '/api/anilist/token', '/api/mal/token', '/api/mal/*', '/api/map/:anilistId', '/api/episodes/:anilistId', '/api/sources/:episodeId?language=sub', '/api/video/*', '/proxy?url='] }, 404, env, origin)
   },
 }

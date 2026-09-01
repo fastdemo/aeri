@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { getAnilistToken, setAnilistToken, clearAnilistToken, isAnilistTokenExpired } from '../storage/anilist'
 import { aniListProvider, type AniListUser } from '../providers/anilist/provider'
-import { handleAnilistOAuthCallback, parseManualToken, beginAnilistOAuth, getRedirectUriForDisplay } from '../services/anilist/auth'
+import { handleAnilistOAuthCallback, handleAnilistCodeCallback, parseManualToken, beginAnilistOAuth, getRedirectUriForDisplay } from '../services/anilist/auth'
 import { ProviderError } from '../services/anilist/errors'
 import { clearAnilistMemoryCache } from '../services/anilist/client'
 import type { AnimeListEntry, AnimeStatus } from '../types/anime'
@@ -116,32 +116,63 @@ export function AniListProvider({ children }: { children: React.ReactNode }) {
 
   // Initial: handle OAuth callback hash, then load if token exists
   useEffect(() => {
-    const handled = handleAnilistOAuthCallback()
-    if (handled) {
-      setToken(handled)
-      // proceed to load
-      loadUser(handled).then(() => loadList(handled)).catch(() => {})
-      return
-    }
-    const existing = getAnilistToken()
-    if (existing) {
-      if (isAnilistTokenExpired()) {
-        setAuthExpired(true)
-        setError('AniList session expired. Please reconnect.')
-        clearAnilistToken()
-        setToken(null)
+    let cancelled = false
+    const run = async () => {
+      try {
+        const handled = handleAnilistOAuthCallback()
+        if (handled) {
+          if (cancelled) return
+          setToken(handled)
+          loadUser(handled).then(() => loadList(handled)).catch(() => {})
+          return
+        }
+      } catch (e) {
+        if (!cancelled) setError(friendly(e))
         return
       }
-      setToken(existing)
-      loadUser(existing).then(() => loadList(existing)).catch(() => {})
+      // Authorization Code flow (?code=) — exchange via worker if implicit didn't handle
+      const hasCode = (() => { try { return new URL(window.location.href).searchParams.has('code') } catch { return false } })()
+      // Only handle code as AniList if we have no MAL verifier/state (otherwise it's a MAL code)
+      const hasMalVerifier = (() => { try { return !!localStorage.getItem('aeri:mal:code_verifier') || !!localStorage.getItem('aeri:mal:oauth_state') } catch { return false } })()
+      if (hasCode && !hasMalVerifier) {
+        try {
+          const tok = await handleAnilistCodeCallback()
+          if (tok && !cancelled) {
+            setToken(tok)
+            loadUser(tok).then(() => loadList(tok)).catch(() => {})
+            return
+          }
+        } catch (e) {
+          if (!cancelled) setError(friendly(e))
+          return
+        }
+      }
+      const existing = getAnilistToken()
+      if (existing) {
+        if (isAnilistTokenExpired()) {
+          if (!cancelled) {
+            setAuthExpired(true)
+            setError('AniList session expired. Please reconnect.')
+          }
+          clearAnilistToken()
+          if (!cancelled) setToken(null)
+          return
+        }
+        if (!cancelled) setToken(existing)
+        loadUser(existing).then(() => loadList(existing)).catch(() => {})
+      }
     }
+    run()
     const onLogout = () => {
       clearAnilistMemoryCache()
       setUser(null)
       setAnimeList(null)
     }
     window.addEventListener('aeri:anilist:logout', onLogout as EventListener)
-    return () => window.removeEventListener('aeri:anilist:logout', onLogout as EventListener)
+    return () => {
+      cancelled = true
+      window.removeEventListener('aeri:anilist:logout', onLogout as EventListener)
+    }
   }, [loadUser, loadList])
 
   const login = useCallback(() => {
