@@ -28,7 +28,7 @@ export class AniKotoProvider implements VideoProvider {
     if (!base || !anime.identity.anilistId) return null
     return cachedFetch(`video:anikoto:resolve:${anime.identity.anilistId}`, async () => {
       try {
-        const res = await fetchWithTimeout(`${base}/map/${anime.identity.anilistId}?provider=anikoto`, {}, 3500)
+        const res = await fetchWithTimeout(`${base}/api/map/${anime.identity.anilistId}?provider=anikoto`, {}, 3500)
         if (!res.ok) return null
         const j: any = await res.json().catch(() => null)
         return j?.providerAnimeId ?? null
@@ -41,7 +41,7 @@ export class AniKotoProvider implements VideoProvider {
     if (!base || !anime.identity.anilistId) return []
     return cachedFetch(`video:anikoto:episodes:${anime.identity.anilistId}`, async () => {
       try {
-        const res = await fetchWithTimeout(`${base}/episodes/${anime.identity.anilistId}?provider=anikoto`, {}, 3500, signal)
+        const res = await fetchWithTimeout(`${base}/api/episodes/${anime.identity.anilistId}?provider=anikoto`, {}, 3500, signal)
         if (!res.ok) return []
         const j: any = await res.json().catch(() => null)
         const list = j?.episodes ?? []
@@ -76,7 +76,7 @@ export class AniKotoProvider implements VideoProvider {
     if (!anilistId) return []
     return cachedFetch(`video:anikoto:sources:${episode.providerEpisodeId}:${lang}`, async () => {
       try {
-        const url = `${base}/sources/anikoto-${anilistId}-${episode.number}?language=${lang}&provider=anikoto`
+        const url = `${base}/api/sources/anikoto-${anilistId}-${episode.number}?language=${lang}&provider=anikoto`
         const res = await fetchWithTimeout(url, {}, 4000, options?.signal)
         if (!res.ok) return []
         const j: any = await res.json().catch(() => null)

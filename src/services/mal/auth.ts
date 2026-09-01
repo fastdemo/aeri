@@ -21,7 +21,11 @@ function getMalWorkerBase(): string | null {
 async function fetchMalTokenWithFallback(body: URLSearchParams): Promise<Response> {
   const workerBase = getMalWorkerBase()
   const urls: string[] = []
-  if (workerBase) urls.push(`${workerBase}/mal/token`)
+  if (workerBase) {
+    // Prefer coherent /api/mal/*, fallback to legacy /mal/* for older workers
+    urls.push(`${workerBase}/api/mal/token`)
+    urls.push(`${workerBase}/mal/token`)
+  }
   urls.push(MAL_TOKEN_URL)
   let lastError: any = null
   for (const url of urls) {

@@ -37,7 +37,7 @@ export class CustomProvider implements VideoProvider {
     if (!anilistId) return null
     return cachedFetch(`video:custom:resolve:${anilistId}`, async () => {
       try {
-        const res = await fetchWithTimeout(`${base}/map/${anilistId}`, {}, 3500)
+        const res = await fetchWithTimeout(`${base}/api/map/${anilistId}`, {}, 3500)
         if (!res.ok) return null
         const json: any = await res.json().catch(() => null)
         const pid = json?.providerAnimeId ?? json?.data?.id ?? json?.id ?? null
@@ -54,7 +54,7 @@ export class CustomProvider implements VideoProvider {
     if (!anilistId) return []
     return cachedFetch(`video:custom:episodes:${anilistId}`, async () => {
       try {
-        const res = await fetchWithTimeout(`${base}/episodes/${anilistId}`, {}, 3500, signal)
+        const res = await fetchWithTimeout(`${base}/api/episodes/${anilistId}`, {}, 3500, signal)
         if (!res.ok) return []
         const json: any = await res.json().catch(() => null)
         const list = json?.episodes ?? json?.data ?? json?.results ?? []
@@ -93,7 +93,7 @@ export class CustomProvider implements VideoProvider {
     if (!anilistId) return []
     return cachedFetch(`video:custom:sources:${episode.providerEpisodeId}:${lang}`, async () => {
       try {
-        const url = `${base}/sources/custom-${anilistId}-${episode.number}?language=${lang}`
+        const url = `${base}/api/sources/custom-${anilistId}-${episode.number}?language=${lang}`
         const res = await fetchWithTimeout(url, {}, 3500, options?.signal)
         if (!res.ok) return []
         const json: any = await res.json().catch(() => null)

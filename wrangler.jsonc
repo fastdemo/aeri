@@ -1,0 +1,26 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "aeri",
+  "main": "worker/src/index.ts",
+  "compatibility_date": "2025-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "dist",
+    "not_found_handling": "single-page-application"
+  },
+  "vars": {
+    "PROXY_ALLOWLIST": "archive.org,ia600200.us.archive.org,test-streams.mux.dev,mux.dev,anikototv.to,www.anikotoapi.site,megaplay.buzz,animepahe.ru,kwik.cx,kwik.si,pahe.win"
+  },
+  "env": {
+    "production": {
+      "vars": {
+        "ALLOWED_ORIGIN": "*"
+      }
+    },
+    "preview": {
+      "vars": {
+        "ALLOWED_ORIGIN": "*"
+      }
+    }
+  }
+}

@@ -27,9 +27,10 @@ function buildMalUrls(path: string): string[] {
     } catch { workerPath = path }
   }
   if (!workerPath.startsWith('/')) workerPath = '/' + workerPath
-  // Ensure worker path is /mal/api/<rest>
-  const workerUrl = `${workerBase}/mal/api${workerPath}`
-  return [workerUrl, direct]
+  // Coherent API is /api/mal/*, keep legacy /mal/api/* as fallback for older workers
+  const workerUrlNew = `${workerBase}/api/mal${workerPath}`
+  const workerUrlLegacy = `${workerBase}/mal/api${workerPath}`
+  return [workerUrlNew, workerUrlLegacy, direct]
 }
 
 type MalErrorCode = 'NETWORK' | 'AUTH' | 'NOT_FOUND' | 'UNKNOWN'

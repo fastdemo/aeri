@@ -1,6 +1,7 @@
 export interface Env {
   ALLOWED_ORIGIN?: string
   PROXY_ALLOWLIST?: string
+  ASSETS?: Fetcher
 }
 
 import {
@@ -165,7 +166,7 @@ export default {
       return new Response(null, { status: 204, headers: h })
     }
 
-    if (url.pathname === '/health' || url.pathname === '/api/health') {
+    if (url.pathname === '/health' || url.pathname === '/api/health' || url.pathname === '/api/video/health') {
       return json({
         status: 'healthy',
         version: '1.0.0',
@@ -175,7 +176,7 @@ export default {
       }, 200, env, origin, { 'Cache-Control': CACHE_CONTROL_HEALTH })
     }
 
-    const mapMatch = url.pathname.match(/^\/(?:api\/)?map\/(\d+)$/)
+    const mapMatch = url.pathname.match(/^\/(?:api\/)?(?:video\/)?map\/(\d+)$/)
     if (mapMatch) {
       const anilistId = Number(mapMatch[1])
       if (!Number.isFinite(anilistId) || anilistId <= 0) return json({ error: 'Invalid anilistId' }, 400, env, origin)
@@ -210,7 +211,7 @@ export default {
       }
     }
 
-    const epMatch = url.pathname.match(/^\/(?:api\/)?episodes\/(\d+)$/)
+    const epMatch = url.pathname.match(/^\/(?:api\/)?(?:video\/)?episodes\/(\d+)$/)
     if (epMatch) {
       const anilistId = Number(epMatch[1])
       if (!Number.isFinite(anilistId) || anilistId <= 0) return json({ error: 'Invalid anilistId' }, 400, env, origin)
@@ -274,7 +275,7 @@ export default {
       }
     }
 
-    const srcMatch = url.pathname.match(/^\/(?:api\/)?(?:sources|watch)\/(.+)$/)
+    const srcMatch = url.pathname.match(/^\/(?:api\/)?(?:video\/)?(?:sources|watch)\/(.+)$/)
     if (srcMatch) {
       const rawPart = srcMatch[1].replace(/^\/+/, '')
       const preferredLanguage = (url.searchParams.get('language') || url.searchParams.get('lang') || url.searchParams.get('preferredLanguage') || 'sub') as VideoLanguage
@@ -445,6 +446,23 @@ export default {
       }
     }
 
-    return json({ error: 'Not found', path: url.pathname, available: ['/health', '/map/:anilistId', '/episodes/:anilistId', '/sources/:episodeId?language=sub&provider=official', '/watch/:provider/:id/:lang/:ep', '/proxy?url='] }, 404, env, origin)
+    // Serve static frontend assets (Vite dist) for all non-API routes
+    // Cloudflare Workers with `assets` will have env.ASSETS available
+    if (env.ASSETS) {
+      try {
+        // Let Cloudflare handle the asset; for SPA, fallback to index.html
+        const assetRes = await env.ASSETS.fetch(request)
+        if (assetRes.status !== 404) return assetRes
+        // SPA fallback: for routes without file extension and not /api, serve index.html
+        if (!url.pathname.includes('.') && !url.pathname.startsWith('/api/') && !url.pathname.startsWith('/health') && !url.pathname.startsWith('/proxy')) {
+          const indexReq = new Request(new URL('/', request.url), request)
+          const indexRes = await env.ASSETS.fetch(indexReq)
+          if (indexRes.status !== 404) return indexRes
+        }
+        return assetRes
+      } catch {}
+    }
+
+    return json({ error: 'Not found', path: url.pathname, available: ['/', '/health', '/api/health', '/api/mal/token', '/api/mal/*', '/api/map/:anilistId', '/api/episodes/:anilistId', '/api/sources/:episodeId?language=sub', '/api/video/*', '/proxy?url='] }, 404, env, origin)
   },
 }

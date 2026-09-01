@@ -7,21 +7,19 @@ import { cachedFetch, fetchWithTimeout } from './base'
 // Returns YouTube embed for the anime's official trailer (anime-specific) + fallback HLS/MP4.
 // No CAPTCHA, no Cloudflare challenge, no DRM. Playable via VideoPlayer (embed + HLS).
 
+import { getEffectiveVideoApiUrl } from '../../storage/preferences'
+
 const WORKER_BASE = (() => {
   try {
-    const v = (import.meta as any).env.VITE_VIDEO_API_URL as string | undefined
-    const base = v?.trim().replace(/\/$/, '') || null
+    const base = getEffectiveVideoApiUrl()?.replace(/\/$/, '') || null
     try { (globalThis as any).__AERI_WORKER_BASE = base } catch {}
     return base
-  } catch {
-    try {
-      const v2 = (import.meta as any)?.env?.VITE_VIDEO_API_URL as string | undefined
-      const base2 = v2?.trim().replace(/\/$/, '') || null
-      try { (globalThis as any).__AERI_WORKER_BASE = base2 } catch {}
-      return base2
-    } catch { return null }
-  }
+  } catch { return null }
 })()
+
+function getWorkerBase(): string | null {
+  try { return getEffectiveVideoApiUrl()?.replace(/\/$/, '') || null } catch { return WORKER_BASE }
+}
 
 export class OfficialProvider implements VideoProvider {
   id = 'official'
@@ -58,8 +56,9 @@ export class OfficialProvider implements VideoProvider {
     if (anilistId) {
       try {
         // Prefer Worker if available for consistency, else browser direct
-        if (WORKER_BASE) {
-          const res = await fetchWithTimeout(`${WORKER_BASE}/episodes/${anilistId}`, {}, 3500, signal)
+        const base = getWorkerBase()
+        if (base) {
+          const res = await fetchWithTimeout(`${base}/api/episodes/${anilistId}`, {}, 3500, signal)
           if (res.ok) {
             const j: any = await res.json().catch(() => null)
             const list = j?.episodes ?? []
@@ -141,9 +140,10 @@ export class OfficialProvider implements VideoProvider {
     }
 
     // Try Worker first if available — it returns YouTube embed + proxied Archive MP4 (playable MP4 via /proxy)
-    if (WORKER_BASE && anilistId) {
+    const workerBaseForSources = getWorkerBase()
+    if (workerBaseForSources && anilistId) {
       try {
-        const url = `${WORKER_BASE}/sources/official-${anilistId}-${episode.number}?language=${lang}`
+        const url = `${workerBaseForSources}/api/sources/official-${anilistId}-${episode.number}?language=${lang}`
         const res = await fetchWithTimeout(url, {}, 4000, signal)
         if (res.ok) {
           const j: any = await res.json().catch(() => null)

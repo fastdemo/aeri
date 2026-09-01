@@ -2,14 +2,8 @@ import type { Anime } from '../../types/anime'
 import type { VideoProvider, VideoEpisode, VideoSourceEnhanced, ProviderCapabilities, ProviderAnimeMatch, SourceOptions } from './types'
 import { cachedFetch, fetchWithTimeout } from './base'
 
-// Miruro / aggregator backend — requires VITE_VIDEO_API_URL to be set
-// Expected to point to a self-hosted MiruroAPI / Anivexa / custom worker that exposes:
-// GET /search?query=naruto
-// GET /map/:anilistId
-// GET /episodes/:anilistId
-// GET /watch/:provider/:anilistId/:ep?language=sub
-// If not configured, this provider is inert and returns no-source (static GH Pages remains tracker-only)
-const API_BASE = (import.meta.env.VITE_VIDEO_API_URL as string | undefined)?.trim().replace(/\/$/, '') || null
+// Miruro / aggregator backend — uses same-origin /api when deployed on Cloudflare, or VITE_VIDEO_API_URL/custom
+import { getEffectiveVideoApiUrl } from '../../storage/preferences'
 
 export class MiruroProvider implements VideoProvider {
   id = 'miruro'
@@ -30,7 +24,7 @@ export class MiruroProvider implements VideoProvider {
   }
 
   private get base(): string | null {
-    return API_BASE
+    return getEffectiveVideoApiUrl()
   }
 
   async resolveAnimeId(anime: Anime): Promise<string | null> {
@@ -45,8 +39,8 @@ export class MiruroProvider implements VideoProvider {
     if (!anilistId) return null
     return cachedFetch(`video:miruro:resolve:${anilistId}`, async () => {
       try {
-        // Try map endpoint first (AniList -> provider)
-        const res = await fetchWithTimeout(`${this.base}/map/${anilistId}`, {}, 3500)
+        // Try map endpoint first (AniList -> provider) — use /api prefix for Cloudflare same-origin
+        const res = await fetchWithTimeout(`${this.base}/api/map/${anilistId}`, {}, 3500)
         if (!res.ok) return null
         const json: any = await res.json().catch(() => null)
         // Support various aggregator shapes: { success, data: { id } } or { providerAnimeId }
@@ -65,7 +59,7 @@ export class MiruroProvider implements VideoProvider {
     if (!anilistId) return []
     return cachedFetch(`video:miruro:episodes:${anilistId}`, async () => {
       try {
-        const res = await fetchWithTimeout(`${this.base}/episodes/${anilistId}`, {}, 3500)
+        const res = await fetchWithTimeout(`${this.base}/api/episodes/${anilistId}`, {}, 3500)
         if (!res.ok) return []
         const json: any = await res.json().catch(() => null)
         const list = json?.episodes ?? json?.data ?? json?.results ?? []
@@ -93,7 +87,7 @@ export class MiruroProvider implements VideoProvider {
     const anilistId = episode.animeId.replace('anilist-', '')
     return cachedFetch(`video:miruro:sources:${episode.providerEpisodeId}:${lang}`, async () => {
       try {
-        const url = `${this.base}/watch/miruro/${anilistId}/${lang}/${episode.number}`
+        const url = `${this.base}/api/watch/miruro/${anilistId}/${lang}/${episode.number}`
         const res = await fetchWithTimeout(url, {}, 3500)
         if (!res.ok) return []
         const json: any = await res.json().catch(() => null)

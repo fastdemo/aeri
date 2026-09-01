@@ -37,8 +37,34 @@ export function getEffectiveVideoApiUrl(): string | null {
     }
     const envUrl = (import.meta as any).env?.VITE_VIDEO_API_URL as string | undefined
     const base = envUrl?.trim().replace(/\/$/, '') || null
-    return base
+    if (base) return base
+    // Same-origin fallback for Cloudflare deployment (frontend + worker on same origin)
+    // When running on Cloudflare (not localhost, not github.io without worker), use same-origin /api
+    try {
+      if (typeof window !== 'undefined') {
+        const host = window.location.hostname
+        const isLocal = host === 'localhost' || host === '127.0.0.1' || host === '::1'
+        const isGithubPages = host.endsWith('github.io')
+        // On Cloudflare (or any non-local, non-GH Pages), same-origin is the worker
+        if (!isLocal && !isGithubPages) {
+          return window.location.origin
+        }
+        // For GH Pages without custom URL, there is no same-origin worker — return null to trigger direct (will be CORS-blocked for MAL, but that's expected)
+        // For local dev without env, also return null to allow direct fetches where possible
+        return null
+      }
+    } catch {}
+    return null
   } catch { return null }
+}
+
+export function getSameOriginApiBase(): string {
+  // Helper for building same-origin API URLs like /api/mal/token
+  // Returns '' for relative (same-origin) or a full origin if needed
+  const base = getEffectiveVideoApiUrl()
+  if (base && base.startsWith('http')) return base
+  // Same-origin relative
+  return ''
 }
 
 export function getPreferences(): Preferences {

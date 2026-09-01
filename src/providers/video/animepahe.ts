@@ -28,7 +28,7 @@ export class AnimePaheProvider implements VideoProvider {
     if (!base || !anime.identity.anilistId) return null
     return cachedFetch(`video:animepahe:resolve:${anime.identity.anilistId}`, async () => {
       try {
-        const res = await fetchWithTimeout(`${base}/map/${anime.identity.anilistId}?provider=animepahe`, {}, 3500)
+        const res = await fetchWithTimeout(`${base}/api/map/${anime.identity.anilistId}?provider=animepahe`, {}, 3500)
         if (!res.ok) return null
         const j: any = await res.json().catch(() => null)
         return j?.providerAnimeId ?? null
@@ -41,7 +41,7 @@ export class AnimePaheProvider implements VideoProvider {
     if (!base || !anime.identity.anilistId) return []
     return cachedFetch(`video:animepahe:episodes:${anime.identity.anilistId}`, async () => {
       try {
-        const res = await fetchWithTimeout(`${base}/episodes/${anime.identity.anilistId}?provider=animepahe`, {}, 3500, signal)
+        const res = await fetchWithTimeout(`${base}/api/episodes/${anime.identity.anilistId}?provider=animepahe`, {}, 3500, signal)
         if (!res.ok) return []
         const j: any = await res.json().catch(() => null)
         const list = j?.episodes ?? []
@@ -71,7 +71,7 @@ export class AnimePaheProvider implements VideoProvider {
     if (!anilistId) return []
     return cachedFetch(`video:animepahe:sources:${episode.providerEpisodeId}:sub`, async () => {
       try {
-        const url = `${base}/sources/animepahe-${anilistId}-${episode.number}?language=sub&provider=animepahe`
+        const url = `${base}/api/sources/animepahe-${anilistId}-${episode.number}?language=sub&provider=animepahe`
         const res = await fetchWithTimeout(url, {}, 5000, options?.signal)
         if (!res.ok) return []
         const j: any = await res.json().catch(() => null)
