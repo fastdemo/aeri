@@ -108,30 +108,15 @@ export function Settings() {
 
   const isAuthenticated = ani.isAuthenticated || mal.isAuthenticated
 
-  if (!isAuthenticated) {
-    return (
-      <div className="mx-auto max-w-[900px] px-4 py-16 sm:px-6 lg:px-12 text-center">
-        <div className="mx-auto max-w-md rounded-2xl border border-white/10 bg-white/[0.02] p-8">
-          <h1 className="text-[18px] font-semibold text-white">Sign in to access Settings</h1>
-          <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-white/60">
-            Settings and account features are available after you connect AniList. Your list, progress, and Continue Watching all sync from there.
-          </p>
-          <button
-            onClick={() => { try { ani.login() } catch {} }}
-            className="mt-6 inline-flex h-9 items-center rounded-full bg-white px-6 text-sm font-semibold text-black hover:bg-white/90"
-          >
-            Sign Up — Connect AniList
-          </button>
-          <p className="mt-4 text-[11px] text-white/30">No backend. No tracking. Your data stays in your browser and AniList.</p>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="mx-auto max-w-[900px] px-4 py-6 sm:px-6 lg:px-12">
       <h1 className="text-[18px] font-semibold tracking-tight text-white">Settings</h1>
       <p className="text-xs text-white/50">Manage accounts, playback, and local data. All settings stay in your browser.</p>
+      {!isAuthenticated && (
+        <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3 flex items-center justify-between gap-3">
+          <p className="text-xs text-white/60">Connect AniList or MyAnimeList to sync your list and enable tracking. Playback preferences work without an account.</p>
+        </div>
+      )}
 
       {/* Account / Connections */}
       <section className="mt-6 rounded-xl border border-white/10 bg-white/[0.02] p-4 sm:p-5">
@@ -168,7 +153,7 @@ export function Settings() {
               <div>
                 <p className="text-xs font-medium text-white">MyAnimeList</p>
                 <p className="text-[11px] text-white/50">
-                  {mal.isAuthenticated && mal.user ? `Connected as ${mal.user.name}` : 'Parked — CORS blocked on GitHub Pages'}
+                  {mal.isAuthenticated && mal.user ? `Connected as ${mal.user.name}` : 'Not connected — via worker when configured'}
                 </p>
               </div>
               {mal.isAuthenticated ? (
@@ -178,7 +163,7 @@ export function Settings() {
               )}
             </div>
             <p className="mt-2 text-[11px] leading-4 text-white/30">
-              MAL requires a backend for OAuth/token due to missing CORS headers (<code className="rounded bg-white/10 px-1 py-0.5">api.myanimelist.net</code>). See <code className="rounded bg-white/10 px-1 py-0.5">docs/MAL_BROWSER_FEASIBILITY.md</code>.
+              MAL works via the same worker as streaming when <code className="rounded bg-white/10 px-1 py-0.5">customVideoApiUrl</code> is set (proxies <code className="rounded bg-white/10 px-1 py-0.5">myanimelist.net</code> + <code className="rounded bg-white/10 px-1 py-0.5">api.myanimelist.net</code> with CORS). Direct browser without a worker is still CORS-blocked. See <code className="rounded bg-white/10 px-1 py-0.5">docs/MAL_BROWSER_FEASIBILITY.md</code>.
             </p>
             {mal.error && <p className="mt-2 text-xs text-amber-200/70">{mal.error}</p>}
           </div>

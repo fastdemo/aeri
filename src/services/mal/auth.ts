@@ -171,36 +171,71 @@ export async function handleMalOAuthCallback(): Promise<string | null> {
   const code = url.searchParams.get('code')
   const state = url.searchParams.get('state')
   const error = url.searchParams.get('error')
+  const errorDesc = url.searchParams.get('error_description')
 
   if (error) {
     clearMalOAuthState()
     clearMalCodeVerifier()
-    throw new Error(`MAL authorization failed: ${error}`)
+    // Clean URL and hand back to HashRouter
+    url.searchParams.delete('code')
+    url.searchParams.delete('state')
+    url.searchParams.delete('error')
+    url.searchParams.delete('error_description')
+    const base = import.meta.env.BASE_URL as string
+    const clean = `${window.location.origin}${base}#/`
+    window.history.replaceState(null, '', clean)
+    throw new Error(`MAL authorization failed: ${error}${errorDesc ? ` — ${errorDesc}` : ''}`)
   }
 
   if (!code) return null
+
+  // Prevent double exchange on reload: if code was already exchanged, clean URL and return existing token
+  const lastCode = (() => { try { return localStorage.getItem('aeri:mal:last_code') } catch { return null } })()
+  if (lastCode === code) {
+    const existing = (() => { try { return localStorage.getItem('aeri:mal:access_token') } catch { return null } })()
+    url.searchParams.delete('code')
+    url.searchParams.delete('state')
+    const base = import.meta.env.BASE_URL as string
+    const clean = `${window.location.origin}${base}#/`
+    window.history.replaceState(null, '', clean)
+    return existing
+  }
 
   const expectedState = getMalOAuthState()
   if (state && expectedState && state !== expectedState) {
     clearMalOAuthState()
     clearMalCodeVerifier()
+    url.searchParams.delete('code')
+    url.searchParams.delete('state')
+    const base = import.meta.env.BASE_URL as string
+    const clean = `${window.location.origin}${base}#/`
+    window.history.replaceState(null, '', clean)
     throw new Error('MAL state mismatch — possible CSRF. Try again.')
   }
 
   const verifier = getMalCodeVerifier()
-  if (!verifier) throw new Error('MAL code verifier missing. Try login again.')
+  if (!verifier) {
+    url.searchParams.delete('code')
+    url.searchParams.delete('state')
+    const base = import.meta.env.BASE_URL as string
+    const clean = `${window.location.origin}${base}#/`
+    window.history.replaceState(null, '', clean)
+    throw new Error('MAL code verifier missing. Try login again.')
+  }
 
-  // Exchange
+  // Exchange (via worker if configured, else direct)
   const tokenRes = await exchangeMalCodeForToken(code, verifier)
   setMalTokens(tokenRes.access_token, tokenRes.refresh_token ?? null, tokenRes.expires_in)
+  try { localStorage.setItem('aeri:mal:last_code', code) } catch {}
 
-  // Clean URL: remove code/state, preserve hash route
+  // Clean URL and hand back to HashRouter
   clearMalOAuthState()
   clearMalCodeVerifier()
   url.searchParams.delete('code')
   url.searchParams.delete('state')
-  // Also remove PKCE leftovers if any
-  window.history.replaceState(null, '', url.toString())
+  const base = import.meta.env.BASE_URL as string
+  const clean = `${window.location.origin}${base}#/`
+  window.history.replaceState(null, '', clean)
   return tokenRes.access_token
 }
 
