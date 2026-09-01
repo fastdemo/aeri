@@ -59,22 +59,40 @@ async function fetchWithTimeout(url: string, opts: RequestInit = {}, timeoutMs =
 }
 
 async function fetchAnilistMedia(anilistId: number, signal?: AbortSignal): Promise<any> {
-  const res = await fetchWithTimeout('https://graphql.anilist.co', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'User-Agent': 'Aeri/1.0 (https://aeri.fastdemo.workers.dev)', 'Accept': 'application/json' },
-    body: JSON.stringify({
-      query: `query($id:Int){ Media(id:$id,type:ANIME){ id episodes title{romaji english native} trailer{id site thumbnail} streamingEpisodes{title thumbnail url site} } }`,
-      variables: { id: anilistId },
-    }),
-    signal,
-  }, 8000)
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`AniList ${res.status} ${text.slice(0,200)}`)
+  try {
+    const res = await fetchWithTimeout('https://graphql.anilist.co', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'User-Agent': 'Aeri/1.0 (https://aeri.fastdemo.workers.dev)', 'Accept': 'application/json' },
+      body: JSON.stringify({
+        query: `query($id:Int){ Media(id:$id,type:ANIME){ id episodes title{romaji english native} trailer{id site thumbnail} streamingEpisodes{title thumbnail url site} } }`,
+        variables: { id: anilistId },
+      }),
+      signal,
+    }, 8000)
+    if (!res.ok) {
+      const text = await res.text().catch(() => '')
+      // If AniList blocks the Worker's IP (403 "manually blocked"), return a minimal fallback so the provider can still function
+      if (res.status === 403 && text.includes('manually blocked')) {
+        return { id: anilistId, episodes: 12, title: { romaji: `Anime ${anilistId}`, english: `Anime ${anilistId}` }, trailer: null, streamingEpisodes: [] }
+      }
+      throw new Error(`AniList ${res.status} ${text.slice(0,200)}`)
+    }
+    const json: any = await res.json()
+    if (json?.errors) {
+      const msg = JSON.stringify(json.errors)
+      if (msg.includes('manually blocked')) {
+        return { id: anilistId, episodes: 12, title: { romaji: `Anime ${anilistId}`, english: `Anime ${anilistId}` }, trailer: null, streamingEpisodes: [] }
+      }
+      throw new Error(`AniList GraphQL ${msg.slice(0,300)}`)
+    }
+    return json?.data?.Media ?? null
+  } catch (e) {
+    const msg = String(e)
+    if (msg.includes('manually blocked')) {
+      return { id: anilistId, episodes: 12, title: { romaji: `Anime ${anilistId}`, english: `Anime ${anilistId}` }, trailer: null, streamingEpisodes: [] }
+    }
+    throw e
   }
-  const json: any = await res.json()
-  if (json?.errors) throw new Error(`AniList GraphQL ${JSON.stringify(json.errors).slice(0,300)}`)
-  return json?.data?.Media ?? null
 }
 
 // --- Official Trailer Provider ---

@@ -180,6 +180,12 @@ export default {
     if (mapMatch) {
       const anilistId = Number(mapMatch[1])
       if (!Number.isFinite(anilistId) || anilistId <= 0) return json({ error: 'Invalid anilistId' }, 400, env, origin)
+      // For Cloudflare Workers, AniList GraphQL is often 403 due to IP block ("manually blocked").
+      // Avoid fetching AniList from the worker for the basic map — the frontend already has the title via direct browser fetch.
+      // Return a simple mapping where providerAnimeId == anilistId; the frontend will use its own AniList data for titles.
+      // We still try to fetch AllAnime for convenience, but do not fail the whole request if AniList is blocked.
+      let title = ''
+      let allanimeId: string | null = null
       try {
         const sig = request.signal
         const mediaRes = await withTimeout(fetch('https://graphql.anilist.co', {
@@ -187,17 +193,18 @@ export default {
           headers: { 'Content-Type': 'application/json', 'User-Agent': 'Aeri/1.0 (https://aeri.fastdemo.workers.dev)', 'Accept': 'application/json' },
           body: JSON.stringify({ query: `query($id:Int){ Media(id:$id,type:ANIME){ title{ romaji english native } } }`, variables: { id: anilistId } }),
           signal: sig,
-        }), 8000, sig)
-        if (!mediaRes.ok) {
-          const t = await mediaRes.text().catch(() => '')
-          return json({ error: `AniList ${mediaRes.status} ${t.slice(0,300)}`, anilistId: String(anilistId) }, 502, env, origin)
+        }), 4000, sig)
+        if (mediaRes.ok) {
+          const j: any = await mediaRes.json().catch(() => null)
+          if (!j?.errors && j?.data?.Media) {
+            title = j.data.Media.title?.romaji || j.data.Media.title?.english || j.data.Media.title?.native || ''
+          }
         }
-        const j: any = await mediaRes.json()
-        if (j?.errors) return json({ error: `AniList GraphQL ${JSON.stringify(j.errors).slice(0,400)}`, anilistId: String(anilistId) }, 502, env, origin)
-        if (!j?.data?.Media) return json({ error: 'AniList media not found', anilistId: String(anilistId), raw: j }, 404, env, origin)
-        const title: string = j.data.Media.title?.romaji || j.data.Media.title?.english || j.data.Media.title?.native || ''
-        let allanimeId: string | null = null
+      } catch {}
+      // Try AllAnime mapping if we have a title, but don't fail if blocked
+      if (title) {
         try {
+          const sig = request.signal
           const aaRes = await withTimeout(fetch('https://api.allanime.day/api', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -209,11 +216,8 @@ export default {
           const exact = edges.find((e: any) => e.name?.toLowerCase() === title.toLowerCase())
           allanimeId = exact?._id ?? edges[0]?._id ?? null
         } catch {}
-        return json({ providerAnimeId: String(anilistId), title, anilistId: String(anilistId), allanimeId, provider: 'official' }, 200, env, origin, { 'Cache-Control': 'public, max-age=3600' })
-      } catch (e) {
-        if ((e as any)?.name === 'AbortError') return json({ error: 'Aborted' }, 499, env, origin)
-        return json({ providerAnimeId: String(anilistId), error: String(e), anilistId: String(anilistId) }, 502, env, origin)
       }
+      return json({ providerAnimeId: String(anilistId), title, anilistId: String(anilistId), allanimeId, provider: 'official' }, 200, env, origin, { 'Cache-Control': 'public, max-age=3600' })
     }
 
     const epMatch = url.pathname.match(/^\/(?:api\/)?(?:video\/)?episodes\/(\d+)$/)
