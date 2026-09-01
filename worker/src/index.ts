@@ -184,12 +184,17 @@ export default {
         const sig = request.signal
         const mediaRes = await withTimeout(fetch('https://graphql.anilist.co', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'User-Agent': 'Aeri/1.0 (https://aeri.fastdemo.workers.dev)', 'Accept': 'application/json' },
           body: JSON.stringify({ query: `query($id:Int){ Media(id:$id,type:ANIME){ title{ romaji english native } } }`, variables: { id: anilistId } }),
           signal: sig,
-        }), 4000, sig)
+        }), 8000, sig)
+        if (!mediaRes.ok) {
+          const t = await mediaRes.text().catch(() => '')
+          return json({ error: `AniList ${mediaRes.status} ${t.slice(0,300)}`, anilistId: String(anilistId) }, 502, env, origin)
+        }
         const j: any = await mediaRes.json()
-        if (!j?.data?.Media) return json({ error: 'AniList media not found', anilistId: String(anilistId) }, 404, env, origin)
+        if (j?.errors) return json({ error: `AniList GraphQL ${JSON.stringify(j.errors).slice(0,400)}`, anilistId: String(anilistId) }, 502, env, origin)
+        if (!j?.data?.Media) return json({ error: 'AniList media not found', anilistId: String(anilistId), raw: j }, 404, env, origin)
         const title: string = j.data.Media.title?.romaji || j.data.Media.title?.english || j.data.Media.title?.native || ''
         let allanimeId: string | null = null
         try {
