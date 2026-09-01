@@ -476,3 +476,4 @@ export function formatEpisodeLabel(
   const displayEp = getDisplayEpisodeNumber(anime, localEp, group ?? null, seasonIdx ?? null)
   return `S${seasonNumber}:E${displayEp}`
 }
+// trigger rebuild Tue Sep  1 15:41:15 +07 2026
