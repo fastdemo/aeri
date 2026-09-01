@@ -2,6 +2,35 @@ import { getMalToken, getMalRefreshToken, setMalTokens, clearMalTokens, isMalTok
 import { refreshMalToken } from './auth'
 import { getCache, putCache } from '../../storage/db'
 import { MAL_API_BASE } from '../../lib/malConfig'
+import { getEffectiveVideoApiUrl } from '../../storage/preferences'
+
+function getMalWorkerBase(): string | null {
+  try {
+    const base = getEffectiveVideoApiUrl()
+    return base ? base.replace(/\/$/, '') : null
+  } catch { return null }
+}
+
+function buildMalUrls(path: string): string[] {
+  const direct = path.startsWith('http') ? path : `${MAL_API_BASE}${path}`
+  const workerBase = getMalWorkerBase()
+  if (!workerBase) return [direct]
+  // Worker expects /mal/api/<path without leading domain>
+  // path is like /users/@me?fields=...  or https://api.myanimelist.net/v2/...
+  let workerPath = path
+  if (workerPath.startsWith('http')) {
+    try {
+      const u = new URL(workerPath)
+      // strip /v2 prefix if present
+      workerPath = u.pathname.replace(/^\/v2\//, '/').replace(/^\//, '/') + u.search
+      if (!workerPath.startsWith('/')) workerPath = '/' + workerPath
+    } catch { workerPath = path }
+  }
+  if (!workerPath.startsWith('/')) workerPath = '/' + workerPath
+  // Ensure worker path is /mal/api/<rest>
+  const workerUrl = `${workerBase}/mal/api${workerPath}`
+  return [workerUrl, direct]
+}
 
 type MalErrorCode = 'NETWORK' | 'AUTH' | 'NOT_FOUND' | 'UNKNOWN'
 export class MalProviderError extends Error {
@@ -73,28 +102,48 @@ export async function malFetch<T>(path: string, opts: RequestInit & { cacheKey?:
     }
     if (token) headers['Authorization'] = `Bearer ${token}`
 
-    let res: Response
-    try {
-      const ctrl = new AbortController()
-      const tid = setTimeout(() => ctrl.abort(), 8000)
-      const sig = (opts as any).signal
-      if (sig) {
-        if (sig.aborted) ctrl.abort((sig as any).reason)
-        else sig.addEventListener('abort', () => ctrl.abort((sig as any).reason), { once: true })
-      }
+    const urls = buildMalUrls(path)
+
+    let res: Response | null = null
+    let lastError: any = null
+    for (const tryUrl of urls) {
       try {
-        res = await fetch(url, { ...opts, method, headers, signal: ctrl.signal })
-      } finally { clearTimeout(tid) }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      if (/Failed to fetch|NetworkError|Load failed|CORS/i.test(msg) || /CORS/i.test(String(e))) {
-        throw new MalProviderError(
-          'NETWORK',
-          'MyAnimeList blocked the request (CORS). Aeri runs on GitHub Pages with no backend, and the MAL API (api.myanimelist.net / myanimelist.net/v1/oauth2) does not send CORS headers for browser fetches. The token and REST calls will fail from this origin — this is a MAL API limitation for static sites. Your AniList sync still works.',
-          false
-        )
+        const ctrl = new AbortController()
+        const tid = setTimeout(() => ctrl.abort(), 8000)
+        const sig = (opts as any).signal
+        if (sig) {
+          if (sig.aborted) ctrl.abort((sig as any).reason)
+          else sig.addEventListener('abort', () => ctrl.abort((sig as any).reason), { once: true })
+        }
+        try {
+          // For worker we need to ensure path is correctly prefixed; for direct we use original url
+          res = await fetch(tryUrl, { ...opts, method, headers, signal: ctrl.signal })
+        } finally { clearTimeout(tid) }
+        // If we got a response, even 4xx, we stop trying (worker gave us a real response with CORS)
+        break
+      } catch (e) {
+        lastError = e
+        const msg = e instanceof Error ? e.message : String(e)
+        const isCors = /Failed to fetch|NetworkError|Load failed|CORS/i.test(msg) || /CORS/i.test(String(e))
+        const isAbort = (e as any)?.name === 'AbortError'
+        if (isCors && !isAbort && tryUrl !== urls[urls.length - 1]) {
+          // try next URL (worker -> direct)
+          continue
+        }
+        if (isAbort) throw new MalProviderError('NETWORK', 'MyAnimeList request timed out after 8s', true)
+        if (isCors) {
+          throw new MalProviderError(
+            'NETWORK',
+            'MyAnimeList blocked the request (CORS). Configure a worker via Settings → Playback Sources → Custom video endpoint (same worker proxies MAL), or test from a non-GH Pages origin. AniList still works as it sends CORS headers.',
+            false
+          )
+        }
+        throw new MalProviderError('NETWORK', 'Couldn’t reach MyAnimeList. Check your connection.', true)
       }
-      throw new MalProviderError('NETWORK', 'Couldn’t reach MyAnimeList. Check your connection.', true)
+    }
+    if (!res) {
+      if (lastError) throw lastError
+      throw new MalProviderError('NETWORK', 'Couldn’t reach MyAnimeList.', true)
     }
 
     const text = await res.text()

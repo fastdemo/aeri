@@ -323,6 +323,80 @@ export default {
       return json({ sources: [], episodeId, language, tried, anilistId: String(anilistId), episode: episodeNum }, 200, env, origin, { 'Cache-Control': CACHE_CONTROL_SOURCES })
     }
 
+    // --- MAL proxy (to bypass GH Pages CORS) ---
+    // POST /mal/token  ->  https://myanimelist.net/v1/oauth2/token
+    if (url.pathname === '/mal/token' || url.pathname === '/api/mal/token') {
+      if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405, env, origin)
+      try {
+        const body = await request.text()
+        const upstream = await withTimeout(fetch('https://myanimelist.net/v1/oauth2/token', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json',
+            'User-Agent': 'Mozilla/5.0',
+          },
+          body,
+          signal: request.signal,
+        }), 8000, request.signal)
+        const text = await upstream.text()
+        const h = new Headers(cors)
+        if (!h.get('Vary')) h.delete('Vary')
+        const ct = upstream.headers.get('Content-Type') || 'application/json'
+        h.set('Content-Type', ct.includes('json') ? 'application/json' : ct)
+        h.set('Cache-Control', 'no-store')
+        return new Response(text, { status: upstream.status, headers: h })
+      } catch (e) {
+        if ((e as any)?.name === 'AbortError') return json({ error: 'Aborted' }, 499, env, origin)
+        return json({ error: String(e) }, 502, env, origin)
+      }
+    }
+
+    // GET/PUT /mal/api/*  ->  https://api.myanimelist.net/v2/*
+    // also /api/mal/* for compatibility
+    const malApiMatch = url.pathname.match(/^\/(?:mal\/api|api\/mal)\/(.*)$/)
+    if (malApiMatch) {
+      const malPath = malApiMatch[1]
+      const target = `https://api.myanimelist.net/v2/${malPath}${url.search}`
+      // Forward method, auth, and body
+      const method = request.method
+      if (!['GET','PUT','PATCH','POST','DELETE','OPTIONS'].includes(method)) return json({ error: 'Method not allowed' }, 405, env, origin)
+      try {
+        const headers: Record<string,string> = {
+          'Accept': 'application/json',
+          'User-Agent': 'Mozilla/5.0',
+        }
+        const auth = request.headers.get('Authorization')
+        if (auth) headers['Authorization'] = auth
+        const xMal = request.headers.get('X-MAL-CLIENT-ID')
+        if (xMal) headers['X-MAL-CLIENT-ID'] = xMal
+        // For PUT/POST with form body, forward content-type and body
+        let body: string | undefined
+        if (method === 'PUT' || method === 'POST' || method === 'PATCH') {
+          const ct = request.headers.get('Content-Type') || ''
+          if (ct) headers['Content-Type'] = ct
+          body = await request.text()
+        }
+        const upstream = await withTimeout(fetch(target, {
+          method,
+          headers,
+          body,
+          signal: request.signal,
+        }), 8000, request.signal)
+        const text = await upstream.text()
+        const h = new Headers(cors)
+        if (!h.get('Vary')) h.delete('Vary')
+        const ct = upstream.headers.get('Content-Type') || 'application/json'
+        h.set('Content-Type', ct.includes('json') ? 'application/json' : ct)
+        // Pass through rate limit / auth headers for debugging if needed
+        h.set('Cache-Control', upstream.headers.get('Cache-Control') || 'no-store')
+        return new Response(text, { status: upstream.status, headers: h })
+      } catch (e) {
+        if ((e as any)?.name === 'AbortError') return json({ error: 'Aborted' }, 499, env, origin)
+        return json({ error: String(e) }, 502, env, origin)
+      }
+    }
+
     if (url.pathname === '/proxy' || url.pathname === '/api/proxy') {
       const target = url.searchParams.get('url')
       if (!target) return json({ error: 'Missing url' }, 400, env, origin)

@@ -144,7 +144,45 @@ Seanime was reviewed specifically for **streaming** (torrent intentionally exclu
 3. **Keep official embeds as the zero-backend path** (Seanime does not prioritize this, but for Aeri it is the only no-worker legitimate option). Expand `src/providers/video/official.ts` only with licensor-permitted iframe URLs.
 4. **Do not reintroduce browser-scraped providers.** They are fragile (upstream HTML changes) and CORS-blocked — exactly why Seanime runs them server-side.
 
-## 6. Next steps if playback is pursued later
+## 6. Aeri implementation — MAL + Streaming + Because You Watched (live)
+
+### MAL — first-class via worker
+
+MAL is CORS-blocked on `https://fastdemo.github.io` for all `myanimelist.net` and `api.myanimelist.net` fetches (see `docs/MAL_BROWSER_FEASIBILITY.md`). The fix is a **worker proxy**, not a browser hack:
+
+* **Worker:** `worker/src/index.ts` now proxies `POST /mal/token` → `https://myanimelist.net/v1/oauth2/token` and `GET|PUT /mal/api/*` → `https://api.myanimelist.net/v2/*`, forwarding `Authorization`, `X-MAL-CLIENT-ID`, `Content-Type` and body, returning `Access-Control-Allow-Origin` for `https://fastdemo.github.io` (or `*` in preview). The worker is the same `VITE_VIDEO_API_URL` / `customVideoApiUrl` used for streaming, so one URL configures both.
+* **Frontend:** `src/services/mal/auth.ts:fetchMalTokenWithFallback` and `src/services/mal/client.ts:buildMalUrls` try the worker first (`${workerBase}/mal/token`, `${workerBase}/mal/api/...`) then fall back to direct `https://myanimelist.net` / `https://api.myanimelist.net`. When a worker is configured, token exchange, refresh, `GET /users/@me`, `GET /users/@me/animelist`, `GET /anime/:id`, `PUT /anime/:id/my_list_status` all succeed with CORS.
+* **Identity:** `src/services/anilist/mapper.ts` sets `malId = idMal` on every AniList `Anime`; `src/providers/mal/provider.ts` + `src/lib/identity.ts:matchIdentity` and `src/contexts/TrackingContext.tsx:dedupAndMerge` key on `mal-${malId}` so an AniList entry and its MAL counterpart dedup correctly. Title fallback via `getFranchiseTitle` is not needed for mapping because `idMal` is authoritative, but the UI still uses `getFranchiseTitle` for display dedup (Continue Watching franchise merging).
+* **Episode mapping:** All MAL `Anime` objects flow through the same smart episode system (`src/lib/episodes.ts:getDisplayEpisodeNumber` / `getLocalEpisodeNumber` / `getNumberingOffsetAndMode`). Watch uses `localEpNum` for `PUT /my_list_status {num_watched_episodes}` and `displayEpNum` for UI (`S2:E14`), so restarting vs continuing seasons work for MAL as well.
+* **Tracking fan-out:** `src/contexts/TrackingContext.tsx:updateProgress|Status|Rating` still fans out to both AniList and MAL when authenticated, but `src/services/mal/client.ts` now deduplicates via `inflight` and `memoryCache`, and `TrackingContext` uses `Promise.allSettled` with per-provider `catch(()=>{})` so a MAL 404/401 does not roll back AniList. No duplicate writes beyond the intentional dual-sync.
+* **UI:** `src/pages/MyList.tsx` + `src/pages/Settings.tsx` already show `12 titles • AniList` vs `• MAL` vs `• AniList • MAL`, handle `authExpired`, `loading`, empty list, and manual token fallback. No fake data.
+
+### Streaming — real provider + player
+
+Aeri keeps the `VideoProvider` abstraction from `src/providers/video/types.ts` and `registry.ts`, now backed by the worker:
+
+* **Contract (worker):**
+  ```
+  GET /health -> { status, providers[] }
+  GET /map/:anilistId -> { providerAnimeId, title }
+  GET /episodes/:anilistId[?provider=animepahe] -> { episodes: [{ id, number, title, thumbnail, provider, providerEpisodeId }], count }
+  GET /sources/:episodeId?language=sub|dub&provider=... -> { sources: [{ url, type: 'hls'|'mp4'|'embed', quality, provider, language, embed, subtitles[], headers }], tried[] }
+  GET /watch/:provider/:anilistId/:lang/:episode -> same as /sources (compat)
+  GET /proxy?url= -> CORS proxy for HLS segments / subtitles (allowlist)
+  ```
+  The worker implements `VideoSourceProvider` per `worker/src/providers.ts` (Official Trailer + Demo HLS + stubs that document viability). `DemoProvider` returns `https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8` for any `anilistId`, so the player is verifiably HLS-capable even without a real upstream.
+
+* **Frontend registry:** `src/providers/video/registry.ts:resolveEpisodesWithFallback` and `resolveSourcesWithFallback` race `getEnabledProviders()` (ordered by `preferences.providerOrder`) with 4s timeout, try preferred provider first then parallel fallback, return `tried[]` for UI. `base.ts:cachedFetch` memoizes with IDB 1h and `providerId` 5m negative cache.
+
+* **Player:** `src/components/player/VideoPlayer.tsx` handles `isHlsSource` via lazy `hls.js` (worker `enableWorker:true`, fallback to native `canPlayType` on Safari), `crossOrigin="anonymous"` only when subtitles need it, `volume`/`autoplay`/`initialTime` from `preferences`, `track` elements for `subtitles`, `play/pause/seek/fullscreen` via native controls, `onTimeUpdate` throttled 5s `putWatchPos` + `>92%` `updateProgress`, `onEnded` `clearWatchPos` + autoplay next.
+
+* **Watch page:** `src/pages/Watch.tsx` is now a streaming interface, not a placeholder. It resolves `sanitizedAnimeForWatch` + `seriesGroup` + `numberingCtx` (`getNumberingOffsetAndMode`) to compute `effectiveSeasonNumber` and `displayEpNum`/`localEpNum`, shows `S:E` in top bar and title, `prev/next` via `getDisplayEpisodeNumber`, episode grid with `S:E` labels, source selector + SUB/DUB toggle, `Finding…` / `Tried:` / `Retry` (bypassCache) / `Change source` → `/settings`, `No playable source` when `tried` exhausted, and local `watchPos` resume.
+
+### Because You Watched — weighted random
+
+`src/pages/Home.tsx:becauseContext` now scores each `combinedList` entry by `statusWeight * scoreWeight * ratingWeight * popularityWeight * recencyWeight * availabilityWeight * poolBoost`, filters to those with `overlapCount >=2` (can actually recommend), takes top 10, then weighted random pick via `Math.random()*total`. `becauseRecommendations` takes `getRecommendations(refGenres, candidates)` top 16 then `shuffle` sample 8, so both reference and lineup vary on refresh while staying genre-relevant and never including `listIds` duplicates.
+
+## 7. Next steps if playback is pursued later
 
 * Finalize `worker/src/providers.ts` licensed mapping (negotiate embed rights or use only APIs that explicitly permit browser use).
 * Add `GET /captions/:episodeId` to the worker for `SubtitleTrack` support (already typed in `VideoSourceEnhanced`).

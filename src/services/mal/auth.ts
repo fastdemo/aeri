@@ -9,6 +9,50 @@ import {
   setMalTokens,
   clearMalTokens,
 } from '../../storage/mal'
+import { getEffectiveVideoApiUrl } from '../../storage/preferences'
+
+function getMalWorkerBase(): string | null {
+  try {
+    const base = getEffectiveVideoApiUrl()
+    return base ? base.replace(/\/$/, '') : null
+  } catch { return null }
+}
+
+async function fetchMalTokenWithFallback(body: URLSearchParams): Promise<Response> {
+  const workerBase = getMalWorkerBase()
+  const urls: string[] = []
+  if (workerBase) urls.push(`${workerBase}/mal/token`)
+  urls.push(MAL_TOKEN_URL)
+  let lastError: any = null
+  for (const url of urls) {
+    try {
+      const ctrl = new AbortController()
+      const tid = setTimeout(() => ctrl.abort(), 8000)
+      try {
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            Accept: 'application/json',
+          },
+          body: body.toString(),
+          signal: ctrl.signal,
+        })
+        return res
+      } finally { clearTimeout(tid) }
+    } catch (e) {
+      lastError = e
+      const msg = e instanceof Error ? e.message : String(e)
+      const isCors = /Failed to fetch|NetworkError|Load failed|CORS/i.test(msg)
+      const isAbort = (e as any)?.name === 'AbortError'
+      // If CORS and we have a fallback URL, try next
+      if (isCors && !isAbort) continue
+      if (isAbort) throw new Error('MyAnimeList request timed out after 8s')
+      throw e
+    }
+  }
+  throw lastError ?? new Error('MAL token request failed')
+}
 
 function base64UrlEncode(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer)
@@ -73,25 +117,12 @@ export async function exchangeMalCodeForToken(code: string, verifier: string): P
 
   let res: Response
   try {
-    const ctrl = new AbortController()
-    const tid = setTimeout(() => ctrl.abort(), 8000)
-    try {
-      res = await fetch(MAL_TOKEN_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          Accept: 'application/json',
-        },
-        body: body.toString(),
-        signal: ctrl.signal,
-      })
-    } finally { clearTimeout(tid) }
+    res = await fetchMalTokenWithFallback(body)
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
-    if ((e as any)?.name === 'AbortError') throw new Error('MyAnimeList request timed out after 8s')
     if (/Failed to fetch|NetworkError|Load failed|CORS/i.test(msg)) {
       throw new Error(
-        'MyAnimeList blocked the token request (CORS). Aeri is a static GitHub Pages site with no backend, and MAL’s OAuth endpoint does not allow browser fetches from this origin. This is a MAL API limitation, not an Aeri bug.'
+        'MyAnimeList blocked the token request (CORS). Configure a worker via Settings → Playback Sources → Custom video endpoint (same worker proxies MAL), or use a browser with disabled CORS for testing. This is a MAL API limitation for static GH Pages.'
       )
     }
     throw e
@@ -100,6 +131,10 @@ export async function exchangeMalCodeForToken(code: string, verifier: string): P
   const json = await res.json().catch(() => null)
   if (!res.ok || json?.error) {
     const msg = json?.error_description || json?.error || json?.message || res.statusText
+    // If S256 is rejected, the error often mentions plain — surface clearly
+    if (/code_challenge|plain/i.test(String(msg))) {
+      throw new Error(`MAL token exchange failed: ${msg} — check that your MAL app allows PKCE S256 (or use worker proxy).`)
+    }
     throw new Error(msg || `MAL token exchange failed (${res.status})`)
   }
   return json
@@ -113,25 +148,12 @@ export async function refreshMalToken(refreshToken: string): Promise<{ access_to
 
   let res: Response
   try {
-    const ctrl = new AbortController()
-    const tid = setTimeout(() => ctrl.abort(), 8000)
-    try {
-      res = await fetch(MAL_TOKEN_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          Accept: 'application/json',
-        },
-        body: body.toString(),
-        signal: ctrl.signal,
-      })
-    } finally { clearTimeout(tid) }
+    res = await fetchMalTokenWithFallback(body)
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
-    if ((e as any)?.name === 'AbortError') throw new Error('MyAnimeList request timed out after 8s')
     if (/Failed to fetch|NetworkError|Load failed|CORS/i.test(msg)) {
       throw new Error(
-        'MyAnimeList blocked the refresh request (CORS). Aeri is static-only (no backend) and MAL’s endpoint does not allow browser fetches from GitHub Pages.'
+        'MyAnimeList blocked the refresh request (CORS). Configure a worker (Settings → customVideoApiUrl) to proxy MAL, or reconnect.'
       )
     }
     throw e

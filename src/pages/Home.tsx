@@ -188,28 +188,43 @@ export function Home() {
     ])
   }, [trending.data, popular.data, airing.data, news.data])
 
-  // --- Personalized: "Because you watched X" — real history, varied ---
+  // --- Personalized: "Because you watched X" — real history, weighted random ---
   const becauseContext = useMemo(() => {
-    if (!isAuthenticated || !combinedList || !combinedList.length) return null
-    // pick most meaningful completed/watching as reference
-    const candidates = [...combinedList]
-    // prefer completed with highest score, then watching with highest progress, then any with rating
-    const completed = candidates.filter(e => e.status === 'completed')
-    const sortedCompleted = [...completed].sort((a,b) => (b.score ?? 0) - (a.score ?? 0) || (b.anime.rating ?? 0) - (a.anime.rating ?? 0))
-    let ref = sortedCompleted[0]
-    if (!ref) {
-      const watching = candidates.filter(e => e.status === 'watching')
-      const sortedWatching = [...watching].sort((a,b) => b.progress - a.progress || (b.anime.rating ?? 0) - (a.anime.rating ?? 0))
-      ref = sortedWatching[0]
+    if (!isAuthenticated || !combinedList || !combinedList.length || !allPool.length) return null
+    // Build suitable candidates: those with genres and at least a few recommendable titles
+    const listIds = new Set(combinedList.map(e => e.anime.identity.internalId))
+    const poolIds = new Set(allPool.map(a => a.identity.internalId))
+    // Filter to entries that could actually generate recommendations (at least 5 candidates share a genre and not in list)
+    const scored = combinedList
+      .filter(e => e.anime.genres?.length)
+      .map(e => {
+        const statusWeight = e.status === 'watching' ? 4 : e.status === 'completed' ? 3 : e.status === 'planned' ? 0.5 : 1
+        const scoreWeight = ((e.score ?? 5) / 10) + 0.6 // 0.6..1.6
+        const ratingWeight = ((e.anime.rating ?? 7) / 10) + 0.6
+        const popularityWeight = e.anime.popularity ? Math.min(1.2, Math.log10(e.anime.popularity + 10) / 5) + 0.5 : 0.8
+        // How much useful recommendation data exists for this title (genre overlap with pool not in list)
+        const overlapCount = allPool.filter(a => !listIds.has(a.identity.internalId) && a.genres.some(g => e.anime.genres.includes(g))).length
+        const recencyWeight = e.status === 'watching' ? 1.1 + Math.min(0.4, e.progress / 24) : 1
+        const availabilityWeight = overlapCount >= 8 ? 1.3 : overlapCount >= 4 ? 1.0 : overlapCount >= 2 ? 0.6 : 0.3
+        // Slight boost for recently relevant: if anime is in poolIds (trending/popular) it is more recognizable
+        const poolBoost = poolIds.has(e.anime.identity.internalId) ? 1.1 : 1
+        const weight = statusWeight * scoreWeight * ratingWeight * popularityWeight * recencyWeight * availabilityWeight * poolBoost
+        return { entry: e, weight, overlapCount }
+      })
+      .filter(x => x.overlapCount >= 2) // need at least 2 to make a row
+      .sort((a,b) => b.weight - a.weight)
+
+    if (!scored.length) return null
+    // Take top 10 most suitable, then weighted random pick among them for variety
+    const top = scored.slice(0, 10)
+    const total = top.reduce((s, x) => s + x.weight, 0)
+    let r = Math.random() * total
+    for (const x of top) {
+      r -= x.weight
+      if (r <= 0) return x.entry
     }
-    if (!ref) {
-      // fallback: highest rated in list
-      const sortedAll = [...candidates].sort((a,b) => (b.anime.rating ?? 0) - (a.anime.rating ?? 0))
-      ref = sortedAll[0]
-    }
-    if (!ref || !ref.anime.genres?.length) return null
-    return ref
-  }, [isAuthenticated, combinedList])
+    return top[0]?.entry ?? null
+  }, [isAuthenticated, combinedList, allPool])
 
   const becauseRecommendations = useMemo(() => {
     if (!becauseContext || !allPool.length) return null
