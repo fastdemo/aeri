@@ -99,7 +99,52 @@ None yield `content-type: video/*` or `application/vnd.apple.mpegurl` with `#EXT
 
 ---
 
-## 5. Next steps if playback is pursued later
+## 5. Seanime study — streaming-only architecture (2026-09-01)
+
+Seanime was reviewed specifically for **streaming** (torrent intentionally excluded) via `5rahim/seanime` (Go + React, 4.1k stars) and `seanime-extensions` docs.
+
+**Not implemented: torrent.** No torrent UI, downloads, or BitTorrent client were added to Aeri. Seanime's torrent/debrid features were noted only as context and explicitly not carried over.
+
+### How Seanime does streaming
+
+* **Server is required.** Seanime is a **media server** (`main.go` + Echo + SQLite + Goja) + React frontend (`seanime-web`). It is not a static site and cannot run on GH Pages.
+* **Extension system for online streaming.** Community provider is a JS file executed **server-side** in a sandboxed `Goja` runtime (not in the browser):
+  ```ts
+  abstract class AnimeProvider {
+    search(opts: SearchOptions): Promise<SearchResult[]>
+    findEpisodes(id: string): Promise<EpisodeDetails[]>
+    findEpisodeServer(episode: EpisodeDetails, server: string): Promise<EpisodeServer>
+    getSettings(): { episodeServers: string[]; supportsDub: boolean }
+  }
+  // findEpisodeServer returns
+  // { server, headers, videoSources: [{ url, type: 'm3u8', quality, subtitles[] }] }
+  ```
+  The extension marketplace (`seanime-extensions`, `SinonCute/seanime-extensions` via AniMapper) installs a `manifest.json` raw URL; the server fetches and runs it in Goja.
+* **Source discovery/resolution.** Provider `search` fetches an upstream API with server `fetch` (custom `headers`, `Cookie`, `Referer`, `user-agent`), parses HTML/JSON, returns `SearchResult[]`. `findEpisodes` paginates `api?m=release&id=...&page=N`, normalizes `number` (subtracts lowest, filters non-integers). `findEpisodeServer` fetches the episode page (`/play/...`), extracts `button[data-src]` / `kwik` iframe, then decodes `eval(...)` packed JS to get the `m3u8`.
+* **Passing sources to the player.** `EpisodeServer.videoSources` is passed to Seanime's `VideoCore` (Denshi/Electron libmpv or web `hls.js`). Headers from the provider (`Referer`) are forwarded to the HLS loader. Subtitles come as `EpisodeServer.videoSources[].subtitles[]`.
+* **Provider fallbacks & failure handling.** `getSettings().episodeServers` declares fallback servers (`["kwik"]`, etc.). `findEpisodes` throws `No episodes found` when empty; `findEpisodeServer` throws `Failed to fetch episode server` when `kwik` regex misses. Seanime surfaces `Tried:` and retries next server — same UX Aeri already has (`Tried: ... • Retry`).
+* **External API/worker is mandatory.** All three steps use server `fetch` with privileges the browser lacks (no CORS, can set `Cookie`/`Referer`). Seanime's Go server (or `seanime-server-mobile` on `127.0.0.1:43211`) is that API. The web frontend (`seanime-web`) never talks directly to upstream anime sites.
+
+### What this means for Aeri (static GH Pages, no backend)
+
+* **Aeri's constraint matches Seanime's conclusion:** Browser-only `fetch` to the same upstreams fails `PLAYBACK_MATRIX.md` T0 CORS (`No Allow-Origin` from `https://fastdemo.github.io`). A small user-configurable worker **is still the only practical architecture** that preserves GH Pages staticity.
+* **Aeri already mirrors Seanime's abstraction, just smaller:**
+  ```
+  Seanime:  Extension (Goja) -> Go server -> VideoCore
+  Aeri:     VideoProvider (registry/base) -> optional customVideoApiUrl / VITE_VIDEO_API_URL -> VideoPlayer (hls.js)
+  ```
+  `src/storage/preferences.ts:customVideoApiUrl` + `getEffectiveVideoApiUrl()` + `src/providers/video/registry.ts` (parallel 4s, 3500ms timeout, `triedProviders`) + `src/providers/video/types.ts:VideoSourceEnhanced` already provide the same seam Seanime uses, without Goja or torrent.
+* **Torrents are not a fit.** Seanime's value is local library + debrid torrent streaming via `anacrolix/torrent` inside the Go server. Aeri is a discovery/tracking UI on GH Pages; adding torrent UI/downloads would violate the static-only constraint, legal scope, and the request not to implement torrenting.
+
+### Concrete recommendation for Aeri
+
+1. **Do not add torrent functionality** — no BitTorrent client, no debrid, no download UI.
+2. **Keep the BYO worker as the sanctioned streaming path** (already wired). The worker should implement Seanime's three-step shape but via simple authenticated endpoints:
+   `GET /health` → `GET /episodes/:anilistId` → `GET /sources/:episodeId?language=sub|dub` returning `VideoSourceEnhanced[]` with `url`, `type: 'm3u8'`, `quality`, `headers`, `subtitles`. Aeri's `worker/` Cloudflare template is the place for this — it can run the same `fetch`+`Referer`+`Cookie` logic Seanime's Goja does, but as a plain Worker.
+3. **Keep official embeds as the zero-backend path** (Seanime does not prioritize this, but for Aeri it is the only no-worker legitimate option). Expand `src/providers/video/official.ts` only with licensor-permitted iframe URLs.
+4. **Do not reintroduce browser-scraped providers.** They are fragile (upstream HTML changes) and CORS-blocked — exactly why Seanime runs them server-side.
+
+## 6. Next steps if playback is pursued later
 
 * Finalize `worker/src/providers.ts` licensed mapping (negotiate embed rights or use only APIs that explicitly permit browser use).
 * Add `GET /captions/:episodeId` to the worker for `SubtitleTrack` support (already typed in `VideoSourceEnhanced`).

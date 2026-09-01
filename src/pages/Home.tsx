@@ -68,6 +68,14 @@ function dedup(animes: Anime[]): Anime[] {
   return Array.from(m.values())
 }
 
+// sample varied without immediately duplicating recently used titles
+function sampleVaried(pool: Anime[], count: number, used?: Set<string>): Anime[] {
+  if (!pool.length) return []
+  const available = used ? pool.filter(a => !used.has(a.identity.internalId)) : pool
+  const source = available.length >= Math.min(count, 4) ? available : pool
+  return shuffle(source).slice(0, count)
+}
+
 export function Home() {
   const [selected, setSelected] = useState<Anime | null>(null)
   const { isAuthenticated, isAniListAuthenticated, isMALAuthenticated, combinedList, loading, error, authExpired } = useTracking()
@@ -78,10 +86,11 @@ export function Home() {
 
   const handleSelect = (a: Anime) => setSelected(a)
 
-  const trending = useTrending(12)
-  const popular = usePopular(12)
-  const airing = useAiring(12)
-  const news = useNewReleases(12)
+  // Fetch larger pools so varied sampling has room to vary
+  const trending = useTrending(24)
+  const popular = usePopular(24)
+  const airing = useAiring(24)
+  const news = useNewReleases(24)
 
   const continueWatching: Anime[] = useMemo(() => {
     if (!isAuthenticated || !combinedList) return []
@@ -143,24 +152,33 @@ export function Home() {
     return []
   }, [isAuthenticated, combinedList])
 
-  // Hero: choose different shows on each refresh from a pooled shuffle (not fixed slice)
+  // Hero: only popular and/or currently airing, varying start position on refresh
   const heroes: Anime[] = useMemo(() => {
     const pool = dedup([
-      ...(trending.data ?? []),
       ...(popular.data ?? []),
       ...(airing.data ?? []),
-      ...(news.data ?? []),
     ]).filter(a => !!a.backdropImage)
-    if (!pool.length) return []
-    // shuffle with fresh randomness per mount (refresh) — deterministic enough but varying
+    if (!pool.length) {
+      // fallback to trending+popular+airing if too few popular/airing (rare)
+      const fallback = dedup([
+        ...(trending.data ?? []),
+        ...(popular.data ?? []),
+        ...(airing.data ?? []),
+      ]).filter(a => !!a.backdropImage)
+      if (!fallback.length) return []
+      const shuffled = shuffle(fallback)
+      const start = Math.floor(Math.random() * Math.max(1, shuffled.length))
+      const rotated = [...shuffled.slice(start), ...shuffled.slice(0, start)]
+      return rotated.slice(0, 7)
+    }
     const shuffled = shuffle(pool)
-    const picked = shuffled.slice(0, 7)
-    // ensure at least 3, fallback to trending head if shuffle gave too few
-    if (picked.length >= 3) return picked
-    return pool.slice(0, 7)
-  }, [trending.data, popular.data, airing.data, news.data])
+    // rotate start position so same show not always first hero
+    const start = Math.floor(Math.random() * shuffled.length)
+    const rotated = [...shuffled.slice(start), ...shuffled.slice(0, start)]
+    return rotated.slice(0, 7)
+  }, [popular.data, airing.data, trending.data])
 
-  // Pool for derived categories and recommendations (deduplicated)
+  // Pool for derived categories and recommendations (deduplicated) — use larger pool for variety
   const allPool = useMemo(() => {
     return dedup([
       ...(trending.data ?? []),
@@ -170,7 +188,7 @@ export function Home() {
     ])
   }, [trending.data, popular.data, airing.data, news.data])
 
-  // --- Personalized: "Because you watched X" ---
+  // --- Personalized: "Because you watched X" — real history, varied ---
   const becauseContext = useMemo(() => {
     if (!isAuthenticated || !combinedList || !combinedList.length) return null
     // pick most meaningful completed/watching as reference
@@ -204,21 +222,32 @@ export function Home() {
     const candidates = allPool.filter(a => !listIds.has(a.identity.internalId))
     if (!candidates.length) return null
     const recs = getRecommendations(refGenres, candidates)
-    return recs.slice(0, 8)
+    // vary between refreshes: take top 16 then shuffle sample 8 (keeps relevance but not deterministic)
+    const topSlice = recs.slice(0, 16)
+    return shuffle(topSlice).slice(0, 8)
   }, [becauseContext, allPool, combinedList])
 
-  // Derived categories from pool (filtered, not additional fetches)
+  // Derived categories from pool (filtered, not additional fetches) — varied pools
   const derived = useMemo(() => {
     if (!allPool.length) return null
     const pool = allPool
-    const highlyRated = [...pool].filter(a => (a.rating ?? 0) >= 8.0).sort((a,b) => (b.rating ?? 0) - (a.rating ?? 0)).slice(0, 8)
-    const shortSeries = pool.filter(a => a.episodes != null && a.episodes >= 1 && a.episodes <= 12).slice(0, 8)
-    // ensure shuffling for variety on each refresh for these picks
-    const shortShuffled = shortSeries.length ? shuffle(shortSeries).slice(0, 8) : []
-    const actionPicks = shuffle(pool.filter(a => a.genres.includes('Action'))).slice(0, 8)
-    const romancePicks = shuffle(pool.filter(a => a.genres.includes('Romance'))).slice(0, 8)
-    const hiddenGems = shuffle(pool.filter(a => (a.rating ?? 0) >= 7.8 && (a.popularity ?? 0) < 60000 && (a.popularity ?? 0) > 0)).slice(0, 8)
-    // Top Picks for You — based on user's top genres across list
+    // For each derived, take a larger candidate set then shuffle sample, to keep relevance but allow variation
+    const highlyRatedBase = [...pool].filter(a => (a.rating ?? 0) >= 8.0).sort((a,b) => (b.rating ?? 0) - (a.rating ?? 0)).slice(0, 16)
+    const highlyRated = highlyRatedBase.length ? sampleVaried(highlyRatedBase, 8) : []
+
+    const shortBase = pool.filter(a => a.episodes != null && a.episodes >= 1 && a.episodes <= 12)
+    const shortShuffled = shortBase.length ? sampleVaried(shortBase, 8) : []
+
+    const actionBase = pool.filter(a => a.genres.includes('Action'))
+    const actionPicks = actionBase.length ? sampleVaried(actionBase, 8) : []
+
+    const romanceBase = pool.filter(a => a.genres.includes('Romance'))
+    const romancePicks = romanceBase.length ? sampleVaried(romanceBase, 8) : []
+
+    const hiddenBase = pool.filter(a => (a.rating ?? 0) >= 7.8 && (a.popularity ?? 0) < 60000 && (a.popularity ?? 0) > 0)
+    const hiddenGems = hiddenBase.length ? sampleVaried(hiddenBase, 8) : []
+
+    // Top Picks for You — based on user's top genres across list, varied
     let topPicks: Anime[] | null = null
     let topGenres: string[] = []
     if (isAuthenticated && combinedList && combinedList.length) {
@@ -228,33 +257,78 @@ export function Home() {
       if (topGenres.length) {
         const listIds = new Set(combinedList.map(e => e.anime.identity.internalId))
         const cands = pool.filter(a => !listIds.has(a.identity.internalId))
-        topPicks = getRecommendations(topGenres, cands).slice(0, 8)
+        const recs = getRecommendations(topGenres, cands)
+        // vary: top 16 then shuffle
+        topPicks = shuffle(recs.slice(0, 16)).slice(0, 8)
       }
     }
     return { highlyRated, shortShuffled, actionPicks, romancePicks, hiddenGems, topPicks, topGenres }
   }, [allPool, isAuthenticated, combinedList])
 
-  // Build dynamic middle sections (shuffled order each refresh, My List fixed bottom)
+  // Build dynamic home feed — each row's anime selections vary on refresh
   const middleSections = useMemo(() => {
-    const sections: Array<{ key: string; title: string; subtitle?: string; data: Anime[] }> = []
-    // Only push if data exists and not loading — keep checks light, Section handles empty
-    if (!trending.loading && trending.data && trending.data.length) sections.push({ key: 'trending', title: 'Trending Now', data: trending.data.slice(0, 12) })
-    if (!popular.loading && popular.data && popular.data.length) sections.push({ key: 'popular', title: 'Popular on Aeri', data: popular.data.slice(0, 12) })
-    if (!airing.loading && airing.data && airing.data.length) sections.push({ key: 'airing', title: 'Currently Airing', data: airing.data.slice(0, 12) })
-    if (!news.loading && news.data && news.data.length) sections.push({ key: 'new', title: 'New Releases', data: news.data.slice(0, 12) })
-    if (derived?.highlyRated?.length) sections.push({ key: 'highly', title: 'Highly Rated', subtitle: 'Critics love these', data: derived.highlyRated })
-    if (derived?.shortShuffled?.length) sections.push({ key: 'short', title: 'Short & Sweet', subtitle: 'Under 12 episodes', data: derived.shortShuffled })
-    if (derived?.actionPicks?.length) sections.push({ key: 'action', title: 'Action Picks', subtitle: 'For adrenaline', data: derived.actionPicks })
-    if (derived?.romancePicks?.length) sections.push({ key: 'romance', title: 'Romance Picks', subtitle: 'Heartfelt stories', data: derived.romancePicks })
-    if (derived?.hiddenGems?.length) sections.push({ key: 'gems', title: 'Hidden Gems', subtitle: 'Low-key favorites', data: derived.hiddenGems })
-    // personalized sections near bottom but before My List — keep them together
-    const personalized: typeof sections = []
-    if (derived?.topPicks?.length) personalized.push({ key: 'toppicks', title: 'Top Picks for You', subtitle: derived.topGenres?.length ? derived.topGenres.join(' · ') : undefined, data: derived.topPicks })
-    if (becauseContext && becauseRecommendations?.length) {
-      const refTitle = becauseContext.anime.title.english?.trim() || becauseContext.anime.title.romaji
-      const subtitle = becauseContext.anime.genres.slice(0,2).join(' · ') || undefined
-      personalized.push({ key: 'because', title: `Because you watched ${refTitle}`, subtitle, data: becauseRecommendations })
+    const used = new Set<string>()
+    const pushVaried = (key: string, title: string, data: Anime[] | null | undefined, subtitle?: string, count = 12) => {
+      if (!data || !data.length) return null
+      const varied = sampleVaried(data, Math.min(count, data.length), used)
+      if (!varied.length) return null
+      for (const a of varied) used.add(a.identity.internalId)
+      return { key, title, subtitle, data: varied }
     }
+
+    // Varied slices for API categories (trending etc) — shuffle within category to show different lineup
+    const variedTrending = trending.data ? shuffle([...trending.data]).slice(0, 12) : null
+    const variedPopular = popular.data ? shuffle([...popular.data]).slice(0, 12) : null
+    const variedAiring = airing.data ? shuffle([...airing.data]).slice(0, 12) : null
+    const variedNews = news.data ? shuffle([...news.data]).slice(0, 12) : null
+
+    const sections: Array<{ key: string; title: string; subtitle?: string; data: Anime[] }> = []
+    // Use varied samples, avoiding duplication when possible
+    const t = !trending.loading && variedTrending?.length ? pushVaried('trending', 'Trending Now', variedTrending, undefined, 12) : null
+    if (t) sections.push(t)
+    const p = !popular.loading && variedPopular?.length ? pushVaried('popular', 'Popular on Aeri', variedPopular, undefined, 12) : null
+    if (p) sections.push(p)
+    const a = !airing.loading && variedAiring?.length ? pushVaried('airing', 'Currently Airing', variedAiring, undefined, 12) : null
+    if (a) sections.push(a)
+    const n = !news.loading && variedNews?.length ? pushVaried('new', 'New Releases', variedNews, undefined, 12) : null
+    if (n) sections.push(n)
+
+    if (derived?.highlyRated?.length) {
+      const v = sampleVaried(derived.highlyRated, 8, used)
+      if (v.length) { for (const x of v) used.add(x.identity.internalId); sections.push({ key: 'highly', title: 'Highly Rated', subtitle: 'Critics love these', data: v }) }
+    }
+    if (derived?.shortShuffled?.length) {
+      const v = sampleVaried(derived.shortShuffled, 8, used)
+      if (v.length) { for (const x of v) used.add(x.identity.internalId); sections.push({ key: 'short', title: 'Short & Sweet', subtitle: 'Under 12 episodes', data: v }) }
+    }
+    if (derived?.actionPicks?.length) {
+      const v = sampleVaried(derived.actionPicks, 8, used)
+      if (v.length) { for (const x of v) used.add(x.identity.internalId); sections.push({ key: 'action', title: 'Action Picks', subtitle: 'For adrenaline', data: v }) }
+    }
+    if (derived?.romancePicks?.length) {
+      const v = sampleVaried(derived.romancePicks, 8, used)
+      if (v.length) { for (const x of v) used.add(x.identity.internalId); sections.push({ key: 'romance', title: 'Romance Picks', subtitle: 'Heartfelt stories', data: v }) }
+    }
+    if (derived?.hiddenGems?.length) {
+      const v = sampleVaried(derived.hiddenGems, 8, used)
+      if (v.length) { for (const x of v) used.add(x.identity.internalId); sections.push({ key: 'gems', title: 'Hidden Gems', subtitle: 'Low-key favorites', data: v }) }
+    }
+
+    // personalized sections near bottom but before My List — keep them together, also varied but not deduped aggressively
+    const personalized: typeof sections = []
+    if (derived?.topPicks?.length) {
+      const v = sampleVaried(derived.topPicks, 8)
+      if (v.length) personalized.push({ key: 'toppicks', title: 'Top Picks for You', subtitle: derived.topGenres?.length ? derived.topGenres.join(' · ') : undefined, data: v })
+    }
+    if (becauseContext && becauseRecommendations?.length) {
+      const v = sampleVaried(becauseRecommendations, 8)
+      if (v.length) {
+        const refTitle = becauseContext.anime.title.english?.trim() || becauseContext.anime.title.romaji
+        const subtitle = becauseContext.anime.genres.slice(0,2).join(' · ') || undefined
+        personalized.push({ key: 'because', title: `Because you watched ${refTitle}`, subtitle, data: v })
+      }
+    }
+
     // Shuffle middle (non-personalized) sections for variety, keep Trending Now first if exists
     const trendingFirst = sections.find(s => s.key === 'trending')
     const rest = sections.filter(s => s.key !== 'trending')

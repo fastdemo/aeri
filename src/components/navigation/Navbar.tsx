@@ -102,31 +102,16 @@ export function Navbar() {
     >
       <div className="mx-auto flex h-full max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-12 lg:gap-6">
         <div className="flex items-center gap-5 lg:gap-8">
-          {/* Logo — Aeri / エアリ hover 3D vertical, not selectable */}
+          {/* Logo — simple Aeri, unselectable */}
           <Link
             to="/"
             onClick={() => dispatchNavigate('/')}
             aria-label="aeri home"
-            className="group relative block h-[22px] w-[54px] select-none overflow-hidden"
-            style={{ userSelect: 'none' } as any}
+            className="text-[19px] font-semibold tracking-[-0.02em] text-white select-none"
+            style={{ fontFamily: '"Cal Sans", sans-serif', userSelect: 'none' } as any}
             draggable={false}
           >
-            <span
-              className="pointer-events-none absolute inset-0 grid place-items-center text-[19px] font-semibold tracking-[-0.02em] text-white transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform select-none group-hover:-translate-y-full group-focus-visible:-translate-y-full"
-              style={{ fontFamily: '"Cal Sans", sans-serif', userSelect: 'none' } as any}
-              aria-hidden="true"
-            >
-              aeri
-            </span>
-            <span
-              className="pointer-events-none absolute inset-0 grid translate-y-full place-items-center text-[17px] font-bold tracking-[0.02em] text-white transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform select-none group-hover:translate-y-0 group-focus-visible:translate-y-0"
-              style={{ fontFamily: '"Zen Maru Gothic", "Cal Sans", sans-serif', userSelect: 'none' } as any}
-              aria-hidden="true"
-            >
-              エアリ
-            </span>
-            {/* accessible label fallback */}
-            <span className="sr-only">Aeri</span>
+            aeri
           </Link>
 
           <nav className="hidden items-center gap-5 lg:flex" aria-label="Sections">
