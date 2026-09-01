@@ -201,7 +201,7 @@ export function AnimeDetail() {
 
             {!isMovie && (
               <div className="mt-6">
-                <EpisodeList key={displayKey} anime={displayAnime} seasonNumber={selectedSeasonIdx + 1} />
+                <EpisodeList key={displayKey} anime={displayAnime} seasonNumber={selectedSeasonIdx + 1} group={effectiveGroup} />
               </div>
             )}
           </div>

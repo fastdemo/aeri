@@ -13,7 +13,7 @@ export function Navbar() {
   const searchRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
   const location = useLocation()
-  const { user: anilistUser, isAuthenticated: anilistAuth } = useAniList()
+  const { user: anilistUser, isAuthenticated: anilistAuth, login: anilistLogin } = useAniList()
   const { user: malUser, isAuthenticated: malAuth } = useMAL()
   const isAuthenticated = anilistAuth || malAuth
   const user = anilistUser ?? malUser ?? null
@@ -25,15 +25,13 @@ export function Navbar() {
   }, [])
 
   // Reset mobile transient UI on any route change (prevents overlay persisting and intercepting clicks)
-  // Must run AFTER navigation commit — location change is the signal, not the trigger
   useEffect(() => {
     setMobileNavOpen(false)
     setMobileSearchOpen(false)
     setShowSuggestions(false)
   }, [location.pathname, location.search, location.hash])
 
-  // Close suggestions on outside click — deferred so click→navigate isn't swallowed by synchronous setState
-  // (synchronous setState on mousedown can detach the click target before click fires)
+  // Close suggestions on outside click — deferred so click→navigate isn't swallowed
   useEffect(() => {
     const onDown = (e: MouseEvent) => {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
@@ -44,19 +42,15 @@ export function Navbar() {
     return () => document.removeEventListener('mousedown', onDown)
   }, [])
 
-  // aeri:navigate closes DetailModal for same-hash clicks (no hashchange).
-  // Must be dispatched AFTER HashRouter's push so navigation is synchronous and cleanup is deferred.
   const dispatchNavigate = (to?: string) => {
     queueMicrotask(() => {
       try { window.dispatchEvent(new CustomEvent('aeri:navigate')) } catch {}
     })
-    // Hard fallback: if React Router's Link push doesn't change hash within 150ms (e.g., blocked by overlay or error), force hash
     if (to) {
       const expected = `#${to}`;
       setTimeout(() => {
         try {
           if (window.location.hash !== expected) {
-            // For "/" the hash could be "#/" or "" - treat both as home
             const isHome = to === '/' && (window.location.hash === '#/' || window.location.hash === '' || window.location.hash === '#');
             if (!isHome) window.location.hash = to;
           }
@@ -70,19 +64,32 @@ export function Navbar() {
     const q = query.trim()
     if (!q) return
     const target = `/search?q=${encodeURIComponent(q)}`;
-    // 1) synchronous route change — never wait for providers/IDB/HLS
     navigate(target)
-    // Hard fallback for hash
     setTimeout(() => {
       try { if (window.location.hash !== `#${target}`) window.location.hash = target; } catch {}
     }, 180);
-    // 2) deferred cleanup (suggestions, mobile, modal) — after commit, not before
     queueMicrotask(() => {
       try { window.dispatchEvent(new CustomEvent('aeri:navigate')) } catch {}
       setMobileSearchOpen(false)
       setShowSuggestions(false)
     })
   }
+
+  // Desktop nav items — Settings only when authenticated
+  const desktopNav = [
+    { to: '/', label: 'Home' },
+    { to: '/browse', label: 'Browse' },
+    { to: '/list', label: 'My List' },
+    ...(isAuthenticated ? [{ to: '/settings', label: 'Settings' } as const] : []),
+  ]
+
+  const mobileNav = [
+    { to: '/', label: 'Home' },
+    { to: '/browse', label: 'Browse' },
+    { to: '/list', label: 'My List' },
+    { to: '/search', label: 'Search' },
+    ...(isAuthenticated ? [{ to: '/settings', label: 'Settings' } as const] : []),
+  ]
 
   return (
     <header
@@ -93,26 +100,37 @@ export function Navbar() {
       }`}
       aria-label="Primary"
     >
-      <div className="mx-auto flex h-full max-w-[1600px] items-center justify-between gap-6 px-4 sm:px-6 lg:px-12">
-        <div className="flex items-center gap-8">
+      <div className="mx-auto flex h-full max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-12 lg:gap-6">
+        <div className="flex items-center gap-5 lg:gap-8">
+          {/* Logo — Aeri / エアリ hover 3D vertical, not selectable */}
           <Link
             to="/"
             onClick={() => dispatchNavigate('/')}
-            className="text-[19px] font-semibold tracking-[-0.02em] text-white"
-            style={{ fontFamily: '"Cal Sans", sans-serif' }}
             aria-label="aeri home"
-            // React Router's <Link> does push synchronously in its handler; our onClick only queues cleanup
+            className="group relative block h-[22px] w-[54px] select-none overflow-hidden"
+            style={{ userSelect: 'none' } as any}
+            draggable={false}
           >
-            aeri
+            <span
+              className="pointer-events-none absolute inset-0 grid place-items-center text-[19px] font-semibold tracking-[-0.02em] text-white transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform select-none group-hover:-translate-y-full group-focus-visible:-translate-y-full"
+              style={{ fontFamily: '"Cal Sans", sans-serif', userSelect: 'none' } as any}
+              aria-hidden="true"
+            >
+              aeri
+            </span>
+            <span
+              className="pointer-events-none absolute inset-0 grid translate-y-full place-items-center text-[17px] font-bold tracking-[0.02em] text-white transition-transform duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] will-change-transform select-none group-hover:translate-y-0 group-focus-visible:translate-y-0"
+              style={{ fontFamily: '"Zen Maru Gothic", "Cal Sans", sans-serif', userSelect: 'none' } as any}
+              aria-hidden="true"
+            >
+              エアリ
+            </span>
+            {/* accessible label fallback */}
+            <span className="sr-only">Aeri</span>
           </Link>
 
-          <nav className="hidden items-center gap-5 md:flex" aria-label="Sections">
-            {[
-              { to: '/', label: 'Home' },
-              { to: '/browse', label: 'Browse' },
-              { to: '/list', label: 'My List' },
-              { to: '/settings', label: 'Settings' },
-            ].map((l) => (
+          <nav className="hidden items-center gap-5 lg:flex" aria-label="Sections">
+            {desktopNav.map((l) => (
               <NavLink
                 key={l.to}
                 to={l.to}
@@ -129,8 +147,9 @@ export function Navbar() {
           </nav>
           <button
             aria-label="Menu"
+            aria-expanded={mobileNavOpen}
             onClick={() => setMobileNavOpen((v) => !v)}
-            className="grid h-11 w-11 place-items-center rounded-full text-white/80 hover:bg-white/10 hover:text-white md:hidden"
+            className="grid h-11 w-11 place-items-center rounded-full text-white/80 hover:bg-white/10 hover:text-white lg:hidden"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
               <path d="M4 7h16M4 12h16M4 17h16" />
@@ -138,8 +157,8 @@ export function Navbar() {
           </button>
         </div>
 
-        <div className="flex items-center gap-3">
-          <form onSubmit={onSearch} className="hidden items-center md:flex">
+        <div className="flex items-center gap-2 lg:gap-3">
+          <form onSubmit={onSearch} className="hidden items-center lg:flex">
             <div ref={searchRef} className="relative">
               <input
                 value={query}
@@ -171,7 +190,7 @@ export function Navbar() {
           <button
             aria-label="Search"
             onClick={() => setMobileSearchOpen((v) => !v)}
-            className="grid h-11 w-11 place-items-center rounded-full text-white/80 hover:bg-white/10 hover:text-white md:hidden"
+            className="grid h-11 w-11 place-items-center rounded-full text-white/80 hover:bg-white/10 hover:text-white lg:hidden"
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="11" cy="11" r="7" />
@@ -179,38 +198,50 @@ export function Navbar() {
             </svg>
           </button>
 
-          <button
-            aria-label="Notifications"
-            className="hidden h-8 w-8 place-items-center rounded-full text-white/70 hover:bg-white/10 hover:text-white md:grid"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d="M12 3a5 5 0 0 1 5 5v4a2 2 0 0 0 .45 1.26L18.5 15H5.5l1.05-1.74A2 2 0 0 0 7 12V8a5 5 0 0 1 5-5Z" />
-              <path d="M9 17a3 3 0 0 0 6 0" />
-            </svg>
-          </button>
+          {isAuthenticated && (
+            <button
+              aria-label="Notifications"
+              className="hidden h-8 w-8 place-items-center rounded-full text-white/70 hover:bg-white/10 hover:text-white lg:grid"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M12 3a5 5 0 0 1 5 5v4a2 2 0 0 0 .45 1.26L18.5 15H5.5l1.05-1.74A2 2 0 0 0 7 12V8a5 5 0 0 1 5-5Z" />
+                <path d="M9 17a3 3 0 0 0 6 0" />
+              </svg>
+            </button>
+          )}
 
-          <div className="h-6 w-px bg-white/10 hidden md:block" />
+          {isAuthenticated && <div className="h-6 w-px bg-white/10 hidden lg:block" />}
 
-          <Link
-            to="/list"
-            onClick={() => dispatchNavigate('/list')}
-            aria-label="Profile"
-            className="relative h-7 w-7 overflow-hidden rounded bg-gradient-to-br from-violet-600 to-indigo-600"
-          >
-            {isAuthenticated && user?.avatar?.large ? (
-              <img src={user.avatar.large} alt={user.name} className="h-full w-full object-cover" loading="lazy" />
-            ) : isAuthenticated ? (
-              <span className="grid h-full w-full place-items-center text-[10px] font-bold text-white">{anilistAuth ? 'A' : 'M'}</span>
-            ) : (
-              <span className="grid h-full w-full place-items-center text-[11px] font-semibold text-white">A</span>
-            )}
-            {isAuthenticated && <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border border-[var(--bg)] bg-emerald-500" aria-hidden />}
-          </Link>
+          {!isAuthenticated ? (
+            <button
+              onClick={() => {
+                try { anilistLogin() } catch {}
+              }}
+              className="inline-flex h-7 items-center rounded-full bg-white px-4 text-[13px] font-semibold text-black transition hover:bg-white/90 active:scale-[0.98] lg:h-8 lg:px-5"
+              aria-label="Sign up with AniList"
+            >
+              Sign Up
+            </button>
+          ) : (
+            <Link
+              to="/list"
+              onClick={() => dispatchNavigate('/list')}
+              aria-label="Profile"
+              className="relative h-7 w-7 overflow-hidden rounded bg-gradient-to-br from-violet-600 to-indigo-600"
+            >
+              {user?.avatar?.large ? (
+                <img src={user.avatar.large} alt={user.name} className="h-full w-full object-cover" loading="lazy" />
+              ) : (
+                <span className="grid h-full w-full place-items-center text-[10px] font-bold text-white">{anilistAuth ? 'A' : 'M'}</span>
+              )}
+              <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border border-[var(--bg)] bg-emerald-500" aria-hidden />
+            </Link>
+          )}
         </div>
       </div>
 
       {mobileSearchOpen && (
-        <div className="absolute left-0 right-0 top-14 border-t border-white/10 bg-[var(--bg)] px-4 py-3 md:hidden shadow-lg shadow-black/20">
+        <div className="absolute left-0 right-0 top-14 border-t border-white/10 bg-[var(--bg)] px-4 py-3 lg:hidden shadow-lg shadow-black/20">
           <form onSubmit={onSearch} className="flex gap-2">
             <input
               autoFocus
@@ -232,19 +263,12 @@ export function Navbar() {
         </div>
       )}
       {mobileNavOpen && (
-        <nav className="absolute left-0 right-0 top-14 border-t border-white/10 bg-[var(--bg)] px-4 py-3 md:hidden shadow-lg shadow-black/20" aria-label="Mobile sections">
+        <nav className="absolute left-0 right-0 top-14 border-t border-white/10 bg-[var(--bg)] px-4 py-3 lg:hidden shadow-lg shadow-black/20" aria-label="Mobile sections">
           <div className="flex flex-col gap-1">
-            {[
-              { to: '/', label: 'Home' },
-              { to: '/browse', label: 'Browse' },
-              { to: '/list', label: 'My List' },
-              { to: '/search', label: 'Search' },
-              { to: '/settings', label: 'Settings' },
-            ].map((l) => (
+            {mobileNav.map((l) => (
               <Link
                 key={l.to}
                 to={l.to}
-                // Let <Link> push synchronously; defer menu close + modal dispatch to after commit
                 onClick={() => {
                   queueMicrotask(() => setMobileNavOpen(false))
                   dispatchNavigate(l.to)
@@ -254,6 +278,17 @@ export function Navbar() {
                 {l.label}
               </Link>
             ))}
+            {!isAuthenticated && (
+              <button
+                onClick={() => {
+                  setMobileNavOpen(false)
+                  try { anilistLogin() } catch {}
+                }}
+                className="mt-2 rounded-full bg-white px-4 py-3 text-sm font-semibold text-black"
+              >
+                Sign Up — Connect AniList
+              </button>
+            )}
           </div>
         </nav>
       )}

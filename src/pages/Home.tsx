@@ -9,6 +9,7 @@ import { RowSkeleton } from '../components/ui/Skeleton'
 import { useTrending, usePopular, useAiring, useNewReleases } from '../hooks/useAnimeMetadata'
 import { useLocation } from 'react-router-dom'
 import { getFranchiseTitle } from '../lib/titles'
+import { getRecommendations } from '../recommendations/engine'
 
 function Section({
   title,
@@ -49,6 +50,22 @@ function Section({
       ))}
     </ContentRow>
   )
+}
+
+function shuffle<T>(arr: T[]): T[] {
+  const a = [...arr]
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[a[i], a[j]] = [a[j], a[i]]
+  }
+  return a
+}
+
+// dedup pool by internalId
+function dedup(animes: Anime[]): Anime[] {
+  const m = new Map<string, Anime>()
+  for (const a of animes) m.set(a.identity.internalId, a)
+  return Array.from(m.values())
 }
 
 export function Home() {
@@ -126,24 +143,125 @@ export function Home() {
     return []
   }, [isAuthenticated, combinedList])
 
+  // Hero: choose different shows on each refresh from a pooled shuffle (not fixed slice)
   const heroes: Anime[] = useMemo(() => {
-    const src = trending.data ?? []
-    // pick 7 most trending with good backdrops, deduped
-    return src.filter((a) => !!a.backdropImage).slice(0, 7)
-  }, [trending.data])
+    const pool = dedup([
+      ...(trending.data ?? []),
+      ...(popular.data ?? []),
+      ...(airing.data ?? []),
+      ...(news.data ?? []),
+    ]).filter(a => !!a.backdropImage)
+    if (!pool.length) return []
+    // shuffle with fresh randomness per mount (refresh) — deterministic enough but varying
+    const shuffled = shuffle(pool)
+    const picked = shuffled.slice(0, 7)
+    // ensure at least 3, fallback to trending head if shuffle gave too few
+    if (picked.length >= 3) return picked
+    return pool.slice(0, 7)
+  }, [trending.data, popular.data, airing.data, news.data])
 
-  const becauseData = useMemo(() => {
-    if (trending.data) {
-      const fantasy = trending.data.filter((a) => a.genres.includes('Fantasy') || a.genres.includes('Adventure')).slice(0, 8)
-      return fantasy.length >= 4 ? fantasy : trending.data.slice(0, 8)
+  // Pool for derived categories and recommendations (deduplicated)
+  const allPool = useMemo(() => {
+    return dedup([
+      ...(trending.data ?? []),
+      ...(popular.data ?? []),
+      ...(airing.data ?? []),
+      ...(news.data ?? []),
+    ])
+  }, [trending.data, popular.data, airing.data, news.data])
+
+  // --- Personalized: "Because you watched X" ---
+  const becauseContext = useMemo(() => {
+    if (!isAuthenticated || !combinedList || !combinedList.length) return null
+    // pick most meaningful completed/watching as reference
+    const candidates = [...combinedList]
+    // prefer completed with highest score, then watching with highest progress, then any with rating
+    const completed = candidates.filter(e => e.status === 'completed')
+    const sortedCompleted = [...completed].sort((a,b) => (b.score ?? 0) - (a.score ?? 0) || (b.anime.rating ?? 0) - (a.anime.rating ?? 0))
+    let ref = sortedCompleted[0]
+    if (!ref) {
+      const watching = candidates.filter(e => e.status === 'watching')
+      const sortedWatching = [...watching].sort((a,b) => b.progress - a.progress || (b.anime.rating ?? 0) - (a.anime.rating ?? 0))
+      ref = sortedWatching[0]
     }
-    return null
-  }, [trending.data])
+    if (!ref) {
+      // fallback: highest rated in list
+      const sortedAll = [...candidates].sort((a,b) => (b.anime.rating ?? 0) - (a.anime.rating ?? 0))
+      ref = sortedAll[0]
+    }
+    if (!ref || !ref.anime.genres?.length) return null
+    return ref
+  }, [isAuthenticated, combinedList])
 
-  const becauseState = useMemo(() => {
-    if (becauseData) return { data: becauseData, loading: trending.loading, error: trending.error }
-    return trending
-  }, [becauseData, trending])
+  const becauseRecommendations = useMemo(() => {
+    if (!becauseContext || !allPool.length) return null
+    const ref = becauseContext.anime
+    const refGenres = ref.genres
+    if (!refGenres.length) return null
+    // pool excluding already in list and the ref itself
+    const listIds = new Set((combinedList ?? []).map(e => e.anime.identity.internalId))
+    listIds.add(ref.identity.internalId)
+    const candidates = allPool.filter(a => !listIds.has(a.identity.internalId))
+    if (!candidates.length) return null
+    const recs = getRecommendations(refGenres, candidates)
+    return recs.slice(0, 8)
+  }, [becauseContext, allPool, combinedList])
+
+  // Derived categories from pool (filtered, not additional fetches)
+  const derived = useMemo(() => {
+    if (!allPool.length) return null
+    const pool = allPool
+    const highlyRated = [...pool].filter(a => (a.rating ?? 0) >= 8.0).sort((a,b) => (b.rating ?? 0) - (a.rating ?? 0)).slice(0, 8)
+    const shortSeries = pool.filter(a => a.episodes != null && a.episodes >= 1 && a.episodes <= 12).slice(0, 8)
+    // ensure shuffling for variety on each refresh for these picks
+    const shortShuffled = shortSeries.length ? shuffle(shortSeries).slice(0, 8) : []
+    const actionPicks = shuffle(pool.filter(a => a.genres.includes('Action'))).slice(0, 8)
+    const romancePicks = shuffle(pool.filter(a => a.genres.includes('Romance'))).slice(0, 8)
+    const hiddenGems = shuffle(pool.filter(a => (a.rating ?? 0) >= 7.8 && (a.popularity ?? 0) < 60000 && (a.popularity ?? 0) > 0)).slice(0, 8)
+    // Top Picks for You — based on user's top genres across list
+    let topPicks: Anime[] | null = null
+    let topGenres: string[] = []
+    if (isAuthenticated && combinedList && combinedList.length) {
+      const counts = new Map<string, number>()
+      for (const e of combinedList) for (const g of e.anime.genres) counts.set(g, (counts.get(g) ?? 0) + 1)
+      topGenres = Array.from(counts.entries()).sort((a,b) => b[1]-a[1]).slice(0,3).map(([g])=>g)
+      if (topGenres.length) {
+        const listIds = new Set(combinedList.map(e => e.anime.identity.internalId))
+        const cands = pool.filter(a => !listIds.has(a.identity.internalId))
+        topPicks = getRecommendations(topGenres, cands).slice(0, 8)
+      }
+    }
+    return { highlyRated, shortShuffled, actionPicks, romancePicks, hiddenGems, topPicks, topGenres }
+  }, [allPool, isAuthenticated, combinedList])
+
+  // Build dynamic middle sections (shuffled order each refresh, My List fixed bottom)
+  const middleSections = useMemo(() => {
+    const sections: Array<{ key: string; title: string; subtitle?: string; data: Anime[] }> = []
+    // Only push if data exists and not loading — keep checks light, Section handles empty
+    if (!trending.loading && trending.data && trending.data.length) sections.push({ key: 'trending', title: 'Trending Now', data: trending.data.slice(0, 12) })
+    if (!popular.loading && popular.data && popular.data.length) sections.push({ key: 'popular', title: 'Popular on Aeri', data: popular.data.slice(0, 12) })
+    if (!airing.loading && airing.data && airing.data.length) sections.push({ key: 'airing', title: 'Currently Airing', data: airing.data.slice(0, 12) })
+    if (!news.loading && news.data && news.data.length) sections.push({ key: 'new', title: 'New Releases', data: news.data.slice(0, 12) })
+    if (derived?.highlyRated?.length) sections.push({ key: 'highly', title: 'Highly Rated', subtitle: 'Critics love these', data: derived.highlyRated })
+    if (derived?.shortShuffled?.length) sections.push({ key: 'short', title: 'Short & Sweet', subtitle: 'Under 12 episodes', data: derived.shortShuffled })
+    if (derived?.actionPicks?.length) sections.push({ key: 'action', title: 'Action Picks', subtitle: 'For adrenaline', data: derived.actionPicks })
+    if (derived?.romancePicks?.length) sections.push({ key: 'romance', title: 'Romance Picks', subtitle: 'Heartfelt stories', data: derived.romancePicks })
+    if (derived?.hiddenGems?.length) sections.push({ key: 'gems', title: 'Hidden Gems', subtitle: 'Low-key favorites', data: derived.hiddenGems })
+    // personalized sections near bottom but before My List — keep them together
+    const personalized: typeof sections = []
+    if (derived?.topPicks?.length) personalized.push({ key: 'toppicks', title: 'Top Picks for You', subtitle: derived.topGenres?.length ? derived.topGenres.join(' · ') : undefined, data: derived.topPicks })
+    if (becauseContext && becauseRecommendations?.length) {
+      const refTitle = becauseContext.anime.title.english?.trim() || becauseContext.anime.title.romaji
+      const subtitle = becauseContext.anime.genres.slice(0,2).join(' · ') || undefined
+      personalized.push({ key: 'because', title: `Because you watched ${refTitle}`, subtitle, data: becauseRecommendations })
+    }
+    // Shuffle middle (non-personalized) sections for variety, keep Trending Now first if exists
+    const trendingFirst = sections.find(s => s.key === 'trending')
+    const rest = sections.filter(s => s.key !== 'trending')
+    const shuffledRest = rest.length ? shuffle(rest) : []
+    const ordered = [...(trendingFirst ? [trendingFirst] : []), ...shuffledRest, ...personalized]
+    return ordered
+  }, [trending, popular, airing, news, derived, becauseContext, becauseRecommendations])
 
   const syncLabel = isAniListAuthenticated && isMALAuthenticated ? 'AniList • MAL' : isAniListAuthenticated ? 'AniList' : isMALAuthenticated ? 'MAL' : ''
 
@@ -171,6 +289,7 @@ export function Home() {
       </div>
 
       <div className="mx-auto max-w-[1600px] space-y-6 px-0 pt-5 sm:px-6 lg:px-12 lg:space-y-7">
+        {/* Continue — only when signed in (spec logged-out: must not appear at all) */}
         {isAuthenticated ? (
           loading ? (
             <RowSkeleton title="Continue Watching" />
@@ -188,13 +307,26 @@ export function Home() {
           </div>
         )}
 
-        <Section title="Trending Now" state={trending} onSelect={handleSelect} />
-        <Section title="Popular on Aeri" state={popular} onSelect={handleSelect} />
-        <Section title="Currently Airing" state={airing} onSelect={handleSelect} />
-        <Section title="New Releases" state={news} onSelect={handleSelect} />
+        {/* Dynamic home feed — Trending first, rest shuffled, personalized before My List */}
+        {middleSections.map(s => (
+          <ContentRow key={s.key} title={s.title} subtitle={s.subtitle}>
+            {s.data.map(a => (
+              <AnimeCard key={a.identity.internalId} anime={a} onSelect={handleSelect} />
+            ))}
+          </ContentRow>
+        ))}
 
-        <Section title="Because you watched Frieren" subtitle="Fantasy · Drama" state={becauseState} onSelect={handleSelect} />
+        {/* Fallback static sections if derived not ready yet (keep for loading parity) */}
+        {middleSections.length === 0 && (
+          <>
+            <Section title="Trending Now" state={trending} onSelect={handleSelect} />
+            <Section title="Popular on Aeri" state={popular} onSelect={handleSelect} />
+            <Section title="Currently Airing" state={airing} onSelect={handleSelect} />
+            <Section title="New Releases" state={news} onSelect={handleSelect} />
+          </>
+        )}
 
+        {/* My List permanently at bottom */}
         {isAuthenticated ? (
           loading ? (
             <RowSkeleton title="My List" />

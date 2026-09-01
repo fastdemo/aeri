@@ -106,6 +106,28 @@ export function Settings() {
     return out
   })()
 
+  const isAuthenticated = ani.isAuthenticated || mal.isAuthenticated
+
+  if (!isAuthenticated) {
+    return (
+      <div className="mx-auto max-w-[900px] px-4 py-16 sm:px-6 lg:px-12 text-center">
+        <div className="mx-auto max-w-md rounded-2xl border border-white/10 bg-white/[0.02] p-8">
+          <h1 className="text-[18px] font-semibold text-white">Sign in to access Settings</h1>
+          <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-white/60">
+            Settings and account features are available after you connect AniList. Your list, progress, and Continue Watching all sync from there.
+          </p>
+          <button
+            onClick={() => { try { ani.login() } catch {} }}
+            className="mt-6 inline-flex h-9 items-center rounded-full bg-white px-6 text-sm font-semibold text-black hover:bg-white/90"
+          >
+            Sign Up — Connect AniList
+          </button>
+          <p className="mt-4 text-[11px] text-white/30">No backend. No tracking. Your data stays in your browser and AniList.</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="mx-auto max-w-[900px] px-4 py-6 sm:px-6 lg:px-12">
       <h1 className="text-[18px] font-semibold tracking-tight text-white">Settings</h1>

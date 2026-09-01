@@ -27,6 +27,15 @@
 html {
   background: var(--bg);
   scroll-behavior: smooth;
+  /* Prevent layout shift when scrollbar appears/disappears */
+  scrollbar-gutter: stable;
+}
+
+@supports not (scrollbar-gutter: stable) {
+  /* Fallback: always reserve scrollbar space on older browsers */
+  html {
+    overflow-y: scroll;
+  }
 }
 
 body {

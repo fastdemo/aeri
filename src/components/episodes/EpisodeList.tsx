@@ -2,24 +2,29 @@ import { Link } from 'react-router-dom'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Anime } from '../../types/anime'
 import type { VideoEpisode } from '../../providers/video/types'
+import type { AnimeSeriesGroup } from '../../services/anilist/series'
 import { useTracking } from '../../contexts/TrackingContext'
-import { normalizeEpisodes } from '../../lib/episodes'
+import { normalizeEpisodes, getDisplayEpisodeNumber, getSmartSeasonNumber } from '../../lib/episodes'
 import { resolveEpisodesWithFallback } from '../../providers/video/registry'
 
 export function getEpisodes(anime: Anime) {
   const eps = normalizeEpisodes(anime)
   return eps.map(e => ({
     number: e.number,
+    displayNumber: getDisplayEpisodeNumber(anime, e.number),
     title: e.title,
     thumbnail: e.thumbnail,
     duration: e.duration ?? anime.duration ?? 24,
   }))
 }
 
-export function EpisodeList({ anime, seasonNumber = 1 }: { anime: Anime; seasonNumber?: number }) {
+export function EpisodeList({ anime, seasonNumber, group }: { anime: Anime; seasonNumber?: number; group?: AnimeSeriesGroup | null }) {
   const [providerEpisodes, setProviderEpisodes] = useState<VideoEpisode[] | null>(null)
   const [providerDone, setProviderDone] = useState(false)
   const prevIdRef = useRef<string>('')
+
+  const effectiveSeasonNumber = seasonNumber ?? getSmartSeasonNumber(anime, group ?? null)
+  const effectiveGroup = group ?? null
 
   useEffect(() => {
     const id = anime.identity.internalId
@@ -49,6 +54,7 @@ export function EpisodeList({ anime, seasonNumber = 1 }: { anime: Anime; seasonN
     const eps = normalizeEpisodes(anime, providerEpisodes)
     return eps.map(e => ({
       number: e.number,
+      displayNumber: getDisplayEpisodeNumber(anime, e.number, effectiveGroup, effectiveSeasonNumber - 1),
       title: e.title,
       thumbnail: e.thumbnail,
       duration: e.duration ?? anime.duration ?? 24,
@@ -60,17 +66,18 @@ export function EpisodeList({ anime, seasonNumber = 1 }: { anime: Anime; seasonN
     anime.streamingEpisodes,
     anime.duration,
     providerEpisodes,
+    effectiveGroup,
+    effectiveSeasonNumber,
   ])
 
   if (anime.format?.toUpperCase() === 'MOVIE') return null
 
   // Show skeleton only while provider is still loading AND we have no anime data to display yet
-  // Otherwise render immediate episodes from AniList instantly, then enrich with provider when ready
   if (!providerDone && episodes.length === 0) {
     return (
       <div className="space-y-1">
         <div className="mb-2 flex items-center gap-2">
-          <span className="rounded bg-white px-2 py-1 text-[11px] font-semibold text-black">S{seasonNumber}</span>
+          <span className="rounded bg-white px-2 py-1 text-[11px] font-semibold text-black">S{effectiveSeasonNumber}</span>
           <span className="text-xs text-white/50">{anime.episodes ? `${anime.episodes} episodes` : 'Loading episodes...'}</span>
         </div>
         <div className="overflow-hidden rounded-lg border border-white/10">
@@ -101,9 +108,9 @@ export function EpisodeList({ anime, seasonNumber = 1 }: { anime: Anime; seasonN
   })()
   const progressEp = entry?.progress ?? anime.progress?.episode ?? 0
 
-  const handleSelect = (epNum: number) => {
+  const handleSelect = (localNum: number) => {
     if (isAuthenticated) {
-      updateProgress(anime, epNum).catch(() => {})
+      updateProgress(anime, localNum).catch(() => {})
     }
   }
 
@@ -120,26 +127,28 @@ export function EpisodeList({ anime, seasonNumber = 1 }: { anime: Anime; seasonN
   return (
     <div className="space-y-1">
       <div className="mb-2 flex items-center gap-2">
-        <span className="rounded bg-white px-2 py-1 text-[11px] font-semibold text-black">S{seasonNumber}</span>
+        <span className="rounded bg-white px-2 py-1 text-[11px] font-semibold text-black">S{effectiveSeasonNumber}</span>
         <span className="text-xs text-white/50">{anime.episodes ?? episodes.length} episodes</span>
       </div>
 
       <div className="overflow-hidden rounded-lg border border-white/10">
         {episodes.map((ep: any) => {
-          const isWatched = ep.number < progressEp
-          const isCurrent = ep.number === progressEp
+          const isWatched = ep.number < progressEp || (progressEp > 0 && ep.displayNumber < getDisplayEpisodeNumber(anime, progressEp, effectiveGroup, effectiveSeasonNumber - 1))
+          const isCurrent = ep.number === progressEp || ep.displayNumber === getDisplayEpisodeNumber(anime, progressEp, effectiveGroup, effectiveSeasonNumber - 1)
           const seasonKey = anime.identity.anilistId ? `anilist:${anime.identity.anilistId}` : anime.identity.internalId
           const thumb = ep.thumbnail || fallbackThumb
+          const epLabel = `E${String(ep.displayNumber).padStart(2, '0')}`
+          const watchEp = ep.displayNumber // URL uses display number (S-aware)
           return (
             <Link
               key={`${seasonKey}-${ep.number}`}
-              to={`/watch/${anime.identity.internalId}/${ep.number}`}
+              to={`/watch/${anime.identity.internalId}/${watchEp}`}
               onClick={() => handleSelect(ep.number)}
               className={`flex items-center gap-3 px-3 py-3 text-left transition ${
                 isCurrent ? 'bg-white/[0.06]' : 'bg-[#18181b] hover:bg-white/[0.04]'
               } ${ep.number !== episodes.length ? 'border-b border-white/5' : ''}`}
             >
-              <span className="w-6 text-center text-sm font-medium text-white/70">{String(ep.number).padStart(2, '0')}</span>
+              <span className="w-9 text-center text-sm font-medium text-white/70">{epLabel}</span>
 
               <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded bg-white/5">
                 {thumb ? (
@@ -160,12 +169,12 @@ export function EpisodeList({ anime, seasonNumber = 1 }: { anime: Anime; seasonN
                 ) : null}
                 {!thumb && (
                   <div className="grid h-full w-full place-items-center bg-white/[0.04] text-[10px] font-medium text-white/30">
-                    EP {String(ep.number).padStart(2, '0')}
+                    {epLabel}
                   </div>
                 )}
                 {/* fallback placeholder when img fails */}
                 <div className="hidden h-full w-full place-items-center bg-white/[0.04] text-[10px] font-medium text-white/30" style={{display: thumb ? 'none' : 'grid'}}>
-                  EP {String(ep.number).padStart(2, '0')}
+                  {epLabel}
                 </div>
                 {isWatched && (
                   <span className="absolute inset-0 grid place-items-center bg-black/40 text-white">
@@ -184,10 +193,10 @@ export function EpisodeList({ anime, seasonNumber = 1 }: { anime: Anime; seasonN
                   </p>
                 ) : (
                   <p className={`text-[13px] font-medium ${isCurrent ? 'text-white' : 'text-white/60'}`}>
-                    Episode {ep.number}
+                    Episode {ep.displayNumber}
                   </p>
                 )}
-                <p className="text-[11px] text-white/50">{ep.duration}m</p>
+                <p className="text-[11px] text-white/50">S{effectiveSeasonNumber}:E{ep.displayNumber} • {ep.duration}m</p>
               </div>
 
               <span className="hidden text-xs text-white/40 sm:block">{isWatched ? 'Watched' : ''}</span>
