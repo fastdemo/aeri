@@ -71,6 +71,7 @@ const providers: VideoSourceProvider[] = [
   aniNekoStub,
   demoProvider,
 ]
+const priorityProviders = [officialProvider, miruroAliasProvider, demoProvider]
 
 function getProviderById(id: string): VideoSourceProvider | undefined {
   return providers.find(p => p.id === id)
@@ -286,51 +287,56 @@ export default {
 
     const srcMatch = url.pathname.match(/^\/(?:api\/)?(?:video\/)?(?:sources|watch)\/(.+)$/)
     if (srcMatch) {
-      const rawPart = srcMatch[1].replace(/^\/+/, '')
-      const preferredLanguage = (url.searchParams.get('language') || url.searchParams.get('lang') || url.searchParams.get('preferredLanguage') || 'sub') as VideoLanguage
-      const preferredProviderParam = url.searchParams.get('provider') || url.searchParams.get('preferredProvider') || url.searchParams.get('preferred_provider')
-      const parsed = parseSourceRequest(decodeURIComponent(rawPart), url.searchParams)
-      const anilistId = parsed.anilistId
-      const episodeNum = parsed.episode ?? 1
-      const language = (parsed.language as VideoLanguage) ?? preferredLanguage
-      const episodeId = rawPart
-      if (!anilistId || Number.isNaN(anilistId) || anilistId <= 0) {
-        return json({ error: 'Invalid anilistId in request', episodeId, language }, 400, env, origin)
-      }
-      if (!['sub','dub'].includes(language)) return json({ error: 'Invalid language, use sub or dub' }, 400, env, origin)
-      const signal = request.signal
-      const tried: string[] = []
-      const ordered: VideoSourceProvider[] = []
-      const pushIfValid = (id: string | null) => {
-        if (!id) return
-        const p = getProviderById(id)
-        if (p && !ordered.some(o => o.id === p.id)) ordered.push(p)
-      }
-      pushIfValid(preferredProviderParam)
-      pushIfValid(parsed.providerHint)
-      for (const p of providers) if (!ordered.some(o => o.id === p.id)) ordered.push(p)
-      const tryOrdered = ordered
-      for (const provider of tryOrdered) {
-        if (signal.aborted) break
-        tried.push(provider.id)
-        try {
-          const srcs = await withTimeout(provider.getSources(anilistId, episodeNum, language, workerOrigin, signal), 5000, signal)
-          if (srcs && srcs.length > 0) {
-            const sorted = sortByLanguageAndQuality(srcs, language)
-            const filtered = sorted.filter(s => s.language === language)
-            const toReturn = filtered.length ? filtered : sorted
-            return json({ sources: toReturn, episodeId, language, tried, provider: provider.id, anilistId: String(anilistId), episode: episodeNum }, 200, env, origin, { 'Cache-Control': CACHE_CONTROL_SOURCES })
+      try {
+        const rawPart = srcMatch[1].replace(/^\/+/, '')
+        const preferredLanguage = (url.searchParams.get('language') || url.searchParams.get('lang') || url.searchParams.get('preferredLanguage') || 'sub') as VideoLanguage
+        const preferredProviderParam = url.searchParams.get('provider') || url.searchParams.get('preferredProvider') || url.searchParams.get('preferred_provider')
+        const parsed = parseSourceRequest(decodeURIComponent(rawPart), url.searchParams)
+        const anilistId = parsed.anilistId
+        const episodeNum = parsed.episode ?? 1
+        const language = (parsed.language as VideoLanguage) ?? preferredLanguage
+        const episodeId = rawPart
+        if (!anilistId || Number.isNaN(anilistId) || anilistId <= 0) {
+          return json({ error: 'Invalid anilistId in request', episodeId, language }, 400, env, origin)
+        }
+        if (!['sub','dub'].includes(language)) return json({ error: 'Invalid language, use sub or dub' }, 400, env, origin)
+        const signal = request.signal
+        const tried: string[] = []
+        const ordered: VideoSourceProvider[] = []
+        const pushIfValid = (id: string | null) => {
+          if (!id) return
+          const p = getProviderById(id)
+          if (p && !ordered.some(o => o.id === p.id)) ordered.push(p)
+        }
+        pushIfValid(preferredProviderParam)
+        pushIfValid(parsed.providerHint)
+        for (const p of providers) if (!ordered.some(o => o.id === p.id)) ordered.push(p)
+        const tryOrdered = ordered
+        for (const provider of tryOrdered) {
+          if (signal.aborted) break
+          tried.push(provider.id)
+          try {
+            const srcs = await withTimeout(provider.getSources(anilistId, episodeNum, language, workerOrigin, signal), 5000, signal)
+            if (srcs && srcs.length > 0) {
+              const sorted = sortByLanguageAndQuality(srcs, language)
+              const filtered = sorted.filter(s => s.language === language)
+              const toReturn = filtered.length ? filtered : sorted
+              return json({ sources: toReturn, episodeId, language, tried, provider: provider.id, anilistId: String(anilistId), episode: episodeNum }, 200, env, origin, { 'Cache-Control': CACHE_CONTROL_SOURCES })
+            }
+          } catch (e) {
+            if ((e as any)?.name === 'AbortError') break
+            continue
           }
-        } catch (e) {
-          if ((e as any)?.name === 'AbortError') break
-          continue
+          // If we've tried the 3 priority providers and all empty, don't waste 25s on 6 stubs that always empty — return early
+          if (tried.length === priorityProviders.length && tried.every(id => ['official','miruro','demo'].includes(id))) {
+            // If priority all tried and empty (unlikely for official), continue to stubs but they will also be empty — we still try for completeness but with shorter timeout inside getSources (they return [] instantly)
+          }
         }
-        // If we've tried the 3 priority providers and all empty, don't waste 25s on 6 stubs that always empty — return early
-        if (tried.length === priorityProviders.length && tried.every(id => ['official','miruro','demo'].includes(id))) {
-          // If priority all tried and empty (unlikely for official), continue to stubs but they will also be empty — we still try for completeness but with shorter timeout inside getSources (they return [] instantly)
-        }
+        return json({ sources: [], episodeId, language, tried, anilistId: String(anilistId), episode: episodeNum }, 200, env, origin, { 'Cache-Control': CACHE_CONTROL_SOURCES })
+      } catch (e) {
+        if ((e as any)?.name === 'AbortError') return json({ error: 'Aborted' }, 499, env, origin)
+        return json({ error: String(e), sources: [], tried: [] }, 502, env, origin)
       }
-      return json({ sources: [], episodeId, language, tried, anilistId: String(anilistId), episode: episodeNum }, 200, env, origin, { 'Cache-Control': CACHE_CONTROL_SOURCES })
     }
 
     // --- MAL proxy (to bypass GH Pages CORS) ---
