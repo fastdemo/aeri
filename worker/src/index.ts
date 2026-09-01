@@ -461,6 +461,18 @@ export default {
       }
     }
 
+    // Debug: test provider reachability from Worker
+    if (url.pathname === '/api/debug/provider-test') {
+      const target = url.searchParams.get('url') || 'https://hianime.to/ajax/search.html?keyword=Cowboy%20Bebop'
+      try {
+        const res = await fetch(target, { headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://hianime.to/' }, signal: request.signal })
+        const text = await res.text()
+        return json({ status: res.status, headers: Object.fromEntries(res.headers.entries()), bodySnippet: text.slice(0, 2000), url: target }, 200, env, origin)
+      } catch (e) {
+        return json({ error: String(e), url: target }, 502, env, origin)
+      }
+    }
+
     // Serve static frontend assets (Vite dist) for all non-API routes
     // Cloudflare Workers with `assets` will have env.ASSETS available
     if (env.ASSETS) {
