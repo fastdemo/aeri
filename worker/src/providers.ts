@@ -61,15 +61,19 @@ async function fetchWithTimeout(url: string, opts: RequestInit = {}, timeoutMs =
 async function fetchAnilistMedia(anilistId: number, signal?: AbortSignal): Promise<any> {
   const res = await fetchWithTimeout('https://graphql.anilist.co', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'User-Agent': 'Aeri/1.0 (https://aeri.fastdemo.workers.dev)', 'Accept': 'application/json' },
     body: JSON.stringify({
       query: `query($id:Int){ Media(id:$id,type:ANIME){ id episodes title{romaji english native} trailer{id site thumbnail} streamingEpisodes{title thumbnail url site} } }`,
       variables: { id: anilistId },
     }),
     signal,
-  }, 5000)
-  if (!res.ok) throw new Error(`AniList ${res.status}`)
+  }, 8000)
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`AniList ${res.status} ${text.slice(0,200)}`)
+  }
   const json: any = await res.json()
+  if (json?.errors) throw new Error(`AniList GraphQL ${JSON.stringify(json.errors).slice(0,300)}`)
   return json?.data?.Media ?? null
 }
 
