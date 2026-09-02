@@ -31,31 +31,27 @@ export function Navbar() {
     setShowSuggestions(false)
   }, [location.pathname, location.search, location.hash])
 
-  // Close suggestions on outside click — deferred so click→navigate isn't swallowed
+  // Close suggestions on outside pointerdown — unified pointer event, no microtask delay
   useEffect(() => {
-    const onDown = (e: MouseEvent) => {
+    const onDown = (e: PointerEvent) => {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
-        queueMicrotask(() => setShowSuggestions(false))
+        setShowSuggestions(false)
       }
     }
-    document.addEventListener('mousedown', onDown)
-    return () => document.removeEventListener('mousedown', onDown)
+    document.addEventListener('pointerdown', onDown, { passive: true })
+    return () => document.removeEventListener('pointerdown', onDown as any)
   }, [])
 
   const dispatchNavigate = (to?: string) => {
-    queueMicrotask(() => {
-      try { window.dispatchEvent(new CustomEvent('aeri:navigate')) } catch {}
-    })
+    try { window.dispatchEvent(new CustomEvent('aeri:navigate')) } catch {}
     if (to) {
       const expected = `#${to}`;
-      setTimeout(() => {
-        try {
-          if (window.location.hash !== expected) {
-            const isHome = to === '/' && (window.location.hash === '#/' || window.location.hash === '' || window.location.hash === '#');
-            if (!isHome) window.location.hash = to;
-          }
-        } catch {}
-      }, 180);
+      try {
+        if (window.location.hash !== expected) {
+          const isHome = to === '/' && (window.location.hash === '#/' || window.location.hash === '' || window.location.hash === '#');
+          if (!isHome) window.location.hash = to;
+        }
+      } catch {}
     }
   }
 
@@ -65,14 +61,10 @@ export function Navbar() {
     if (!q) return
     const target = `/search?q=${encodeURIComponent(q)}`;
     navigate(target)
-    setTimeout(() => {
-      try { if (window.location.hash !== `#${target}`) window.location.hash = target; } catch {}
-    }, 180);
-    queueMicrotask(() => {
-      try { window.dispatchEvent(new CustomEvent('aeri:navigate')) } catch {}
-      setMobileSearchOpen(false)
-      setShowSuggestions(false)
-    })
+    try { if (window.location.hash !== `#${target}`) window.location.hash = target; } catch {}
+    try { window.dispatchEvent(new CustomEvent('aeri:navigate')) } catch {}
+    setMobileSearchOpen(false)
+    setShowSuggestions(false)
   }
 
   // Desktop nav items — Settings only when authenticated
@@ -93,11 +85,12 @@ export function Navbar() {
 
   return (
     <header
-      className={`fixed inset-x-0 top-0 z-50 h-14 transition-colors duration-300 ${
+      className={`fixed inset-x-0 top-0 z-50 h-14 touch-manipulation transition-colors duration-300 ${
         scrolled
           ? 'bg-[var(--bg)]/95 backdrop-blur-md border-b border-[var(--border)]'
           : 'bg-gradient-to-b from-black/70 via-black/20 to-transparent'
       }`}
+      style={{ touchAction: 'manipulation' } as any}
       aria-label="Primary"
     >
       <div className="mx-auto flex h-full max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-12 lg:gap-6">
@@ -107,8 +100,8 @@ export function Navbar() {
             to="/"
             onClick={() => dispatchNavigate('/')}
             aria-label="aeri home"
-            className="text-[19px] font-semibold tracking-[-0.02em] text-white select-none"
-            style={{ fontFamily: '"Cal Sans", sans-serif', userSelect: 'none' } as any}
+            className="touch-manipulation text-[19px] font-semibold tracking-[-0.02em] text-white select-none"
+            style={{ fontFamily: '"Cal Sans", sans-serif', userSelect: 'none', touchAction: 'manipulation' } as any}
             draggable={false}
           >
             aeri
@@ -121,10 +114,11 @@ export function Navbar() {
                 to={l.to}
                 onClick={() => dispatchNavigate(l.to)}
                 className={({ isActive }) =>
-                  `text-[13px] font-medium transition-colors px-2 py-1.5 rounded -mx-2 ${
+                  `touch-manipulation text-[13px] font-medium transition-colors px-2 py-1.5 rounded -mx-2 ${
                     isActive ? 'text-white' : 'text-white/70 hover:text-white'
                   }`
                 }
+                style={{ touchAction: 'manipulation' } as any}
               >
                 {l.label}
               </NavLink>
@@ -134,7 +128,8 @@ export function Navbar() {
             aria-label="Menu"
             aria-expanded={mobileNavOpen}
             onClick={() => setMobileNavOpen((v) => !v)}
-            className="grid h-11 w-11 place-items-center rounded-full text-white/80 hover:bg-white/10 hover:text-white lg:hidden"
+            className="grid h-11 w-11 touch-manipulation place-items-center rounded-full text-white/80 hover:bg-white/10 hover:text-white lg:hidden"
+            style={{ touchAction: 'manipulation' } as any}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
               <path d="M4 7h16M4 12h16M4 17h16" />
@@ -175,7 +170,8 @@ export function Navbar() {
           <button
             aria-label="Search"
             onClick={() => setMobileSearchOpen((v) => !v)}
-            className="grid h-11 w-11 place-items-center rounded-full text-white/80 hover:bg-white/10 hover:text-white lg:hidden"
+            className="grid h-11 w-11 touch-manipulation place-items-center rounded-full text-white/80 hover:bg-white/10 hover:text-white lg:hidden"
+            style={{ touchAction: 'manipulation' } as any}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <circle cx="11" cy="11" r="7" />
@@ -202,7 +198,8 @@ export function Navbar() {
               onClick={() => {
                 try { anilistLogin() } catch {}
               }}
-              className="inline-flex h-7 items-center rounded-full bg-white px-4 text-[13px] font-semibold text-black transition hover:bg-white/90 active:scale-[0.98] lg:h-8 lg:px-5"
+              className="inline-flex h-7 touch-manipulation items-center rounded-full bg-white px-4 text-[13px] font-semibold text-black transition hover:bg-white/90 active:scale-[0.98] lg:h-8 lg:px-5"
+              style={{ touchAction: 'manipulation' } as any}
               aria-label="Sign up with AniList"
             >
               Sign Up
@@ -212,7 +209,8 @@ export function Navbar() {
               to="/list"
               onClick={() => dispatchNavigate('/list')}
               aria-label="Profile"
-              className="relative h-7 w-7 overflow-hidden rounded bg-gradient-to-br from-violet-600 to-indigo-600"
+              className="relative h-7 w-7 touch-manipulation overflow-hidden rounded bg-gradient-to-br from-violet-600 to-indigo-600"
+              style={{ touchAction: 'manipulation' } as any}
             >
               {user?.avatar?.large ? (
                 <img src={user.avatar.large} alt={user.name} className="h-full w-full object-cover" loading="lazy" />
@@ -255,10 +253,11 @@ export function Navbar() {
                 key={l.to}
                 to={l.to}
                 onClick={() => {
-                  queueMicrotask(() => setMobileNavOpen(false))
+                  setMobileNavOpen(false)
                   dispatchNavigate(l.to)
                 }}
                 className="rounded px-3 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white active:bg-white/5 touch-manipulation min-h-[44px] flex items-center"
+                style={{ touchAction: 'manipulation' } as any}
               >
                 {l.label}
               </Link>
@@ -269,7 +268,8 @@ export function Navbar() {
                   setMobileNavOpen(false)
                   try { anilistLogin() } catch {}
                 }}
-                className="mt-2 rounded-full bg-white px-4 py-3 text-sm font-semibold text-black"
+                className="mt-2 touch-manipulation rounded-full bg-white px-4 py-3 text-sm font-semibold text-black"
+                style={{ touchAction: 'manipulation' } as any}
               >
                 Sign Up — Connect AniList
               </button>

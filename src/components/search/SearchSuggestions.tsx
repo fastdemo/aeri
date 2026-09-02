@@ -109,12 +109,14 @@ export function SearchSuggestions({ query, onClose }: Props) {
           key={anime.identity.internalId}
           role="option"
           aria-selected={idx === activeIdx}
+          onPointerEnter={() => setActiveIdx(idx)}
           onMouseEnter={() => setActiveIdx(idx)}
           onClick={() => {
             navigate(`/anime/${anime.identity.internalId}`)
             onClose?.()
           }}
-          className={`flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-white/5 ${idx === activeIdx ? 'bg-white/10' : ''}`}
+          className={`flex w-full touch-manipulation items-center gap-3 px-3 py-2 text-left hover:bg-white/5 ${idx === activeIdx ? 'bg-white/10' : ''}`}
+          style={{ touchAction: 'manipulation' } as any}
         >
           <div className="h-14 w-10 shrink-0 overflow-hidden rounded bg-white/5">
             <img src={anime.coverImage} alt="" className="h-full w-full object-cover" loading="lazy" />
