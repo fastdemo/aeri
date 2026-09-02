@@ -28,6 +28,8 @@ export interface Anime {
   format?: string
   popularity?: number
   streamingEpisodes?: { title?: string; thumbnail?: string; url?: string; site?: string }[]
+  nextAiringEpisode?: { airingAt: number; timeUntilAiring: number; episode: number } | null
+  airingSchedule?: { airingAt: number; episode: number }[]
   isAdult?: boolean
   progress?: {
     episode: number

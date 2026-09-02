@@ -22,6 +22,8 @@ const MEDIA_FIELDS = `
   format
   popularity
   streamingEpisodes { title thumbnail url site }
+  nextAiringEpisode { airingAt timeUntilAiring episode }
+  airingSchedule { nodes { airingAt episode } }
   isAdult
 `
 

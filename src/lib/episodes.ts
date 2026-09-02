@@ -240,9 +240,17 @@ export function normalizeEpisodes(
     }
   }
 
-  const count = (effectiveAnime.streamingEpisodes === undefined && preDiscardCount !== null && sortedAnime.episodes == null)
+  const totalCount = (effectiveAnime.streamingEpisodes === undefined && preDiscardCount !== null && sortedAnime.episodes == null)
     ? preDiscardCount
     : resolveEpisodeCount(effectiveAnime, providerEpisodes)
+  const airedCount = getAiredEpisodeCount(effectiveAnime)
+  const count = (() => {
+    if (effectiveAnime.status === 'NOT_YET_RELEASED') return 0
+    if ((effectiveAnime.status === 'RELEASING') && (effectiveAnime.nextAiringEpisode || (effectiveAnime.airingSchedule && effectiveAnime.airingSchedule.length > 0))) {
+      return Math.min(totalCount, airedCount)
+    }
+    return totalCount
+  })()
   if (count === 0) return []
 
   const providerByNum = new Map<number, VideoEpisode>()
@@ -367,11 +375,53 @@ export function normalizeEpisodes(
   })
 }
 
+export function getAiredEpisodeCount(anime: Anime): number {
+  const nowSec = Math.floor(Date.now() / 1000)
+  // Completed or finished anime: all episodes have aired
+  if (anime.status && ['FINISHED', 'CANCELLED', 'HIATUS'].includes(anime.status)) {
+    return anime.episodes ?? anime.streamingEpisodes?.length ?? 0
+  }
+  // Not yet released: none have aired
+  if (anime.status === 'NOT_YET_RELEASED') return 0
+  // Currently airing: use nextAiringEpisode or airingSchedule
+  if (anime.nextAiringEpisode && typeof anime.nextAiringEpisode.episode === 'number' && typeof anime.nextAiringEpisode.airingAt === 'number') {
+    // nextAiringEpisode.episode is the NEXT to air, so aired = episode - 1
+    // But ensure airingAt is in future; if it's in past, it might be stale, fallback to schedule
+    if (anime.nextAiringEpisode.airingAt > nowSec) {
+      return Math.max(0, anime.nextAiringEpisode.episode - 1)
+    }
+    // If airingAt is in past, the episode has already aired, so we need to count via schedule
+  }
+  if (anime.airingSchedule && anime.airingSchedule.length > 0) {
+    const aired = anime.airingSchedule.filter(s => s.airingAt <= nowSec).length
+    if (aired > 0) return aired
+    if (anime.nextAiringEpisode) return Math.max(0, anime.nextAiringEpisode.episode - 1)
+  }
+  // Fallback: if we have nextAiringEpisode but no schedule, use it
+  if (anime.nextAiringEpisode && typeof anime.nextAiringEpisode.episode === 'number') {
+    return Math.max(0, anime.nextAiringEpisode.episode - 1)
+  }
+  // For airing anime with no schedule data, fallback to episodes count but hide future? Without air date, we can't know, so show all
+  // But to be safe for currently airing, if status is RELEASING and no schedule, we should not hide, show all
+  // The user wants to hide future episodes only when we have air date info
+  return anime.episodes ?? anime.streamingEpisodes?.length ?? 0
+}
+
 export function getEpisodeCount(
   anime: Anime,
   providerEpisodes?: VideoEpisode[] | null
 ): number {
-  return resolveEpisodeCount(anime, providerEpisodes)
+  const total = resolveEpisodeCount(anime, providerEpisodes)
+  const aired = getAiredEpisodeCount(anime)
+  // If we have airing info, cap total to aired count; otherwise use total
+  if (anime.status === 'RELEASING' || anime.status === 'NOT_YET_RELEASED') {
+    // Only cap if we have reliable aired count (i.e., airingSchedule or nextAiringEpisode present)
+    if (anime.nextAiringEpisode || (anime.airingSchedule && anime.airingSchedule.length > 0)) {
+      return Math.min(total, aired)
+    }
+  }
+  if (anime.status === 'NOT_YET_RELEASED') return 0
+  return total
 }
 
 // ---------------------------------------------------------------------------

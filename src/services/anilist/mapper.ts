@@ -26,6 +26,8 @@ export interface AniListMedia {
   format?: string | null // TV, MOVIE etc
   popularity?: number | null
   streamingEpisodes?: { title?: string | null; thumbnail?: string | null; url?: string | null; site?: string | null }[] | null
+  nextAiringEpisode?: { airingAt: number; timeUntilAiring: number; episode: number } | null
+  airingSchedule?: { nodes: { airingAt: number; episode: number }[] } | null
   isAdult?: boolean | null
 }
 
@@ -136,6 +138,17 @@ export function mapAniListMediaToAnime(media: AniListMedia): Anime {
     return mapped.length ? mapped : undefined
   })()
 
+  const nextAiringEpisode = media.nextAiringEpisode ? {
+    airingAt: media.nextAiringEpisode.airingAt,
+    timeUntilAiring: media.nextAiringEpisode.timeUntilAiring,
+    episode: media.nextAiringEpisode.episode,
+  } : undefined
+
+  const airingSchedule = media.airingSchedule?.nodes?.map(n => ({
+    airingAt: n.airingAt,
+    episode: n.episode,
+  })).filter(n => typeof n.airingAt === 'number' && typeof n.episode === 'number') ?? undefined
+
   return {
     identity: {
       internalId: `anilist-${media.id}`,
@@ -158,7 +171,8 @@ export function mapAniListMediaToAnime(media: AniListMedia): Anime {
     format: media.format ?? undefined,
     popularity: media.popularity ?? undefined,
     streamingEpisodes,
-    // isAdult is NOT an age rating — do not map to T18/PG-13. If needed, expose as isAdult separately.
+    nextAiringEpisode,
+    airingSchedule,
     isAdult: media.isAdult ?? undefined,
   }
 }
