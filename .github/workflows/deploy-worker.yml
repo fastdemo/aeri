@@ -37,5 +37,5 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           wranglerVersion: "4.128.0"
-          # Top-level wrangler.jsonc name is 'aeri' (production). Explicitly target Worker 'aeri', not 'aeri-production'.
-          command: deploy --name aeri
+          # Unambiguous: env.production is pinned to Worker 'aeri' (see wrangler.jsonc). Do not use 'aeri-production'.
+          command: deploy --env production
