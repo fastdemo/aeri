@@ -63,7 +63,7 @@ export function Hero({ anime, onMoreInfo }: { anime: Anime; onMoreInfo?: () => v
               <span>{metaParts}</span>
               {anime.rating && (
                 <span className="inline-flex items-center gap-1 rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                  <span className="text-amber-300">★</span> {anime.rating.toFixed(1)}
+                  <span className="text-white">★</span> {anime.rating.toFixed(1)}
                 </span>
               )}
             </p>
@@ -268,7 +268,7 @@ export function HeroCarousel({
                     <span>{metaParts}</span>
                     {active.rating && (
                       <span className="inline-flex items-center gap-1 rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                        <span className="text-amber-300">★</span> {active.rating.toFixed(1)}
+                        <span className="text-white">★</span> {active.rating.toFixed(1)}
                       </span>
                     )}
                   </p>

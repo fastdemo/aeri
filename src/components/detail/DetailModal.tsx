@@ -305,7 +305,7 @@ export function DetailModal({
                     }
                     setShowRatingPicker((v) => !v)
                   }}
-                  className={`grid h-8 w-8 place-items-center rounded-full border bg-black/30 backdrop-blur hover:bg-white/10 ${currentScore ? 'border-amber-400/40 text-amber-300' : 'border-white/20 text-white'}`}
+                  className={`grid h-8 w-8 place-items-center rounded-full border bg-black/30 backdrop-blur hover:bg-white/10 ${currentScore ? 'border-white/30 text-white' : 'border-white/20 text-white'}`}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill={currentScore ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8">
                     <path d="M12 17 6 21l1.5-6.5L2 9l6.5-.6L12 2l3.5 6.4L22 9l-5.5 5.5L18 21z" />
@@ -371,8 +371,8 @@ export function DetailModal({
               </span>
             )}
             {currentScore !== null && currentScore > 0 && (
-              <span className="rounded-full border border-amber-400/20 bg-amber-500/10 px-2 py-1 text-amber-200/90">
-                ★ {currentScore}/10
+              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-white/90">
+                <span className="text-white">★</span> {currentScore}/10
               </span>
             )}
             {syncing && <span className="px-2 py-1 text-white/50">Syncing…</span>}
@@ -391,7 +391,7 @@ export function DetailModal({
               <span>{metaParts}</span>
               {displayAnime.rating && (
                 <span className="inline-flex items-center gap-1 rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                  <span className="text-amber-300">★</span> {displayAnime.rating.toFixed(1)}
+                  <span className="text-white">★</span> {displayAnime.rating.toFixed(1)}
                 </span>
               )}
             </div>
