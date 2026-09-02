@@ -9,6 +9,7 @@ on:
       - 'wrangler.jsonc'
       - 'package.json'
       - 'vite.config.ts'
+      - '.github/workflows/deploy-worker.yml'
   workflow_dispatch:
 
 jobs:
