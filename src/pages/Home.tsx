@@ -381,7 +381,7 @@ export function Home() {
     const shuffledRest = rest.length ? shuffle(rest) : []
     const ordered = [...(trendingFirst ? [trendingFirst] : []), ...shuffledRest, ...personalized]
     return ordered
-  }, [trending, popular, airing, news, derived, becauseContext, becauseRecommendations])
+  }, [trending, popular, airing, news, derived, becauseContext, becauseRecommendations, allPool])
 
   const syncLabel = isAniListAuthenticated && isMALAuthenticated ? 'AniList • MAL' : isAniListAuthenticated ? 'AniList' : isMALAuthenticated ? 'MAL' : ''
 

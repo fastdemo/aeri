@@ -22,6 +22,7 @@ export function EpisodeList({ anime, seasonNumber, group }: { anime: Anime; seas
   const [providerEpisodes, setProviderEpisodes] = useState<VideoEpisode[] | null>(null)
   const [providerDone, setProviderDone] = useState(false)
   const prevIdRef = useRef<string>('')
+  const { isAuthenticated, combinedList, updateProgress } = useTracking()
 
   const effectiveSeasonNumber = seasonNumber ?? getSmartSeasonNumber(anime, group ?? null)
   const effectiveGroup = group ?? null
@@ -95,7 +96,6 @@ export function EpisodeList({ anime, seasonNumber, group }: { anime: Anime; seas
       </div>
     )
   }
-  const { isAuthenticated, combinedList, updateProgress } = useTracking()
   const entry = (() => {
     if (!isAuthenticated || !combinedList) return null
     const malId = anime.identity.malId

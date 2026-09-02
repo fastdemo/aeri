@@ -25,10 +25,17 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+        env:
+          # Production Cloudflare build variables — do not hardcode in source
+          VITE_ANILIST_CLIENT_ID: '50024'
+          VITE_MAL_CLIENT_ID: 'ce55a1d587f549b33c1fa36ec10fe8d2'
+          VITE_VIDEO_API_URL: ''
+          AERI_BASE: '/'
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           wranglerVersion: "4.128.0"
-          command: deploy
+          # Top-level wrangler.jsonc name is 'aeri' (production). Explicitly target Worker 'aeri', not 'aeri-production'.
+          command: deploy --name aeri

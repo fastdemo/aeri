@@ -26,7 +26,9 @@ jobs:
       - run: npm ci
       - run: npm run build
         env:
-          VITE_ANILIST_CLIENT_ID: '49713'
+          AERI_DEPLOY_TARGET: gh-pages
+          GITHUB_PAGES: 'true'
+          VITE_ANILIST_CLIENT_ID: '50024'
           VITE_MAL_CLIENT_ID: 'ce55a1d587f549b33c1fa36ec10fe8d2'
           VITE_VIDEO_API_URL: ${{ secrets.VITE_VIDEO_API_URL }}
       - uses: actions/configure-pages@v5

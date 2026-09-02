@@ -88,11 +88,11 @@ The original plan was GitHub Pages at `fastdemo.github.io/aeri`, and some docs s
 Local env:
 
 ```bash
-VITE_ANILIST_CLIENT_ID=49713
+VITE_ANILIST_CLIENT_ID=50024
 VITE_MAL_CLIENT_ID=ce55a1d587f549b33c1fa36ec10fe8d2
 ```
 
-These are public client IDs and are baked into the production bundle at build time.
+These are public client IDs and are baked into the production bundle at build time via Cloudflare build variables (not hardcoded in source).
 
 ```bash
 npm run build

@@ -9,15 +9,18 @@
     "not_found_handling": "single-page-application"
   },
   "vars": {
+    "ALLOWED_ORIGIN": "https://aeri.fastdemo.workers.dev",
     "PROXY_ALLOWLIST": "archive.org,ia600200.us.archive.org,test-streams.mux.dev,mux.dev,anikototv.to,www.anikotoapi.site,megaplay.buzz,animepahe.ru,kwik.cx,kwik.si,pahe.win"
   },
   "env": {
     "production": {
+      "name": "aeri",
       "vars": {
         "ALLOWED_ORIGIN": "https://aeri.fastdemo.workers.dev"
       }
     },
     "preview": {
+      "name": "aeri-preview",
       "vars": {
         "ALLOWED_ORIGIN": "*"
       }
