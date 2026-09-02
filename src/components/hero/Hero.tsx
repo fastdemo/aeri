@@ -5,9 +5,7 @@ import { getTitleHierarchy } from '../../lib/titles'
 
 export function Hero({ anime, onMoreInfo }: { anime: Anime; onMoreInfo?: () => void }) {
   const titles = getTitleHierarchy(anime, null)
-  const meta = [anime.format ?? 'TV', anime.year, anime.episodes ? `${anime.episodes} Episodes` : null, anime.rating ? `${anime.rating.toFixed(1)}` : null]
-    .filter(Boolean)
-    .join(' · ')
+  const metaParts = [anime.format ?? 'TV', anime.year, anime.episodes ? `${anime.episodes} Episodes` : null].filter(Boolean).join(' · ')
 
   return (
     <section className="relative overflow-hidden rounded-xl bg-[var(--surface)] sm:rounded-[14px]">
@@ -61,11 +59,13 @@ export function Hero({ anime, onMoreInfo }: { anime: Anime; onMoreInfo?: () => v
               <p className="-mt-1 text-[11px] tracking-wide text-white/50">{titles.romaji}</p>
             )}
 
-            <p className="text-[12px] font-medium tracking-wide text-white/70">
-              {meta}
-              <span className="ml-2 inline-flex items-center gap-1 rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-widest text-white/90">
-                HD
-              </span>
+            <p className="text-[12px] font-medium tracking-wide text-white/70 flex items-center gap-2">
+              <span>{metaParts}</span>
+              {anime.rating && (
+                <span className="inline-flex items-center gap-1 rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                  <span className="text-amber-300">★</span> {anime.rating.toFixed(1)}
+                </span>
+              )}
             </p>
 
             <p className="line-clamp-2 max-w-[520px] text-[13px] leading-6 text-white/75 sm:line-clamp-3 sm:text-[14px]">
@@ -250,11 +250,10 @@ export function HeroCarousel({
           <div className="flex w-full max-w-[560px] flex-col justify-end gap-3 px-5 pb-10 pt-16 sm:px-8 sm:pb-12 lg:justify-center lg:pb-0 lg:pl-12 lg:pr-0">
             {(() => {
               const titles = getTitleHierarchy(active, null)
-              const meta = [
+              const metaParts = [
                 active.format ?? 'TV',
                 active.year,
                 active.episodes ? `${active.episodes} Episodes` : null,
-                active.rating ? `${active.rating.toFixed(1)}` : null,
               ]
                 .filter(Boolean)
                 .join(' · ')
@@ -265,11 +264,13 @@ export function HeroCarousel({
                   </h1>
                   {titles.native && <p className="-mt-1 text-[12px] tracking-wide text-white/70">{titles.native}</p>}
                   {titles.romaji && <p className="-mt-1 text-[11px] tracking-wide text-white/50">{titles.romaji}</p>}
-                  <p className="text-[12px] font-medium tracking-wide text-white/70">
-                    {meta}
-                    <span className="ml-2 inline-flex items-center gap-1 rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold tracking-widest text-white/90">
-                      HD
-                    </span>
+                  <p className="text-[12px] font-medium tracking-wide text-white/70 flex items-center gap-2">
+                    <span>{metaParts}</span>
+                    {active.rating && (
+                      <span className="inline-flex items-center gap-1 rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                        <span className="text-amber-300">★</span> {active.rating.toFixed(1)}
+                      </span>
+                    )}
                   </p>
                   <p className="line-clamp-2 max-w-[520px] text-[13px] leading-6 text-white/75 sm:line-clamp-3 sm:text-[14px]">
                     {active.description}

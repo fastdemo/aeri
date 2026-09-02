@@ -40,7 +40,9 @@ export function DetailModal({
   const baseAnime = entry?.anime ?? anime
 
   // Series grouping — abortable, selectedSeason === displayAnime invariant
+  // Delay preview until grouping finishes so season is correct on first paint
   const [seriesGroup, setSeriesGroup] = useState<AnimeSeriesGroup | null>(null)
+  const [groupLoading, setGroupLoading] = useState(false)
   const [selectedSeasonIdx, setSelectedSeasonIdx] = useState(0)
   const requestIdRef = useRef(0)
   const seriesGroupRef = useRef<AnimeSeriesGroup | null>(null)
@@ -52,8 +54,10 @@ export function DetailModal({
     if (!baseAnime.identity.anilistId) {
       setSeriesGroup(null)
       setSelectedSeasonIdx(0)
+      setGroupLoading(false)
       return
     }
+    setGroupLoading(true)
     const currentId = baseAnime.identity.anilistId
     const curGroup = seriesGroupRef.current
     if (curGroup) {
@@ -81,6 +85,9 @@ export function DetailModal({
         if (reqId !== requestIdRef.current) return
         setSeriesGroup(null)
         setSelectedSeasonIdx(0)
+      })
+      .finally(() => {
+        if (reqId === requestIdRef.current) setGroupLoading(false)
       })
     return () => controller.abort()
   }, [baseAnime.identity.anilistId])
@@ -149,7 +156,22 @@ export function DetailModal({
     }
   }, [])
 
-  const meta = [displayAnime.format, displayAnime.year ? String(displayAnime.year) : null, displayAnime.season ? displayAnime.season.charAt(0) + displayAnime.season.slice(1).toLowerCase() : null, !isMovie && displayAnime.episodes ? `${displayAnime.episodes} Episodes` : null, displayAnime.status ? displayAnime.status.charAt(0) + displayAnime.status.slice(1).toLowerCase() : null].filter(Boolean).join(' · ') + ' · HD'
+  const metaParts = [displayAnime.format, displayAnime.year ? String(displayAnime.year) : null, displayAnime.season ? displayAnime.season.charAt(0) + displayAnime.season.slice(1).toLowerCase() : null, !isMovie && displayAnime.episodes ? `${displayAnime.episodes} Episodes` : null, displayAnime.status ? displayAnime.status.charAt(0) + displayAnime.status.slice(1).toLowerCase() : null].filter(Boolean).join(' · ')
+
+  if (groupLoading) {
+    return (
+      <div className="fixed inset-x-0 bottom-0 top-14 z-40 flex items-start justify-center overflow-y-auto bg-black/75 p-2 backdrop-blur-[2px] sm:p-6 lg:p-8">
+        <div className="relative my-2 w-full max-w-[980px] rounded-xl bg-[#0e0e10] p-6">
+          <div className="animate-pulse space-y-4">
+            <div className="h-[360px] w-full rounded bg-white/5 sm:h-[420px]" />
+            <div className="h-6 w-1/3 rounded bg-white/5" />
+            <div className="h-4 w-full rounded bg-white/5" />
+            <div className="h-4 w-2/3 rounded bg-white/5" />
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="fixed inset-x-0 bottom-0 top-14 z-40 flex items-start justify-center overflow-y-auto bg-black/75 p-2 backdrop-blur-[2px] sm:p-6 lg:p-8">
@@ -366,14 +388,19 @@ export function DetailModal({
               {titles.romaji && <p className="mt-1 text-[11px] tracking-wide text-white/50">{titles.romaji}</p>}
             </div>
             <div className="flex flex-wrap items-center gap-2 text-[12px] text-white/70">
-              <span>{meta}</span>
-              {displayAnime.rating && <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold">★ {displayAnime.rating.toFixed(1)}</span>}
+              <span>{metaParts}</span>
+              {displayAnime.rating && (
+                <span className="inline-flex items-center gap-1 rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                  <span className="text-amber-300">★</span> {displayAnime.rating.toFixed(1)}
+                </span>
+              )}
             </div>
 
             {!isMovie && (() => {
               const firstEp = displayAnime.streamingEpisodes?.[0]
               const epNum = displayAnime.progress?.episode ?? 1
-              const epTitle = displayAnime.streamingEpisodes?.[epNum - 1]?.title ?? firstEp?.title
+              const rawEpTitle = displayAnime.streamingEpisodes?.[epNum - 1]?.title ?? firstEp?.title
+              const epTitle = rawEpTitle ? (() => { const t = rawEpTitle.trim(); const m = t.match(/^(?:Episode|Ep\.?)\s*\d+\s*[-:]\s*(.+)$/i); return m && m[1].trim() ? m[1].trim() : t })() : undefined
               if (!epTitle && !displayAnime.progress) return null
               const sNum = selectedSeasonIdx + 1
               return (

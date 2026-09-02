@@ -27,6 +27,20 @@ function isGenericTitle(t: string): boolean {
   return false
 }
 
+export function cleanEpisodeTitle(title: string): string {
+  const t = title.trim()
+  // Strip leading "Episode N - " or "Episode N: " or "Ep N - " etc.
+  // e.g. "Episode 1 - Past x And x Future" -> "Past x And x Future"
+  // e.g. "Episode 12: The Final Battle" -> "The Final Battle"
+  const m = t.match(/^(?:Episode|Ep\.?)\s*\d+\s*[-:]\s*(.+)$/i)
+  if (m && m[1] && m[1].trim().length > 0) {
+    const rest = m[1].trim()
+    // Don't strip if rest is generic (e.g. "Episode 1 - Episode 2" -> keep original? but that would be weird)
+    if (!isGenericTitle(rest)) return rest
+  }
+  return t
+}
+
 export function parseEpisodeNumber(title: string): number | null {
   if (!title) return null
   const m = title.match(/Episode\s+(\d+(?:\.\d+)?)/i)
@@ -305,16 +319,16 @@ export function normalizeEpisodes(
     let providerId: string | undefined
 
     const anilistRaw = typeof se?.title === 'string' ? se.title.trim() : ''
-    if (anilistRaw && !isGenericTitle(anilistRaw)) {
-      // If title contains global number prefix like "Episode 72 - Title", keep as is but it has been sorted
-      // Optionally strip global number offset? Keep full title for now
-      title = anilistRaw
+    const cleanedAnilist = anilistRaw ? cleanEpisodeTitle(anilistRaw) : ''
+    if (cleanedAnilist && !isGenericTitle(cleanedAnilist)) {
+      title = cleanedAnilist
       source = 'anilist'
     } else {
       const pe = providerByNum.get(n)
       const providerRaw = typeof pe?.title === 'string' ? pe.title.trim() : ''
-      if (providerRaw && !isGenericTitle(providerRaw)) {
-        title = providerRaw
+      const cleanedProvider = providerRaw ? cleanEpisodeTitle(providerRaw) : ''
+      if (cleanedProvider && !isGenericTitle(cleanedProvider)) {
+        title = cleanedProvider
         source = 'provider'
         providerId = pe?.provider
       } else if (pe) {

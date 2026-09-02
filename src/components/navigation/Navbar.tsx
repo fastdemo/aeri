@@ -67,18 +67,18 @@ export function Navbar() {
     setShowSuggestions(false)
   }
 
-  // Desktop nav items — Settings only when authenticated
+  // Desktop nav items — Settings and My List only when authenticated
   const desktopNav = [
     { to: '/', label: 'Home' },
     { to: '/browse', label: 'Browse' },
-    { to: '/list', label: 'My List' },
+    ...(isAuthenticated ? [{ to: '/list', label: 'My List' } as const] : []),
     ...(isAuthenticated ? [{ to: '/settings', label: 'Settings' } as const] : []),
   ]
 
   const mobileNav = [
     { to: '/', label: 'Home' },
     { to: '/browse', label: 'Browse' },
-    { to: '/list', label: 'My List' },
+    ...(isAuthenticated ? [{ to: '/list', label: 'My List' } as const] : []),
     { to: '/search', label: 'Search' },
     ...(isAuthenticated ? [{ to: '/settings', label: 'Settings' } as const] : []),
   ]
@@ -200,9 +200,9 @@ export function Navbar() {
               }}
               className="inline-flex h-7 touch-manipulation items-center rounded-full bg-white px-4 text-[13px] font-semibold text-black transition hover:bg-white/90 active:scale-[0.98] lg:h-8 lg:px-5"
               style={{ touchAction: 'manipulation' } as any}
-              aria-label="Sign up with AniList"
+              aria-label="Connect via AniList"
             >
-              Sign Up
+              Connect via AniList
             </button>
           ) : (
             <Link
@@ -271,7 +271,7 @@ export function Navbar() {
                 className="mt-2 touch-manipulation rounded-full bg-white px-4 py-3 text-sm font-semibold text-black"
                 style={{ touchAction: 'manipulation' } as any}
               >
-                Sign Up — Connect AniList
+                Connect via AniList
               </button>
             )}
           </div>
