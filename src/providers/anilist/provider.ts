@@ -67,7 +67,7 @@ query ($userId: Int!, $type: MediaType) {
           status
           averageScore
           genres
-          studios { nodes { name } }
+          studios { edges { isMain } nodes { name isAnimationStudio } }
           format
           popularity
         }
@@ -94,7 +94,7 @@ query ($id: Int) {
     status
     averageScore
     genres
-    studios { nodes { name } }
+    studios { edges { isMain } nodes { name isAnimationStudio } }
     format
     popularity
   }
@@ -119,7 +119,7 @@ query ($search: String, $perPage: Int) {
       status
       averageScore
       genres
-      studios { nodes { name } }
+      studios { edges { isMain } nodes { name isAnimationStudio } }
       format
       popularity
     }

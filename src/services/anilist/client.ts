@@ -83,14 +83,22 @@ export async function anilistGraphQL<T>(
     const json = await res.json().catch(() => null)
 
     if (!res.ok || json?.errors) {
-      const msg = json?.errors?.[0]?.message ?? json?.errors?.[0]?.status ?? res.statusText
+      const rawMsg = json?.errors?.[0]?.message ?? json?.errors?.[0]?.status ?? res.statusText
+      const msg = typeof rawMsg === 'string' ? rawMsg : String(rawMsg ?? '')
       const status = res.status
+      const errStatus = (json?.errors?.[0] as any)?.status
+      // AniList sometimes returns 200 with errors: { message: "Something went horribly wrong", status: 500 }
+      // Treat any 500 as transient network, not UNKNOWN
+      const isServerError = status >= 500 || errStatus === 500 || errStatus === '500' || /horribly wrong/i.test(msg) || /internal server/i.test(msg)
       if (status === 401 || status === 403 || (msg && /unauthorized|forbidden|invalid token/i.test(msg))) {
         clearAnilistToken()
         throw new ProviderError('AUTH', 'Session expired. Reconnect to AniList.', false)
       }
       if (status === 404) {
         throw new ProviderError('NOT_FOUND', 'We couldn’t find that anime.', false)
+      }
+      if (isServerError) {
+        throw new ProviderError('NETWORK', 'AniList is temporarily unavailable. Please try again in a moment.', true)
       }
       if (status === 429) {
         const retryAfter = Number(res.headers.get('Retry-After') ?? '2') * 1000 || 2000
