@@ -1,6 +1,8 @@
 export interface Env {
   ALLOWED_ORIGIN?: string
   PROXY_ALLOWLIST?: string
+  ANILIST_CLIENT_ID?: string
+  ANILIST_CLIENT_SECRET?: string
   ASSETS?: Fetcher
 }
 
@@ -339,6 +341,65 @@ export default {
       }
     }
 
+    // --- AniList OAuth Authorization Code -> Token (server-side, keeps client_secret secret) ---
+    // POST /api/anilist/token  ->  https://anilist.co/api/v2/oauth/token
+    if (url.pathname === '/anilist/token' || url.pathname === '/api/anilist/token') {
+      if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405, env, origin)
+      // Check that secret is configured (do not expose it)
+      const clientSecret = (env as any).ANILIST_CLIENT_SECRET as string | undefined
+      if (!clientSecret) {
+        return json({ error: 'ANILIST_CLIENT_SECRET not configured on Worker. Set it via Cloudflare dashboard: Workers & Pages > aeri > Settings > Variables > Add variable (type Secret) > ANILIST_CLIENT_SECRET, or via: npx wrangler secret put ANILIST_CLIENT_SECRET --env production' }, 500, env, origin)
+      }
+      try {
+        let bodyText = await request.text()
+        // Body is expected to be x-www-form-urlencoded with grant_type, client_id, code, redirect_uri
+        // Ensure required fields are present and inject client_secret
+        try {
+          const params = new URLSearchParams(bodyText)
+          if (!params.get('client_secret')) {
+            params.set('client_secret', clientSecret)
+            bodyText = params.toString()
+          }
+          if (!params.get('grant_type')) {
+            params.set('grant_type', 'authorization_code')
+            bodyText = params.toString()
+          }
+          // Ensure client_id is present (fallback to env var or default 50024)
+          if (!params.get('client_id')) {
+            const cid = (env as any).ANILIST_CLIENT_ID as string | undefined || '50024'
+            params.set('client_id', cid)
+            bodyText = params.toString()
+          }
+          // Ensure redirect_uri is present
+          if (!params.get('redirect_uri')) {
+            params.set('redirect_uri', 'https://aeri.fastdemo.workers.dev/')
+            bodyText = params.toString()
+          }
+        } catch {}
+        const upstream = await withTimeout(fetch('https://anilist.co/api/v2/oauth/token', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Accept': 'application/json',
+            'User-Agent': 'Mozilla/5.0',
+          },
+          body: bodyText,
+          signal: request.signal,
+        }), 8000, request.signal)
+        const text = await upstream.text()
+        const h = new Headers(cors)
+        if (!h.get('Vary')) h.delete('Vary')
+        const ct = upstream.headers.get('Content-Type') || 'application/json'
+        h.set('Content-Type', ct.includes('json') ? 'application/json' : ct)
+        h.set('Cache-Control', 'no-store')
+        // Do not log secret; just proxy status and body
+        return new Response(text, { status: upstream.status, headers: h })
+      } catch (e) {
+        if ((e as any)?.name === 'AbortError') return json({ error: 'Aborted' }, 499, env, origin)
+        return json({ error: String(e) }, 502, env, origin)
+      }
+    }
+
     // --- MAL proxy (to bypass GH Pages CORS) ---
     // POST /mal/token  ->  https://myanimelist.net/v1/oauth2/token
     if (url.pathname === '/mal/token' || url.pathname === '/api/mal/token') {
@@ -490,6 +551,6 @@ export default {
       } catch {}
     }
 
-    return json({ error: 'Not found', path: url.pathname, available: ['/', '/health', '/api/health', '/api/mal/token', '/api/mal/*', '/api/map/:anilistId', '/api/episodes/:anilistId', '/api/sources/:episodeId?language=sub', '/api/video/*', '/proxy?url='] }, 404, env, origin)
+    return json({ error: 'Not found', path: url.pathname, available: ['/', '/health', '/api/health', '/api/anilist/token', '/api/mal/token', '/api/mal/*', '/api/map/:anilistId', '/api/episodes/:anilistId', '/api/sources/:episodeId?language=sub', '/api/video/*', '/proxy?url='] }, 404, env, origin)
   },
 }

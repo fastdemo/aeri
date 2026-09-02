@@ -17,9 +17,9 @@ type Ctx = {
   authExpired: boolean
   redirectUri: string
   hasClientId: boolean
-  login: () => void
+  login: () => void | Promise<void>
   logout: () => void
-  setManualToken: (raw: string) => boolean
+  setManualToken: (raw: string) => boolean | Promise<boolean>
   refresh: () => Promise<void>
   updateProgress: (id: string, ep: number) => Promise<void>
   updateStatus: (id: string, status: AnimeStatus) => Promise<void>
@@ -114,35 +114,40 @@ export function AniListProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   }, [loadUser, loadList])
 
-  // Initial: handle OAuth callback hash (implicit flow #access_token=...), then load if token exists
+  // Initial: handle OAuth callback ?code=&state= (Authorization Code flow via Worker), then load if token exists
   useEffect(() => {
     let cancelled = false
-    try {
-      const handled = handleAnilistOAuthCallback()
-      if (handled) {
-        if (cancelled) return
-        setToken(handled)
-        loadUser(handled).then(() => loadList(handled)).catch(() => {})
-        return
-      }
-    } catch (e) {
-      if (!cancelled) setError(friendly(e))
-      return
-    }
-    const existing = getAnilistToken()
-    if (existing) {
-      if (isAnilistTokenExpired()) {
-        if (!cancelled) {
-          setAuthExpired(true)
-          setError('AniList session expired. Please reconnect.')
+    ;(async () => {
+      try {
+        const handled = await handleAnilistOAuthCallback()
+        if (handled) {
+          if (cancelled) return
+          setToken(handled)
+          try {
+            await loadUser(handled)
+            await loadList(handled)
+          } catch {}
+          return
         }
-        clearAnilistToken()
-        if (!cancelled) setToken(null)
+      } catch (e) {
+        if (!cancelled) setError(friendly(e))
         return
       }
-      if (!cancelled) setToken(existing)
-      loadUser(existing).then(() => loadList(existing)).catch(() => {})
-    }
+      const existing = getAnilistToken()
+      if (existing) {
+        if (isAnilistTokenExpired()) {
+          if (!cancelled) {
+            setAuthExpired(true)
+            setError('AniList session expired. Please reconnect.')
+          }
+          clearAnilistToken()
+          if (!cancelled) setToken(null)
+          return
+        }
+        if (!cancelled) setToken(existing)
+        loadUser(existing).then(() => loadList(existing)).catch(() => {})
+      }
+    })()
     const onLogout = () => {
       clearAnilistMemoryCache()
       setUser(null)
@@ -150,15 +155,16 @@ export function AniListProvider({ children }: { children: React.ReactNode }) {
     }
     window.addEventListener('aeri:anilist:logout', onLogout as EventListener)
     return () => {
+      cancelled = true
       window.removeEventListener('aeri:anilist:logout', onLogout as EventListener)
     }
   }, [loadUser, loadList])
 
-  const login = useCallback(() => {
+  const login = useCallback(async () => {
     setError(null)
     if (hasClientId) {
       try {
-        beginAnilistOAuth()
+        await beginAnilistOAuth()
       } catch (e) {
         setError(friendly(e))
       }
@@ -177,11 +183,43 @@ export function AniListProvider({ children }: { children: React.ReactNode }) {
     setAuthExpired(false)
   }, [])
 
-  const setManualToken = useCallback((raw: string): boolean => {
+  const setManualToken = useCallback(async (raw: string): Promise<boolean> => {
     const parsed = parseManualToken(raw)
     if (!parsed) {
       setError('That token doesn’t look valid. Paste the full access token from AniList.')
       return false
+    }
+    // If the pasted value looks like a code (from ?code=...), exchange it via Worker
+    // Otherwise treat as direct access_token (personal access token)
+    const isCodeParam = raw.includes('code=') && !raw.includes('access_token=')
+    if (isCodeParam) {
+      try {
+        // Try to extract code and state from the pasted URL
+        let code: string | null = null
+        let state: string | null = null
+        try {
+          const u = new URL(raw.startsWith('http') ? raw : `https://aeri.fastdemo.workers.dev/?${raw}`)
+          code = u.searchParams.get('code')
+          state = u.searchParams.get('state')
+        } catch {
+          code = parsed
+        }
+        if (!code) throw new Error('No code found')
+        // Exchange via Worker - use the same logic as handleAnilistOAuthCallback
+        const { exchangeAnilistCodeForToken } = await import('../services/anilist/auth')
+        const tokenRes = await exchangeAnilistCodeForToken(code, state)
+        const token = tokenRes.access_token
+        if (!token) throw new Error('No access_token in response')
+        setAnilistToken(token, tokenRes.expires_in)
+        setToken(token)
+        setError(null)
+        setAuthExpired(false)
+        loadUser(token).then(() => loadList(token)).catch(() => {})
+        return true
+      } catch (e) {
+        setError(e instanceof Error ? e.message : 'Failed to exchange code')
+        return false
+      }
     }
     setAnilistToken(parsed)
     setToken(parsed)

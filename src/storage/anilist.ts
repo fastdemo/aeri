@@ -44,3 +44,17 @@ export function clearAnilistToken() {
     localStorage.removeItem(TOKEN_TYPE_KEY)
   } catch {}
 }
+
+const OAUTH_STATE_KEY = 'aeri:anilist:oauth_state'
+
+export function setAnilistOAuthState(state: string) {
+  try { localStorage.setItem(OAUTH_STATE_KEY, state) } catch {}
+}
+
+export function getAnilistOAuthState(): string | null {
+  try { return localStorage.getItem(OAUTH_STATE_KEY) } catch { return null }
+}
+
+export function clearAnilistOAuthState() {
+  try { localStorage.removeItem(OAUTH_STATE_KEY) } catch {}
+}
