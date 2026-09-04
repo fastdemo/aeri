@@ -16,11 +16,13 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   // process.env (CI secret) takes precedence over .env file so production uses the deployed Worker URL
   const videoApiUrl = process.env.VITE_VIDEO_API_URL || env.VITE_VIDEO_API_URL || ''
+  const authApiUrl = process.env.VITE_AUTH_API_URL || env.VITE_AUTH_API_URL || ''
   return {
     base,
     plugins: [react(), tailwindcss()],
     define: {
       'import.meta.env.VITE_VIDEO_API_URL': JSON.stringify(videoApiUrl),
+      'import.meta.env.VITE_AUTH_API_URL': JSON.stringify(authApiUrl),
     },
   }
 })

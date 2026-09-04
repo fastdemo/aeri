@@ -1,0 +1,13 @@
+{
+  "name": "aeri-auth-proxy",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Minimal AniList OAuth token-exchange proxy for Aeri (non-Cloudflare hosting, since AniList blocks Cloudflare Worker IPs).",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js"
+  }
+}

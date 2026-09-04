@@ -1,15 +1,17 @@
 import { ANILIST_CLIENT_ID, buildAnilistAuthorizeUrl, getAnilistRedirectUri } from '../../lib/anilistConfig'
 import { clearAnilistToken, getAnilistToken, setAnilistToken, setAnilistOAuthState, getAnilistOAuthState, clearAnilistOAuthState } from '../../storage/anilist'
-import { getEffectiveVideoApiUrl } from '../../storage/preferences'
+import { getEffectiveVideoApiUrl, getEffectiveAuthApiUrl } from '../../storage/preferences'
 
 export function isAnilistAuthenticated(): boolean {
   return !!getAnilistToken()
 }
 
 function getAnilistWorkerBase(): string | null {
+  // Prefer the dedicated auth endpoint (non-Cloudflare host), fall back to the
+  // video/worker base (full Worker implements the same contract), else null
+  // (caller then tries same-origin relative URLs).
   try {
-    const base = getEffectiveVideoApiUrl()
-    return base ? base.replace(/\/$/, '') : null
+    return getEffectiveAuthApiUrl() || getEffectiveVideoApiUrl()
   } catch { return null }
 }
 
@@ -110,7 +112,7 @@ export async function exchangeAnilistCodeForToken(code: string, state: string | 
   if (!res.ok || json?.error) {
     const msg = json?.error_description || json?.error || json?.message || res.statusText
     if (json?.error === 'ANILIST_IP_BLOCKED' || /manually blocked/i.test(String(msg))) {
-      throw new Error('AniList is blocking login requests from our server (Cloudflare Workers). AniList login is temporarily unavailable — browsing still works. This needs AniList to unblock Worker IPs or a non-Cloudflare token-exchange host.')
+      throw new Error('AniList is blocking login requests from our server (Cloudflare Workers). Set a custom auth endpoint in Settings → Account (see auth-proxy/README.md) to log in — browsing still works.')
     }
     if (/invalid_grant|invalid_code|code.*expired/i.test(String(msg))) {
       throw new Error(`AniList token exchange failed: ${msg} — the code may have expired. Try logging in again.`)

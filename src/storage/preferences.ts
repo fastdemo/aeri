@@ -13,6 +13,9 @@ export interface Preferences {
   providerOrder?: string[] | null
   customVideoApiUrl?: string | null
   preferredQuality?: string | null
+  // Standalone AniList OAuth token-exchange base (non-Cloudflare host, since
+  // AniList blocks Cloudflare Worker IPs). Same /api/anilist/token contract.
+  customAuthApiUrl?: string | null
 }
 
 const defaults: Preferences = {
@@ -26,6 +29,7 @@ const defaults: Preferences = {
   providerOrder: null,
   customVideoApiUrl: null,
   preferredQuality: null,
+  customAuthApiUrl: null,
 }
 
 export function getEffectiveVideoApiUrl(): string | null {
@@ -65,6 +69,33 @@ export function getSameOriginApiBase(): string {
   if (base && base.startsWith('http')) return base
   // Same-origin relative
   return ''
+}
+
+function normalizeHttpUrl(raw: string | null | undefined): string | null {
+  const v = raw?.trim().replace(/\/$/, '') || null
+  if (!v) return null
+  try {
+    const u = new URL(v)
+    // Allow http only for local dev hosts; require https everywhere else
+    const isLocalHost = u.hostname === 'localhost' || u.hostname === '127.0.0.1' || u.hostname === '::1'
+    if (u.protocol !== 'https:' && !(u.protocol === 'http:' && isLocalHost)) return null
+    return v
+  } catch { return null }
+}
+
+export function getEffectiveAuthApiUrl(): string | null {
+  // Dedicated base for the AniList token exchange. Prefers the user's
+  // custom auth endpoint (auth-proxy on a non-Cloudflare host), then the
+  // build-time VITE_AUTH_API_URL. Returns null when unset (caller falls back
+  // to the video/worker base, then same-origin).
+  try {
+    const custom = normalizeHttpUrl(getPreferences().customAuthApiUrl)
+    if (custom) return custom
+    const envUrl = (import.meta as any).env?.VITE_AUTH_API_URL as string | undefined
+    const base = normalizeHttpUrl(envUrl)
+    if (base) return base
+    return null
+  } catch { return null }
 }
 
 export function getPreferences(): Preferences {
