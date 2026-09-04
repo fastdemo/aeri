@@ -54,7 +54,7 @@ function Layout() {
         </Routes>
       </main>
       <footer className="mx-auto max-w-[1600px] border-t border-white/5 px-4 py-8 text-center text-xs text-white/30 sm:px-6 lg:px-12">
-        Aeri — anime, quietly. • No backend • <a href="https://github.com/fastdemo/aeri" className="underline hover:text-white/50">GitHub</a>
+        Aeri — anime, quietly. • <a href="https://github.com/fastdemo/aeri" className="underline hover:text-white/50">GitHub</a>
       </footer>
     </div>
   )

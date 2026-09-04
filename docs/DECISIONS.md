@@ -99,3 +99,24 @@ Repo-wide audit: `picsum` only in `src/data/mockAnime.ts` (test fixture, not in 
 
 ## D039 — Video provider fast failure (Phase 7.1)
 `src/providers/video/base.ts` `VIDEO_PROVIDER_TIMEOUT_MS 3500` via `fetchWithTimeout` (`AbortController`), `registry.ts` changed from sequential `for await` (21s worst) to **parallel** `Promise.allSettled` with 4000ms registry timeout, so no-source resolves ~3.5s not tens of seconds. Watch shows `Finding episodes…`/`Finding video source…` with `Tried:` list, then distinct `Video unavailable` (no compatible source) vs `Couldn’t load video` (temporary), with `Retry`. Episode list is immediate from AniList, not blocked. No fake URLs, no backend/proxy.
+
+## D040 — AniList Authorization Code via Worker (client 50024)
+Client `50024` rejects implicit grant: `GET /api/v2/oauth/authorize?response_type=token` returns `400 unsupported_grant_type` (proven live twice, incl. retest after redirect-URI cleanup). Frontend now uses `response_type=code` + random `state` (`aeri:anilist:oauth_state`), redirect `origin + BASE_URL` (`https://aeri.fastdemo.workers.dev/`). `POST /api/anilist/token` on the Worker injects `ANILIST_CLIENT_SECRET` server-side and proxies `https://anilist.co/api/v2/oauth/token` (`grant_type=authorization_code`). Browser never calls the token endpoint directly and never holds the secret. Old implicit handling (`#access_token`, hash parsing in `main.tsx`) removed. Do NOT switch back without a fresh live proof.
+
+## D041 — AniList blocks Cloudflare Worker IPs; standalone auth-proxy
+All `anilist.co` requests from Worker egress return `403 "manually blocked"` (homepage, authorize, token endpoint — verified via `/api/debug/provider-test`), while the identical token request from a residential IP reaches the OAuth handler (`401 invalid_client` on bad secret). Direct browser exchange is impossible (secret required + no CORS headers). Therefore `auth-proxy/` (zero-dep Node, `POST /api/anilist/token` + `GET /health`, `Dockerfile`, `fly.toml`) runs on non-Cloudflare hosting with `ANILIST_CLIENT_SECRET`. Frontend prefers `customAuthApiUrl` (Settings → Account) then `VITE_AUTH_API_URL` (baked), then worker/same-origin (`getEffectiveAuthApiUrl`). Worker maps upstream 403 to structured `ANILIST_IP_BLOCKED` → friendly UI copy. Secret verified absent from bundles.
+
+## D042 — AniList/MAL callback isolation via state match
+Both providers use `?code=` + `?state=` on the same origin, so each context must ignore the other's callback: `AniListContext` skips exchange when URL state matches stored MAL state (but not AniList's); `MALContext` ignores codes whose state matches stored AniList state and stays silent when it has no verifier/state (previously its 600ms fallback deleted AniList codes from the URL and showed bogus "verifier missing"). Fixed after live repro (Settings showed both errors stacked).
+
+## D043 — Browse grid fills complete rows at every viewport
+Fixed `perPage: 24` left ragged last rows (24 ≢ 0 mod 5 at `lg`). `useGridColumns()` mirrors the grid breakpoints (2/3/4/5/6) and `perPage = cols × 5` (10/15/20/25/30, ≤ AniList max 50), so every fetch (incl. Load-more appends) renders whole rows. Skeletons render `perPage` slots. Verified via Playwright computed grid columns at 1440/1100/390.
+
+## D044 — Search suggestions open DetailModal, never navigate
+Navbar `SearchSuggestions` picks previously navigated to `/anime/:id` (full page). Now selection lifts to `Navbar.previewAnime` and renders the same `DetailModal` as Home/Browse; route changes close it. Fixed latent submit bug: option buttons lacked `type="button"` inside the search `<form>`, so clicks submitted the form to `/search` (this also raced the old navigation). `/anime/:id` route kept for deep links.
+
+## D045 — Episode count estimate for unknown totals (One Piece)
+AniList reports `episodes: null` for ongoing long-runners and `streamingEpisodes` covers only a slice, so lists truncated to ~10. `estimateAiredEpisodeCount()` prefers `nextAiringEpisode.episode - 1`, then max aired `airingSchedule` episode, then streaming length; `resolveEpisodeCount` takes the max signal when no authoritative count (One Piece: 1176, verified live in modal). Streaming titles kept only when their numbers fit the estimate (else discarded as before). `DetailModal` next-episode line now reads from the normalized episode map instead of raw `streamingEpisodes[i]`, fixing mislabeled S1:E1 titles.
+
+## D046 — Settings copy simplified, features kept
+Settings text trimmed of endpoint URLs, env var names, storage internals, and version/provider details. All controls kept (accounts, auth/video custom endpoints + Test, playback, providers, data/cache, about). Footer "No backend" removed (Worker + auth-proxy exist).

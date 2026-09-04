@@ -191,6 +191,30 @@ export function sanitizeGroup(group: AnimeSeriesGroup): AnimeSeriesGroup {
 }
 
 /**
+ * Estimate how many episodes have aired when AniList has no authoritative
+ * `episodes` count (long-running shows like One Piece report episodes: null).
+ * Prefers nextAiringEpisode (episode N airs next => N-1 aired), then the
+ * highest aired episode in airingSchedule, then streaming length.
+ */
+export function estimateAiredEpisodeCount(anime: Anime): number {
+  const next = anime.nextAiringEpisode
+  if (next && typeof next.episode === 'number' && next.episode > 1) {
+    return next.episode - 1
+  }
+  if (anime.airingSchedule && anime.airingSchedule.length > 0) {
+    const nowSec = Math.floor(Date.now() / 1000)
+    let maxAired = 0
+    for (const s of anime.airingSchedule) {
+      if (typeof s.airingAt === 'number' && typeof s.episode === 'number' && s.airingAt <= nowSec && s.episode > maxAired) {
+        maxAired = s.episode
+      }
+    }
+    if (maxAired > 0) return maxAired
+  }
+  return anime.streamingEpisodes?.length ?? 0
+}
+
+/**
  * Resolve authoritative episode count.
  */
 export function resolveEpisodeCount(
@@ -206,9 +230,13 @@ export function resolveEpisodeCount(
     }
     return anilistCount
   }
-  if (providerCount > 0) return providerCount
+  // No authoritative count (e.g. ongoing long-runners with episodes: null):
+  // use the largest available signal so lists aren't truncated to a
+  // streaming slice (One Piece showed ~10 instead of 1100+).
   const streamingLen = anime.streamingEpisodes?.length ?? 0
-  if (streamingLen > 0) return streamingLen
+  const estimate = estimateAiredEpisodeCount(anime)
+  const best = Math.max(providerCount, estimate, streamingLen)
+  if (best > 0) return best
   return 0
 }
 
@@ -236,7 +264,18 @@ export function normalizeEpisodes(
         effectiveAnime = { ...sortedAnime, streamingEpisodes: undefined }
       }
     } else if (parsed.length >= 2 && (sortedAnime.episodes == null) ) {
-      effectiveAnime = { ...sortedAnime, streamingEpisodes: undefined }
+      // Episodes unknown: keep streaming only when its numbers plausibly fit
+      // the aired estimate (e.g. One Piece 62..130 within ~1176 aired).
+      // Otherwise discard to avoid wrong-season titles.
+      const est = estimateAiredEpisodeCount(sortedAnime)
+      if (est > 0) {
+        const outOfRange = parsed.filter(n => n < 0.5 || n > est + 0.6).length
+        if (outOfRange / parsed.length > 0.7) {
+          effectiveAnime = { ...sortedAnime, streamingEpisodes: undefined }
+        }
+      } else {
+        effectiveAnime = { ...sortedAnime, streamingEpisodes: undefined }
+      }
     }
   }
 

@@ -111,7 +111,7 @@ export function Settings() {
   return (
     <div className="mx-auto max-w-[900px] px-4 py-6 sm:px-6 lg:px-12">
       <h1 className="text-[18px] font-semibold tracking-tight text-white">Settings</h1>
-      <p className="text-xs text-white/50">Manage accounts, playback, and local data. All settings stay in your browser.</p>
+      <p className="text-xs text-white/50">Accounts, playback, and your data.</p>
       {!isAuthenticated && (
         <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3 flex items-center justify-between gap-3">
           <p className="text-xs text-white/60">Connect AniList or MyAnimeList to sync your list and enable tracking. Playback preferences work without an account.</p>
@@ -121,7 +121,7 @@ export function Settings() {
       {/* Account / Connections */}
       <section className="mt-6 rounded-xl border border-white/10 bg-white/[0.02] p-4 sm:p-5">
         <h2 className="text-sm font-semibold text-white">Account & Connections</h2>
-        <p className="mt-1 text-xs text-white/50">Connect AniList to sync your list and progress. MAL is parked due to CORS (see docs).</p>
+        <p className="mt-1 text-xs text-white/50">Sync your list and progress.</p>
 
         <div className="mt-4 space-y-3">
           <div className="rounded-lg border border-white/10 bg-[#0e0e10] p-3">
@@ -153,7 +153,7 @@ export function Settings() {
               <div>
                 <p className="text-xs font-medium text-white">MyAnimeList</p>
                 <p className="text-[11px] text-white/50">
-                  {mal.isAuthenticated && mal.user ? `Connected as ${mal.user.name}` : 'Not connected — via worker when configured'}
+                  {mal.isAuthenticated && mal.user ? `Connected as ${mal.user.name}` : 'Not connected'}
                 </p>
               </div>
               {mal.isAuthenticated ? (
@@ -163,15 +163,15 @@ export function Settings() {
               )}
             </div>
             <p className="mt-2 text-[11px] leading-4 text-white/30">
-              MAL works via the same worker as streaming when <code className="rounded bg-white/10 px-1 py-0.5">customVideoApiUrl</code> is set (proxies <code className="rounded bg-white/10 px-1 py-0.5">myanimelist.net</code> + <code className="rounded bg-white/10 px-1 py-0.5">api.myanimelist.net</code> with CORS). Direct browser without a worker is still CORS-blocked. See <code className="rounded bg-white/10 px-1 py-0.5">docs/MAL_BROWSER_FEASIBILITY.md</code>.
+              MAL sync needs a self-hosted server (set below under Playback Sources).
             </p>
             {mal.error && <p className="mt-2 text-xs text-amber-200/70">{mal.error}</p>}
           </div>
 
           <div className="rounded-lg border border-white/10 bg-[#0e0e10] p-3">
-            <p className="text-xs font-medium text-white">AniList auth endpoint (optional)</p>
+            <p className="text-xs font-medium text-white">AniList login server (optional)</p>
             <p className="mt-1 text-[11px] leading-4 text-white/50">
-              AniList blocks Cloudflare Workers, so login via the built-in worker fails. Point this at a self-hosted <code className="rounded bg-white/10 px-1 py-0.5">auth-proxy</code> on a non-Cloudflare host (see <code className="rounded bg-white/10 px-1 py-0.5">auth-proxy/README.md</code>) to log in. Leave empty to use the built-in worker. No secrets are stored here.
+              Needed for AniList login — paste your server address here (see <code className="rounded bg-white/10 px-1 py-0.5">auth-proxy/README.md</code> to run one). Leave empty to use the built-in server.
             </p>
             <div className="mt-2 flex gap-2">
               <input
@@ -240,7 +240,7 @@ export function Settings() {
           <div className="flex items-center justify-between gap-4">
             <div>
               <p className="text-xs font-medium text-white">Volume</p>
-              <p className="text-[11px] text-white/50">Default volume for direct video playback (embed players use their own).</p>
+              <p className="text-[11px] text-white/50">Default volume for videos.</p>
             </div>
             <input
               type="range"
@@ -259,7 +259,7 @@ export function Settings() {
       {/* Video Sources */}
       <section className="mt-6 rounded-xl border border-white/10 bg-white/[0.02] p-4 sm:p-5">
         <h2 className="text-sm font-semibold text-white">Playback Sources</h2>
-        <p className="mt-1 text-xs text-white/50">Choose how Aeri picks video sources. Most sources need a backend on GitHub Pages.</p>
+        <p className="mt-1 text-xs text-white/50">Choose how Aeri picks video sources.</p>
         <div className="mt-4 space-y-4">
           <div>
             <p className="text-xs font-medium text-white">Preferred audio</p>
@@ -294,7 +294,6 @@ export function Settings() {
             </select>
             <p className="mt-1 text-[11px] text-white/30">
               {prefs.preferredProvider ? `Trying ${prefs.preferredProvider} first, then fallback.` : 'Auto picks the best available source.'}
-              {!(import.meta.env.VITE_VIDEO_API_URL as string | undefined) && ' Add VITE_VIDEO_API_URL for real playback.'}
             </p>
           </div>
           <div className="space-y-2 pt-2">
@@ -330,8 +329,8 @@ export function Settings() {
             <p className="text-[11px] text-white/30">Disable providers you don’t want to try. Reorder with ↑/↓ — preferred source still tried first.</p>
           </div>
           <div className="space-y-2 pt-4 border-t border-white/10">
-            <p className="text-xs font-medium text-white">Custom video endpoint (optional)</p>
-            <p className="text-[11px] text-white/50">Self-hosted full-episode backend. Must implement <code className="rounded bg-white/10 px-1 py-0.5">GET /health</code> <code className="rounded bg-white/10 px-1 py-0.5">/episodes/:id</code> <code className="rounded bg-white/10 px-1 py-0.5">/sources/:id?language=</code> and return normalized <code className="rounded bg-white/10 px-1 py-0.5">VideoSource</code> JSON. Leave empty to use build <code className="rounded bg-white/10 px-1 py-0.5">VITE_VIDEO_API_URL</code>.</p>
+            <p className="text-xs font-medium text-white">Custom video server (optional)</p>
+            <p className="text-[11px] text-white/50">Optional server for full episodes. Leave empty to use the built-in server.</p>
             <div className="flex gap-2">
               <input
                 type="url"
@@ -358,7 +357,7 @@ export function Settings() {
                 Test
               </button>
             </div>
-            <p className="text-[11px] text-white/30">Example: <code className="rounded bg-white/10 px-1 py-0.5">https://aeri-video.your-subdomain.workers.dev</code> — see <code className="rounded bg-white/10 px-1 py-0.5">worker/README.md</code> for self-hosting. No secrets are stored here; the URL is public and fetched from your browser.</p>
+            <p className="text-[11px] text-white/30">Your address stays in this browser. Nothing secret is stored here.</p>
           </div>
         </div>
       </section>
@@ -369,17 +368,16 @@ export function Settings() {
         <div className="mt-3 flex items-center justify-between gap-4">
           <div>
             <p className="text-xs font-medium text-white">Reduced motion</p>
-            <p className="text-[11px] text-white/50">Respects system setting <code className="rounded bg-white/10 px-1 py-0.5">prefers-reduced-motion</code> {reducedMotion ? '(currently on)' : '(currently off)'}. Aeri uses subtle 150-200ms hovers.</p>
+            <p className="text-[11px] text-white/50">Follows your system setting {reducedMotion ? '(currently on)' : '(currently off)'}. Dark theme only.</p>
           </div>
           <span className="text-xs text-white/30">{reducedMotion ? 'On' : 'Off'}</span>
         </div>
-        <p className="mt-3 text-[11px] text-white/30">Aeri is dark-only (near-black #070708) — light theme not available.</p>
       </section>
 
       {/* Data / Cache */}
       <section className="mt-6 rounded-xl border border-white/10 bg-white/[0.02] p-4 sm:p-5">
         <h2 className="text-sm font-semibold text-white">Data & Cache</h2>
-        <p className="mt-1 text-xs text-white/50">All data stays in your browser (localStorage + IndexedDB). Clearing cache does not disconnect accounts.</p>
+        <p className="mt-1 text-xs text-white/50">Your data stays in this browser. Clearing it never disconnects your accounts.</p>
         <div className="mt-4 grid gap-2 sm:grid-cols-3">
           <button
             onClick={handleClearCache}
@@ -403,21 +401,18 @@ export function Settings() {
             Reset local data
           </button>
         </div>
-        <p className="mt-2 text-[11px] text-white/30">Clear cached data: removes API cache (not accounts). Clear watch positions: removes local resume points. Reset: cache + positions + preferences (accounts stay).</p>
+        <p className="mt-2 text-[11px] text-white/30">Reset also restores default settings. Your accounts stay connected.</p>
       </section>
 
       {/* About */}
       <section className="mt-6 rounded-xl border border-white/10 bg-white/[0.02] p-4 sm:p-5">
         <h2 className="text-sm font-semibold text-white">About</h2>
         <div className="mt-3 space-y-2 text-xs leading-5">
-          <p><span className="text-white/50">Version:</span> <span className="text-white/80">Phase 8 • {new Date().getFullYear()}</span></p>
-          <p><span className="text-white/50">Data:</span> <span className="text-white/80">AniList GraphQL (https://graphql.anilist.co) — Trending/Popular/Airing/New/Upcoming/Finished, Search, Media, relations for seasons</span></p>
-          <p><span className="text-white/50">Video:</span> <span className="text-white/80">{videoCaps.map(c => `${c.displayName} (${c.languages.join('/')})`).join(' • ') || 'No browser-compatible source (static)'} </span></p>
-          <p><span className="text-white/50">Storage:</span> <span className="text-white/80">localStorage (prefs, tokens) + IndexedDB (cache 24h, watchPos). No backend.</span></p>
+          <p><span className="text-white/50">Data:</span> <span className="text-white/80">AniList</span></p>
           <p className="pt-2">
             <a href="https://github.com/fastdemo/aeri" className="underline hover:text-white/80 text-white/50">GitHub</a>
             <span className="mx-2 text-white/20">•</span>
-            <span className="text-white/30">Privacy: no tracking, no cookies beyond auth, no video stored.</span>
+            <span className="text-white/30">No tracking, no ads.</span>
           </p>
         </div>
       </section>

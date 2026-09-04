@@ -4,7 +4,6 @@ import { DetailModal } from '../components/detail/DetailModal'
 import type { Anime } from '../types/anime'
 import { useBrowse } from '../hooks/useAnimeMetadata'
 import { useLocation } from 'react-router-dom'
-
 const categories = [
   { id: 'popular', label: 'Popular', sort: 'POPULARITY_DESC' as const },
   { id: 'trending', label: 'Trending', sort: 'TRENDING_DESC' as const },
@@ -18,6 +17,28 @@ const years = ['All', '2025', '2024', '2023', '2022', '2021', '2020']
 const seasons = ['All', 'WINTER', 'SPRING', 'SUMMER', 'FALL'] as const
 const formats = ['All', 'TV', 'MOVIE', 'OVA', 'SPECIAL'] as const
 
+// Column count mirrors the grid classes below (2 / sm:3 / md:4 / lg:5 / xl:6).
+// Fetching a multiple of the column count keeps every row complete, so the
+// grid never shows a ragged last row at any viewport width.
+function useGridColumns(): number {
+  const get = () => {
+    if (typeof window === 'undefined') return 5
+    const w = window.innerWidth
+    if (w >= 1280) return 6
+    if (w >= 1024) return 5
+    if (w >= 768) return 4
+    if (w >= 640) return 3
+    return 2
+  }
+  const [cols, setCols] = useState(get)
+  useEffect(() => {
+    const onResize = () => setCols(get())
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+  return cols
+}
+
 export function Browse() {
   const [selected, setSelected] = useState<Anime | null>(null)
   const [category, setCategory] = useState<(typeof categories)[number]['id']>('popular')
@@ -30,6 +51,10 @@ export function Browse() {
 
   const cat = categories.find(c => c.id === category)!
 
+  const cols = useGridColumns()
+  // 5 full rows per fetch at any viewport (10/15/20/25/30) — always complete rows
+  const perPage = cols * 5
+
   const browse = useBrowse({
     sort: cat.sort,
     status: (cat as any).status,
@@ -37,7 +62,7 @@ export function Browse() {
     seasonYear: year === 'All' ? undefined : Number(year),
     season: season === 'All' ? undefined : season,
     format: format === 'All' ? undefined : format,
-    perPage: 24,
+    perPage,
   })
 
   return (
@@ -125,7 +150,7 @@ export function Browse() {
       {browse.loading && !browse.data ? (
         <div className="mt-6">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
-            {Array.from({ length: 12 }).map((_, i) => (
+            {Array.from({ length: perPage }).map((_, i) => (
               <div key={i} className="aspect-[16/9] animate-pulse rounded bg-white/5" />
             ))}
           </div>

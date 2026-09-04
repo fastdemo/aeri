@@ -3,6 +3,8 @@ import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAniList } from '../../contexts/AniListContext'
 import { useMAL } from '../../contexts/MALContext'
 import { SearchSuggestions } from '../search/SearchSuggestions'
+import { DetailModal } from '../detail/DetailModal'
+import type { Anime } from '../../types/anime'
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false)
@@ -10,6 +12,8 @@ export function Navbar() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [showSuggestions, setShowSuggestions] = useState(false)
+  // Preview popup for suggestion picks (same DetailModal as Home/Browse cards)
+  const [previewAnime, setPreviewAnime] = useState<Anime | null>(null)
   const searchRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
   const location = useLocation()
@@ -29,6 +33,7 @@ export function Navbar() {
     setMobileNavOpen(false)
     setMobileSearchOpen(false)
     setShowSuggestions(false)
+    setPreviewAnime(null)
   }, [location.pathname, location.search, location.hash])
 
   // Close suggestions on outside pointerdown — unified pointer event, no microtask delay
@@ -162,7 +167,7 @@ export function Navbar() {
                 <path d="m20 20-3.5-3.5" />
               </svg>
               {showSuggestions && query.trim().length >= 2 && (
-                <SearchSuggestions query={query} onClose={() => setShowSuggestions(false)} />
+                <SearchSuggestions query={query} onClose={() => setShowSuggestions(false)} onPreview={setPreviewAnime} />
               )}
             </div>
           </form>
@@ -240,7 +245,7 @@ export function Navbar() {
           </form>
           {showSuggestions && query.trim().length >= 2 && (
             <div className="relative mt-2">
-              <SearchSuggestions query={query} onClose={() => { setShowSuggestions(false); setMobileSearchOpen(false) }} />
+              <SearchSuggestions query={query} onClose={() => { setShowSuggestions(false); setMobileSearchOpen(false) }} onPreview={(a) => { setPreviewAnime(a); setMobileSearchOpen(false) }} />
             </div>
           )}
         </div>
@@ -277,6 +282,7 @@ export function Navbar() {
           </div>
         </nav>
       )}
+      {previewAnime && <DetailModal anime={previewAnime} onClose={() => setPreviewAnime(null)} />}
     </header>
   )
 }

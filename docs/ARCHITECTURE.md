@@ -2,26 +2,25 @@
 
 ## Overview
 
-Aeri is a static frontend SPA deployed to GitHub Pages. No backend process exists at runtime.
+Aeri is a React SPA (Vite + HashRouter) served by the Cloudflare Worker `aeri` at `https://aeri.fastdemo.workers.dev/`, which serves `dist` assets and same-origin `/api/*` (video, MAL proxy, AniList token proxy). A standalone `auth-proxy/` Node service on non-Cloudflare hosting handles AniList token exchange because AniList 403-blocks all Cloudflare Worker IPs (see D041).
 
 ```
 User Browser
   ├─ React SPA (Vite, HashRouter #/)
-  ├─ IndexedDB / localStorage (progress, cache, tokens via storage/anilist.ts + storage/mal.ts)
-  ├─ Service Worker (PWA shell, optional)
-  ├─ AniList GraphQL (direct, CORS, https://graphql.anilist.co)
-  │    ├─ TrackingProvider (auth implicit grant, Viewer, MediaListCollection, SaveMediaListEntry)
+  ├─ IndexedDB / localStorage (progress, cache, tokens, prefs)
+  ├─ AniList GraphQL direct from browser (CORS OK, https://graphql.anilist.co)
+  │    ├─ TrackingProvider (auth Authorization Code via auth-proxy/Worker, Viewer, MediaListCollection, SaveMediaListEntry)
   │    └─ AnimeMetadataProvider (public: trending/popular/airing/new/search/Media)
-  └─ MAL REST (direct, CORS, https://api.myanimelist.net/v2, OAuth PKCE https://myanimelist.net/v1/oauth2 — Phase 5)
-       └─ TrackingProvider (auth PKCE S256, users/@me, animelist paginated, anime/{id}, my_list_status PUT)
+  ├─ Cloudflare Worker `aeri` (same-origin /api: video, MAL, AniList token w/ secret)
+  ├─ auth-proxy (non-CF host, AniList token exchange w/ secret, preferred)
+  └─ MAL REST via Worker proxy (CORS-blocked direct, PKCE https://myanimelist.net/v1/oauth2)
 ```
 
 ## Routing
 
-- `HashRouter` (`react-router-dom`). Paths: `#/`, `#/browse`, `#/anime/:id`, `#/watch/:id/:episode`, `#/list`, `#/search`.
-- Why hash: GH Pages serves static files only; `/#/anime/123` does not require server rewrite, refresh never 404s.
-- Alternative (`BrowserRouter` + `404.html` hack) was considered and rejected for simplicity.
-- Early hash token parsing in `src/main.tsx` before `HashRouter` mounts avoids `#access_token=…` being treated as route; MAL `?code=` + `state` parsed in `MALContext` effect (search, not hash) and preserved through `replaceState`.
+- `HashRouter` (`react-router-dom`). Paths: `#/`, `#/browse`, `#/anime/:id`, `#/watch/:id/:episode`, `#/list`, `#/search`, `#/settings`.
+- Why hash: refresh and deep links work without server rewrites on any static host.
+- AniList Authorization Code flow returns `?code=` + `?state=` (search params, survive HashRouter); handled in `AniListContext` effect (exchange via auth-proxy/Worker), never in the hash. MAL `?code=` likewise parsed in `MALContext` effect. Each context ignores the other's callback by matching URL `state` against its own stored state (D042).
 
 ## Data Flow
 
@@ -40,7 +39,7 @@ UI never calls fetch directly. `AnimeCard`/`Hero` receive normalized `Anime` onl
 ## Providers
 
 - **TrackingProvider**: two implementations behind same interface:
-  - `src/providers/anilist/provider.ts` (`AniListProvider`): user-specific, implicit grant, `Viewer`, `MediaListCollection` (all `lists` including custom), `SaveMediaListEntry`. Context `AniListContext` provides optimistic updates, `clearAnilistMemoryCache` on mutation.
+  - `src/providers/anilist/provider.ts` (`AniListProvider`): user-specific, Authorization Code grant (client 50024; implicit rejected with `unsupported_grant_type`, proven live), `Viewer`, `MediaListCollection` (all `lists` including custom), `SaveMediaListEntry`. Token exchange server-side only (`/api/anilist/token` on Worker or `auth-proxy`, secret never in browser). Context `AniListContext` provides optimistic updates, `clearAnilistMemoryCache` on mutation.
   - `src/providers/mal/provider.ts` (`MALProvider`, Phase 5): user-specific, PKCE S256, `GET /users/@me`, `GET /users/@me/animelist` paginated + `GET /anime/{id}` + `PUT /anime/{id}/my_list_status`. Context `MALContext` mirrors `AniListContext` with `ensureFreshToken` refresh and `clearMalMemoryCache`. Both through `src/services/mal/*` + `src/lib/malConfig.ts` + `src/storage/mal.ts`.
   - `src/contexts/TrackingContext.tsx` (Phase 5) merges `AniListContext` + `MALContext`: `dedupAndMerge` keys by `mal-<malId>` if present else `anilist-<id>`, AniList first (richer banner), MAL second merges identity, picks max progress, exposes `isAuthenticated/isAniListAuthenticated/isMALAuthenticated/combinedList` and `updateProgress/anime/status/rating` fan-out to both where IDs exist (UI stays provider-agnostic, no dashboard).
 - **AnimeMetadataProvider** (`src/providers/metadata/types.ts` + `anilistMetadata.ts`): public discovery, no token needed. Methods `getTrending/getPopular/getAiring/getNewReleases/search/getAnime` share `MEDIA_FIELDS` and `mapAniListMediaToAnime`. Used by `Home` (hero + 4 rows), `Browse` (popular filtered), `Search` (always real), `AnimeDetail`/`Watch` (real detail). Keeps UI decoupled from GraphQL. No MAL metadata provider — AniList remains primary discovery.
@@ -77,7 +76,7 @@ Canonical `internalId` (`anilist-<id>` / `mal-<id>` for real, slug for mock). Op
 
 ## App Wiring
 
-`src/App.tsx`: `HashRouter → AniListProvider → MALProvider → TrackingProvider → Layout`. `src/main.tsx` early hash parsing for AniList before `HashRouter`. MAL has no early `main.tsx` handler needed (search params survive HashRouter). `src/components/mal/MALConnect.tsx` + `src/components/anilist/AniListConnect.tsx` stacked in `MyList`; `Navbar` shows first authenticated avatar (AniList preferred) with emerald dot; `Home` `Continue Watching`/`My List` use `combinedList` with `AniList • MAL` label when both (deduped), `MyList` shows `Merged • deduped by MAL ID` when both.
+`src/App.tsx`: `HashRouter → AniListProvider → MALProvider → TrackingProvider → Layout`. `src/components/anilist/AniListConnect.tsx` + `src/components/mal/MALConnect.tsx` in Settings/MyList; navbar `SearchSuggestions` picks open `DetailModal` (state lifted to `Navbar`, never `/anime/:id` navigation); `Navbar` shows avatar when authenticated, else Connect button; `Home` `Continue Watching`/`My List` use `combinedList`.
 
 ## Sync Strategy
 

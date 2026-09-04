@@ -287,3 +287,20 @@ Before calling done, Aeri must:
 3. Implement with mock data first (Phase 2) before wiring APIs
 4. Verify visually via Playwright — do not declare done on code inspection alone
 5. Update docs when architecture shifts
+
+---
+
+## 18. Docs & Verification Discipline (mandatory)
+
+Past sessions broke login for days because docs described flows nobody re-verified (implicit grant, GH Pages base, "no backend"). These rules prevent repeats:
+
+- **Update `docs/` (never `README.md` — the owner writes that) in the same commit as the behavior change**, once proven correct: new/changed auth flows → `API.md` + `ARCHITECTURE.md` + a `DECISIONS.md` entry; deploy/hosting changes → `DEPLOYMENT.md`; completed work → `TODO.md`. A docs update based on a guess is worse than none — verify first, then write.
+- **Verify every task with real evidence, using the right tool for the job:**
+  - UI/behavior changes → Playwright MCP on a live or preview build (click through the actual flow, read console + network, screenshot at 1440/768/375). Never declare done from code inspection alone.
+  - Library/framework/API questions (OAuth params, Wrangler config, Vite behavior) → Context7 MCP, not memory.
+  - Repo history, runs, and deploys → GitHub MCP + Actions API; after any push, confirm the live bundle hash and endpoint behavior, never trust the workflow badge alone (failed runs have published before).
+  - AniList/MAL/third-party behavior → test the real endpoint (curl or browser) and record exact status/body in the decision entry.
+  - Cloudflare Workers/routes/secrets → `wrangler` CLI (`--dry-run` for config, real deploy when authorized) and live endpoint probes.
+  - The `search` tool (code search) for locating every usage before changing shared code — no silent callers left behind.
+- **Secrets stay out of code, bundles, logs, and chat.** `ANILIST_CLIENT_SECRET` lives only in Worker secrets / auth-proxy env / the owner's keychain. Verify absence with bundle greps, never by printing values.
+- **Never report success on a 302, a URL shape, or a token's existence.** Auth is done only when the authenticated UI loads its data in a real browser session.

@@ -8,15 +8,23 @@ import { getTitleHierarchy } from '../../lib/titles'
 type Props = {
   query: string
   onClose?: () => void
+  onPreview?: (anime: Anime) => void
   anchorRef?: React.RefObject<HTMLElement | null>
 }
 
-export function SearchSuggestions({ query, onClose }: Props) {
+export function SearchSuggestions({ query, onClose, onPreview }: Props) {
   const [results, setResults] = useState<Anime[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [activeIdx, setActiveIdx] = useState(-1)
   const containerRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
+
+  const openPreview = (anime: Anime) => {
+    // Hand the selection to the parent (Navbar) which renders DetailModal —
+    // rendering it here would unmount it along with the dropdown when it closes.
+    onPreview?.(anime)
+    onClose?.()
+  }
 
   useEffect(() => {
     const q = query.trim()
@@ -59,8 +67,7 @@ export function SearchSuggestions({ query, onClose }: Props) {
       } else if (e.key === 'Enter' && activeIdx >= 0) {
         e.preventDefault()
         const anime = results[activeIdx]
-        navigate(`/anime/${anime.identity.internalId}`)
-        onClose?.()
+        openPreview(anime)
       } else if (e.key === 'Escape') {
         onClose?.()
       }
@@ -107,14 +114,12 @@ export function SearchSuggestions({ query, onClose }: Props) {
         return (
         <button
           key={anime.identity.internalId}
+          type="button"
           role="option"
           aria-selected={idx === activeIdx}
           onPointerEnter={() => setActiveIdx(idx)}
           onMouseEnter={() => setActiveIdx(idx)}
-          onClick={() => {
-            navigate(`/anime/${anime.identity.internalId}`)
-            onClose?.()
-          }}
+          onClick={() => openPreview(anime)}
           className={`flex w-full touch-manipulation items-center gap-3 px-3 py-2 text-left hover:bg-white/5 ${idx === activeIdx ? 'bg-white/10' : ''}`}
           style={{ touchAction: 'manipulation' } as any}
         >
@@ -134,6 +139,7 @@ export function SearchSuggestions({ query, onClose }: Props) {
         </button>
       )})}
       <button
+        type="button"
         onClick={() => {
           navigate(`/search?q=${encodeURIComponent(query.trim())}`)
           onClose?.()

@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { Anime, AnimeStatus } from '../../types/anime'
-import { EpisodeList } from '../episodes/EpisodeList'
+import { EpisodeList, getEpisodes } from '../episodes/EpisodeList'
 import { useTracking } from '../../contexts/TrackingContext'
 import { getSeriesGroup, type AnimeSeriesGroup } from '../../services/anilist/series'
 import { getTitleHierarchy } from '../../lib/titles'
-import { sanitizeAnimeForDisplay, sanitizeGroup } from '../../lib/episodes'
+import { sanitizeAnimeForDisplay, sanitizeGroup, getDisplayEpisodeNumber } from '../../lib/episodes'
 
 export function DetailModal({
   anime,
@@ -397,15 +397,21 @@ export function DetailModal({
             </div>
 
             {!isMovie && (() => {
-              const firstEp = displayAnime.streamingEpisodes?.[0]
+              // Use the normalized episode map (same source as EpisodeList) so
+              // titles/numbers respect season offsets — never raw array index.
+              const norm = getEpisodes(displayAnime).map(e => ({
+                ...e,
+                displayNumber: getDisplayEpisodeNumber(displayAnime, e.number, effectiveGroup, selectedSeasonIdx),
+              }))
               const epNum = displayAnime.progress?.episode ?? 1
-              const rawEpTitle = displayAnime.streamingEpisodes?.[epNum - 1]?.title ?? firstEp?.title
-              const epTitle = rawEpTitle ? (() => { const t = rawEpTitle.trim(); const m = t.match(/^(?:Episode|Ep\.?)\s*\d+\s*[-:]\s*(.+)$/i); return m && m[1].trim() ? m[1].trim() : t })() : undefined
+              const target = norm.find(e => e.number === epNum) ?? norm[0]
+              if (!target) return null
+              const epTitle = target.title
               if (!epTitle && !displayAnime.progress) return null
               const sNum = selectedSeasonIdx + 1
               return (
                 <p className="mt-2 text-[12px] font-semibold text-white/90">
-                  {displayAnime.progress ? `S${sNum}:E${epNum}` : `S${sNum}:E1`} {epTitle ? `· ${epTitle}` : ''}
+                  S{sNum}:E{target.displayNumber} {epTitle ? `· ${epTitle}` : ''}
                 </p>
               )
             })()}
