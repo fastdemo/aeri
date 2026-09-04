@@ -30,6 +30,7 @@ jobs:
           VITE_ANILIST_CLIENT_ID: '50024'
           VITE_MAL_CLIENT_ID: 'ce55a1d587f549b33c1fa36ec10fe8d2'
           VITE_VIDEO_API_URL: ''
+          VITE_AUTH_API_URL: 'https://graceful-dream-569.fly.dev'
           AERI_BASE: '/'
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
