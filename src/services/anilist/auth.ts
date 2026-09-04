@@ -109,6 +109,9 @@ export async function exchangeAnilistCodeForToken(code: string, state: string | 
   const json = await res.json().catch(() => null)
   if (!res.ok || json?.error) {
     const msg = json?.error_description || json?.error || json?.message || res.statusText
+    if (json?.error === 'ANILIST_IP_BLOCKED' || /manually blocked/i.test(String(msg))) {
+      throw new Error('AniList is blocking login requests from our server (Cloudflare Workers). AniList login is temporarily unavailable — browsing still works. This needs AniList to unblock Worker IPs or a non-Cloudflare token-exchange host.')
+    }
     if (/invalid_grant|invalid_code|code.*expired/i.test(String(msg))) {
       throw new Error(`AniList token exchange failed: ${msg} — the code may have expired. Try logging in again.`)
     }

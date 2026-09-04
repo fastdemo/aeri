@@ -387,6 +387,14 @@ export default {
           signal: request.signal,
         }), 8000, request.signal)
         const text = await upstream.text()
+        // AniList blocks Cloudflare Worker egress IPs entirely (HTTP 403
+        // "manually blocked" on every anilist.co request from Workers, while the
+        // identical request from a residential IP reaches the OAuth handler).
+        // Surface this as a structured error so the frontend can explain it
+        // instead of showing raw upstream HTML/JSON. Never include the secret.
+        if (upstream.status === 403 && /manually blocked/i.test(text)) {
+          return json({ error: 'ANILIST_IP_BLOCKED', message: 'AniList is blocking requests from Cloudflare Workers. Login cannot complete from this hosting until AniList unblocks Worker IPs.' }, 502, env, origin)
+        }
         const h = new Headers(cors)
         if (!h.get('Vary')) h.delete('Vary')
         const ct = upstream.headers.get('Content-Type') || 'application/json'
