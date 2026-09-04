@@ -1,0 +1,15 @@
+app = "aeri-auth"
+primary_region = "hkg"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[http_service]
+  internal_port = 8788
+  force_https = true
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[env]
+  ALLOWED_ORIGIN = "https://aeri.fastdemo.workers.dev"
