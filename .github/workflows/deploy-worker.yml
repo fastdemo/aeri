@@ -37,6 +37,6 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          wranglerVersion: "4.128.0"
+          wranglerVersion: "4.129.0"
           # Unambiguous: env.production is pinned to Worker 'aeri' (see wrangler.jsonc). Do not use 'aeri-production'.
           command: deploy --env production
