@@ -85,21 +85,9 @@ Aeri is now hosted on **Cloudflare Workers** with assets.
 
 The original plan was GitHub Pages at `fastdemo.github.io/aeri`, and some docs still mention it for historical context, but all current user flows, OAuth redirects, and API calls are on the Cloudflare origin. The redirect URL for both AniList and MAL is `https://aeri.fastdemo.workers.dev/` and must match exactly what is configured in each provider dashboard.
 
-Local env:
-
-```bash
-VITE_ANILIST_CLIENT_ID=50024
-VITE_MAL_CLIENT_ID=ce55a1d587f549b33c1fa36ec10fe8d2
-```
-
-These are public client IDs and are baked into the production bundle at build time via Cloudflare build variables (not hardcoded in source).
-
 ```bash
 npm run build
-# Cloudflare serves `dist` at the Worker origin
 ```
-
-`gh-pages` is kept for history but is not the current site.
 
 ## License
 
