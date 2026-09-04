@@ -138,6 +138,16 @@ export function MALProvider({ children }: { children: React.ReactNode }) {
     // Fallback: if code exists but no verifier, still try MAL if no AniList token handling is pending
     // Check if AniList already handling — we delay a tick and check again
     if (url.searchParams.has('code') && !isProbablyMal) {
+      // If this ?code= belongs to AniList (URL state matches stored AniList state),
+      // leave it alone entirely — do not attempt MAL exchange, do not clean URL, do not set error.
+      const urlState = url.searchParams.get('state')
+      const anilistState = (() => { try { return localStorage.getItem('aeri:anilist:oauth_state') } catch { return null } })()
+      if (urlState && anilistState && urlState === anilistState) return
+      // No MAL verifier/state at all: this is not a MAL callback — ignore silently
+      // (attempting handleMalOAuthCallback here would delete an AniList ?code= from the
+      // URL and show a bogus "verifier missing" error). Only retry if MAL state exists.
+      const hasMalStateNow = (() => { try { return !!localStorage.getItem('aeri:mal:oauth_state') } catch { return false } })()
+      if (!hasMalStateNow) return
       // Defer: let AniListContext handle ?code= first; if it was MAL code without verifier, the manual error will guide user
       // We still attempt MAL after a short delay only if URL still has code (meaning AniList didn't consume it)
       const t = setTimeout(() => {

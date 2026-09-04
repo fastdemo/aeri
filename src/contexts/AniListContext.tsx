@@ -118,8 +118,21 @@ export function AniListProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let cancelled = false
     ;(async () => {
+      // If this ?code= belongs to MAL (URL state matches stored MAL state but not
+      // AniList state), leave it for MALContext — do not attempt AniList exchange
+      // (which would show a spurious AniList error). Still load any existing token below.
+      let skipCodeHandling = false
       try {
-        const handled = await handleAnilistOAuthCallback()
+        const u = new URL(window.location.href)
+        if (u.searchParams.has('code')) {
+          const urlState = u.searchParams.get('state')
+          const malState = (() => { try { return localStorage.getItem('aeri:mal:oauth_state') } catch { return null } })()
+          const anilistState = (() => { try { return localStorage.getItem('aeri:anilist:oauth_state') } catch { return null } })()
+          if (urlState && malState && urlState === malState && urlState !== anilistState) skipCodeHandling = true
+        }
+      } catch {}
+      try {
+        const handled = skipCodeHandling ? null : await handleAnilistOAuthCallback()
         if (handled) {
           if (cancelled) return
           setToken(handled)

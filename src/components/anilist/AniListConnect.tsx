@@ -61,9 +61,9 @@ export function AniListConnectCompact() {
 
       {showManual && (
         <form
-          onSubmit={(e) => {
+          onSubmit={async (e) => {
             e.preventDefault()
-            if (setManualToken(manual)) {
+            if (await setManualToken(manual)) {
               setShowManual(false)
               setManual('')
             }
