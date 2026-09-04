@@ -1,5 +1,5 @@
 app = "graceful-dream-569"
-primary_region = "hkg"
+primary_region = "sin"
 
 [build]
   dockerfile = "Dockerfile"
