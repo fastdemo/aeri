@@ -30,6 +30,14 @@ export function Settings() {
     setPrefs(next)
   }
 
+  const ALL_SYNC_ON = { anilist: { status: true, progress: true, rating: true }, mal: { status: true, progress: true, rating: true } } as const
+  const setSync = (provider: 'anilist' | 'mal', field: 'status' | 'progress' | 'rating', value: boolean) => {
+    const cur = prefs.sync ?? ALL_SYNC_ON
+    updatePref({ sync: { ...cur, [provider]: { ...cur[provider], [field]: value } } })
+  }
+  const syncOn = (provider: 'anilist' | 'mal', field: 'status' | 'progress' | 'rating') =>
+    prefs.sync?.[provider]?.[field] !== false
+
   const handleClearCache = async () => {
     setClearing('cache')
     try {
@@ -145,6 +153,27 @@ export function Settings() {
                 {ani.authExpired && <span className="text-xs text-amber-200/70">• Session expired</span>}
               </div>
             )}
+            {ani.isAuthenticated && (
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-white/5 pt-3">
+                <span className="text-[11px] text-white/40">Sync to AniList:</span>
+                {([
+                  ['status', 'Status'],
+                  ['progress', 'Episodes watched'],
+                  ['rating', 'Score'],
+                ] as const).map(([field, label]) => (
+                  <label key={field} className="flex cursor-pointer items-center gap-1.5 text-xs text-white/70">
+                    <input
+                      type="checkbox"
+                      checked={syncOn('anilist', field)}
+                      onChange={e => setSync('anilist', field, e.target.checked)}
+                      className="h-3.5 w-3.5 rounded border-white/20 bg-white/10"
+                      aria-label={`Sync ${label} to AniList`}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            )}
             {ani.error && !ani.isAuthenticated && <p className="mt-2 text-xs text-amber-200/70">{ani.error}</p>}
           </div>
 
@@ -165,6 +194,27 @@ export function Settings() {
             <p className="mt-2 text-[11px] leading-4 text-white/30">
               Syncs through the built-in server.
             </p>
+            {mal.isAuthenticated && (
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-white/5 pt-3">
+                <span className="text-[11px] text-white/40">Sync to MAL:</span>
+                {([
+                  ['status', 'Status'],
+                  ['progress', 'Episodes watched'],
+                  ['rating', 'Score'],
+                ] as const).map(([field, label]) => (
+                  <label key={field} className="flex cursor-pointer items-center gap-1.5 text-xs text-white/70">
+                    <input
+                      type="checkbox"
+                      checked={syncOn('mal', field)}
+                      onChange={e => setSync('mal', field, e.target.checked)}
+                      className="h-3.5 w-3.5 rounded border-white/20 bg-white/10"
+                      aria-label={`Sync ${label} to MyAnimeList`}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            )}
             {mal.error && <p className="mt-2 text-xs text-amber-200/70">{mal.error}</p>}
           </div>
         </div>

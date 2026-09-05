@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useMemo, useCallback } from 'react'
 import { useAniList } from './AniListContext'
 import { useMAL } from './MALContext'
+import { isSyncEnabled } from '../storage/preferences'
 import type { Anime, AnimeListEntry, AnimeStatus } from '../types/anime'
 
 type UnifiedTracking = {
@@ -94,54 +95,54 @@ export function TrackingProvider({ children }: { children: React.ReactNode }) {
 
   const updateProgress = useCallback(async (anime: Anime, ep: number) => {
     const promises: Promise<void>[] = []
-    if (ani.isAuthenticated) {
+    if (ani.isAuthenticated && isSyncEnabled('anilist', 'progress')) {
       const anilistId = anime.identity.anilistId?.toString() ?? (anime.identity.internalId.startsWith('anilist-') ? anime.identity.internalId.replace('anilist-', '') : null)
       if (anilistId) promises.push(ani.updateProgress(anilistId, ep).catch(()=>{}))
     }
-    if (mal.isAuthenticated) {
+    if (mal.isAuthenticated && isSyncEnabled('mal', 'progress')) {
       let malId: string | null = anime.identity.malId ? `mal-${anime.identity.malId}` : null
       if (!malId && anime.identity.internalId.startsWith('mal-')) malId = anime.identity.internalId
       if (malId) promises.push(mal.updateProgress(malId, ep).catch(()=>{}))
     }
     if (promises.length === 0) {
-      if (ani.isAuthenticated && anime.identity.anilistId) promises.push(ani.updateProgress(`anilist-${anime.identity.anilistId}`, ep).catch(()=>{}))
-      if (mal.isAuthenticated && anime.identity.malId) promises.push(mal.updateProgress(`mal-${anime.identity.malId}`, ep).catch(()=>{}))
+      if (ani.isAuthenticated && isSyncEnabled('anilist', 'progress') && anime.identity.anilistId) promises.push(ani.updateProgress(`anilist-${anime.identity.anilistId}`, ep).catch(()=>{}))
+      if (mal.isAuthenticated && isSyncEnabled('mal', 'progress') && anime.identity.malId) promises.push(mal.updateProgress(`mal-${anime.identity.malId}`, ep).catch(()=>{}))
     }
     await Promise.allSettled(promises)
   }, [ani.isAuthenticated, ani.updateProgress, mal.isAuthenticated, mal.updateProgress])
 
   const updateStatus = useCallback(async (anime: Anime, status: AnimeStatus) => {
     const promises: Promise<void>[] = []
-    if (ani.isAuthenticated) {
+    if (ani.isAuthenticated && isSyncEnabled('anilist', 'status')) {
       const anilistId = anime.identity.anilistId?.toString() ?? (anime.identity.internalId.startsWith('anilist-') ? anime.identity.internalId.replace('anilist-', '') : null)
       if (anilistId) promises.push(ani.updateStatus(anilistId, status).catch(()=>{}))
     }
-    if (mal.isAuthenticated) {
+    if (mal.isAuthenticated && isSyncEnabled('mal', 'status')) {
       let malId: string | null = anime.identity.malId ? `mal-${anime.identity.malId}` : null
       if (!malId && anime.identity.internalId.startsWith('mal-')) malId = anime.identity.internalId
       if (malId) promises.push(mal.updateStatus(malId, status).catch(()=>{}))
     }
     if (promises.length === 0) {
-      if (ani.isAuthenticated && anime.identity.anilistId) promises.push(ani.updateStatus(`anilist-${anime.identity.anilistId}`, status).catch(()=>{}))
-      if (mal.isAuthenticated && anime.identity.malId) promises.push(mal.updateStatus(`mal-${anime.identity.malId}`, status).catch(()=>{}))
+      if (ani.isAuthenticated && isSyncEnabled('anilist', 'status') && anime.identity.anilistId) promises.push(ani.updateStatus(`anilist-${anime.identity.anilistId}`, status).catch(()=>{}))
+      if (mal.isAuthenticated && isSyncEnabled('mal', 'status') && anime.identity.malId) promises.push(mal.updateStatus(`mal-${anime.identity.malId}`, status).catch(()=>{}))
     }
     await Promise.allSettled(promises)
   }, [ani.isAuthenticated, ani.updateStatus, mal.isAuthenticated, mal.updateStatus])
 
   const updateRating = useCallback(async (anime: Anime, rating: number) => {
     const promises: Promise<void>[] = []
-    if (ani.isAuthenticated) {
+    if (ani.isAuthenticated && isSyncEnabled('anilist', 'rating')) {
       const anilistId = anime.identity.anilistId?.toString() ?? (anime.identity.internalId.startsWith('anilist-') ? anime.identity.internalId.replace('anilist-', '') : null)
       if (anilistId) promises.push(ani.updateRating(anilistId, rating).catch(()=>{}))
     }
-    if (mal.isAuthenticated) {
+    if (mal.isAuthenticated && isSyncEnabled('mal', 'rating')) {
       let malId: string | null = anime.identity.malId ? `mal-${anime.identity.malId}` : null
       if (!malId && anime.identity.internalId.startsWith('mal-')) malId = anime.identity.internalId
       if (malId) promises.push(mal.updateRating(malId, rating).catch(()=>{}))
     }
     if (promises.length === 0) {
-      if (ani.isAuthenticated && anime.identity.anilistId) promises.push(ani.updateRating(`anilist-${anime.identity.anilistId}`, rating).catch(()=>{}))
-      if (mal.isAuthenticated && anime.identity.malId) promises.push(mal.updateRating(`mal-${anime.identity.malId}`, rating).catch(()=>{}))
+      if (ani.isAuthenticated && isSyncEnabled('anilist', 'rating') && anime.identity.anilistId) promises.push(ani.updateRating(`anilist-${anime.identity.anilistId}`, rating).catch(()=>{}))
+      if (mal.isAuthenticated && isSyncEnabled('mal', 'rating') && anime.identity.malId) promises.push(mal.updateRating(`mal-${anime.identity.malId}`, rating).catch(()=>{}))
     }
     await Promise.allSettled(promises)
   }, [ani.isAuthenticated, ani.updateRating, mal.isAuthenticated, mal.updateRating])

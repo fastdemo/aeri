@@ -229,7 +229,25 @@ export async function handleMalOAuthCallback(): Promise<string | null> {
   }
 
   // Exchange (via worker if configured, else direct)
-  const tokenRes = await exchangeMalCodeForToken(code, verifier)
+  let tokenRes: { access_token: string; refresh_token?: string; expires_in?: number }
+  try {
+    tokenRes = await exchangeMalCodeForToken(code, verifier)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (/invalid_grant|invalid_client|invalid_code|expired|already used/i.test(msg)) {
+      // Dead code (expired, already used, or client mismatch) — clear everything
+      // so a fresh Connect starts clean instead of retrying the dead code forever.
+      clearMalOAuthState()
+      clearMalCodeVerifier()
+      url.searchParams.delete('code')
+      url.searchParams.delete('state')
+      const base = import.meta.env.BASE_URL as string
+      const clean = `${window.location.origin}${base}#/`
+      window.history.replaceState(null, '', clean)
+      throw new Error('That login attempt expired — please Connect again. If it keeps failing, check the MAL client ID.')
+    }
+    throw e
+  }
   setMalTokens(tokenRes.access_token, tokenRes.refresh_token ?? null, tokenRes.expires_in)
   try { localStorage.setItem('aeri:mal:last_code', code) } catch {}
 

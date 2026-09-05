@@ -16,6 +16,11 @@ export interface Preferences {
   // Standalone AniList OAuth token-exchange base (non-Cloudflare host, since
   // AniList blocks Cloudflare Worker IPs). Same /api/anilist/token contract.
   customAuthApiUrl?: string | null
+  // Per-account write sync toggles (reads always stay merged). All on = old behavior.
+  sync?: {
+    anilist: { status: boolean; progress: boolean; rating: boolean }
+    mal: { status: boolean; progress: boolean; rating: boolean }
+  }
 }
 
 const defaults: Preferences = {
@@ -30,6 +35,10 @@ const defaults: Preferences = {
   customVideoApiUrl: null,
   preferredQuality: null,
   customAuthApiUrl: null,
+  sync: {
+    anilist: { status: true, progress: true, rating: true },
+    mal: { status: true, progress: true, rating: true },
+  },
 }
 
 export function getEffectiveVideoApiUrl(): string | null {
@@ -81,6 +90,16 @@ function normalizeHttpUrl(raw: string | null | undefined): string | null {
     if (u.protocol !== 'https:' && !(u.protocol === 'http:' && isLocalHost)) return null
     return v
   } catch { return null }
+}
+
+export type SyncProvider = 'anilist' | 'mal'
+export type SyncField = 'status' | 'progress' | 'rating'
+
+export function isSyncEnabled(provider: SyncProvider, field: SyncField): boolean {
+  // Default on (missing = old fan-out-to-both behavior).
+  try {
+    return getPreferences().sync?.[provider]?.[field] !== false
+  } catch { return true }
 }
 
 export function getEffectiveAuthApiUrl(): string | null {
