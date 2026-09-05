@@ -112,7 +112,7 @@ export async function exchangeAnilistCodeForToken(code: string, state: string | 
   if (!res.ok || json?.error) {
     const msg = json?.error_description || json?.error || json?.message || res.statusText
     if (json?.error === 'ANILIST_IP_BLOCKED' || /manually blocked/i.test(String(msg))) {
-      throw new Error('AniList is blocking login requests from our server (Cloudflare Workers). Set a custom auth endpoint in Settings → Account (see auth-proxy/README.md) to log in — browsing still works.')
+      throw new Error('AniList login is temporarily unavailable — browsing still works. Please try again later.')
     }
     if (/invalid_grant|invalid_code|code.*expired/i.test(String(msg))) {
       throw new Error(`AniList token exchange failed: ${msg} — the code may have expired. Try logging in again.`)

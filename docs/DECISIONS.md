@@ -126,3 +126,6 @@ D043's `perPage = cols x 5` refetched on every resize (annoying reload flash). N
 
 ## D048 — ContentRow header + exact one-card arrows
 Row subtitles ("Under 12 episodes") now sit right-aligned on the header line at the same 14px size as the title, keeping muted color; dead hover-hint span removed. Arrow buttons scroll exactly one card (`firstChild.width + gap`, quantized to the card grid) instead of fixed 320px, so rows never end misaligned — verified scrollLeft delta 244 = 236 + 8 after one click. Desktop-only arrows unchanged.
+
+## D049 — MAL works via Worker; client ID must be baked at build time
+MAL login was failing with "Client ID not configured" on production because local `wrangler deploy` builds used a `.env` without `VITE_MAL_CLIENT_ID` (CI sets it, local did not). The Worker proxy itself reaches MAL fine (fake-code probe returns MAL's own `401 invalid_client`, no IP block unlike AniList). Verified live: Connect MAL → `myanimelist.net/.../dialog/authorization` (accepted params, login prompt — no `invalid_client`/`redirect_uri` rejection), PKCE verifier (96ch) + state (32ch) persisted for the callback. Fix: `.env` + `.env.example` carry the public IDs; lesson recorded — after every local deploy, grep the live bundle for the baked IDs.

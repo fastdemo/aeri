@@ -163,44 +163,9 @@ export function Settings() {
               )}
             </div>
             <p className="mt-2 text-[11px] leading-4 text-white/30">
-              MAL sync needs a self-hosted server (set below under Playback Sources).
+              Syncs through the built-in server.
             </p>
             {mal.error && <p className="mt-2 text-xs text-amber-200/70">{mal.error}</p>}
-          </div>
-
-          <div className="rounded-lg border border-white/10 bg-[#0e0e10] p-3">
-            <p className="text-xs font-medium text-white">AniList login server (optional)</p>
-            <p className="mt-1 text-[11px] leading-4 text-white/50">
-              Needed for AniList login — paste your server address here (see <code className="rounded bg-white/10 px-1 py-0.5">auth-proxy/README.md</code> to run one). Leave empty to use the built-in server.
-            </p>
-            <div className="mt-2 flex gap-2">
-              <input
-                type="url"
-                value={prefs.customAuthApiUrl ?? ''}
-                onChange={e => updatePref({ customAuthApiUrl: e.target.value.trim() ? e.target.value.trim() : null })}
-                placeholder="https://your-auth-proxy.fly.dev"
-                aria-label="AniList auth endpoint"
-                className="flex-1 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 text-xs text-white placeholder:text-white/40 focus:border-white/20 focus:outline-none"
-              />
-              <button
-                onClick={async () => {
-                  const url = prefs.customAuthApiUrl?.trim().replace(/\/$/, '')
-                  if (!url) return
-                  try {
-                    const res = await fetch(`${url}/health`, { method: 'GET' })
-                    if (!res.ok) { alert(`✗ ${res.status} ${res.statusText}`); return }
-                    const j = await res.json().catch(() => null)
-                    alert(j?.secretConfigured === false ? `⚠ Reachable but secret missing on ${url}` : `✓ Available — ${url}`)
-                  } catch (e) {
-                    alert(`✗ ${String(e).slice(0,120)}`)
-                  }
-                }}
-                disabled={!prefs.customAuthApiUrl}
-                className="rounded-full bg-white/10 px-4 py-1.5 text-xs font-medium text-white hover:bg-white/15 disabled:opacity-30"
-              >
-                Test
-              </button>
-            </div>
           </div>
         </div>
       </section>
