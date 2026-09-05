@@ -120,3 +120,9 @@ AniList reports `episodes: null` for ongoing long-runners and `streamingEpisodes
 
 ## D046 — Settings copy simplified, features kept
 Settings text trimmed of endpoint URLs, env var names, storage internals, and version/provider details. All controls kept (accounts, auth/video custom endpoints + Test, playback, providers, data/cache, about). Footer "No backend" removed (Worker + auth-proxy exist).
+
+## D047 — Browse fixed preload with local slicing + shuffle (supersedes D043)
+D043's `perPage = cols x 5` refetched on every resize (annoying reload flash). Now: fixed `PAGE_SIZE = 30` fetch (theoretical max: 6 cols x 5 rows), `useGridColumns()` only slices locally to complete rows (`slice(0, len - len % cols)`), so resize re-slices with zero requests (verified: no new GraphQL on 1440→900). Page-1 results shuffle once per filter signature (ref keyed on signature + head ids, so Load-more appends keep order and filter changes reshuffle). Skeletons render `cols x 5`. Verified full rows at 6/5/4/2 cols via computed grid styles.
+
+## D048 — ContentRow header + exact one-card arrows
+Row subtitles ("Under 12 episodes") now sit right-aligned on the header line at the same 14px size as the title, keeping muted color; dead hover-hint span removed. Arrow buttons scroll exactly one card (`firstChild.width + gap`, quantized to the card grid) instead of fixed 320px, so rows never end misaligned — verified scrollLeft delta 244 = 236 + 8 after one click. Desktop-only arrows unchanged.

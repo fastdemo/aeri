@@ -27,6 +27,7 @@
 - [x] Recommendation engine: scoring now genre-overlap primary (50×overlap + rating + log(popularity) + recency), filters zero-overlap, Home uses `getRecommendations` for Top Picks + Because You Watched with shuffle sampling — wired and varied per refresh
 - [x] AniList Authorization Code via Worker/auth-proxy (client 50024; implicit proven dead twice), MAL/AniList callback isolation, ANILIST_CLIENT_SECRET server-side only, auth-proxy standalone + Settings endpoint + VITE_AUTH_API_URL, friendly IP-block error — verified live (Viewer/list pending real user approval)
 - [x] Browse fills complete rows at every viewport (perPage = columns × 5), search suggestions open DetailModal popup (no /anime navigation, type=button fix), episode estimate for unknown totals (One Piece 1176 + kept in-range titles, modal line from normalized map), Settings copy simplified — verified via Playwright (1440/1100/390, modal, episodes, settings)
+- [x] Browse fixed 30-preload with local full-row slicing (no refetch on resize), page-1 shuffle per filter set, filters share the category row (right side, matching pill size, custom chevron), ContentRow subtitle right-aligned at title size, arrows move exactly one card — verified via Playwright (grid counts, shuffle across reloads, zero requests on resize, scroll delta)
 - [ ] Tune recommendation diversity (collaborative/embedding) when more history signals available
 
 ## Later

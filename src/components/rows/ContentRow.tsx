@@ -14,17 +14,19 @@ export function ContentRow({
   const scroll = (dir: 1 | -1) => {
     const el = scrollerRef.current
     if (!el) return
-    el.scrollBy({ left: dir * 320, behavior: 'smooth' })
+    // Move exactly one card so items stay aligned after every click.
+    const first = el.firstElementChild as HTMLElement | null
+    const gap = parseFloat(getComputedStyle(el).columnGap || '8') || 0
+    const step = (first ? first.getBoundingClientRect().width : 320) + gap
+    const target = Math.round((el.scrollLeft + dir * step) / step) * step
+    el.scrollTo({ left: Math.max(0, target), behavior: 'smooth' })
   }
 
   return (
     <section className="group/row relative">
-      <div className="mb-2 flex items-baseline gap-2 px-4 sm:px-6 lg:px-0">
+      <div className="mb-2 flex items-baseline justify-between gap-2 px-4 sm:px-6 lg:px-0">
         <h2 className="text-[14px] font-semibold tracking-[-0.01em] text-white">{title}</h2>
-        {subtitle && <span className="text-xs text-white/50">{subtitle}</span>}
-        <span className="hidden text-[12px] font-medium text-white/0 transition-colors group-hover/row:text-white/60 sm:inline">
-          {/* hint */}
-        </span>
+        {subtitle && <span className="shrink-0 text-[14px] text-white/50">{subtitle}</span>}
       </div>
 
       <div className="relative">
