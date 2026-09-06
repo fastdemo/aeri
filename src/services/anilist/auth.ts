@@ -15,6 +15,18 @@ function getAnilistWorkerBase(): string | null {
   } catch { return null }
 }
 
+function getBakedAuthApiUrl(): string | null {
+  // Build-time default login server (never a secret). Used as final fallback
+  // when a user-configured custom endpoint yields nothing usable.
+  try {
+    const v = ((import.meta as any).env?.VITE_AUTH_API_URL as string | undefined)?.trim().replace(/\/$/, '') || null
+    if (!v) return null
+    const u = new URL(v)
+    if (u.protocol !== 'https:' && u.protocol !== 'http:') return null
+    return v
+  } catch { return null }
+}
+
 function randomString(length: number): string {
   const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'
   const bytes = new Uint8Array(length)
@@ -35,6 +47,14 @@ async function fetchAnilistTokenWithFallback(body: URLSearchParams): Promise<{ r
     urls.push(`${workerBase}/api/anilist/token`)
     urls.push(`${workerBase}/anilist/token`)
   }
+  // If the effective base is a user custom endpoint that differs from the
+  // baked default, still try the baked default afterwards: a stale custom URL
+  // (e.g. pointing at the blocked Worker) must not single-handedly break login.
+  const baked = getBakedAuthApiUrl()
+  if (baked && baked !== workerBase) {
+    urls.push(`${baked}/api/anilist/token`)
+    urls.push(`${baked}/anilist/token`)
+  }
   // Also try same-origin Worker (Cloudflare serves frontend + API at same origin)
   // This handles the case where customVideoApiUrl is not set but we are on https://aeri.fastdemo.workers.dev/
   urls.push(`/api/anilist/token`)
@@ -42,6 +62,7 @@ async function fetchAnilistTokenWithFallback(body: URLSearchParams): Promise<{ r
   // Do NOT fallback to direct https://anilist.co/api/v2/oauth/token — that would require client_secret in browser
   let lastError: any = null
   let preferredUnreachable = false
+  let blockedSeen = false
   for (let i = 0; i < urls.length; i++) {
     const url = urls[i]
     try {
@@ -57,6 +78,18 @@ async function fetchAnilistTokenWithFallback(body: URLSearchParams): Promise<{ r
           body: body.toString(),
           signal: ctrl.signal,
         })
+        // A Cloudflare-hosted base is always IP-blocked by AniList — even a
+        // user-configured custom endpoint pointing at the Worker. Don't stop
+        // here; fall through to the next base instead of failing the login.
+        let blocked = false
+        try {
+          const peek = await res.clone().json().catch(() => null) as any
+          blocked = peek?.error === 'ANILIST_IP_BLOCKED'
+        } catch {}
+        if (blocked) {
+          blockedSeen = true
+          continue
+        }
         return { res, preferredUnreachable, preferredHost }
       } finally { clearTimeout(tid) }
     } catch (e) {
@@ -72,6 +105,15 @@ async function fetchAnilistTokenWithFallback(body: URLSearchParams): Promise<{ r
       if (isAbort) throw new Error('AniList token request timed out after 8s')
       throw e
     }
+  }
+  if (blockedSeen) {
+    // Every reachable base was IP-blocked (e.g. only the Worker was ever
+    // tried). Surface the structured shape so the caller reports it cleanly.
+    const blocked = new Response(
+      JSON.stringify({ error: 'ANILIST_IP_BLOCKED', message: 'AniList is blocking requests from Cloudflare Workers.' }),
+      { status: 502, headers: { 'Content-Type': 'application/json' } },
+    )
+    return { res: blocked, preferredUnreachable, preferredHost }
   }
   throw lastError ?? new Error('AniList token request failed - Worker not reachable. Ensure Cloudflare Worker is deployed with ANILIST_CLIENT_SECRET.')
 }
