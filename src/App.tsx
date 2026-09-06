@@ -62,12 +62,12 @@ function Layout() {
         </Routes>
       </main>
       <footer className="border-t border-white/5">
-        <div className="mx-auto flex h-10 max-w-[1600px] items-center justify-between gap-3 px-4 text-[11px] sm:px-6 lg:px-12">
+        <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-3 px-4 py-5 text-[11px] sm:px-6 lg:px-12">
           <div className="flex min-w-0 items-center gap-2">
             <span className="font-semibold tracking-[-0.02em] text-white/80" style={{ fontFamily: '"Cal Sans", sans-serif' }}>aeri</span>
             <span className="hidden truncate text-white/40 sm:inline">anime, quietly.</span>
           </div>
-          <span className="hidden shrink-0 text-white/25 md:inline">© 2026 Aeri</span>
+          <span className="hidden shrink-0 text-white/25 md:inline">© 2026 Aeri - by @fastdemo</span>
           <div className="flex shrink-0 items-center gap-3">
             <a href="https://github.com/fastdemo/aeri" className="text-white/40 transition hover:text-white">GitHub</a>
             <span className="text-white/40">Privacy</span>
