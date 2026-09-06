@@ -171,7 +171,7 @@ export function Watch() {
     setSources(null)
     setSelectedSource(null)
     setTriedProviders([])
-    resolveSourcesWithFallback(effectiveEpisode, { preferredProvider, preferredLanguage: preferredAudio, signal: controller.signal })
+    resolveSourcesWithFallback(effectiveEpisode, { preferredProvider, preferredLanguage: preferredAudio, signal: controller.signal, animeTitle: anime ? (anime.title.romaji || anime.title.english || null) : null })
       .then(res => {
         if (cancelled || controller.signal.aborted) return
         setSources(res.sources)
@@ -373,7 +373,7 @@ export function Watch() {
                       if (effectiveEpisode) {
                         setSourcesLoading(true)
                         setSourcesError(null)
-                        resolveSourcesWithFallback(effectiveEpisode, { preferredProvider, preferredLanguage: preferredAudio, bypassCache: true }).then(res => {
+                        resolveSourcesWithFallback(effectiveEpisode, { preferredProvider, preferredLanguage: preferredAudio, bypassCache: true, animeTitle: anime ? (anime.title.romaji || anime.title.english || null) : null }).then(res => {
                           setSources(res.sources)
                           setTriedProviders(res.tried)
                           if (res.sources.length) {
@@ -418,7 +418,7 @@ export function Watch() {
                       if (effectiveEpisode) {
                         setSourcesLoading(true)
                         setSourcesError(null)
-                        resolveSourcesWithFallback(effectiveEpisode, { preferredProvider, preferredLanguage: preferredAudio, bypassCache: true }).then(res => {
+                        resolveSourcesWithFallback(effectiveEpisode, { preferredProvider, preferredLanguage: preferredAudio, bypassCache: true, animeTitle: anime ? (anime.title.romaji || anime.title.english || null) : null }).then(res => {
                           setSources(res.sources)
                           setTriedProviders(res.tried)
                           if (res.sources.length) {

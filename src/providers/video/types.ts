@@ -56,6 +56,8 @@ export interface ProviderAnimeMatch {
 export interface SourceOptions {
   preferredLanguage?: VideoLanguage
   signal?: AbortSignal
+  /** Anime title (romaji) for providers that resolve by search. */
+  animeTitle?: string | null
 }
 
 export interface VideoProvider {

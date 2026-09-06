@@ -111,6 +111,9 @@ export interface ResolveSourcesOptions {
   preferredLanguage?: VideoLanguage
   signal?: AbortSignal
   bypassCache?: boolean
+  /** Anime title for provider resolution (romaji). Lets the worker resolve
+      without its own AniList fetch (often IP-blocked from worker egress). */
+  animeTitle?: string | null
 }
 
 export async function resolveSourcesWithFallback(
@@ -138,7 +141,9 @@ export async function resolveSourcesWithFallback(
     } catch {}
   }
   const tried: string[] = []
-  const timeoutMs = 4000
+  // 9s: cold resolution (search + verify + source API) can take ~5-8s on the
+  // first call for an anime; warm calls answer in ~2s. Episodes stay at 4s.
+  const timeoutMs = 9000
   const signal = options?.signal
   const withTimeout = <T,>(p: Promise<T>): Promise<T> =>
     Promise.race([
@@ -149,6 +154,7 @@ export async function resolveSourcesWithFallback(
 
   const preferredLanguage = options?.preferredLanguage
   const preferredId = options?.preferredProvider
+  const animeTitle = options?.animeTitle ?? null
   const enabledOrdered = getOrderedProviders(getEnabledProviders())
   // Ensure preferred is valid and enabled
   const preferred = preferredId ? getProviderById(preferredId) : getProviderById(episode.provider)
@@ -164,7 +170,7 @@ export async function resolveSourcesWithFallback(
     const first = ordered[0]
     tried.push(first.id)
     try {
-      const srcs = await withTimeout(first.getSources(episode, { preferredLanguage, signal: options?.signal }))
+      const srcs = await withTimeout(first.getSources(episode, { preferredLanguage, signal: options?.signal, animeTitle }))
       const filtered = preferredLanguage ? srcs.filter(s => !s.language || s.language === preferredLanguage) : srcs
       const toReturn = filtered.length ? filtered : srcs
       if (toReturn.length > 0) return { sources: toReturn, tried }
@@ -174,7 +180,7 @@ export async function resolveSourcesWithFallback(
       // For accurate tried list, only push tried for providers that actually were attempted; we already pushed first.
       // For remaining, we will collect after race — push all remaining as tried since we do parallel attempt.
       const results = await Promise.allSettled(
-        remaining.map(p => withTimeout(p.getSources(episode, { preferredLanguage, signal: options?.signal })).catch(() => [] as VideoSourceEnhanced[])),
+        remaining.map(p => withTimeout(p.getSources(episode, { preferredLanguage, signal: options?.signal, animeTitle })).catch(() => [] as VideoSourceEnhanced[])),
       )
       // Mark remaining as tried after the parallel attempt started
       for (const p of remaining) tried.push(p.id)

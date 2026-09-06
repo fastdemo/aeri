@@ -75,11 +75,12 @@ export class AniKotoProvider implements VideoProvider {
       if (m2) anilistId = m2[1]
     }
     if (!anilistId) return []
+    const titleHint = options?.animeTitle?.trim() || ''
     // Signed source URLs expire — never serve these from cache. Episodes
     // (stable) stay cached; sources always resolve fresh.
     try {
-      const url = `${base}/api/sources/anikoto-${anilistId}-${episode.number}?language=${lang}&provider=anikoto`
-      const res = await fetchWithTimeout(url, {}, 4000, options?.signal)
+      const url = `${base}/api/sources/anikoto-${anilistId}-${episode.number}?language=${lang}&provider=anikoto${titleHint ? `&title=${encodeURIComponent(titleHint)}` : ''}`
+      const res = await fetchWithTimeout(url, {}, 9000, options?.signal)
       if (!res.ok) return []
       const j: any = await res.json().catch(() => null)
       const srcs = j?.sources ?? []
