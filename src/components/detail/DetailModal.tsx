@@ -59,8 +59,7 @@ export function DetailModal({
         if (controller.signal.aborted || reqId !== requestIdRef.current) return
         if (g && g.seasons.length > 1) {
           setSeriesGroup(g)
-          const idx = g.seasons.findIndex(s => s.identity.anilistId === currentId)
-          setSelectedSeasonIdx(idx >= 0 ? idx : 0)
+          setSelectedSeasonIdx(0)
         } else {
           setSeriesGroup(null)
           setSelectedSeasonIdx(0)
