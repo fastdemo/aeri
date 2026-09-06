@@ -36,14 +36,13 @@ whose hands it needs. Never claim "live" from a push alone.
 
 | Path | Requires | Status |
 |------|----------|--------|
-| Local `wrangler deploy` | Cloudflare login/token on that machine + correct `.env` | Primary path (owner's machine) |
-| CI `deploy-worker.yml` | `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` repo secrets | Broken until secrets exist (badge red); build step still validates PRs |
+| Push to `main` (auto) | Nothing extra — CI builds, runs `verify:build`, deploys | **Live since 2026-09-06** (owner added repo secrets; proven by dispatched run 34016758269, all steps green) |
+| Local `wrangler deploy` | Cloudflare login on that machine + correct `.env` | Fallback / emergency path |
+| `gh workflow run deploy-worker.yml --ref main` | `gh` auth (no Cloudflare login needed — CI uses secrets) | Manual re-deploy without new code |
 
-Agents generally have **neither** (no Cloudflare credentials, no permission to
-read repo secrets). An agent's job is: land the code + docs on `main`,
-verify `tsc`/`build`/browser locally, probe the live bundle, and hand the
-deploy steps below to the owner. Never claim "live" from a push alone —
-always grep the live bundle (step 4).
+Agents: pushes now ship by themselves — but still close the loop with
+`npm run verify:live` (bundle evidence, never the badge). The preflight below
+matters mostly for local emergency deploys.
 
 ## 1. Preflight — the `.env` check (non-negotiable)
 
