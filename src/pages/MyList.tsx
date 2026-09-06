@@ -52,7 +52,7 @@ export function MyList() {
 
       {!isAuthenticated && (
         <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3 flex items-center justify-between gap-3">
-          <p className="text-xs text-white/60">Connect AniList to sync your list and track progress.</p>
+          <p className="text-xs text-white/60">Sign in with AniList to sync your list and track progress.</p>
           <Link to="/settings" className="whitespace-nowrap rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-black hover:bg-white/90">
             Go to Settings
           </Link>
@@ -109,7 +109,7 @@ export function MyList() {
         <div className="mt-8 rounded-lg border border-white/5 bg-white/[0.02] px-6 py-10 text-center">
           <p className="text-sm font-medium text-white">Your list is empty</p>
           <p className="mx-auto mt-1 max-w-md text-xs leading-5 text-white/50">
-            Connect AniList above to see your anime list, track progress, and keep Continue Watching in sync. Your data stays in your browser and AniList.
+            Sign in with AniList above to see your anime list, track progress, and keep Continue Watching in sync. Your data stays in your browser and AniList.
           </p>
         </div>
       ) : !loading ? (

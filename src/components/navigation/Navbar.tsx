@@ -205,9 +205,9 @@ export function Navbar() {
               }}
               className="inline-flex h-7 touch-manipulation items-center rounded-full bg-white px-4 text-[13px] font-semibold text-black transition hover:bg-white/90 active:scale-[0.98] lg:h-8 lg:px-5"
               style={{ touchAction: 'manipulation' } as any}
-              aria-label="Connect via AniList"
+              aria-label="Sign in with AniList"
             >
-              Connect via AniList
+              Sign in
             </button>
           ) : (
             <Link
@@ -276,7 +276,7 @@ export function Navbar() {
                 className="mt-2 touch-manipulation rounded-full bg-white px-4 py-3 text-sm font-semibold text-black"
                 style={{ touchAction: 'manipulation' } as any}
               >
-                Connect via AniList
+                Sign in
               </button>
             )}
           </div>

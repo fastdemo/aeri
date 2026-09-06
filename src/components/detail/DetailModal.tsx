@@ -240,7 +240,7 @@ export function DetailModal({
                   aria-label={currentStatus ? `Status: ${currentStatus}` : 'Add to My List'}
                   onClick={async () => {
                     if (!isAuthenticated) {
-                      setLocalError('Connect AniList or MyAnimeList in My List to track.')
+                      setLocalError('Sign in with AniList or connect MyAnimeList in Settings to track.')
                       setTimeout(() => setLocalError(null), 2500)
                       return
                     }
@@ -299,7 +299,7 @@ export function DetailModal({
                   aria-label={currentScore ? `Rated ${currentScore}` : 'Rate'}
                   onClick={() => {
                     if (!isAuthenticated) {
-                      setLocalError('Connect AniList or MyAnimeList to rate.')
+                      setLocalError('Sign in with AniList or connect MyAnimeList in Settings to rate.')
                       setTimeout(() => setLocalError(null), 2500)
                       return
                     }

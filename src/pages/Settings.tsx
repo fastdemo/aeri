@@ -122,7 +122,7 @@ export function Settings() {
       <p className="text-xs text-white/50">Accounts, playback, and your data.</p>
       {!isAuthenticated && (
         <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3 flex items-center justify-between gap-3">
-          <p className="text-xs text-white/60">Connect AniList or MyAnimeList to sync your list and enable tracking. Playback preferences work without an account.</p>
+          <p className="text-xs text-white/60">Sign in with AniList or connect MyAnimeList to sync your list and enable tracking. Playback preferences work without an account.</p>
         </div>
       )}
 
@@ -143,7 +143,7 @@ export function Settings() {
               {ani.isAuthenticated ? (
                 <button onClick={() => ani.logout()} className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/15">Disconnect</button>
               ) : (
-                <button onClick={() => ani.login()} className="rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-black hover:bg-white/90">Connect AniList</button>
+                <button onClick={() => ani.login()} className="rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-black hover:bg-white/90">Sign in</button>
               )}
             </div>
             {ani.isAuthenticated && ani.user?.avatar?.large && (
@@ -194,6 +194,17 @@ export function Settings() {
             <p className="mt-2 text-[11px] leading-4 text-white/30">
               Syncs through the built-in server.
             </p>
+            {mal.isAuthenticated && mal.user && (
+              <div className="mt-3 flex items-center gap-2">
+                {mal.user.avatar?.large ? (
+                  <img src={mal.user.avatar.large} alt="" className="h-7 w-7 rounded-full bg-white/10 object-cover" loading="lazy" />
+                ) : (
+                  <div className="grid h-7 w-7 place-items-center rounded-full bg-[#2e51a2] text-[10px] font-bold text-white" aria-hidden>MAL</div>
+                )}
+                <span className="text-xs text-white/70">{mal.user.name}</span>
+                {mal.authExpired && <span className="text-xs text-amber-200/70">• Session expired</span>}
+              </div>
+            )}
             {mal.isAuthenticated && (
               <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-white/5 pt-3">
                 <span className="text-[11px] text-white/40">Sync to MAL:</span>

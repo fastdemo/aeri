@@ -33,12 +33,12 @@ export function AniListConnectCompact() {
     <div className="rounded-lg border border-white/10 bg-[#141416] px-3 py-3">
       <div className="flex flex-wrap items-center gap-2">
         <div className="min-w-0">
-          <p className="text-xs font-medium text-white">Connect AniList</p>
+          <p className="text-xs font-medium text-white">Sign in</p>
           <p className="text-[11px] text-white/50">Sync your list, progress, and ratings. No data leaves your browser except to AniList.</p>
         </div>
         <div className="ml-auto flex gap-2">
           <button onClick={login} className="rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-black hover:bg-white/90">
-            {hasClientId ? 'Connect' : 'Connect'}
+            Sign in
           </button>
           <button onClick={() => setShowManual((v) => !v)} className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/15">
             Paste token
