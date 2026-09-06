@@ -1,5 +1,8 @@
 # DEPLOYMENT — Aeri (Cloudflare Worker `aeri`)
 
+> Releasing? Read `RELEASING.md` first — it has the pre-deploy env checklist
+> that two login outages taught us. This file is the hosting reference.
+
 ## URL
 
 `https://aeri.fastdemo.workers.dev/` — Worker `aeri` serves `dist` assets + same-origin `/api/*`. Do NOT deploy production to `aeri-production`.
