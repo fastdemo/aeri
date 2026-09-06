@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { HeroCarousel } from '../components/hero/Hero'
 import { AnimeCard } from '../components/cards/AnimeCard'
 import { ContentRow } from '../components/rows/ContentRow'
@@ -61,6 +61,37 @@ function shuffle<T>(arr: T[]): T[] {
   return a
 }
 
+// Stable per-mount ordering: same ids → same order for the whole session, so
+// background refetches (tracking reloads, enrichment batches) never visibly
+// reshuffle the feed. A full reload re-shuffles, preserving variety.
+function useStableOrder() {
+  const cache = useRef(new Map<string, string[]>())
+  return useCallback((key: string, items: Anime[]): Anime[] => {
+    const ids = items.map((a) => a.identity.internalId)
+    const sig = `${key}|${ids.join(',')}`
+    let perm = cache.current.get(sig)
+    if (!perm) {
+      perm = shuffle(ids)
+      if (cache.current.size > 80) cache.current.clear()
+      cache.current.set(sig, perm)
+    }
+    const byId = new Map(items.map((a) => [a.identity.internalId, a] as const))
+    const out: Anime[] = []
+    for (const id of perm) {
+      const a = byId.get(id)
+      if (a) out.push(a)
+    }
+    return out
+  }, [])
+}
+
+function currentSeasonLabel(): string {
+  const d = new Date()
+  const m = d.getMonth()
+  const season = m <= 2 ? 'Winter' : m <= 5 ? 'Spring' : m <= 8 ? 'Summer' : 'Fall'
+  return `${season} ${d.getFullYear()}`
+}
+
 // dedup pool by internalId
 function dedup(animes: Anime[]): Anime[] {
   const m = new Map<string, Anime>()
@@ -69,37 +100,39 @@ function dedup(animes: Anime[]): Anime[] {
 }
 
 // sample varied without immediately duplicating recently used titles
-function sampleVaried(pool: Anime[], count: number, used?: Set<string>): Anime[] {
+function sampleVaried(pool: Anime[], count: number, used?: Set<string>, key?: string, order?: (key: string, items: Anime[]) => Anime[]): Anime[] {
   if (!pool.length) return []
   const available = used ? pool.filter(a => !used.has(a.identity.internalId)) : pool
   const source = available.length >= Math.min(count, 4) ? available : pool
-  return shuffle(source).slice(0, count)
+  const ordered = order ? order(key ?? 'sample', source) : shuffle(source)
+  return ordered.slice(0, count)
 }
 
 // Ensure a row always has `min` items — fills from fallback pool if the primary pool is short
 // (e.g. Hidden Gems only has 5 candidates in the current 96-item allPool). Avoids the "5 cards then big empty" look.
-function ensureMinRow(primary: Anime[], fallback: Anime[], min: number, used?: Set<string>): Anime[] {
+function ensureMinRow(primary: Anime[], fallback: Anime[], min: number, used?: Set<string>, key?: string, order?: (key: string, items: Anime[]) => Anime[]): Anime[] {
   if (!primary.length && !fallback.length) return []
+  const ord = (suffix: string, arr: Anime[]) => (order ? order(`${key ?? 'row'}:${suffix}`, arr) : shuffle(arr))
   // Prefer primary, avoid `used` when possible
-  let result = sampleVaried(primary, Math.min(min, primary.length), used)
+  let result = sampleVaried(primary, Math.min(min, primary.length), used, `${key ?? 'row'}:main`, order)
   if (result.length >= min) return result
   const seen = new Set<string>(result.map(a => a.identity.internalId))
   if (used) for (const id of used) seen.add(id)
   // First fill from fallback (allPool) excluding seen
-  const candidates = shuffle(fallback.filter(a => !seen.has(a.identity.internalId)))
+  const candidates = ord('fill', fallback.filter(a => !seen.has(a.identity.internalId)))
   const need = min - result.length
   result = [...result, ...candidates.slice(0, need)]
   if (result.length >= min) return result
   // Still short (fallback also exhausted) — allow cross-row duplicates, just avoid intra-row duplicates
   const seenResult = new Set(result.map(a => a.identity.internalId))
-  const extra = shuffle(primary.filter(a => !seenResult.has(a.identity.internalId)))
+  const extra = ord('extra', primary.filter(a => !seenResult.has(a.identity.internalId)))
   result = [...result, ...extra.slice(0, min - result.length)]
   if (result.length >= min) return result
-  const extra2 = shuffle(fallback.filter(a => !seenResult.has(a.identity.internalId)))
+  const extra2 = ord('extra2', fallback.filter(a => !seenResult.has(a.identity.internalId)))
   result = [...result, ...extra2.slice(0, min - result.length)]
   // Last resort: pad with already-used fallback (duplicates across rows) to hit min for visual fullness
   if (result.length < min) {
-    const filler = shuffle(fallback).slice(0, min - result.length)
+    const filler = ord('pad', fallback).slice(0, min - result.length)
     result = [...result, ...filler]
   }
   return result.slice(0, min)
@@ -107,6 +140,7 @@ function ensureMinRow(primary: Anime[], fallback: Anime[], min: number, used?: S
 
 export function Home() {
   const [selected, setSelected] = useState<Anime | null>(null)
+  const mountSalt = useRef(Math.floor(Math.random() * 1e9))
   const { isAuthenticated, trackingProvider, combinedList, loading, error, authExpired } = useTracking()
   const location = useLocation()
 
@@ -183,7 +217,10 @@ export function Home() {
     return []
   }, [isAuthenticated, combinedList])
 
-  // Hero: only popular and/or currently airing, varying start position on refresh
+  const stableOrder = useStableOrder()
+
+  // Hero: only popular and/or currently airing. Order is stable per mount
+  // (fresh shuffle each full load, never mid-session) so the hero never jumps.
   const heroes: Anime[] = useMemo(() => {
     const pool = dedup([
       ...(popular.data ?? []),
@@ -197,16 +234,10 @@ export function Home() {
         ...(airing.data ?? []),
       ]).filter(a => !!a.backdropImage)
       if (!fallback.length) return []
-      const shuffled = shuffle(fallback)
-      const start = Math.floor(Math.random() * Math.max(1, shuffled.length))
-      const rotated = [...shuffled.slice(start), ...shuffled.slice(0, start)]
-      return rotated.slice(0, 7)
+      return stableOrder('heroes', fallback).slice(0, 7)
     }
-    const shuffled = shuffle(pool)
-    // rotate start position so same show not always first hero
-    const start = Math.floor(Math.random() * shuffled.length)
-    const rotated = [...shuffled.slice(start), ...shuffled.slice(0, start)]
-    return rotated.slice(0, 7)
+    return stableOrder('heroes', pool).slice(0, 7)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [popular.data, airing.data, trending.data])
 
   // Pool for derived categories and recommendations (deduplicated) — use larger pool for variety
@@ -246,16 +277,13 @@ export function Home() {
       .sort((a,b) => b.weight - a.weight)
 
     if (!scored.length) return null
-    // Take top 10 most suitable, then weighted random pick among them for variety
+    // Take top 10 most suitable, then pick one — stable per mount (variety
+    // across loads, never reshuffles mid-session on background refetches).
     const top = scored.slice(0, 10)
-    const total = top.reduce((s, x) => s + x.weight, 0)
-    let r = Math.random() * total
-    for (const x of top) {
-      r -= x.weight
-      if (r <= 0) return x.entry
-    }
-    return top[0]?.entry ?? null
-  }, [isAuthenticated, combinedList, allPool])
+    const ordered = stableOrder('because-ctx', top.map((x) => x.entry.anime))
+    const firstId = ordered[0]?.identity.internalId
+    return top.find((x) => x.entry.anime.identity.internalId === firstId)?.entry ?? top[0]?.entry ?? null
+  }, [isAuthenticated, combinedList, allPool, stableOrder])
 
   const becauseRecommendations = useMemo(() => {
     if (!becauseContext || !allPool.length) return null
@@ -268,10 +296,10 @@ export function Home() {
     const candidates = allPool.filter(a => !listIds.has(a.identity.internalId))
     if (!candidates.length) return null
     const recs = getRecommendations(refGenres, candidates)
-    // vary between refreshes: take top 16 then shuffle sample 8 (keeps relevance but not deterministic)
+    // take top 16 then stable sample 8 (relevance kept, order fixed per mount)
     const topSlice = recs.slice(0, 16)
-    return shuffle(topSlice).slice(0, 8)
-  }, [becauseContext, allPool, combinedList])
+    return stableOrder('because', topSlice).slice(0, 8)
+  }, [becauseContext, allPool, combinedList, stableOrder])
 
   // Derived categories from pool (filtered, not additional fetches) — varied pools, always ≥10 for visual fullness
   const derived = useMemo(() => {
@@ -280,19 +308,19 @@ export function Home() {
     // For each derived, take a larger candidate set then shuffle sample, to keep relevance but allow variation
     // Targets are 10+ with fallback filling so rows never look cut off
     const highlyRatedBase = [...pool].filter(a => (a.rating ?? 0) >= 8.0).sort((a,b) => (b.rating ?? 0) - (a.rating ?? 0)).slice(0, 24)
-    const highlyRated = highlyRatedBase.length ? ensureMinRow(sampleVaried(highlyRatedBase, Math.min(16, highlyRatedBase.length)), pool, 10) : []
+    const highlyRated = highlyRatedBase.length ? ensureMinRow(sampleVaried(highlyRatedBase, Math.min(16, highlyRatedBase.length), undefined, 'highly', stableOrder), pool, 10, undefined, 'highly', stableOrder) : []
 
     const shortBase = pool.filter(a => a.episodes != null && a.episodes >= 1 && a.episodes <= 12)
-    const shortShuffled = shortBase.length ? ensureMinRow(sampleVaried(shortBase, Math.min(16, shortBase.length)), pool, 10) : []
+    const shortShuffled = shortBase.length ? ensureMinRow(sampleVaried(shortBase, Math.min(16, shortBase.length), undefined, 'short', stableOrder), pool, 10, undefined, 'short', stableOrder) : []
 
     const actionBase = pool.filter(a => a.genres.includes('Action'))
-    const actionPicks = actionBase.length ? ensureMinRow(sampleVaried(actionBase, Math.min(18, actionBase.length)), pool, 10) : []
+    const actionPicks = actionBase.length ? ensureMinRow(sampleVaried(actionBase, Math.min(18, actionBase.length), undefined, 'action', stableOrder), pool, 10, undefined, 'action', stableOrder) : []
 
     const romanceBase = pool.filter(a => a.genres.includes('Romance'))
-    const romancePicks = romanceBase.length ? ensureMinRow(sampleVaried(romanceBase, Math.min(16, romanceBase.length)), pool, 10) : []
+    const romancePicks = romanceBase.length ? ensureMinRow(sampleVaried(romanceBase, Math.min(16, romanceBase.length), undefined, 'romance', stableOrder), pool, 10, undefined, 'romance', stableOrder) : []
 
     const hiddenBase = pool.filter(a => (a.rating ?? 0) >= 7.8 && (a.popularity ?? 0) < 60000 && (a.popularity ?? 0) > 0)
-    const hiddenGems = hiddenBase.length ? ensureMinRow(sampleVaried(hiddenBase, Math.min(16, hiddenBase.length)), pool, 10) : []
+    const hiddenGems = hiddenBase.length ? ensureMinRow(sampleVaried(hiddenBase, Math.min(16, hiddenBase.length), undefined, 'gems', stableOrder), pool, 10, undefined, 'gems', stableOrder) : []
     // If hidden gems pool is tiny (e.g. 5 in 96), ensureMinRow pads from allPool to 10
 
     // Top Picks for You — based on user's top genres across list, varied
@@ -307,69 +335,70 @@ export function Home() {
         const cands = pool.filter(a => !listIds.has(a.identity.internalId))
         const recs = getRecommendations(topGenres, cands)
         // vary: top 20 then ensure 10
-        topPicks = recs.length ? ensureMinRow(shuffle(recs.slice(0, 20)), pool, 10) : null
+        topPicks = recs.length ? ensureMinRow(stableOrder('toppicks', recs.slice(0, 20)), pool, 10, undefined, 'toppicks', stableOrder) : null
       }
     }
     return { highlyRated, shortShuffled, actionPicks, romancePicks, hiddenGems, topPicks, topGenres }
-  }, [allPool, isAuthenticated, combinedList])
+  }, [allPool, isAuthenticated, combinedList, stableOrder])
 
-  // Build dynamic home feed — each row's anime selections vary on refresh
+  // Build dynamic home feed — stable per mount (fresh variety each full load,
+  // never reshuffled by background refetches mid-session)
   const middleSections = useMemo(() => {
     const used = new Set<string>()
     const pushVaried = (key: string, title: string, data: Anime[] | null | undefined, subtitle?: string, count = 12) => {
       if (!data || !data.length) return null
-      const varied = sampleVaried(data, Math.min(count, data.length), used)
+      const varied = sampleVaried(data, Math.min(count, data.length), used, `sec:${key}`, stableOrder)
       if (!varied.length) return null
       for (const a of varied) used.add(a.identity.internalId)
       return { key, title, subtitle, data: varied }
     }
 
-    // Varied slices for API categories (trending etc) — shuffle within category to show different lineup
-    const variedTrending = trending.data ? shuffle([...trending.data]).slice(0, 12) : null
-    const variedPopular = popular.data ? shuffle([...popular.data]).slice(0, 12) : null
-    const variedAiring = airing.data ? shuffle([...airing.data]).slice(0, 12) : null
-    const variedNews = news.data ? shuffle([...news.data]).slice(0, 12) : null
+    // Stable slices for API categories — same lineup until data changes
+    const variedTrending = trending.data ? stableOrder('sec:tr', trending.data).slice(0, 12) : null
+    const variedPopular = popular.data ? stableOrder('sec:pop', popular.data).slice(0, 12) : null
+    const variedAiring = airing.data ? stableOrder('sec:air', airing.data).slice(0, 12) : null
+    const variedNews = news.data ? stableOrder('sec:new', news.data).slice(0, 12) : null
 
     const sections: Array<{ key: string; title: string; subtitle?: string; data: Anime[] }> = []
     // Use varied samples, avoiding duplication when possible
-    const t = !trending.loading && variedTrending?.length ? pushVaried('trending', 'Trending Now', variedTrending, undefined, 12) : null
+    const t = !trending.loading && variedTrending?.length ? pushVaried('trending', 'Trending Now', variedTrending, currentSeasonLabel(), 12) : null
     if (t) sections.push(t)
-    const p = !popular.loading && variedPopular?.length ? pushVaried('popular', 'Popular on Aeri', variedPopular, undefined, 12) : null
+    const p = !popular.loading && variedPopular?.length ? pushVaried('popular', 'Popular on Aeri', variedPopular, 'All-time popular', 12) : null
     if (p) sections.push(p)
-    const a = !airing.loading && variedAiring?.length ? pushVaried('airing', 'Currently Airing', variedAiring, undefined, 12) : null
+    const a = !airing.loading && variedAiring?.length ? pushVaried('airing', 'Currently Airing', variedAiring, 'On air now', 12) : null
     if (a) sections.push(a)
-    const n = !news.loading && variedNews?.length ? pushVaried('new', 'New Releases', variedNews, undefined, 12) : null
+    const n = !news.loading && variedNews?.length ? pushVaried('new', 'New Releases', variedNews, 'Just finished', 12) : null
     if (n) sections.push(n)
 
     if (derived?.highlyRated?.length) {
-      const v = ensureMinRow(derived.highlyRated, allPool, 10, used)
+      const v = ensureMinRow(derived.highlyRated, allPool, 10, used, 'sec:highly', stableOrder)
       if (v.length) { for (const x of v) used.add(x.identity.internalId); sections.push({ key: 'highly', title: 'Highly Rated', subtitle: 'Critics love these', data: v }) }
     }
     if (derived?.shortShuffled?.length) {
-      const v = ensureMinRow(derived.shortShuffled, allPool, 10, used)
+      const v = ensureMinRow(derived.shortShuffled, allPool, 10, used, 'sec:short', stableOrder)
       if (v.length) { for (const x of v) used.add(x.identity.internalId); sections.push({ key: 'short', title: 'Short & Sweet', subtitle: 'Under 12 episodes', data: v }) }
     }
     if (derived?.actionPicks?.length) {
-      const v = ensureMinRow(derived.actionPicks, allPool, 10, used)
+      const v = ensureMinRow(derived.actionPicks, allPool, 10, used, 'sec:action', stableOrder)
       if (v.length) { for (const x of v) used.add(x.identity.internalId); sections.push({ key: 'action', title: 'Action Picks', subtitle: 'For adrenaline', data: v }) }
     }
     if (derived?.romancePicks?.length) {
-      const v = ensureMinRow(derived.romancePicks, allPool, 10, used)
+      const v = ensureMinRow(derived.romancePicks, allPool, 10, used, 'sec:romance', stableOrder)
       if (v.length) { for (const x of v) used.add(x.identity.internalId); sections.push({ key: 'romance', title: 'Romance Picks', subtitle: 'Heartfelt stories', data: v }) }
     }
     if (derived?.hiddenGems?.length) {
-      const v = ensureMinRow(derived.hiddenGems, allPool, 10, used)
+      const v = ensureMinRow(derived.hiddenGems, allPool, 10, used, 'sec:gems', stableOrder)
       if (v.length) { for (const x of v) used.add(x.identity.internalId); sections.push({ key: 'gems', title: 'Hidden Gems', subtitle: 'Low-key favorites', data: v }) }
     }
 
     // personalized sections near bottom but before My List — keep them together, also varied but not deduped aggressively
     const personalized: typeof sections = []
     if (derived?.topPicks?.length) {
-      const v = ensureMinRow(derived.topPicks, allPool, 10)
+      const v = ensureMinRow(derived.topPicks, allPool, 10, undefined, 'sec:toppicks', stableOrder)
       if (v.length) personalized.push({ key: 'toppicks', title: 'Top Picks for You', subtitle: derived.topGenres?.length ? derived.topGenres.join(' · ') : undefined, data: v })
     }
     if (becauseContext && becauseRecommendations?.length) {
-      const v = ensureMinRow(becauseRecommendations, allPool, 10)
+      const v = ensureMinRow(becauseRecommendations, allPool, 10, undefined, 'sec:because', stableOrder)
       if (v.length) {
         const refTitle = becauseContext.anime.title.english?.trim() || becauseContext.anime.title.romaji
         const subtitle = becauseContext.anime.genres.slice(0,2).join(' · ') || undefined
@@ -377,11 +406,18 @@ export function Home() {
       }
     }
 
-    // Shuffle middle (non-personalized) sections for variety, keep Trending Now first if exists
+    // Section order: Trending first, rest in mount-stable varied order (fresh
+    // each full load via mountSalt, frozen mid-session so rows never jump).
     const trendingFirst = sections.find(s => s.key === 'trending')
     const rest = sections.filter(s => s.key !== 'trending')
-    const shuffledRest = rest.length ? shuffle(rest) : []
-    const ordered = [...(trendingFirst ? [trendingFirst] : []), ...shuffledRest, ...personalized]
+    const hashKey = (k: string) => {
+      let h = mountSalt.current
+      const s = `${k}`
+      for (let i = 0; i < s.length; i++) h = (Math.imul(h, 31) + s.charCodeAt(i)) | 0
+      return h
+    }
+    const orderedRest = [...rest].sort((a, b) => hashKey(a.key) - hashKey(b.key))
+    const ordered = [...(trendingFirst ? [trendingFirst] : []), ...orderedRest, ...personalized]
     return ordered
   }, [trending, popular, airing, news, derived, becauseContext, becauseRecommendations, allPool])
 

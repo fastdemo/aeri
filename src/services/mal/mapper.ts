@@ -139,11 +139,16 @@ export function mapMALEntryToAeri(raw: MALListEntryRaw): AnimeListEntry {
   const progress = raw.list_status.num_episodes_watched ?? 0
   const score = raw.list_status.score > 0 ? raw.list_status.score : undefined
   // Ensure anime already has progress/listStatus from map
+  const updatedAt = (() => {
+    const t = raw.list_status.updated_at ? Date.parse(raw.list_status.updated_at) : NaN
+    return Number.isFinite(t) ? Math.floor(t / 1000) : undefined
+  })()
   return {
     anime,
     status,
     progress,
     score,
+    updatedAt,
   }
 }
 

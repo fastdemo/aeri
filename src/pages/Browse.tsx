@@ -4,6 +4,7 @@ import { DetailModal } from '../components/detail/DetailModal'
 import type { Anime } from '../types/anime'
 import { useBrowse } from '../hooks/useAnimeMetadata'
 import { useLocation } from 'react-router-dom'
+import { ANILIST_GENRES } from '../lib/genres'
 const categories = [
   { id: 'popular', label: 'Popular', sort: 'POPULARITY_DESC' as const },
   { id: 'trending', label: 'Trending', sort: 'TRENDING_DESC' as const },
@@ -12,7 +13,7 @@ const categories = [
   { id: 'finished', label: 'Finished', sort: 'END_DATE_DESC' as const, status: 'FINISHED' as const },
 ] as const
 
-const genres = ['All', 'Action', 'Adventure', 'Animation', 'Comedy', 'Drama', 'Fantasy', 'Horror', 'Mahou Shoujo', 'Mecha', 'Music', 'Mystery', 'Psychological', 'Romance', 'Sci-Fi', 'Slice of Life', 'Sports', 'Supernatural', 'Suspense']
+const genres = ['All', ...ANILIST_GENRES]
 type YearPreset = { label: string; year?: number; from?: number; to?: number }
 const yearPresets: YearPreset[] = [
   { label: 'All Years' },

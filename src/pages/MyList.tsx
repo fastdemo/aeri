@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { AnimeCard } from '../components/cards/AnimeCard'
 import { DetailModal } from '../components/detail/DetailModal'
-import type { Anime, AnimeStatus } from '../types/anime'
+import type { Anime, AnimeListEntry, AnimeStatus } from '../types/anime'
 import { Link, useLocation } from 'react-router-dom'
 import { useTracking } from '../contexts/TrackingContext'
 import { RowSkeleton } from '../components/ui/Skeleton'
@@ -25,11 +25,15 @@ export function MyList() {
   const ani = useAniList()
   const mal = useMAL()
 
-  // Production: real list only when authenticated; unauth shows empty with CTA (no fake anime)
-  const sourceList: Anime[] = isAuthenticated && combinedList ? combinedList.map((e) => e.anime) : []
+  // Production: real list only when authenticated; unauth shows empty with CTA (no fake anime).
+  // Most recently active first (entries without activity timestamps keep provider order at the end).
+  const byRecent = (a: AnimeListEntry, b: AnimeListEntry) => (b.updatedAt ?? -1) - (a.updatedAt ?? -1)
+  const sourceList: Anime[] = isAuthenticated && combinedList
+    ? [...combinedList].sort(byRecent).map((e) => e.anime)
+    : []
   const filtered: Anime[] = (() => {
     if (!isAuthenticated || !combinedList) return []
-    const entries = tab === 'all' ? combinedList : combinedList.filter((e) => e.status === tab)
+    const entries = tab === 'all' ? [...combinedList].sort(byRecent) : [...combinedList].filter((e) => e.status === tab).sort(byRecent)
     return entries.map((e) => e.anime)
   })()
   const listCount = sourceList.length

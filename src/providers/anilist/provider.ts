@@ -52,6 +52,7 @@ query ($userId: Int!, $type: MediaType) {
         status
         progress
         score
+        updatedAt
         media {
           id
           idMal

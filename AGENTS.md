@@ -287,6 +287,7 @@ Before calling done, Aeri must:
 3. Implement with mock data first (Phase 2) before wiring APIs
 4. Verify visually via Playwright — do not declare done on code inspection alone
 5. Update docs when architecture shifts
+6. Ship end-to-end yourself: preflight (`docs/RELEASING.md` §0) → commit → push → CI deploy → `npm run verify:live`. The owner is non-technical: NEVER ask them to run deploys, builds, wrangler/gcloud CLIs, or read secrets. The only things that need their hands are interactive browser grants described in `docs/RELEASING.md` (none outstanding while CI autodeploys). If a check fails, fix it if it's code; if it's credentials/infra you cannot touch, report the exact failing command + output and stop — do not invent workarounds involving the owner.
 
 ---
 

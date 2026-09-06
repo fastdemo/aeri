@@ -1,5 +1,7 @@
 import { anilistGraphQL } from '../../services/anilist/client'
 import { mapAniListMediaToAnime, type AniListMedia } from '../../services/anilist/mapper'
+import { matchKnownGenre } from '../../lib/genres'
+import { rankSearchResults } from '../../lib/searchRank'
 import { ProviderError } from '../../services/anilist/errors'
 import type { AnimeMetadataProvider } from './types'
 
@@ -189,10 +191,30 @@ export class AniListMetadataProvider implements AnimeMetadataProvider {
   }
 
   async search(query: string, perPage = 12, signal?: AbortSignal): Promise<import('../../types/anime').Anime[]> {
-    if (!query.trim()) return []
+    const q = query.trim()
+    if (!q) return []
     type Res = { Page: { media: AniListMedia[] } }
-    const data = await anilistGraphQL<Res>(SEARCH_QUERY, { search: query.trim(), perPage }, { cacheKey: `anilist:search:${query.trim().toLowerCase()}:${perPage}`, useCache: true, signal })
-    return mapPage(data)
+    // Title search + (when the query names a genre) a popularity-sorted genre
+    // browse in parallel. Genre words otherwise return junk from title search.
+    const genre = matchKnownGenre(q)
+    const [titleRes, genreRes] = await Promise.all([
+      anilistGraphQL<Res>(SEARCH_QUERY, { search: q, perPage }, { cacheKey: `anilist:search:${q.toLowerCase()}:${perPage}`, useCache: true, signal }),
+      genre
+        ? this.browse({ genre, sort: 'POPULARITY_DESC', perPage, page: 1 }, signal)
+            .then((r) => r.data)
+            .catch(() => [] as import('../../types/anime').Anime[])
+        : Promise.resolve([] as import('../../types/anime').Anime[]),
+    ])
+    const seen = new Set<string>()
+    const merged: import('../../types/anime').Anime[] = []
+    for (const a of [...mapPage(titleRes), ...genreRes]) {
+      if (seen.has(a.identity.internalId)) continue
+      seen.add(a.identity.internalId)
+      merged.push(a)
+    }
+    // Conservative order: best (exact/prefix) on top, then relevant
+    // (substring, genre/studio), then the rest in AniList order.
+    return rankSearchResults(q, merged).slice(0, Math.max(perPage, 12))
   }
 }
 

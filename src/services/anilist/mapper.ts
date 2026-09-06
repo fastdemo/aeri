@@ -38,6 +38,7 @@ export interface AniListMediaListEntryRaw {
   progress?: number | null
   score?: number | null // raw float
   scoreRaw?: number | null
+  updatedAt?: number | null // unix seconds — drives most-recent-first sorting
   media?: AniListMedia | null
 }
 
@@ -201,6 +202,7 @@ export function mapAniListEntryToAeri(entry: AniListMediaListEntryRaw): AnimeLis
     status,
     progress,
     score,
+    updatedAt: entry.updatedAt ?? undefined,
   }
 }
 

@@ -60,4 +60,6 @@ export interface AnimeListEntry {
   status: AnimeStatus
   progress: number
   score?: number
+  /** Last list activity, unix seconds (AniList updatedAt / MAL updated_at). Absent = unknown, sorts last. */
+  updatedAt?: number
 }
