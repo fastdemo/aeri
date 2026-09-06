@@ -326,29 +326,40 @@ export class AnikotoProvider implements VideoSourceProvider {
   // only needs the cheap getSourcesNew hop (signed URLs are never cached —
   // neither here nor by edge cache headers on this route).
   private seriesCache = new Map<number, { at: number; data: any }>()
+  private static readonly UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+
   private async resolveAnikotoId(anilistId: number, title: string, signal?: AbortSignal): Promise<number|null> {
     const key = String(anilistId)
     if (this.cache.has(key)) return this.cache.get(key)!.id
+    // Mirror the Mangayomi AniKoto extension: /filter HTML → /watch/<slug>
+    // links → #watch-main[data-id] → verify data.anime.ani_id matches.
     try {
-      const searchRes = await fetchWithTimeout(`https://anikototv.to/ajax/anime/search?keyword=${encodeURIComponent(title)}`, { headers: { 'X-Requested-With': 'XMLHttpRequest', 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://anikototv.to/' }, signal }, 4500)
-      if (searchRes.ok) {
-        const j:any = await searchRes.json().catch(()=>null)
-        const html: string = j?.result?.html || ''
-        const slugs = [...html.matchAll(/href="https:\/\/anikototv\.to\/watch\/([^"]+)"/g)].map(m=>m[1])
-        for (const slug of slugs.slice(0,3)) {
-          try {
-            const pageRes = await fetchWithTimeout(`https://anikototv.to/watch/${slug}`, { headers: { 'User-Agent': 'Mozilla/5.0', 'Referer': 'https://anikototv.to/' }, signal }, 4500)
-            if (!pageRes.ok) continue
-            const html2 = await pageRes.text()
-            const m = html2.match(/data-id="(\d+)"/)
-            if (!m) continue
-            const cand = Number(m[1])
-            const verifyRes = await fetchWithTimeout(`https://www.anikotoapi.site/series/${cand}`, {}, 3500, signal)
-            if (!verifyRes.ok) continue
-            const v:any = await verifyRes.json().catch(()=>null)
-            if (String(v?.data?.anime?.ani_id) === String(anilistId)) { this.cache.set(key, {id:cand, ani_id:String(anilistId)}); return cand }
-          } catch {}
-        }
+      const searchRes = await fetchWithTimeout(`https://anikototv.to/filter?keyword=${encodeURIComponent(title)}&page=1`, {
+        headers: { 'User-Agent': AnikotoProvider.UA, 'Accept': 'text/html', 'Referer': 'https://anikototv.to/' }, signal,
+      }, 4500)
+      if (!searchRes.ok) return null
+      const html = await searchRes.text()
+      const slugs = [...new Set([...html.matchAll(/\/watch\/([a-z0-9\-]+)(?:\/ep-\d+)?/gi)].map(m => m[1]))].slice(0, 5)
+      for (const slug of slugs) {
+        try {
+          const pageRes = await fetchWithTimeout(`https://anikototv.to/watch/${slug}`, {
+            headers: { 'User-Agent': AnikotoProvider.UA, 'Accept': 'text/html', 'Referer': 'https://anikototv.to/' }, signal,
+          }, 4500)
+          if (!pageRes.ok) continue
+          const html2 = await pageRes.text()
+          const m = html2.match(/id="watch-main"[^>]*data-id="(\d+)"/) || html2.match(/data-id="(\d+)"[^>]*id="watch-main"/)
+          if (!m) continue
+          const cand = Number(m[1])
+          const verifyRes = await fetchWithTimeout(`https://www.anikotoapi.site/series/${cand}`, {
+            headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' }, signal,
+          }, 3500)
+          if (!verifyRes.ok) continue
+          const v: any = await verifyRes.json().catch(() => null)
+          if (String(v?.data?.anime?.ani_id) === String(anilistId)) {
+            this.cache.set(key, { id: cand, ani_id: String(anilistId) })
+            return cand
+          }
+        } catch {}
       }
     } catch {}
     return null
@@ -378,16 +389,29 @@ export class AnikotoProvider implements VideoSourceProvider {
       if (!ep) return []
       const embedUrl: string | undefined = ep.embed_url?.[language] || ep.embed_url?.sub
       if (!embedUrl || typeof embedUrl !== 'string') return []
-      // embed_url looks like https://megaplay.buzz/stream/s-2/<realId>/(sub|dub)
+      // embed_url looks like https://megaplay.buzz/stream/s-2/<key>/(sub|dub).
+      // Per the extension pipeline, the path key is only a routing key: fetch
+      // the embed page and use its data-id for getSources (fallback: path key).
       const m = embedUrl.match(/\/stream\/s-\d+\/(\d+)(?:\/|$)/)
-      const realId = m?.[1]
-      if (!realId) {
+      const pathId = m?.[1]
+      let srcId = pathId ?? null
+      try {
+        const pageRes = await fetchWithTimeout(embedUrl, {
+          headers: { 'User-Agent': AnikotoProvider.UA, 'Accept': 'text/html', 'Referer': 'https://anikototv.to/' }, signal,
+        }, 4000)
+        if (pageRes.ok) {
+          const pageHtml = await pageRes.text()
+          const dm = pageHtml.match(/id="megaplay-player"[\s\S]{0,400}?data-id="(\d+)"/)
+          if (dm?.[1]) srcId = dm[1]
+        }
+      } catch {}
+      if (!srcId) {
         // Non-megaplay embed: return as embed fallback (honest type)
         return [{ provider: 'anikoto', url: embedUrl, type: 'embed', language, quality: 'auto', embed: true }]
       }
       // MegaPlay JSON source API (plain JSON, no JS eval, no CAPTCHA):
       // requires AJAX header, returns direct m3u8 + VTT tracks + skip times.
-      const apiRes = await fetchWithTimeout(`https://megaplay.buzz/stream/getSourcesNew?id=${encodeURIComponent(realId)}`, {
+      const apiRes = await fetchWithTimeout(`https://megaplay.buzz/stream/getSourcesNew?id=${encodeURIComponent(srcId)}`, {
         headers: {
           'Accept': 'application/json',
           'X-Requested-With': 'XMLHttpRequest',
