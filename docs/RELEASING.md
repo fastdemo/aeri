@@ -4,6 +4,34 @@ Read this before every production deploy. Two login outages (D049, 2026-09-06)
 had the same root cause: **a build that didn't bake the required `VITE_*` env
 vars**. The app cannot recover from that at runtime — it must be rebuilt.
 
+## 0. Agent preflight — can this session ship? (30 seconds)
+
+Run these three checks first. If all pass, the session can do the full loop
+(code → push incl. workflows → deploy → live-verify) with no owner help:
+
+```bash
+git push --dry-run origin main 2>&1 | tail -1
+# want: "Everything up-to-date" or a clean dry-run.
+# "refusing ... without `workflow` scope" → PAT lacks scope; owner must
+# re-issue with `repo` + `workflow` (classic) or add Workflows:write
+# (fine-grained), then `echo TOKEN | gh auth login --with-token -h github.com`.
+
+env -u XDG_CONFIG_HOME npx wrangler whoami 2>&1 | tail -2
+# want: account/scopes output, NOT "You are not authenticated".
+# WHY the env prefix: agent shells run with XDG_CONFIG_HOME pointed at the
+# sandbox, but `wrangler login` stores credentials in the DEFAULT location —
+# without the prefix wrangler looks in the wrong place and reports logged-out.
+# If truly logged out anywhere: owner runs `npx wrangler login` once in a
+# normal terminal (persists machine-wide).
+
+set -a; source .env; set +a; npm run verify:build 2>&1 | tail -3
+# want: all three "baked OK". Anything else → fix `.env` (step 1) and rebuild.
+```
+
+If any check fails and the owner is unavailable: land code + docs on `main`,
+verify `tsc`/`build`/browser locally, and say exactly which check failed and
+whose hands it needs. Never claim "live" from a push alone.
+
 ## Who can deploy
 
 | Path | Requires | Status |
