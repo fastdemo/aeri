@@ -36,9 +36,17 @@ whose hands it needs. Never claim "live" from a push alone.
 
 | Path | Requires | Status |
 |------|----------|--------|
-| Push to `main` (auto) | Nothing extra — CI builds, runs `verify:build`, deploys | **Live since 2026-09-06** (owner added repo secrets; proven by dispatched run 34016758269, all steps green) |
-| Local `wrangler deploy` | Cloudflare login on that machine + correct `.env` | Fallback / emergency path |
+| Push to `main` (auto) | Nothing extra — CI builds, runs `verify:build`, deploys | **Live since 2026-09-06** (owner added repo secrets; proven by run 34016758269, all steps green) |
 | `gh workflow run deploy-worker.yml --ref main` | `gh` auth (no Cloudflare login needed — CI uses secrets) | Manual re-deploy without new code |
+| Local `wrangler deploy` | Cloudflare login + correct `.env` | **Emergency only — see race rule below** |
+
+**Race rule (learned 2026-09-06): Cloudflare is last-writer-wins.** A manual
+local deploy landing on top of a CI deploy (or vice versa) silently replaces
+live with whichever build was *worse* — this twice shipped a bundle missing
+`VITE_AUTH_API_URL` minutes after a good deploy, with no error anywhere. So:
+**never manual-deploy within 5 minutes of a push/dispatch, and never push
+while a manual deploy is in flight.** When in doubt, `npm run verify:live`
+tells you what actually won; re-dispatch CI to restore the known-good build.
 
 Agents: pushes now ship by themselves — but still close the loop with
 `npm run verify:live` (bundle evidence, never the badge). The preflight below
