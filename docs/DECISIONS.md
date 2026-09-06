@@ -46,7 +46,7 @@ Phase 2 mock.
 
 ## D021 — Mock as fallback only (Phase 4)
 
-## D022 — MAL PKCE for static (Phase 5)
+## D022 — MAL PKCE for static (Phase 5) [superseded by D051: PKCE method is now `plain`, token exchange via Worker `/api/mal/token` with server-side `MAL_CLIENT_SECRET`]
 `code_verifier` random 96, `code_challenge` S256 SHA256 base64url, `state` 32, `GET https://myanimelist.net/v1/oauth2/authorize?response_type=code&client_id={VITE_MAL_CLIENT_ID}&code_challenge=S256&state`, redirect `origin+BASE_URL` (`/aeri/`), `POST https://myanimelist.net/v1/oauth2/token` (`client_id, code, code_verifier, grant_type=authorization_code`) via `fetch` (CORS, form urlencoded), `refresh_token` flow, tokens in `aeri:mal:*` via `storage/mal.ts`, no secret committed, `VITE_MAL_CLIENT_ID` env like AniList. Early search `?code` handling in `MALContext` + `main.tsx` not needed (search preserved). Manual paste fallback for dev.
 
 ## D023 — MAL client reuse cache (Phase 5)
@@ -132,3 +132,6 @@ MAL login was failing with "Client ID not configured" on production because loca
 
 ## D050 — Per-account sync toggles + MAL dead-code cleanup
 Settings → Account shows Sync toggles (Status / Episodes watched / Score) under each connected account (both APIs support all three). Stored in `prefs.sync`, default all-on (previous fan-out behavior); `TrackingContext` skips mutations per provider+field via `isSyncEnabled` (reads stay merged). Separately, MAL `invalid_grant/invalid_client` (dead/used/expired code — the exact upstream shape verified live) now clears URL + verifier/state and throws "login attempt expired, Connect again" instead of retrying the dead code forever.
+
+## D051 — MAL PKCE must be `plain`, not S256
+MAL docs state twice that only the `plain` method is supported. Our S256 flow was proven broken live: approval renders, but every token exchange fails `invalid_grant` / "Failed to verify `code_verifier`" (challenge↔verifier binding itself was byte-exact — the method was the problem). `buildMalAuthorizeUrl` now sends `code_challenge = verifier` with `code_challenge_method=plain`. Never switch back without a successful live token exchange as proof.

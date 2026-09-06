@@ -22,12 +22,12 @@ GET https://myanimelist.net/v1/oauth2/authorize?response_type=code&client_id=YOU
 - Token exchange: `POST https://myanimelist.net/v1/oauth2/token` with `client_id`, `grant_type=authorization_code`, `code`, `code_verifier`, `redirect_uri` (optional but must match if sent), via Basic (`client_id` as username) or body. Docs show `curl` examples, no browser `fetch` example, no CORS mention.
 
 - No docs section for “browser / SPA / public client / GitHub Pages / static SPA” — only “native apps” noted for PKCE.
-- Current Aeri implements `code_challenge_method=S256` (SHA256 base64url), while **official docs state only `plain` is supported**. `S256` may work undocumented but is not officially supported.
+- ~~Current Aeri implements `code_challenge_method=S256` (SHA256 base64url)~~ Superseded by D051: Aeri now implements `code_challenge_method=plain` (`code_challenge === code_verifier`), per official docs. `S256` was proven broken live (authorize accepts it, but every token exchange fails `invalid_grant` / "Failed to verify `code_verifier`").
 
 ## 2. PKCE for browser?
 
 - **Officially:** PKCE described as for native apps, `plain` only. No explicit statement that browser SPAs are supported. No mention of `S256`.
-- **Empirically:** `S256` challenge is accepted by the authorize endpoint (does not error on method), but docs do not guarantee it.
+- **Empirically (updated, D051):** `S256` challenge is accepted by the authorize endpoint (does not error on method), but the token exchange **always** fails verification — proven broken live. `plain` is required. (On Cloudflare hosting, token exchange + API go through the same-origin Worker `/api/mal/*`, which also injects `MAL_CLIENT_SECRET` server-side; pure static GH Pages without a proxy remains CORS-blocked as described below.)
 
 ## 3. CORS-enabled API endpoint for browser?
 

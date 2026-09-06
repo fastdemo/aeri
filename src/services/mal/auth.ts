@@ -58,18 +58,6 @@ async function fetchMalTokenWithFallback(body: URLSearchParams): Promise<Respons
   throw lastError ?? new Error('MAL token request failed')
 }
 
-function base64UrlEncode(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer)
-  let binary = ''
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-}
-
-async function sha256(text: string): Promise<ArrayBuffer> {
-  const data = new TextEncoder().encode(text)
-  return crypto.subtle.digest('SHA-256', data)
-}
-
 function randomString(length: number): string {
   const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~'
   const bytes = new Uint8Array(length)
@@ -83,15 +71,18 @@ export async function buildMalAuthorizeUrl(): Promise<string> {
   if (!MAL_CLIENT_ID) throw new Error('MAL client ID not configured. Set VITE_MAL_CLIENT_ID.')
   const verifier = randomString(96) // 43-128, use 96
   const state = randomString(32)
-  const challengeBuffer = await sha256(verifier)
-  const challenge = base64UrlEncode(challengeBuffer)
+  // MAL supports ONLY the `plain` PKCE method (docs: "Currently, only the
+  // `plain` method is supported"). S256 was proven broken live: approval
+  // renders but token exchange always fails "Failed to verify code_verifier".
+  // With plain, challenge === verifier.
+  const challenge = verifier
   setMalCodeVerifier(verifier)
   setMalOAuthState(state)
   const url = new URL(MAL_AUTH_URL)
   url.searchParams.set('response_type', 'code')
   url.searchParams.set('client_id', MAL_CLIENT_ID)
   url.searchParams.set('code_challenge', challenge)
-  url.searchParams.set('code_challenge_method', 'S256')
+  url.searchParams.set('code_challenge_method', 'plain')
   url.searchParams.set('state', state)
   // MAL requires exact redirect_uri match with the value registered in the MAL app settings.
   // For Cloudflare production this must be https://aeri.fastdemo.workers.dev/ (trailing slash, no hash)
@@ -136,9 +127,9 @@ export async function exchangeMalCodeForToken(code: string, verifier: string): P
   const json = await res.json().catch(() => null)
   if (!res.ok || json?.error) {
     const msg = json?.error_description || json?.error || json?.message || res.statusText
-    // If S256 is rejected, the error often mentions plain — surface clearly
-    if (/code_challenge|plain/i.test(String(msg))) {
-      throw new Error(`MAL token exchange failed: ${msg} — check that your MAL app allows PKCE S256 (or use worker proxy).`)
+    // MAL only supports the `plain` PKCE method; anything else fails verification
+    if (/code_challenge|plain|verifier/i.test(String(msg))) {
+      throw new Error(`MAL token exchange failed: ${msg} — PKCE mismatch (code/challenge out of sync). Connect once and approve promptly.`)
     }
     throw new Error(msg || `MAL token exchange failed (${res.status})`)
   }
@@ -244,7 +235,7 @@ export async function handleMalOAuthCallback(): Promise<string | null> {
       const base = import.meta.env.BASE_URL as string
       const clean = `${window.location.origin}${base}#/`
       window.history.replaceState(null, '', clean)
-      throw new Error('That login attempt expired — please Connect again. If it keeps failing, check the MAL client ID.')
+      throw new Error(`That login attempt expired (MAL said: ${msg}) — please Connect again, once, then approve. If it keeps failing, check the MAL client ID and registered redirect URL.`)
     }
     throw e
   }

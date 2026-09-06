@@ -3,6 +3,7 @@ export interface Env {
   PROXY_ALLOWLIST?: string
   ANILIST_CLIENT_ID?: string
   ANILIST_CLIENT_SECRET?: string
+  MAL_CLIENT_SECRET?: string
   ASSETS?: Fetcher
 }
 
@@ -413,7 +414,21 @@ export default {
     if (url.pathname === '/mal/token' || url.pathname === '/api/mal/token') {
       if (request.method !== 'POST') return json({ error: 'Method not allowed' }, 405, env, origin)
       try {
-        const body = await request.text()
+        let body = await request.text()
+        // MAL apps are confidential clients: the token endpoint requires
+        // client_secret, which must never live in the browser. Inject it here
+        // from the Worker secret (covers both authorization_code and
+        // refresh_token grants, which share this endpoint).
+        try {
+          const clientSecret = (env as any).MAL_CLIENT_SECRET as string | undefined
+          if (clientSecret) {
+            const params = new URLSearchParams(body)
+            if (!params.get('client_secret')) {
+              params.set('client_secret', clientSecret)
+              body = params.toString()
+            }
+          }
+        } catch {}
         const upstream = await withTimeout(fetch('https://myanimelist.net/v1/oauth2/token', {
           method: 'POST',
           headers: {
