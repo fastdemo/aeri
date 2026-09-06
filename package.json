@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node scripts/verify-env.mjs",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
