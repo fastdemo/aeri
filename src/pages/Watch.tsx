@@ -327,7 +327,6 @@ export function Watch() {
             <VideoPlayer
               sources={sources!}
               selectedSource={selectedSource}
-              onSourceChange={setSelectedSource}
               onTimeUpdate={handleTimeUpdate}
               onEnded={handleEnded}
               initialTime={showResume ? undefined : (watchPos?.currentTime ?? 0)}
@@ -339,9 +338,9 @@ export function Watch() {
             />
           )}
 
-          {/* Resume prompt */}
+          {/* Resume prompt — top center, clear of player controls */}
           {showResume && watchPos && hasVideo && (
-            <div className="absolute inset-x-4 bottom-16 flex justify-center sm:bottom-20">
+            <div className="absolute inset-x-4 top-14 flex justify-center">
               <div className="flex items-center gap-2 rounded-full bg-black/80 px-4 py-2 text-xs text-white backdrop-blur">
                 <span>Resume from {Math.floor(watchPos.currentTime / 60)}:{String(Math.floor(watchPos.currentTime % 60)).padStart(2, '0')}?</span>
                 <button onClick={handleResume} className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-black hover:bg-white/90">Resume</button>
@@ -470,21 +469,26 @@ export function Watch() {
               {sources && sources.length > 0 && (
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-white/50">Source:</span>
-                  <select
-                    value={selectedSource?.url ?? ''}
-                    onChange={e => {
-                      const s = sources.find(s => s.url === e.target.value)
-                      if (s) setSelectedSource(s)
-                    }}
-                    aria-label="Select video source"
-                    className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 pr-8 text-xs text-white focus:border-white/20 focus:outline-none"
-                  >
-                    {sources.map(s => (
-                      <option key={s.url} value={s.url} className="bg-[#141416]">
-                        {s.provider} {s.quality ? `• ${s.quality}` : ''} {s.language ? `• ${s.language}` : ''} {s.embed ? '• embed' : ''}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <select
+                      value={selectedSource?.url ?? ''}
+                      onChange={e => {
+                        const s = sources.find(s => s.url === e.target.value)
+                        if (s) setSelectedSource(s)
+                      }}
+                      aria-label="Select video source"
+                      className="appearance-none rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 pr-8 text-xs text-white focus:border-white/20 focus:outline-none"
+                    >
+                      {sources.map(s => (
+                        <option key={s.url} value={s.url} className="bg-[#141416]">
+                          {s.provider} {s.quality ? `• ${s.quality}` : ''} {s.language ? `• ${s.language}` : ''} {s.embed ? '• embed' : ''}
+                        </option>
+                      ))}
+                    </select>
+                    <svg aria-hidden className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-white/50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="m6 9 6 6 6-6" />
+                    </svg>
+                  </div>
                   <span className="text-[10px] text-white/30">{preferredProvider ? `Preferred: ${preferredProvider}` : 'Auto'}</span>
                 </div>
               )}
@@ -504,7 +508,7 @@ export function Watch() {
                         }}
                         className={`rounded-full px-3 py-1 text-xs font-medium ${isActive ? 'bg-white text-black' : hasLang ? 'text-white/70 hover:text-white' : 'text-white/20'}`}
                       >
-                        {lang.toUpperCase()}
+                        {lang === 'sub' ? 'Sub' : 'Dub'}
                       </button>
                     )
                   })}

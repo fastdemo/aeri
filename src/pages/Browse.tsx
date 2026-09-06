@@ -12,10 +12,17 @@ const categories = [
   { id: 'finished', label: 'Finished', sort: 'END_DATE_DESC' as const, status: 'FINISHED' as const },
 ] as const
 
-const genres = ['All', 'Action', 'Adventure', 'Drama', 'Fantasy', 'Sci-Fi', 'Comedy', 'Slice of Life', 'Romance', 'Mystery']
-const years = ['All', '2025', '2024', '2023', '2022', '2021', '2020']
+const genres = ['All', 'Action', 'Adventure', 'Animation', 'Comedy', 'Drama', 'Fantasy', 'Horror', 'Mahou Shoujo', 'Mecha', 'Music', 'Mystery', 'Psychological', 'Romance', 'Sci-Fi', 'Slice of Life', 'Sports', 'Supernatural', 'Suspense']
+type YearPreset = { label: string; year?: number; from?: number; to?: number }
+const yearPresets: YearPreset[] = [
+  { label: 'All Years' },
+  ...Array.from({ length: 2026 - 2000 + 1 }, (_, i) => ({ label: String(2026 - i), year: 2026 - i })),
+  { label: "'90s", from: 1990, to: 1999 },
+  { label: "'80s & earlier", to: 1989 },
+]
 const seasons = ['All', 'WINTER', 'SPRING', 'SUMMER', 'FALL'] as const
-const formats = ['All', 'TV', 'MOVIE', 'OVA', 'SPECIAL'] as const
+const formats = ['All', 'TV', 'MOVIE', 'OVA', 'ONA', 'SPECIAL', 'MUSIC'] as const
+const formatLabels: Record<string, string> = { All: 'All Formats', TV: 'TV', MOVIE: 'Movie', OVA: 'OVA', ONA: 'ONA', SPECIAL: 'Special', MUSIC: 'Music' }
 
 // Column count mirrors the grid classes below (2 / sm:3 / md:4 / lg:5 / xl:6).
 // Used ONLY for display slicing — fetching is a fixed 30 (theoretical max:
@@ -56,19 +63,22 @@ export function Browse() {
   const location = useLocation()
   useEffect(() => { setSelected(null) }, [location.pathname, location.hash, location.search])
   const [genre, setGenre] = useState('All')
-  const [year, setYear] = useState('All')
+  const [yearKey, setYearKey] = useState('All Years')
   const [season, setSeason] = useState<(typeof seasons)[number]>('All')
   const [format, setFormat] = useState<(typeof formats)[number]>('All')
 
   const cat = categories.find(c => c.id === category)!
 
   const cols = useGridColumns()
+  const yearPreset = yearPresets.find(y => y.label === yearKey) ?? yearPresets[0]
 
   const browse = useBrowse({
     sort: cat.sort,
     status: (cat as any).status,
     genre: genre === 'All' ? undefined : genre,
-    seasonYear: year === 'All' ? undefined : Number(year),
+    seasonYear: yearPreset.year,
+    yearFrom: yearPreset.from,
+    yearTo: yearPreset.to,
     season: season === 'All' ? undefined : season,
     format: format === 'All' ? undefined : format,
     perPage: PAGE_SIZE,
@@ -76,7 +86,7 @@ export function Browse() {
 
   // Shuffle page 1 once per filter set so refreshes vary; Load-more appends
   // keep server order after the shuffled head. Display only complete rows.
-  const sigKey = [cat.sort, (cat as any).status ?? '', genre, year, season, format].join('|')
+  const sigKey = [cat.sort, (cat as any).status ?? '', genre, yearKey, season, format].join('|')
   const shuffledRef = useRef<{ sig: string; from: string; first: Anime[] }>({ sig: '', from: '', first: [] })
   const rawData = browse.data ?? []
   const headIds = rawData.slice(0, PAGE_SIZE).map(a => a.identity.internalId).join(',')
@@ -88,9 +98,31 @@ export function Browse() {
   const visibleCount = ordered.length - (ordered.length % cols)
   const visible = ordered.slice(0, visibleCount)
 
+  // Infinite scroll: when the sentinel nears the viewport, load the next page.
+  // Re-subscribes on loading/page changes so the closure always sees fresh
+  // state (a stale `loading=false` closure would double-increment the page
+  // and skip results). loadMore itself also guards while fetching.
+  const sentinelRef = useRef<HTMLDivElement>(null)
+  const loadMoreRef = useRef(browse.loadMore)
+  loadMoreRef.current = browse.loadMore
+  const sentinelActive = browse.hasNextPage && !browse.loading
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el || !sentinelActive) return
+    const io = new IntersectionObserver(
+      (ents) => {
+        if (ents.some((e) => e.isIntersecting)) loadMoreRef.current()
+      },
+      { rootMargin: '800px' },
+    )
+    io.observe(el)
+    return () => io.disconnect()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sentinelActive, browse.data?.length, browse.page])
+
   return (
     <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-12">
-      <h1 className="text-[18px] font-semibold tracking-tight text-white">Browse</h1>
+      <h1 className="text-[18px] font-semibold tracking-tight text-white">Anime</h1>
       <p className="text-xs text-white/50">Discover anime by category and filters • AniList</p>
 
       {/* Categories (left) + filters (right) on one row */}
@@ -112,9 +144,9 @@ export function Browse() {
         <div className="ml-auto flex shrink-0 flex-wrap items-center gap-2">
           {[
             { value: genre, set: (v: string) => setGenre(v), label: 'Genre', options: [{ label: 'All Genres', value: 'All' }, ...genres.slice(1).map(g => ({ label: g, value: g }))] },
-            { value: year, set: (v: string) => setYear(v), label: 'Year', options: years.map(y => ({ label: y === 'All' ? 'All Years' : y, value: y })) },
+            { value: yearKey, set: (v: string) => setYearKey(v), label: 'Year', options: yearPresets.map(y => ({ label: y.label, value: y.label })) },
             { value: season, set: (v: string) => setSeason(v as any), label: 'Season', options: [{ label: 'All Seasons', value: 'All' }, ...seasons.slice(1).map(s => ({ label: s.charAt(0) + s.slice(1).toLowerCase(), value: s }))] },
-            { value: format, set: (v: string) => setFormat(v as any), label: 'Format', options: [{ label: 'All Formats', value: 'All' }, { label: 'TV', value: 'TV' }, { label: 'Movie', value: 'MOVIE' }, { label: 'OVA', value: 'OVA' }, { label: 'Special', value: 'SPECIAL' }] },
+            { value: format, set: (v: string) => setFormat(v as any), label: 'Format', options: formats.map(f => ({ label: formatLabels[f] ?? f, value: f })) },
           ].map(f => (
             <div key={f.label} className="relative">
               <select
@@ -133,9 +165,9 @@ export function Browse() {
             </div>
           ))}
 
-          {(genre !== 'All' || year !== 'All' || season !== 'All' || format !== 'All') && (
+          {(genre !== 'All' || yearKey !== 'All Years' || season !== 'All' || format !== 'All') && (
             <button
-              onClick={() => { setGenre('All'); setYear('All'); setSeason('All'); setFormat('All') }}
+              onClick={() => { setGenre('All'); setYearKey('All Years'); setSeason('All'); setFormat('All') }}
               className="rounded-full border border-transparent bg-white/10 px-3.5 py-1.5 text-xs font-medium text-white/70 hover:bg-white/15 hover:text-white"
             >
               Clear
@@ -179,19 +211,17 @@ export function Browse() {
           )}
 
           {browse.hasNextPage && browse.data && browse.data.length > 0 && (
-            <div className="mt-6 flex justify-center">
-              <button
-                onClick={browse.loadMore}
-                disabled={browse.loading}
-                className="rounded-full bg-white px-6 py-2 text-sm font-semibold text-black hover:bg-white/90 disabled:opacity-50"
-              >
-                {browse.loading ? 'Loading…' : 'Load more'}
-              </button>
+            <div ref={sentinelRef} className="mt-6 flex min-h-[48px] items-center justify-center" aria-hidden={!browse.loading}>
+              {browse.loading ? (
+                <div className="h-6 w-6 animate-spin rounded-full border-2 border-white/20 border-t-white" role="status" aria-label="Loading more" />
+              ) : (
+                <span className="text-xs text-white/30">Scroll for more</span>
+              )}
             </div>
           )}
 
-          {browse.loading && browse.data && browse.data.length > 0 && (
-            <p className="mt-4 text-center text-xs text-white/40">Loading more…</p>
+          {browse.loading && browse.data && browse.data.length > 0 && browse.hasNextPage && (
+            <p className="mt-2 text-center text-xs text-white/40">Loading more…</p>
           )}
         </>
       )}

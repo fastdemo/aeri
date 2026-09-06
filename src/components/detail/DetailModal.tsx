@@ -205,6 +205,7 @@ export function DetailModal({
                 'linear-gradient(0deg, #0e0e10 6%, rgba(14,14,16,0.85) 18%, rgba(14,14,16,0.35) 42%, transparent 68%)',
             }}
           />
+          <div aria-hidden className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/70 to-transparent" />
           <div className="absolute left-6 top-6 hidden max-w-[520px] sm:block">
             <h2 className="text-[28px] font-semibold leading-none tracking-tighter text-white drop-shadow">
               {titles.primary}
@@ -428,7 +429,7 @@ export function DetailModal({
                     value={String(selectedSeasonIdx)}
                     onChange={e => setSelectedSeasonIdx(Number(e.target.value))}
                     aria-label="Select season"
-                    className="rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 pr-8 text-xs font-medium text-white focus:border-white/20 focus:outline-none"
+                    className="appearance-none rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 pr-8 text-xs font-medium text-white focus:border-white/20 focus:outline-none"
                   >
                     {effectiveGroup.seasons.map((s, idx) => {
                         const parts = [`Season ${idx + 1}`]
@@ -441,7 +442,9 @@ export function DetailModal({
                         )
                       })}
                   </select>
-                  <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-white/40">▼</span>
+                  <svg aria-hidden className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-white/50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="m6 9 6 6 6-6" />
+                  </svg>
                 </div>
                 <span className="text-xs text-white/30">{effectiveGroup.totalSeasons} seasons</span>
               </div>

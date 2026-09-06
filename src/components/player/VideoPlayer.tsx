@@ -4,7 +4,6 @@ import type { VideoSourceEnhanced, SubtitleTrack } from '../../providers/video/t
 type Props = {
   sources: VideoSourceEnhanced[]
   selectedSource?: VideoSourceEnhanced | null
-  onSourceChange?: (s: VideoSourceEnhanced) => void
   subtitles?: SubtitleTrack[]
   onTimeUpdate?: (currentTime: number, duration: number) => void
   onEnded?: () => void
@@ -15,21 +14,18 @@ type Props = {
   autoplay?: boolean
 }
 
-export function VideoPlayer({ sources, selectedSource, onSourceChange, subtitles, onTimeUpdate, onEnded, initialTime, animeTitle, episodeNumber, volume = 1, autoplay = false }: Props) {
+export function VideoPlayer({ sources, selectedSource, subtitles, onTimeUpdate, onEnded, initialTime, animeTitle, episodeNumber, volume = 1, autoplay = false }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
-  const [currentTime, setCurrentTime] = useState(initialTime ?? 0)
 
   const source = selectedSource ?? sources[0] ?? null
-  const hasMultipleSources = sources.length > 1
   const isHlsSource = !!(source && (source.url.includes('.m3u8') || source.type === 'hls'))
 
   // Reset loading/error/time when source changes
   useEffect(() => {
     setError(null)
     setIsLoading(true)
-    setCurrentTime(initialTime ?? 0)
     // reset video element time as well (React state alone doesn't seek)
     if (videoRef.current) {
       try { videoRef.current.currentTime = initialTime ?? 0 } catch {}
@@ -159,27 +155,7 @@ export function VideoPlayer({ sources, selectedSource, onSourceChange, subtitles
             <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white" />
           </div>
         )}
-        {hasMultipleSources && onSourceChange && (
-          <div className="absolute bottom-2 right-2">
-            <select
-              value={`${source.url}::${source.quality ?? ''}::${source.language ?? ''}`}
-              onChange={e => {
-                const val = e.target.value
-                const s = sources.find(s => `${s.url}::${s.quality ?? ''}::${s.language ?? ''}` === val) ?? sources.find(s => s.url === val)
-                if (s) onSourceChange(s)
-              }}
-              aria-label="Select video source"
-              className="rounded-full bg-black/70 px-3 py-1 text-xs text-white backdrop-blur"
-            >
-              {sources.map((s, idx) => (
-                <option key={`${s.url}-${s.quality ?? ''}-${s.language ?? ''}-${idx}`} value={`${s.url}::${s.quality ?? ''}::${s.language ?? ''}`} className="bg-black">
-                  {s.provider} {s.quality ? `• ${s.quality}` : ''} {s.language ? `• ${s.language}` : ''}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-        {error && <p className="absolute bottom-10 left-1/2 -translate-x-1/2 rounded bg-red-500/90 px-3 py-1 text-xs text-white">{error}</p>}
+        {error && <p className="absolute left-1/2 top-3 -translate-x-1/2 rounded bg-red-500/90 px-3 py-1 text-xs text-white">{error}</p>}
       </div>
     )
   }
@@ -208,7 +184,6 @@ export function VideoPlayer({ sources, selectedSource, onSourceChange, subtitles
         }}
         onTimeUpdate={e => {
           const v = e.currentTarget
-          setCurrentTime(v.currentTime)
           onTimeUpdate?.(v.currentTime, v.duration)
         }}
         onEnded={() => onEnded?.()}
@@ -230,32 +205,7 @@ export function VideoPlayer({ sources, selectedSource, onSourceChange, subtitles
         </div>
       )}
 
-      {hasMultipleSources && onSourceChange && (
-        <div className="absolute bottom-12 right-2">
-          <select
-            value={`${source.url}::${source.quality ?? ''}::${source.language ?? ''}`}
-            onChange={e => {
-              const val = e.target.value
-              const s = sources.find(s => `${s.url}::${s.quality ?? ''}::${s.language ?? ''}` === val) ?? sources.find(s => s.url === val)
-              if (s) onSourceChange(s)
-            }}
-            aria-label="Select video source"
-            className="rounded-full bg-black/70 px-3 py-1 text-xs text-white backdrop-blur"
-          >
-            {sources.map((s, idx) => (
-              <option key={`${s.url}-${s.quality ?? ''}-${s.language ?? ''}-${idx}`} value={`${s.url}::${s.quality ?? ''}::${s.language ?? ''}`} className="bg-black">
-                {s.provider} {s.quality ? `• ${s.quality}` : ''} {s.language ? `• ${s.language}` : ''}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {error && <p className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded bg-red-500/90 px-3 py-1 text-xs text-white">{error}</p>}
-
-      <div className="absolute bottom-2 left-2 rounded bg-black/60 px-2 py-1 text-[10px] text-white/60">
-        {Math.floor(currentTime / 60)}:{String(Math.floor(currentTime % 60)).padStart(2, '0')} • Ep {episodeNumber}
-      </div>
+      {error && <p className="absolute left-1/2 top-3 -translate-x-1/2 rounded bg-red-500/90 px-3 py-1 text-xs text-white">{error}</p>}
     </div>
   )
 }

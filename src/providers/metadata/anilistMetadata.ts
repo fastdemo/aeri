@@ -83,16 +83,25 @@ export interface BrowseParams {
   seasonYear?: number
   season?: 'WINTER' | 'SPRING' | 'SUMMER' | 'FALL'
   format?: 'TV' | 'MOVIE' | 'OVA' | 'SPECIAL' | 'ONA' | 'MUSIC'
+  // Inclusive start-year range (FuzzyDateInt bounds) for presets like "90s".
+  // When set, replaces the exact seasonYear filter.
+  yearFrom?: number
+  yearTo?: number
   perPage?: number
   page?: number
 }
 
 function buildBrowseQuery(params: BrowseParams): { query: string; variables: Record<string, any>; cacheKey: string } {
-  const { sort = 'POPULARITY_DESC', status, genre, seasonYear, season, format, perPage = 24, page = 1 } = params
+  const { sort = 'POPULARITY_DESC', status, genre, seasonYear, season, format, yearFrom, yearTo, perPage = 24, page = 1 } = params
   const filters: string[] = ['type: ANIME', 'isAdult: false', `sort: ${sort}`]
   if (status) filters.push(`status: ${status}`)
   if (genre) filters.push(`genre: "${genre}"`)
-  if (seasonYear) filters.push(`seasonYear: ${seasonYear}`)
+  if (yearFrom != null || yearTo != null) {
+    if (yearFrom != null) filters.push(`startDate_greaterThan: ${yearFrom * 10000 + 101}`)
+    if (yearTo != null) filters.push(`startDate_lesserThan: ${yearTo * 10000 + 1232}`)
+  } else if (seasonYear) {
+    filters.push(`seasonYear: ${seasonYear}`)
+  }
   if (season) filters.push(`season: ${season}`)
   if (format) filters.push(`format: ${format}`)
   const filterStr = filters.join(', ')
@@ -106,7 +115,7 @@ function buildBrowseQuery(params: BrowseParams): { query: string; variables: Rec
     }
   }`
   const variables = { perPage, page }
-  const keyParts = [sort, status || '', genre || '', seasonYear || '', season || '', format || '', perPage, page].join(':')
+  const keyParts = [sort, status || '', genre || '', seasonYear || '', season || '', format || '', yearFrom ?? '', yearTo ?? '', perPage, page].join(':')
   return { query, variables, cacheKey: `anilist:browse:${keyParts}` }
 }
 

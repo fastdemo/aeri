@@ -94,14 +94,14 @@ export function Navbar() {
   // Desktop nav items — Settings and My List only when authenticated
   const desktopNav = [
     { to: '/', label: 'Home' },
-    { to: '/browse', label: 'Browse' },
+    { to: '/browse', label: 'Anime' },
     ...(isAuthenticated ? [{ to: '/list', label: 'My List' } as const] : []),
     ...(isAuthenticated ? [{ to: '/settings', label: 'Settings' } as const] : []),
   ]
 
   const mobileNav = [
     { to: '/', label: 'Home' },
-    { to: '/browse', label: 'Browse' },
+    { to: '/browse', label: 'Anime' },
     ...(isAuthenticated ? [{ to: '/list', label: 'My List' } as const] : []),
     { to: '/search', label: 'Search' },
     ...(isAuthenticated ? [{ to: '/settings', label: 'Settings' } as const] : []),
@@ -231,7 +231,7 @@ export function Navbar() {
               to="/list"
               onClick={() => dispatchNavigate('/list')}
               aria-label="Profile"
-              className="relative h-7 w-7 touch-manipulation overflow-hidden rounded bg-gradient-to-br from-violet-600 to-indigo-600"
+              className="relative h-7 w-7 touch-manipulation overflow-hidden rounded bg-black"
               style={{ touchAction: 'manipulation' } as any}
             >
               {user?.avatar?.large ? (

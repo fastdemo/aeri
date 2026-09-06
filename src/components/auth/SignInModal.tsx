@@ -32,7 +32,7 @@ export function SignInModal({ onClose }: { onClose: () => void }) {
       id: 'anilist',
       title: 'AniList',
       desc: ani.isAuthenticated
-        ? (ani.user ? `Connected as ${ani.user.name}` : 'Connected')
+        ? (ani.user ? `Connected as ${ani.user.name}` : ani.loadingUser ? 'Connecting…' : 'Connected')
         : 'List tracking + rich metadata',
       connected: ani.isAuthenticated,
       connectLabel: 'Connect',
@@ -43,7 +43,7 @@ export function SignInModal({ onClose }: { onClose: () => void }) {
       id: 'mal',
       title: 'MyAnimeList',
       desc: mal.isAuthenticated
-        ? (mal.user ? `Connected as ${mal.user.name}` : 'Connected')
+        ? (mal.user ? `Connected as ${mal.user.name}` : mal.loadingUser ? 'Connecting…' : 'Connected')
         : 'List tracking via built-in server',
       connected: mal.isAuthenticated,
       connectLabel: 'Connect',
