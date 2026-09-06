@@ -1,13 +1,26 @@
-import React, { createContext, useContext, useMemo, useCallback } from 'react'
+import React, { createContext, useContext, useMemo, useCallback, useEffect, useState } from 'react'
 import { useAniList } from './AniListContext'
 import { useMAL } from './MALContext'
-import { isSyncEnabled } from '../storage/preferences'
+import {
+  isSyncEnabled,
+  getTrackingProvider,
+  setTrackingProvider as persistTrackingProvider,
+  getPreferences,
+  type TrackingProviderId,
+} from '../storage/preferences'
+import { enrichMalEntriesWithAnilist } from '../services/mal/enrichment'
 import type { Anime, AnimeListEntry, AnimeStatus } from '../types/anime'
 
 type UnifiedTracking = {
+  // Active tracker (exactly one account drives reads + writes; both may stay
+  // connected). AniList remains the metadata backbone regardless.
+  trackingProvider: TrackingProviderId | null
+  setTrackingProvider: (p: TrackingProviderId) => void
   isAuthenticated: boolean
   isAniListAuthenticated: boolean
   isMALAuthenticated: boolean
+  // Active tracker's list. MAL entries are progressively upgraded to AniList
+  // display metadata (never shown as raw MAL); AniList entries are used as-is.
   combinedList: AnimeListEntry[] | null
   loading: boolean
   error: string | null
@@ -25,129 +38,110 @@ export function useTracking() {
   return v
 }
 
-// Dedup logic: prefer AniList metadata (richer banner), but keep malId
-function dedupAndMerge(anilist: AnimeListEntry[] | null, mal: AnimeListEntry[] | null): AnimeListEntry[] | null {
-  if (!anilist && !mal) return null
-  if (!anilist) return mal
-  if (!mal) return anilist
-
-  const map = new Map<string, AnimeListEntry>()
-  const keyFor = (e: AnimeListEntry) => {
-    const malId = e.anime.identity.malId
-    if (malId) return `mal-${malId}`
-    const aid = e.anime.identity.anilistId
-    if (aid) return `anilist-${aid}`
-    return e.anime.identity.internalId
-  }
-
-  // Insert AniList first (richer)
-  for (const e of anilist) {
-    const k = keyFor(e)
-    map.set(k, e)
-  }
-  // Merge MAL: if key exists, merge
-  for (const m of mal) {
-    const k = keyFor(m)
-    const existing = map.get(k)
-    if (existing) {
-      // Same anime in both: merge identities, keep AniList's Anime but add malId if missing
-      const mergedAnime: Anime = {
-        ...existing.anime,
-        identity: {
-          ...existing.anime.identity,
-          malId: existing.anime.identity.malId ?? m.anime.identity.malId,
-          anilistId: existing.anime.identity.anilistId ?? m.anime.identity.anilistId,
-        },
-        // Keep progress/status from more recent? For now keep AniList's, but also ensure mal progress isn't lost if higher
-        // Choose max progress
-        progress: (m.progress > existing.progress) ? m.anime.progress : existing.anime.progress,
-        listStatus: existing.status, // keep AniList status as primary
-      }
-      // If MAL has different status, we keep AniList but note - no overwrite without explicit rule
-      // For now, keep existing entry but with merged identity
-      map.set(k, {
-        ...existing,
-        anime: mergedAnime,
-        // Keep score from whichever is non-zero? Prefer AniList
-      })
-    } else {
-      // New MAL-only entry: check if AniList entry has same malId via different key? Already handled via mal- key
-      // Also try title dedup as fallback if no ids?
-      map.set(k, m)
-    }
-  }
-
-  // Also try secondary dedup by malId if an AniList entry's malId matches MAL entry's malId but keys differed (e.g., anilist entry key was anilist-xxx but mal is mal-yyy where yyy == anilist's malId)
-  // Our keyFor already uses malId when present, so anilist entry with malId will be keyed as mal-xxx, same as MAL entry, so dedup works.
-  return Array.from(map.values())
-}
-
 export function TrackingProvider({ children }: { children: React.ReactNode }) {
   const ani = useAniList()
   const mal = useMAL()
+  const [explicitTracker, setExplicitTracker] = useState<TrackingProviderId | null>(() => {
+    try { return getPreferences().trackingProvider ?? null } catch { return null }
+  })
 
-  const combinedList = useMemo(() => dedupAndMerge(ani.animeList, mal.animeList), [ani.animeList, mal.animeList])
+  // Resolved active tracker: explicit pick wins when that account is
+  // connected, else AniList when connected, else MAL (see preferences).
+  // explicitTracker state exists only to re-render on switch; the rule itself
+  // lives in getTrackingProvider (persist is written before the state bump).
+  const trackingProvider: TrackingProviderId | null = useMemo(
+    () => getTrackingProvider(ani.isAuthenticated, mal.isAuthenticated),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [explicitTracker, ani.isAuthenticated, mal.isAuthenticated],
+  )
 
-  const isAuthenticated = ani.isAuthenticated || mal.isAuthenticated
-  const loading = ani.loadingList || mal.loadingList
-  const error = ani.error || mal.error
-  const authExpired = ani.authExpired || mal.authExpired
+  const setTrackingProvider = useCallback((p: TrackingProviderId) => {
+    persistTrackingProvider(p)
+    setExplicitTracker(p)
+  }, [])
 
+  // Raw list from the active tracker only — the other account (if connected)
+  // stays signed in but is never merged in, so the two services can never
+  // contradict each other on screen or diverge via fan-out writes.
+  const rawList = trackingProvider === 'anilist' ? ani.animeList
+    : trackingProvider === 'mal' ? mal.animeList
+    : null
+
+  // MAL tracker: upgrade entries to AniList display metadata in the
+  // background (cached; failures keep MAL fallbacks per entry).
+  const [enrichedMalList, setEnrichedMalList] = useState<AnimeListEntry[] | null>(null)
+  useEffect(() => {
+    setEnrichedMalList(null)
+    if (trackingProvider !== 'mal' || !mal.animeList) return
+    const ctrl = new AbortController()
+    let cancelled = false
+    enrichMalEntriesWithAnilist(mal.animeList, {
+      signal: ctrl.signal,
+      onBatch: (next) => { if (!cancelled) setEnrichedMalList(next) },
+    }).then((final) => {
+      if (!cancelled) setEnrichedMalList(final)
+    }).catch(() => {})
+    return () => { cancelled = true; ctrl.abort() }
+  }, [trackingProvider, mal.animeList])
+
+  const combinedList = trackingProvider === 'mal'
+    ? (enrichedMalList ?? rawList)
+    : rawList
+
+  const isAuthenticated = trackingProvider !== null
+  const loading = trackingProvider === 'anilist' ? ani.loadingList
+    : trackingProvider === 'mal' ? mal.loadingList
+    : false
+  const error = trackingProvider === 'anilist' ? ani.error
+    : trackingProvider === 'mal' ? mal.error
+    : null
+  const authExpired = trackingProvider === 'anilist' ? ani.authExpired
+    : trackingProvider === 'mal' ? mal.authExpired
+    : false
+
+  const active = trackingProvider
   const updateProgress = useCallback(async (anime: Anime, ep: number) => {
-    const promises: Promise<void>[] = []
-    if (ani.isAuthenticated && isSyncEnabled('anilist', 'progress')) {
+    if (active === 'anilist' && ani.isAuthenticated && isSyncEnabled('anilist', 'progress')) {
       const anilistId = anime.identity.anilistId?.toString() ?? (anime.identity.internalId.startsWith('anilist-') ? anime.identity.internalId.replace('anilist-', '') : null)
-      if (anilistId) promises.push(ani.updateProgress(anilistId, ep).catch(()=>{}))
+      if (anilistId) { await ani.updateProgress(anilistId, ep).catch(() => {}); return }
+      if (anime.identity.anilistId) { await ani.updateProgress(`anilist-${anime.identity.anilistId}`, ep).catch(() => {}); return }
     }
-    if (mal.isAuthenticated && isSyncEnabled('mal', 'progress')) {
-      let malId: string | null = anime.identity.malId ? `mal-${anime.identity.malId}` : null
-      if (!malId && anime.identity.internalId.startsWith('mal-')) malId = anime.identity.internalId
-      if (malId) promises.push(mal.updateProgress(malId, ep).catch(()=>{}))
+    if (active === 'mal' && mal.isAuthenticated && isSyncEnabled('mal', 'progress')) {
+      const malId = anime.identity.malId ? `mal-${anime.identity.malId}` : (anime.identity.internalId.startsWith('mal-') ? anime.identity.internalId : null)
+      if (malId) { await mal.updateProgress(malId, ep).catch(() => {}); return }
+      if (anime.identity.malId) { await mal.updateProgress(`mal-${anime.identity.malId}`, ep).catch(() => {}); return }
     }
-    if (promises.length === 0) {
-      if (ani.isAuthenticated && isSyncEnabled('anilist', 'progress') && anime.identity.anilistId) promises.push(ani.updateProgress(`anilist-${anime.identity.anilistId}`, ep).catch(()=>{}))
-      if (mal.isAuthenticated && isSyncEnabled('mal', 'progress') && anime.identity.malId) promises.push(mal.updateProgress(`mal-${anime.identity.malId}`, ep).catch(()=>{}))
-    }
-    await Promise.allSettled(promises)
-  }, [ani.isAuthenticated, ani.updateProgress, mal.isAuthenticated, mal.updateProgress])
+  }, [active, ani.isAuthenticated, ani.updateProgress, mal.isAuthenticated, mal.updateProgress])
 
   const updateStatus = useCallback(async (anime: Anime, status: AnimeStatus) => {
-    const promises: Promise<void>[] = []
-    if (ani.isAuthenticated && isSyncEnabled('anilist', 'status')) {
+    if (active === 'anilist' && ani.isAuthenticated && isSyncEnabled('anilist', 'status')) {
       const anilistId = anime.identity.anilistId?.toString() ?? (anime.identity.internalId.startsWith('anilist-') ? anime.identity.internalId.replace('anilist-', '') : null)
-      if (anilistId) promises.push(ani.updateStatus(anilistId, status).catch(()=>{}))
+      if (anilistId) { await ani.updateStatus(anilistId, status).catch(() => {}); return }
+      if (anime.identity.anilistId) { await ani.updateStatus(`anilist-${anime.identity.anilistId}`, status).catch(() => {}); return }
     }
-    if (mal.isAuthenticated && isSyncEnabled('mal', 'status')) {
-      let malId: string | null = anime.identity.malId ? `mal-${anime.identity.malId}` : null
-      if (!malId && anime.identity.internalId.startsWith('mal-')) malId = anime.identity.internalId
-      if (malId) promises.push(mal.updateStatus(malId, status).catch(()=>{}))
+    if (active === 'mal' && mal.isAuthenticated && isSyncEnabled('mal', 'status')) {
+      const malId = anime.identity.malId ? `mal-${anime.identity.malId}` : (anime.identity.internalId.startsWith('mal-') ? anime.identity.internalId : null)
+      if (malId) { await mal.updateStatus(malId, status).catch(() => {}); return }
+      if (anime.identity.malId) { await mal.updateStatus(`mal-${anime.identity.malId}`, status).catch(() => {}); return }
     }
-    if (promises.length === 0) {
-      if (ani.isAuthenticated && isSyncEnabled('anilist', 'status') && anime.identity.anilistId) promises.push(ani.updateStatus(`anilist-${anime.identity.anilistId}`, status).catch(()=>{}))
-      if (mal.isAuthenticated && isSyncEnabled('mal', 'status') && anime.identity.malId) promises.push(mal.updateStatus(`mal-${anime.identity.malId}`, status).catch(()=>{}))
-    }
-    await Promise.allSettled(promises)
-  }, [ani.isAuthenticated, ani.updateStatus, mal.isAuthenticated, mal.updateStatus])
+  }, [active, ani.isAuthenticated, ani.updateStatus, mal.isAuthenticated, mal.updateStatus])
 
   const updateRating = useCallback(async (anime: Anime, rating: number) => {
-    const promises: Promise<void>[] = []
-    if (ani.isAuthenticated && isSyncEnabled('anilist', 'rating')) {
+    if (active === 'anilist' && ani.isAuthenticated && isSyncEnabled('anilist', 'rating')) {
       const anilistId = anime.identity.anilistId?.toString() ?? (anime.identity.internalId.startsWith('anilist-') ? anime.identity.internalId.replace('anilist-', '') : null)
-      if (anilistId) promises.push(ani.updateRating(anilistId, rating).catch(()=>{}))
+      if (anilistId) { await ani.updateRating(anilistId, rating).catch(() => {}); return }
+      if (anime.identity.anilistId) { await ani.updateRating(`anilist-${anime.identity.anilistId}`, rating).catch(() => {}); return }
     }
-    if (mal.isAuthenticated && isSyncEnabled('mal', 'rating')) {
-      let malId: string | null = anime.identity.malId ? `mal-${anime.identity.malId}` : null
-      if (!malId && anime.identity.internalId.startsWith('mal-')) malId = anime.identity.internalId
-      if (malId) promises.push(mal.updateRating(malId, rating).catch(()=>{}))
+    if (active === 'mal' && mal.isAuthenticated && isSyncEnabled('mal', 'rating')) {
+      const malId = anime.identity.malId ? `mal-${anime.identity.malId}` : (anime.identity.internalId.startsWith('mal-') ? anime.identity.internalId : null)
+      if (malId) { await mal.updateRating(malId, rating).catch(() => {}); return }
+      if (anime.identity.malId) { await mal.updateRating(`mal-${anime.identity.malId}`, rating).catch(() => {}); return }
     }
-    if (promises.length === 0) {
-      if (ani.isAuthenticated && isSyncEnabled('anilist', 'rating') && anime.identity.anilistId) promises.push(ani.updateRating(`anilist-${anime.identity.anilistId}`, rating).catch(()=>{}))
-      if (mal.isAuthenticated && isSyncEnabled('mal', 'rating') && anime.identity.malId) promises.push(mal.updateRating(`mal-${anime.identity.malId}`, rating).catch(()=>{}))
-    }
-    await Promise.allSettled(promises)
-  }, [ani.isAuthenticated, ani.updateRating, mal.isAuthenticated, mal.updateRating])
+  }, [active, ani.isAuthenticated, ani.updateRating, mal.isAuthenticated, mal.updateRating])
 
   const value: UnifiedTracking = useMemo(() => ({
+    trackingProvider,
+    setTrackingProvider,
     isAuthenticated,
     isAniListAuthenticated: ani.isAuthenticated,
     isMALAuthenticated: mal.isAuthenticated,
@@ -158,7 +152,7 @@ export function TrackingProvider({ children }: { children: React.ReactNode }) {
     updateProgress,
     updateStatus,
     updateRating,
-  }), [isAuthenticated, ani.isAuthenticated, mal.isAuthenticated, combinedList, loading, error, authExpired, updateProgress, updateStatus, updateRating])
+  }), [trackingProvider, setTrackingProvider, isAuthenticated, ani.isAuthenticated, mal.isAuthenticated, combinedList, loading, error, authExpired, updateProgress, updateStatus, updateRating])
 
   return <TrackingContext.Provider value={value}>{children}</TrackingContext.Provider>
 }

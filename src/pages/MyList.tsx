@@ -19,7 +19,7 @@ const tabs: { id: AnimeStatus | 'all'; label: string }[] = [
 export function MyList() {
   const [tab, setTab] = useState<AnimeStatus | 'all'>('all')
   const [selected, setSelected] = useState<Anime | null>(null)
-  const { isAuthenticated, isAniListAuthenticated, isMALAuthenticated, combinedList, loading, error, authExpired } = useTracking()
+  const { isAuthenticated, isAniListAuthenticated, isMALAuthenticated, trackingProvider, combinedList, loading, error, authExpired } = useTracking()
   const location = useLocation()
   useEffect(() => { setSelected(null) }, [location.pathname, location.hash, location.search])
   const ani = useAniList()
@@ -34,20 +34,17 @@ export function MyList() {
   })()
   const listCount = sourceList.length
 
-  const syncLabel = isAniListAuthenticated && isMALAuthenticated
-    ? 'synced with AniList • MAL'
-    : isAniListAuthenticated
-      ? 'synced with AniList'
-      : isMALAuthenticated
-        ? 'synced with MyAnimeList'
-        : 'connect AniList to sync'
+  const trackerName = trackingProvider === 'anilist' ? 'AniList' : trackingProvider === 'mal' ? 'MyAnimeList' : null
+  const syncLabel = trackerName
+    ? `tracked with ${trackerName}`
+    : 'sign in to sync'
 
   return (
     <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-12">
       <h1 className="text-[18px] font-semibold tracking-tight text-white">My List</h1>
       <p className="text-xs text-white/50">{listCount} titles • {syncLabel}</p>
-      {(isAniListAuthenticated && isMALAuthenticated && combinedList) && (
-        <p className="mt-1 text-[11px] text-white/30">Merged • deduped by MAL ID where available • {combinedList.length} unique titles</p>
+      {(isAuthenticated && combinedList) && (
+        <p className="mt-1 text-[11px] text-white/30">Tracking with {trackerName} • {combinedList.length} titles • metadata by AniList</p>
       )}
 
       {!isAuthenticated && (

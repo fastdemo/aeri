@@ -54,6 +54,14 @@ query ($id: Int) {
 }
 `
 
+const MEDIA_BY_MAL_QUERY = `
+query ($malId: Int) {
+  Media(idMal: $malId, type: ANIME) {
+    ${MEDIA_FIELDS}
+  }
+}
+`
+
 const SEARCH_QUERY = `
 query ($search: String, $perPage: Int) {
   Page(perPage: $perPage) {
@@ -149,10 +157,24 @@ export class AniListMetadataProvider implements AnimeMetadataProvider {
   }
 
   async getAnime(id: string, signal?: AbortSignal): Promise<import('../../types/anime').Anime> {
+    // MAL-backed ids resolve through idMal so MAL tracker entries get full
+    // AniList metadata (banner, season, studios) instead of MAL fallbacks.
+    if (id.startsWith('mal-')) {
+      const malId = Number(id.replace('mal-', ''))
+      if (Number.isNaN(malId)) throw new ProviderError('NOT_FOUND', 'We couldn’t find that anime.', false)
+      return this.getAnimeByMalId(malId, signal)
+    }
     const anilistId = id.startsWith('anilist-') ? Number(id.replace('anilist-', '')) : Number(id)
     if (Number.isNaN(anilistId)) throw new ProviderError('NOT_FOUND', 'We couldn’t find that anime.', false)
     type Res = { Media: AniListMedia }
     const data = await anilistGraphQL<Res>(MEDIA_QUERY, { id: anilistId }, { cacheKey: `anilist:anime:${anilistId}`, useCache: true, signal })
+    if (!data.Media) throw new ProviderError('NOT_FOUND', 'We couldn’t find that anime.', false)
+    return mapAniListMediaToAnime(data.Media)
+  }
+
+  async getAnimeByMalId(malId: number, signal?: AbortSignal): Promise<import('../../types/anime').Anime> {
+    type Res = { Media: AniListMedia | null }
+    const data = await anilistGraphQL<Res>(MEDIA_BY_MAL_QUERY, { malId }, { cacheKey: `anilist:bymal:${malId}`, useCache: true, signal })
     if (!data.Media) throw new ProviderError('NOT_FOUND', 'We couldn’t find that anime.', false)
     return mapAniListMediaToAnime(data.Media)
   }

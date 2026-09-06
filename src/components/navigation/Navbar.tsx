@@ -4,6 +4,7 @@ import { useAniList } from '../../contexts/AniListContext'
 import { useMAL } from '../../contexts/MALContext'
 import { SearchSuggestions } from '../search/SearchSuggestions'
 import { DetailModal } from '../detail/DetailModal'
+import { SignInModal } from '../auth/SignInModal'
 import type { Anime } from '../../types/anime'
 
 export function Navbar() {
@@ -14,10 +15,11 @@ export function Navbar() {
   const [showSuggestions, setShowSuggestions] = useState(false)
   // Preview popup for suggestion picks (same DetailModal as Home/Browse cards)
   const [previewAnime, setPreviewAnime] = useState<Anime | null>(null)
+  const [signInOpen, setSignInOpen] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
   const location = useLocation()
-  const { user: anilistUser, isAuthenticated: anilistAuth, login: anilistLogin } = useAniList()
+  const { user: anilistUser, isAuthenticated: anilistAuth } = useAniList()
   const { user: malUser, isAuthenticated: malAuth } = useMAL()
   const isAuthenticated = anilistAuth || malAuth
   const user = anilistUser ?? malUser ?? null
@@ -34,6 +36,7 @@ export function Navbar() {
     setMobileSearchOpen(false)
     setShowSuggestions(false)
     setPreviewAnime(null)
+    setSignInOpen(false)
   }, [location.pathname, location.search, location.hash])
 
   // Close suggestions on outside pointerdown — unified pointer event, no microtask delay
@@ -200,12 +203,10 @@ export function Navbar() {
 
           {!isAuthenticated ? (
             <button
-              onClick={() => {
-                try { anilistLogin() } catch {}
-              }}
+              onClick={() => setSignInOpen(true)}
               className="inline-flex h-7 touch-manipulation items-center rounded-full bg-white px-4 text-[13px] font-semibold text-black transition hover:bg-white/90 active:scale-[0.98] lg:h-8 lg:px-5"
               style={{ touchAction: 'manipulation' } as any}
-              aria-label="Sign in with AniList"
+              aria-label="Sign in"
             >
               Sign in
             </button>
@@ -271,7 +272,7 @@ export function Navbar() {
               <button
                 onClick={() => {
                   setMobileNavOpen(false)
-                  try { anilistLogin() } catch {}
+                  setSignInOpen(true)
                 }}
                 className="mt-2 touch-manipulation rounded-full bg-white px-4 py-3 text-sm font-semibold text-black"
                 style={{ touchAction: 'manipulation' } as any}
@@ -283,6 +284,7 @@ export function Navbar() {
         </nav>
       )}
       {previewAnime && <DetailModal anime={previewAnime} onClose={() => setPreviewAnime(null)} />}
+      {signInOpen && <SignInModal onClose={() => setSignInOpen(false)} />}
     </header>
   )
 }

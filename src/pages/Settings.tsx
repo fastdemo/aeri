@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { getPreferences, setPreferences, type Preferences } from '../storage/preferences'
 import { useAniList } from '../contexts/AniListContext'
 import { useMAL } from '../contexts/MALContext'
+import { useTracking } from '../contexts/TrackingContext'
+import { TrackerPicker } from '../components/auth/TrackerPicker'
 import { clearAnilistMemoryCache } from '../services/anilist/client'
 import { clearMalMemoryCache } from '../services/mal/client'
 import { getProviderCapabilities, checkProviderHealth } from '../providers/video/registry'
@@ -10,6 +12,7 @@ export function Settings() {
   const [prefs, setPrefs] = useState<Preferences>(() => getPreferences())
   const ani = useAniList()
   const mal = useMAL()
+  const { trackingProvider, setTrackingProvider } = useTracking()
   const [clearing, setClearing] = useState<string | null>(null)
   const [reducedMotion, setReducedMotion] = useState(() => {
     try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches } catch { return false }
@@ -130,6 +133,20 @@ export function Settings() {
       <section className="mt-6 rounded-xl border border-white/10 bg-white/[0.02] p-4 sm:p-5">
         <h2 className="text-sm font-semibold text-white">Account & Connections</h2>
         <p className="mt-1 text-xs text-white/50">Sync your list and progress.</p>
+
+        {(ani.isAuthenticated || mal.isAuthenticated) && (
+          <div className="mt-4">
+            <p className="mb-2 text-[11px] text-white/50">Track with — one account drives your list. Discovery always uses AniList.</p>
+            <TrackerPicker
+              value={trackingProvider}
+              onChange={setTrackingProvider}
+              anilistConnected={ani.isAuthenticated}
+              malConnected={mal.isAuthenticated}
+              anilistName={ani.user?.name ?? null}
+              malName={mal.user?.name ?? null}
+            />
+          </div>
+        )}
 
         <div className="mt-4 space-y-3">
           <div className="rounded-lg border border-white/10 bg-[#0e0e10] p-3">

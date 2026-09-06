@@ -16,11 +16,16 @@ export interface Preferences {
   // Standalone AniList OAuth token-exchange base (non-Cloudflare host, since
   // AniList blocks Cloudflare Worker IPs). Same /api/anilist/token contract.
   customAuthApiUrl?: string | null
-  // Per-account write sync toggles (reads always stay merged). All on = old behavior.
+  // Per-account write sync toggles for the active tracker. All on = previous behavior.
   sync?: {
     anilist: { status: boolean; progress: boolean; rating: boolean }
     mal: { status: boolean; progress: boolean; rating: boolean }
   }
+  // Active tracking account. Both accounts may stay connected, but all
+  // tracking reads/writes go through exactly one of them. null = auto
+  // (explicit pick wins when that account is connected, else AniList when
+  // connected, else MAL). AniList remains the metadata backbone either way.
+  trackingProvider?: 'anilist' | 'mal' | null
 }
 
 const defaults: Preferences = {
@@ -94,6 +99,25 @@ function normalizeHttpUrl(raw: string | null | undefined): string | null {
 
 export type SyncProvider = 'anilist' | 'mal'
 export type SyncField = 'status' | 'progress' | 'rating'
+export type TrackingProviderId = 'anilist' | 'mal'
+
+export function getTrackingProvider(anilistConnected: boolean, malConnected: boolean): TrackingProviderId | null {
+  try {
+    const explicit = getPreferences().trackingProvider ?? null
+    if (explicit === 'anilist' && anilistConnected) return 'anilist'
+    if (explicit === 'mal' && malConnected) return 'mal'
+  } catch {}
+  // Auto: AniList first (metadata backbone + richer data), else MAL
+  if (anilistConnected) return 'anilist'
+  if (malConnected) return 'mal'
+  return null
+}
+
+export function setTrackingProvider(p: TrackingProviderId | null) {
+  const next = { ...getPreferences(), trackingProvider: p }
+  localStorage.setItem(KEY, JSON.stringify(next))
+  return next
+}
 
 export function isSyncEnabled(provider: SyncProvider, field: SyncField): boolean {
   // Default on (missing = old fan-out-to-both behavior).

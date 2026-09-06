@@ -28,3 +28,4 @@ worker/.wrangler
 test-results/
 playwright-report/
 blob-report/
+.playwright-mcp/

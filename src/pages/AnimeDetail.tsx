@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { EpisodeList } from '../components/episodes/EpisodeList'
-import { useAniList } from '../contexts/AniListContext'
+import { useTracking } from '../contexts/TrackingContext'
 import { useAnimeDetail } from '../hooks/useAnimeMetadata'
 import { getSeriesGroup, type AnimeSeriesGroup } from '../services/anilist/series'
 import { getTitleHierarchy } from '../lib/titles'
@@ -9,15 +9,18 @@ import { sanitizeAnimeForDisplay, sanitizeGroup } from '../lib/episodes'
 
 export function AnimeDetail() {
   const { id } = useParams<{ id: string }>()
-  const { animeList } = useAniList()
+  const { combinedList } = useTracking()
+  const animeList = combinedList
 
-  // Try to resolve from user's list first (real, with progress)
+  // Try to resolve from the active tracker's list first (real, with progress)
   const fromList = id
     ? animeList?.find(
         (e) =>
           e.anime.identity.internalId === id ||
           e.anime.identity.anilistId?.toString() === id ||
-          `anilist-${e.anime.identity.anilistId}` === id
+          e.anime.identity.malId?.toString() === id ||
+          `anilist-${e.anime.identity.anilistId}` === id ||
+          `mal-${e.anime.identity.malId}` === id
       )?.anime
     : null
 

@@ -55,10 +55,10 @@ Phase 2 mock.
 ## D024 — MAL mapper/status (Phase 5)
 `malStatusToAeri`/`aeriStatusToMal` (`watching/completed/on_hold/dropped/plan_to_watch` ↔ `watching/completed/planned/on_hold/dropped`), `mapMALNodeToAnime` (title `ja→romaji`, `en→english`, `mean` 0-10, `main_picture`, `genres/studios`), percent from `num_episodes_watched/num_episodes`, preserves `malId` for dedup.
 
-## D025 — Dual-provider dedup via malId (Phase 5)
+## D025 — Dual-provider dedup via malId (Phase 5) [superseded by D052: single active tracker, no merged reads]
 `TrackingContext:dedupAndMerge` keys by `mal-<malId>` if present else `anilist-<id>`, AniList first (richer banner), MAL second merges identity (`malId`/`anilistId`), picks max progress, keeps AniList status as primary. Prevents visually identical duplicates, no silent overwrite without explicit rule documented.
 
-## D026 — Unified Tracking abstraction (Phase 5)
+## D026 — Unified Tracking abstraction (Phase 5) [superseded by D052: writes go to the active tracker only, reads are the tracker's list]
 `TrackingContext` wraps `AniListContext` + `MALContext`, exposes `isAuthenticated/isAniListAuthenticated/isMALAuthenticated/combinedList/loading/error/authExpired/updateProgress/updateStatus/updateRating` that fan-out to both providers where IDs exist (`updateProgress(anime, ep)` resolves `anilistId`/`malId` from `anime.identity`). UI (Home Continue Watching, MyList, DetailModal, EpisodeList, Watch) uses `useTracking` not direct provider, stays provider-agnostic, no dashboard.
 
 ## D027 — No visual redesign for MAL (Phase 5)
@@ -134,4 +134,8 @@ MAL login was failing with "Client ID not configured" on production because loca
 Settings → Account shows Sync toggles (Status / Episodes watched / Score) under each connected account (both APIs support all three). Stored in `prefs.sync`, default all-on (previous fan-out behavior); `TrackingContext` skips mutations per provider+field via `isSyncEnabled` (reads stay merged). Separately, MAL `invalid_grant/invalid_client` (dead/used/expired code — the exact upstream shape verified live) now clears URL + verifier/state and throws "login attempt expired, Connect again" instead of retrying the dead code forever.
 
 ## D051 — MAL PKCE must be `plain`, not S256
+MAL docs state twice that only the `plain` method is supported. Our S256 flow was proven broken live: approval renders, but every token exchange fails `invalid_grant` / "Failed to verify `code_verifier`" (challenge↔verifier binding itself was byte-exact — the method was the problem). `buildMalAuthorizeUrl` now sends `code_challenge = verifier` with `code_challenge_method=plain`. Never switch back without a successful live token exchange as proof.
+
+## D052 — Single active tracker; AniList-only metadata backbone
+Both accounts may stay connected, but exactly one is the active tracker (`prefs.trackingProvider`, auto AniList-first): `TrackingContext` reads/writes that account only — no merged reads, no fan-out writes, so the services can never contradict on screen or diverge silently. Sign-in (Navbar modal, Settings) offers both providers with a "Track with" single-select switchable anytime. MAL tracker entries are upgraded to AniList display metadata via `Media(idMal:)` (`anilist:bymal:*` cache; unmatched keep MAL fallbacks); `getAnime` resolves `mal-*` ids the same way, fixing MAL detail deep-links. Discovery/search/detail never touch MAL. This supersedes the D025/D026 merged-dedup + fan-out design (kept per-field sync toggles now gate the active tracker).
 MAL docs state twice that only the `plain` method is supported. Our S256 flow was proven broken live: approval renders, but every token exchange fails `invalid_grant` / "Failed to verify `code_verifier`" (challenge↔verifier binding itself was byte-exact — the method was the problem). `buildMalAuthorizeUrl` now sends `code_challenge = verifier` with `code_challenge_method=plain`. Never switch back without a successful live token exchange as proof.
