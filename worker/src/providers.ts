@@ -331,35 +331,59 @@ export class AnikotoProvider implements VideoSourceProvider {
   private async resolveAnikotoId(anilistId: number, title: string, signal?: AbortSignal): Promise<number|null> {
     const key = String(anilistId)
     if (this.cache.has(key)) return this.cache.get(key)!.id
-    // Mirror the Mangayomi AniKoto extension: /filter HTML → /watch/<slug>
-    // links → #watch-main[data-id] → verify data.anime.ani_id matches.
+    // Mirror the site structure: /filter HTML cards carry the API series id
+    // in data-tip plus display titles — rank by similarity, verify ani_id.
+    // (No watch-page scraping needed.)
+    const scoreTitle = (t: string, romaji: string, english: string): number => {
+      const n = (t || '').toLowerCase().trim()
+      if (!n) return 0
+      const variants = [romaji.toLowerCase().trim(), english.toLowerCase().trim()].filter(Boolean)
+      if (variants.some((v) => v === n)) return 3
+      if (variants.some((v) => v && (v.startsWith(n) || n.startsWith(v)))) return 2
+      if (variants.some((v) => v && (v.includes(n) || n.includes(v)))) return 1
+      return 0
+    }
     try {
-      const searchRes = await fetchWithTimeout(`https://anikototv.to/filter?keyword=${encodeURIComponent(title)}&page=1`, {
+      const parts = title.split('||').map((s) => s.trim()).filter(Boolean)
+      const romaji = parts[0] || title
+      const english = parts[1] || ''
+      const searchRes = await fetchWithTimeout(`https://anikototv.to/filter?keyword=${encodeURIComponent(romaji)}&page=1`, {
         headers: { 'User-Agent': AnikotoProvider.UA, 'Accept': 'text/html', 'Referer': 'https://anikototv.to/' }, signal,
       }, 4500)
       if (!searchRes.ok) return null
       const html = await searchRes.text()
-      const slugs = [...new Set([...html.matchAll(/\/watch\/([a-z0-9\-]+)(?:\/ep-\d+)?/gi)].map(m => m[1]))].slice(0, 5)
-      for (const slug of slugs) {
+      const cards: { id: number; name: string; jp: string }[] = []
+      const seen = new Set<number>()
+      // <div class="ani poster tip" data-tip="4587"> ... <a class="name d-title" ... data-jp="...">Title</a>
+      const re = /data-tip="(\d+)"[\s\S]{0,3000}?<a class="name d-title"[^>]*?(?:data-jp="([^"]*)")?[^>]*>([^<]{1,120})<\/a>/g
+      let m: RegExpExecArray | null
+      while ((m = re.exec(html)) !== null && cards.length < 40) {
+        const id = Number(m[1])
+        if (!Number.isFinite(id) || seen.has(id)) continue
+        seen.add(id)
+        cards.push({ id, name: (m[3] || '').trim(), jp: (m[2] || '').trim() })
+      }
+      if (!cards.length) return null
+      const ranked = cards
+        .map((c) => ({ c, s: Math.max(scoreTitle(c.name, romaji, english), c.jp ? scoreTitle(c.jp, romaji, english) : 0) }))
+        .sort((a, b) => b.s - a.s)
+      const top = ranked.filter((r) => r.s > 0).slice(0, 4)
+      const candidates = (top.length ? top : ranked.slice(0, 2)).map((r) => r.c)
+      const checks = await Promise.all(candidates.map(async (c) => {
         try {
-          const pageRes = await fetchWithTimeout(`https://anikototv.to/watch/${slug}`, {
-            headers: { 'User-Agent': AnikotoProvider.UA, 'Accept': 'text/html', 'Referer': 'https://anikototv.to/' }, signal,
-          }, 4500)
-          if (!pageRes.ok) continue
-          const html2 = await pageRes.text()
-          const m = html2.match(/id="watch-main"[^>]*data-id="(\d+)"/) || html2.match(/data-id="(\d+)"[^>]*id="watch-main"/)
-          if (!m) continue
-          const cand = Number(m[1])
-          const verifyRes = await fetchWithTimeout(`https://www.anikotoapi.site/series/${cand}`, {
+          const res = await fetchWithTimeout(`https://www.anikotoapi.site/series/${c.id}`, {
             headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' }, signal,
           }, 3500)
-          if (!verifyRes.ok) continue
-          const v: any = await verifyRes.json().catch(() => null)
-          if (String(v?.data?.anime?.ani_id) === String(anilistId)) {
-            this.cache.set(key, { id: cand, ani_id: String(anilistId) })
-            return cand
-          }
-        } catch {}
+          if (!res.ok) return null
+          const v: any = await res.json().catch(() => null)
+          if (String(v?.data?.anime?.ani_id) === String(anilistId)) return c.id
+          return null
+        } catch { return null }
+      }))
+      const hit = checks.find((id): id is number => typeof id === 'number')
+      if (hit != null) {
+        this.cache.set(key, { id: hit, ani_id: String(anilistId) })
+        return hit
       }
     } catch {}
     return null
