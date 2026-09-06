@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAniList } from '../../contexts/AniListContext'
 import { useMAL } from '../../contexts/MALContext'
+import { useTracking } from '../../contexts/TrackingContext'
 import { SearchSuggestions } from '../search/SearchSuggestions'
 import { DetailModal } from '../detail/DetailModal'
 import { SignInModal } from '../auth/SignInModal'
@@ -21,8 +22,10 @@ export function Navbar() {
   const location = useLocation()
   const { user: anilistUser, isAuthenticated: anilistAuth } = useAniList()
   const { user: malUser, isAuthenticated: malAuth } = useMAL()
+  const { trackingProvider } = useTracking()
   const isAuthenticated = anilistAuth || malAuth
-  const user = anilistUser ?? malUser ?? null
+  // Avatar follows the active tracker, not a fixed provider order
+  const user = trackingProvider === 'mal' ? (malUser ?? anilistUser ?? null) : (anilistUser ?? malUser ?? null)
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10)
@@ -38,6 +41,19 @@ export function Navbar() {
     setPreviewAnime(null)
     setSignInOpen(false)
   }, [location.pathname, location.search, location.hash])
+
+  // Returning from OAuth (full page load): reopen the sign-in popup so the
+  // user lands on connected state + connect-the-other + tracker pick, with
+  // Continue to dismiss. Runs once per return, success or failure (errors
+  // render inside the popup with retry).
+  useEffect(() => {
+    try {
+      if (sessionStorage.getItem('aeri:signin:oauth')) {
+        sessionStorage.removeItem('aeri:signin:oauth')
+        setSignInOpen(true)
+      }
+    } catch {}
+  }, [])
 
   // Close suggestions on outside pointerdown — unified pointer event, no microtask delay
   useEffect(() => {
@@ -221,7 +237,7 @@ export function Navbar() {
               {user?.avatar?.large ? (
                 <img src={user.avatar.large} alt={user.name} className="h-full w-full object-cover" loading="lazy" />
               ) : (
-                <span className="grid h-full w-full place-items-center text-[10px] font-bold text-white">{anilistAuth ? 'A' : 'M'}</span>
+                <span className="grid h-full w-full place-items-center text-[10px] font-bold text-white">{trackingProvider === 'mal' ? 'M' : 'A'}</span>
               )}
               <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border border-[var(--bg)] bg-emerald-500" aria-hidden />
             </Link>

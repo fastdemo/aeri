@@ -80,6 +80,9 @@ export async function beginAnilistOAuth(): Promise<void> {
   if (!ANILIST_CLIENT_ID) throw new Error('AniList client ID not configured. Set VITE_ANILIST_CLIENT_ID or paste a personal token.')
   const state = randomString(32)
   setAnilistOAuthState(state)
+  // Remember we left for OAuth: on return, the navbar reopens the sign-in
+  // popup (connected state + connect-the-other + tracker pick + continue).
+  try { sessionStorage.setItem('aeri:signin:oauth', 'anilist') } catch {}
   const url = buildAnilistAuthorizeUrl(state)
   window.location.href = url
 }

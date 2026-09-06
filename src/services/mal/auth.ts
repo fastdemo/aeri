@@ -93,6 +93,9 @@ export async function buildMalAuthorizeUrl(): Promise<string> {
 
 export async function beginMalOAuth(): Promise<void> {
   const url = await buildMalAuthorizeUrl()
+  // Remember we left for OAuth: on return, the navbar reopens the sign-in
+  // popup (connected state + connect-the-other + tracker pick + continue).
+  try { sessionStorage.setItem('aeri:signin:oauth', 'mal') } catch {}
   window.location.href = url
 }
 

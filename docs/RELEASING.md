@@ -57,7 +57,14 @@ npx wrangler deploy --env production   # env.production is pinned to Worker `aer
 ## 4. Verify live — bundle grep, not the badge
 
 The workflow badge has reported failure while publishing and vice versa. Trust
-only the bundle content:
+only the bundle content. Automatic version (also wired into CI after every
+build, so a bad bake fails before it can ship):
+
+```bash
+npm run verify:live
+```
+
+Manual equivalent (what the script does):
 
 ```bash
 ASSET=$(curl -s https://aeri.fastdemo.workers.dev/ | grep -o 'assets/index-[^"]*\.js' | head -1)

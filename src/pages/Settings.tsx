@@ -134,7 +134,7 @@ export function Settings() {
         <p className="mt-1 text-xs text-white/50">Connect either or both. Select one to track your list.</p>
 
         <div className="mt-4 space-y-3">
-          <div className={`rounded-lg border bg-[#0e0e10] p-3 ${trackingProvider === 'anilist' ? 'border-white/40' : 'border-white/10'}`}>
+          <div className={`rounded-lg border bg-[#0e0e10] p-3 ${trackingProvider === 'anilist' ? 'border-white' : 'border-white/10'}`}>
             <div className="flex items-center gap-3">
               {ani.isAuthenticated && (
                 <button
@@ -154,7 +154,6 @@ export function Settings() {
                   {ani.isAuthenticated && ani.user ? `Connected as ${ani.user.name}` : 'Not connected'}
                 </p>
               </div>
-              {trackingProvider === 'anilist' && <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-white/50">Tracking</span>}
               {ani.isAuthenticated ? (
                 <button onClick={() => ani.logout()} className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/15">Disconnect</button>
               ) : (
@@ -192,7 +191,7 @@ export function Settings() {
             {ani.error && !ani.isAuthenticated && <p className="mt-2 text-xs text-amber-200/70">{ani.error}</p>}
           </div>
 
-          <div className={`rounded-lg border bg-[#0e0e10] p-3 ${trackingProvider === 'mal' ? 'border-white/40' : 'border-white/10'}`}>
+          <div className={`rounded-lg border bg-[#0e0e10] p-3 ${trackingProvider === 'mal' ? 'border-white' : 'border-white/10'}`}>
             <div className="flex items-center gap-3">
               {mal.isAuthenticated && (
                 <button
@@ -212,7 +211,6 @@ export function Settings() {
                   {mal.isAuthenticated && mal.user ? `Connected as ${mal.user.name}` : 'Not connected'}
                 </p>
               </div>
-              {trackingProvider === 'mal' && <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-white/50">Tracking</span>}
               {mal.isAuthenticated ? (
                 <button onClick={() => mal.logout()} className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/15">Disconnect</button>
               ) : (
