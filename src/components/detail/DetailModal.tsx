@@ -16,11 +16,10 @@ export function DetailModal({
   onClose: () => void
 }) {
   const dialogRef = useRef<HTMLDivElement>(null)
-  const { isAuthenticated, combinedList, updateStatus, updateRating, error: trackingError } = useTracking()
+  const { isAuthenticated, combinedList, updateStatus, error: trackingError } = useTracking()
   const [syncing, setSyncing] = useState<string | null>(null)
   const [localError, setLocalError] = useState<string | null>(null)
   const [showStatusPicker, setShowStatusPicker] = useState(false)
-  const [showRatingPicker, setShowRatingPicker] = useState(false)
 
   // Find entry via combinedList using normalized identity (anilistId or malId or internalId)
   const entry = (() => {
@@ -196,7 +195,7 @@ export function DetailModal({
 
           <div className="absolute bottom-0 left-0 right-0 flex flex-wrap items-center gap-2 px-4 pb-4 sm:px-6">
             {displayAnime.progress && (
-              <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-white/15">
+              <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-white/15">
                 <div className="h-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.7)]" style={{ width: `${displayAnime.progress.percent}%` }} />
               </div>
             )}
@@ -276,66 +275,6 @@ export function DetailModal({
                   </div>
                 )}
               </div>
-              <div className="relative">
-                <button
-                  aria-label={currentScore ? `Rated ${currentScore}` : 'Rate'}
-                  onClick={() => {
-                    if (!isAuthenticated) {
-                      setLocalError('Sign in with AniList or connect MyAnimeList in Settings to rate.')
-                      setTimeout(() => setLocalError(null), 2500)
-                      return
-                    }
-                    setShowRatingPicker((v) => !v)
-                  }}
-                  className={`grid h-8 w-8 place-items-center rounded-full border bg-black/30 backdrop-blur hover:bg-white/10 ${currentScore ? 'border-white/30 text-white' : 'border-white/20 text-white'}`}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill={currentScore ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8">
-                    <path d="M12 17 6 21l1.5-6.5L2 9l6.5-.6L12 2l3.5 6.4L22 9l-5.5 5.5L18 21z" />
-                  </svg>
-                </button>
-                {showRatingPicker && (
-                  <div className="absolute right-0 top-9 z-10 w-48 rounded-lg border border-white/10 bg-[#1c1c1e] p-3 shadow-xl">
-                    <p className="mb-2 text-xs font-medium text-white">Rate</p>
-                    <div className="grid grid-cols-5 gap-1">
-                      {[2, 4, 6, 8, 10].map((score) => (
-                        <button
-                          key={score}
-                          onClick={async () => {
-                            setSyncing('rating')
-                            setShowRatingPicker(false)
-                            try {
-                              await updateRating(displayAnime, score)
-                            } catch (e) {
-                              setLocalError(e instanceof Error ? e.message : 'Couldn’t save rating')
-                            } finally {
-                              setSyncing(null)
-                            }
-                          }}
-                          className={`rounded px-2 py-1 text-xs font-medium ${currentScore === score ? 'bg-white text-black' : 'bg-white/10 text-white hover:bg-white/15'}`}
-                        >
-                          {score}
-                        </button>
-                      ))}
-                    </div>
-                    <button
-                      onClick={async () => {
-                        setSyncing('rating')
-                        setShowRatingPicker(false)
-                        try {
-                          await updateRating(displayAnime, 0)
-                        } catch (e) {
-                          setLocalError(e instanceof Error ? e.message : 'Couldn’t clear rating')
-                        } finally {
-                          setSyncing(null)
-                        }
-                      }}
-                      className="mt-2 w-full rounded bg-white/5 py-1 text-xs text-white/60 hover:bg-white/10"
-                    >
-                      Clear
-                    </button>
-                  </div>
-                )}
-              </div>
             </div>
           </div>
         </div>
@@ -403,7 +342,6 @@ export function DetailModal({
 
             {!isMovie && effectiveGroup && (
               <div className="mt-4 flex items-center gap-2">
-                <span className="text-xs text-white/50">Season</span>
                 <div className="relative">
                   <select
                     value={String(selectedSeasonIdx)}
@@ -411,22 +349,16 @@ export function DetailModal({
                     aria-label="Select season"
                     className="appearance-none rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 pr-8 text-xs font-medium text-white focus:border-white/20 focus:outline-none"
                   >
-                    {effectiveGroup.seasons.map((s, idx) => {
-                        const parts = [`Season ${idx + 1}`]
-                        if (s.year) parts.push(String(s.year))
-                        if (s.episodes) parts.push(`${s.episodes} eps`)
-                        return (
-                          <option key={s.identity.anilistId ? `anilist:${s.identity.anilistId}` : s.identity.internalId} value={String(idx)} className="bg-[#141416]">
-                            {parts.join(' • ')}
-                          </option>
-                        )
-                      })}
+                    {effectiveGroup.seasons.map((s, idx) => (
+                      <option key={s.identity.anilistId ? `anilist:${s.identity.anilistId}` : s.identity.internalId} value={String(idx)} className="bg-[#141416]">
+                        Season {idx + 1}
+                      </option>
+                    ))}
                   </select>
                   <svg aria-hidden className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-white/50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="m6 9 6 6 6-6" />
                   </svg>
                 </div>
-                <span className="text-xs text-white/30">{effectiveGroup.totalSeasons} seasons</span>
               </div>
             )}
 

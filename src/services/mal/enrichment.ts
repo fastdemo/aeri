@@ -56,6 +56,9 @@ export async function enrichMalEntriesWithAnilist(
           malId,
           anilistId: a.identity.anilistId,
         },
+        // Score follows the tracker: MAL mean when tracking MAL, AniList
+        // average when tracking AniList (display metadata is always AniList).
+        rating: entry.anime.rating ?? a.rating,
         progress: { episode: progress, percent },
         listStatus: entry.anime.listStatus,
         inList: true,

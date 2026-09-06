@@ -48,9 +48,9 @@ function QuickMenu({ anime }: { anime: Anime }) {
           e.preventDefault()
           setOpen((v) => !v)
         }}
-        className="absolute right-1 top-1 z-20 grid h-5 w-5 place-items-center text-white/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] transition hover:text-white focus-visible:opacity-100 md:opacity-0 md:group-hover/card:opacity-100 md:focus-within:opacity-100"
+        className="absolute right-1 top-1 z-20 grid h-6 w-6 place-items-center text-white/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] transition hover:text-white focus-visible:opacity-100 md:opacity-0 md:group-hover/card:opacity-100 md:focus-within:opacity-100"
       >
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
           <circle cx="12" cy="5" r="2" />
           <circle cx="12" cy="12" r="2" />
           <circle cx="12" cy="19" r="2" />
@@ -162,17 +162,19 @@ export function AnimeCard({
           </div>
         </div>
 
-        {/* Title overlay on hover — subtle */}
-        <div className="absolute inset-x-0 bottom-0 translate-y-1 bg-gradient-to-t from-black/75 to-transparent p-2 opacity-0 transition group-hover:translate-y-0 group-hover:opacity-100">
-          <p className="line-clamp-1 text-[11px] font-medium leading-tight text-white">
-            {primaryTitle}
-          </p>
-          <p className="text-[10px] text-white/70">{anime.year} · {formatLabel(anime.format) ?? anime.format}</p>
-        </div>
+        {/* Title overlay on hover — default variant only (continue cards stay clean) */}
+        {variant !== 'continue' && (
+          <div className="absolute inset-x-0 bottom-0 translate-y-1 bg-gradient-to-t from-black/75 to-transparent p-2 opacity-0 transition group-hover:translate-y-0 group-hover:opacity-100">
+            <p className="line-clamp-1 text-[11px] font-medium leading-tight text-white">
+              {primaryTitle}
+            </p>
+            <p className="text-[10px] text-white/70">{anime.year} · {formatLabel(anime.format) ?? anime.format}</p>
+          </div>
+        )}
 
         {/* Progress bar — thin, flush with the thumbnail's bottom edge, soft glow */}
         {variant === 'continue' && anime.progress && (
-          <div className="absolute inset-x-0 bottom-0 h-[3px] bg-[#333333]" aria-hidden>
+          <div className="absolute inset-x-0 bottom-0 h-[2px] bg-[#333333]" aria-hidden>
             <div className="h-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.7)] transition-[width] duration-300" style={{ width: `${Math.min(100, Math.max(0, anime.progress.percent))}%` }} />
           </div>
         )}

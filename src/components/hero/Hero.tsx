@@ -318,8 +318,8 @@ export function HeroCarousel({
             <button
               onClick={() => go(index + 1)}
               aria-label="Next featured title"
-              className="absolute right-2 top-1/2 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur transition hover:bg-black/60 sm:flex"
-              style={{ opacity: paused ? 0.95 : 0.85 }}
+              className="absolute right-2 top-1/2 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur transition hover:bg-black/60 focus-visible:flex sm:flex sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100 sm:hover:opacity-100"
+              style={{ opacity: paused ? 0.95 : undefined }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
                 <path d="m9 18 6-6-6-6" />

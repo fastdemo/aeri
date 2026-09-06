@@ -239,7 +239,6 @@ export function Navbar() {
               ) : (
                 <span className="grid h-full w-full place-items-center text-[10px] font-bold text-white">{trackingProvider === 'mal' ? 'M' : 'A'}</span>
               )}
-              <span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full border border-[var(--bg)] bg-emerald-500" aria-hidden />
             </Link>
           )}
         </div>
