@@ -65,7 +65,7 @@ export async function checkProviderHealth(signal?: AbortSignal): Promise<Record<
     try {
       const res = await fetchWithTimeout(`${baseToCheck}/api/health`, {}, 4000, signal)
       if (res.ok) {
-        const baseMap: Record<string, 'available' | 'unavailable'> = { official: 'available', custom: effective ? 'available' : 'unavailable', miruro: 'available', demo: 'available', allanime: 'unavailable', animepahe: 'unavailable', anikoto: 'unavailable', megaplay: 'unavailable', animeparadise: 'unavailable', anineko: 'unavailable' }
+        const baseMap: Record<string, 'available' | 'unavailable'> = { official: 'available', custom: effective ? 'available' : 'unavailable', miruro: 'available', demo: 'available', allanime: 'unavailable', animepahe: 'unavailable', anikoto: 'available', megaplay: 'unavailable', animeparadise: 'unavailable', anineko: 'unavailable' }
         return baseMap
       }
     } catch {}
