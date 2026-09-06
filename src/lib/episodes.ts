@@ -49,6 +49,22 @@ export function parseEpisodeNumber(title: string): number | null {
   return Number.isFinite(n) ? n : null
 }
 
+// Best-effort display title for a local episode number from streaming metadata
+// (AniList streamingEpisodes). Returns null when no credible title exists.
+export function getStreamingEpisodeTitle(anime: Anime, localNum: number): string | null {
+  const list = anime.streamingEpisodes ?? []
+  if (!list.length || localNum < 1) return null
+  for (const e of list) {
+    const raw = typeof e.title === 'string' ? e.title : ''
+    if (!raw || isTrailerTitle(raw)) continue
+    if (parseEpisodeNumber(raw) === localNum) {
+      const clean = cleanEpisodeTitle(raw)
+      if (clean && !isGenericTitle(clean)) return clean
+    }
+  }
+  return null
+}
+
 export function isTrailerTitle(title: string): boolean {
   const s = title.toLowerCase()
   return s.includes('trailer') || s.includes('preview') || s.includes(' teaser') || s.includes('| trailer') || s.includes(' pv')

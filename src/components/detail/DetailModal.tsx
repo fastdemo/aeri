@@ -175,7 +175,7 @@ export function DetailModal({
   }
 
   return (
-    <div className="fixed inset-x-0 bottom-0 top-14 z-40 flex items-start justify-center overflow-y-auto bg-black/75 p-2 backdrop-blur-[2px] sm:p-6 lg:p-8">
+    <div className="fixed inset-x-0 bottom-0 top-14 z-40 flex items-start justify-center overflow-y-auto bg-black/75 p-2 backdrop-blur-[2px] anim-fade-in sm:p-6 lg:p-8">
       <button aria-label="Close" onClick={onClose} className="fixed inset-0 top-14 cursor-default" tabIndex={-1} />
       <div
         ref={dialogRef}
@@ -183,7 +183,7 @@ export function DetailModal({
         aria-modal="true"
         aria-label={titles.primary}
         tabIndex={-1}
-        className="relative my-2 flex max-h-none w-full max-w-[980px] flex-col overflow-visible rounded-xl bg-[#0e0e10] shadow-[0_24px_64px_rgba(0,0,0,0.9)] outline-none sm:my-6"
+        className="relative my-2 flex max-h-none w-full max-w-[980px] flex-col overflow-visible rounded-xl bg-[#0e0e10] shadow-[0_24px_64px_rgba(0,0,0,0.9)] outline-none anim-pop-in-center sm:my-6"
       >
         <button
           onClick={onClose}
@@ -272,7 +272,7 @@ export function DetailModal({
                   )}
                 </button>
                 {showStatusPicker && (
-                  <div className="absolute right-0 top-9 z-10 w-40 overflow-hidden rounded-lg border border-white/10 bg-[#1c1c1e] shadow-xl">
+                  <div className="absolute right-0 top-9 z-10 w-40 overflow-hidden rounded-lg border border-white/10 bg-[#1c1c1e] shadow-xl anim-pop-in">
                     {(['watching', 'completed', 'planned', 'on_hold', 'dropped'] as AnimeStatus[]).map((s) => (
                       <button
                         key={s}

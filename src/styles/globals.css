@@ -90,3 +90,26 @@ button.rounded-full:focus-visible {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
 }
+
+/* Subtle entrances — short, natural, transform/opacity only */
+@keyframes aeri-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes aeri-pop-in {
+  from { opacity: 0; transform: scale(0.96) translateY(4px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes aeri-slide-down {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.anim-fade-in { animation: aeri-fade-in 160ms ease-out both; }
+.anim-pop-in { animation: aeri-pop-in 180ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both; transform-origin: top right; }
+.anim-pop-in-center { animation: aeri-pop-in 200ms cubic-bezier(0.2, 0.9, 0.3, 1.05) both; transform-origin: center; }
+.anim-slide-down { animation: aeri-slide-down 180ms ease-out both; }
+
+/* Card image fade-in on load (class added via onLoad — no re-render) */
+img.img-fade { opacity: 0; transition: opacity 0.35s ease; }
+img.img-fade.is-loaded { opacity: 0.96; }
+img.img-fade.is-loaded:hover { opacity: 1; }

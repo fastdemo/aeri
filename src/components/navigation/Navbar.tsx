@@ -268,7 +268,7 @@ export function Navbar() {
         </div>
       )}
       {mobileNavOpen && (
-        <nav className="absolute left-0 right-0 top-14 border-t border-white/10 bg-[var(--bg)] px-4 py-3 lg:hidden shadow-lg shadow-black/20" aria-label="Mobile sections">
+        <nav className="absolute left-0 right-0 top-14 border-t border-white/10 bg-[var(--bg)] px-4 py-3 lg:hidden shadow-lg shadow-black/20 anim-slide-down" aria-label="Mobile sections">
           <div className="flex flex-col gap-1">
             {mobileNav.map((l) => (
               <Link

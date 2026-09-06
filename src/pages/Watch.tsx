@@ -226,7 +226,8 @@ export function Watch() {
     if (now - lastSaveRef.current < 5000) return
     lastSaveRef.current = now
     putWatchPos({ id: anime.identity.internalId, episode: localEpNum, currentTime, duration, updatedAt: Date.now() }).catch(() => {})
-    if (currentTime / duration > 0.92 && isAuthenticated && !hasCompletedRef.current) {
+    // An episode counts as complete once watched through (>= 80%)
+    if (currentTime / duration >= 0.8 && isAuthenticated && !hasCompletedRef.current) {
       hasCompletedRef.current = true
       updateProgress(anime, localEpNum).catch(() => {})
     }

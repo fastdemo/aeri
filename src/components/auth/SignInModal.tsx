@@ -58,11 +58,11 @@ export function SignInModal({ onClose }: { onClose: () => void }) {
       role="dialog"
       aria-modal="true"
       aria-label="Sign in"
-      className="fixed inset-0 z-[70] grid place-items-center bg-black/75 p-4 backdrop-blur-[2px]"
+      className="fixed inset-0 z-[70] grid place-items-center bg-black/75 p-4 backdrop-blur-[2px] anim-fade-in"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-[380px] rounded-xl border border-white/10 bg-[#141416] p-5 shadow-2xl"
+        className="w-full max-w-[380px] rounded-xl border border-white/10 bg-[#141416] p-5 shadow-2xl anim-pop-in-center"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between">
