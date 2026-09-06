@@ -111,3 +111,11 @@ Page background: near-black (#070708). Surfaces are subtly lighter, not cards wi
 ## Anti-Patterns
 
 Prohibited: neon borders, glowing buttons, glassmorphism panels, giant modals, dense metadata tables, rainbow UI, 3+ font weights, heavy drop shadows.
+
+## Copy Voice (hard rules)
+
+- **Never all-caps text.** No `uppercase` class, no letter-spaced shouty labels
+  (`TRACKING`, `SIGN IN`, …) — not for headers, badges, or buttons. Sentence
+  case everywhere. Selection state is shown with border + radio dot, never
+  with a caps badge.
+- Quiet, plain words: "Sign in", "Connect", "Disconnect", "Continue".
