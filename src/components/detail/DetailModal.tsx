@@ -95,35 +95,31 @@ export function DetailModal({
   const titles = getTitleHierarchy(displayAnime, effectiveGroup)
   const isMovie = displayAnime.format?.toUpperCase() === 'MOVIE'
 
-  // Tracking entry: match EITHER the opened anime or the displayed season —
-  // franchise entries live under per-season ids (S2 watched while viewing S1
-  // must still surface). Progress only counts when an episode was actually
-  // watched (episode > 0); untouched list entries carry episode 0.
+  // Tracking entry: the displayed season's own entry only (see below).
+  // Tracking, per displayed season — never cross-season numbers. A season-2
+  // view must not show season-1's "26 of 7": progress/resume/bar come ONLY
+  // from the displayed season's own entry. Status falls back across the
+  // franchise so the badge still informs when this season is untouched.
   const entry = useMemo(() => {
     if (!isAuthenticated || !combinedList) return null
-    const candidates = [anime, displayAnime]
-    const matches = (id: { malId?: number; anilistId?: number; internalId: string }) =>
-      combinedList.find((e) => {
-        if (id.malId && e.anime.identity.malId === id.malId) return true
-        if (id.anilistId && e.anime.identity.anilistId === id.anilistId) return true
-        return e.anime.identity.internalId === id.internalId
-      }) ?? null
-    for (const c of candidates) {
-      const hit = matches(c.identity)
-      if (hit) return hit
-    }
-    return null
-  }, [isAuthenticated, combinedList, anime, displayAnime])
-  const trackedProgress = entry?.progress ?? null
-  const trackedStatus = entry?.status ?? displayAnime.listStatus ?? null
+    const id = displayAnime.identity
+    return combinedList.find((e) => {
+      if (id.malId && e.anime.identity.malId === id.malId) return true
+      if (id.anilistId && e.anime.identity.anilistId === id.anilistId) return true
+      return e.anime.identity.internalId === id.internalId
+    }) ?? null
+  }, [isAuthenticated, combinedList, displayAnime])
+  const trackedStatus = entry?.status ?? baseEntry?.status ?? displayAnime.listStatus ?? null
   const currentStatus: AnimeStatus | null = trackedStatus
-  const hasWatched = (trackedProgress ?? displayAnime.progress?.episode ?? 0) > 0
-  const resumeEp = trackedProgress ?? displayAnime.progress?.episode ?? 0
+  const numEp = entry?.progress ?? 0
+  const hasWatched = numEp > 0
+  const resumeEp = numEp
   // Finished entries always render a full bar even when no percent survived mapping
   const barPercent = (() => {
-    const p = entry?.anime.progress?.percent ?? displayAnime.progress?.percent
+    if (!entry) return 0
+    const p = entry.anime.progress?.percent
     if (typeof p === 'number' && p > 0) return Math.min(100, p)
-    if (trackedStatus === 'completed') return 100
+    if (entry.status === 'completed') return 100
     return 0
   })()
 
@@ -344,11 +340,11 @@ export function DetailModal({
                 ...e,
                 displayNumber: getDisplayEpisodeNumber(displayAnime, e.number, effectiveGroup, selectedSeasonIdx),
               }))
-              const epNum = displayAnime.progress?.episode ?? 1
+              const epNum = numEp > 0 ? numEp : (displayAnime.progress?.episode ?? 1)
               const target = norm.find(e => e.number === epNum) ?? norm[0]
               if (!target) return null
               const epTitle = target.title
-              if (!epTitle && !displayAnime.progress) return null
+              if (!epTitle && !hasWatched && !displayAnime.progress) return null
               const sNum = selectedSeasonIdx + 1
               return (
                 <p className="mt-2 text-[12px] font-semibold text-white/90">

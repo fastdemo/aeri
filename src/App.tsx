@@ -61,14 +61,18 @@ function Layout() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
-      <footer className="relative overflow-hidden border-t border-white/5">
-        <div aria-hidden className="pointer-events-none select-none text-center font-semibold leading-none text-white" style={{ fontFamily: '"Cal Sans", sans-serif', fontSize: 'clamp(10rem, 28vw, 18rem)', opacity: 0.12, transform: 'translateY(28%)' }}>
-          aeri
-        </div>
-        <div className="relative z-[2] mx-auto flex max-w-[1600px] items-center justify-center gap-2 px-4 pb-8 text-xs text-white/60 sm:px-6 lg:px-12" style={{ marginTop: '-2rem' }}>
-          <span>Aeri — anime, quietly.</span>
-          <span className="text-white/20">•</span>
-          <a href="https://github.com/fastdemo/aeri" className="underline opacity-60 transition-opacity hover:opacity-100 hover:text-white">GitHub</a>
+      <footer className="border-t border-white/5">
+        <div className="mx-auto flex h-10 max-w-[1600px] items-center justify-between gap-3 px-4 text-[11px] sm:px-6 lg:px-12">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="font-semibold tracking-[-0.02em] text-white/80" style={{ fontFamily: '"Cal Sans", sans-serif' }}>aeri</span>
+            <span className="hidden truncate text-white/40 sm:inline">anime, quietly.</span>
+          </div>
+          <span className="hidden shrink-0 text-white/25 md:inline">© 2026 Aeri</span>
+          <div className="flex shrink-0 items-center gap-3">
+            <a href="https://github.com/fastdemo/aeri" className="text-white/40 transition hover:text-white">GitHub</a>
+            <span className="text-white/40">Privacy</span>
+            <a href="https://aeri.fastdemo.workers.dev/api/health" className="text-white/40 transition hover:text-white">Status</a>
+          </div>
         </div>
       </footer>
     </div>
