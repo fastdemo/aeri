@@ -121,7 +121,7 @@ export function MyList() {
           {filtered.length === 0 && !loading && !error && (
             <div className="mt-8 rounded-lg border border-white/5 bg-white/[0.02] px-6 py-10 text-center">
               <p className="text-sm text-white/50">Nothing here yet.</p>
-              <p className="mt-1 text-xs text-white/40">Add titles from Browse or Search, or update status in the detail view.</p>
+              <p className="mt-1 text-xs text-white/40">Add titles from Anime or Search, or update status in the detail view.</p>
             </div>
           )}
         </>

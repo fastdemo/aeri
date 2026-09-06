@@ -107,7 +107,7 @@ function ensureMinRow(primary: Anime[], fallback: Anime[], min: number, used?: S
 
 export function Home() {
   const [selected, setSelected] = useState<Anime | null>(null)
-  const { isAuthenticated, isAniListAuthenticated, isMALAuthenticated, combinedList, loading, error, authExpired } = useTracking()
+  const { isAuthenticated, trackingProvider, combinedList, loading, error, authExpired } = useTracking()
   const location = useLocation()
 
   // Close modal on navigation (fixes navbar Home click while modal open)
@@ -123,9 +123,11 @@ export function Home() {
 
   const continueWatching: Anime[] = useMemo(() => {
     if (!isAuthenticated || !combinedList) return []
+    // Strict: only status=watching (works for both trackers — statuses are
+    // normalized at the provider boundary). No title cap: show everything.
     const filtered = combinedList
       .map((e, idx) => ({ e, idx }))
-      .filter(({ e }) => e.status === 'watching' || (e.progress > 0 && e.status !== 'completed'))
+      .filter(({ e }) => e.status === 'watching')
     if (!filtered.length) return []
 
     // Netflix-style: merge same franchise, keep only the later season the user is watching
@@ -173,11 +175,11 @@ export function Home() {
     }
 
     winners.sort((a, b) => a.sortIdx - b.sortIdx)
-    return winners.map((w) => w.anime).slice(0, 10)
+    return winners.map((w) => w.anime)
   }, [isAuthenticated, combinedList])
 
   const myList: Anime[] = useMemo(() => {
-    if (isAuthenticated && combinedList) return combinedList.map((e) => e.anime).slice(0, 12)
+    if (isAuthenticated && combinedList) return combinedList.map((e) => e.anime)
     return []
   }, [isAuthenticated, combinedList])
 
@@ -383,7 +385,7 @@ export function Home() {
     return ordered
   }, [trending, popular, airing, news, derived, becauseContext, becauseRecommendations, allPool])
 
-  const syncLabel = isAniListAuthenticated && isMALAuthenticated ? 'AniList • MAL' : isAniListAuthenticated ? 'AniList' : isMALAuthenticated ? 'MAL' : ''
+  const trackerName = trackingProvider === 'mal' ? 'MyAnimeList' : 'AniList'
 
   return (
     <div className="pb-10">
@@ -414,7 +416,7 @@ export function Home() {
           loading ? (
             <RowSkeleton title="Continue Watching" />
           ) : continueWatching.length > 0 ? (
-            <ContentRow title="Continue Watching" subtitle={`${continueWatching.length} titles${syncLabel ? ` • ${syncLabel}` : ''}`}>
+            <ContentRow title="Continue Watching" subtitle={`${continueWatching.length} titles • ${trackerName}`}>
               {continueWatching.map((a) => (
                 <AnimeCard key={a.identity.internalId} anime={a} variant="continue" onSelect={handleSelect} />
               ))}
@@ -451,7 +453,7 @@ export function Home() {
           loading ? (
             <RowSkeleton title="My List" />
           ) : myList.length ? (
-            <ContentRow title="My List" subtitle={`${myList.length} titles${syncLabel ? ` • ${syncLabel}` : ''}`}>
+            <ContentRow title="My List" subtitle={`${myList.length} titles • ${trackerName}`}>
               {myList.map((a) => (
                 <AnimeCard key={a.identity.internalId} anime={a} onSelect={handleSelect} />
               ))}

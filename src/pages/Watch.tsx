@@ -311,7 +311,7 @@ export function Watch() {
 
           {/* Loading: episode finding - pointer-events-none so navbar remains clickable even while loading */}
           {isLoadingVideo && (
-            <div className="pointer-events-none absolute inset-0 grid place-items-center bg-black/40 backdrop-blur-sm">
+            <div className="pointer-events-none absolute inset-0 grid place-items-center bg-black/40">
               <div className="text-center">
                 <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white" />
                 <p className="mt-3 text-sm font-medium text-white">
@@ -351,7 +351,7 @@ export function Watch() {
 
           {/* No-source placeholder (when no provider works) - outer pointer-events-none so navbar stays clickable, inner auto for buttons */}
           {showNoSource && !isLoadingVideo && (
-            <div className="pointer-events-none absolute inset-0 grid place-items-center bg-black/60 p-6 text-center backdrop-blur-[1px]">
+            <div className="pointer-events-none absolute inset-0 grid place-items-center bg-black/60 p-6 text-center">
               <div className="pointer-events-auto max-w-md">
                 <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-white text-black">
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">

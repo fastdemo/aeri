@@ -133,8 +133,11 @@ export function EpisodeList({ anime, seasonNumber, group }: { anime: Anime; seas
 
       <div className="overflow-hidden rounded-lg border border-white/10">
         {episodes.map((ep: any) => {
-          const isWatched = ep.number < progressEp || (progressEp > 0 && ep.displayNumber < getDisplayEpisodeNumber(anime, progressEp, effectiveGroup, effectiveSeasonNumber - 1))
-          const isCurrent = ep.number === progressEp || ep.displayNumber === getDisplayEpisodeNumber(anime, progressEp, effectiveGroup, effectiveSeasonNumber - 1)
+          const progressDisplay = progressEp > 0 ? getDisplayEpisodeNumber(anime, progressEp, effectiveGroup, effectiveSeasonNumber - 1) : 0
+          // progress = episodes watched: everything up to and including it is Watched
+          const isWatched = progressEp > 0 && (ep.number <= progressEp || ep.displayNumber <= progressDisplay)
+          // next-up highlight only (no progress bar — it read as an error state)
+          const isCurrent = ep.number === progressEp + 1 || ep.displayNumber === (progressEp > 0 ? progressDisplay + 1 : 1)
           const seasonKey = anime.identity.anilistId ? `anilist:${anime.identity.anilistId}` : anime.identity.internalId
           const thumb = ep.thumbnail || fallbackThumb
           const epLabel = `E${String(ep.displayNumber).padStart(2, '0')}`
@@ -183,7 +186,6 @@ export function EpisodeList({ anime, seasonNumber, group }: { anime: Anime; seas
                     </svg>
                   </span>
                 )}
-                {isCurrent && <span className="absolute bottom-0 left-0 h-0.5 w-full bg-[#e50914]" />}
               </div>
 
               <div className="min-w-0 flex-1">
