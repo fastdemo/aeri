@@ -37,8 +37,8 @@ export interface ProviderCapabilities {
 export interface VideoSourceProvider {
   id: string
   capabilities: ProviderCapabilities
-  getEpisodes(anilistId: number, signal?: AbortSignal): Promise<{ number: number; title?: string; thumbnail?: string }[]>
-  getSources(anilistId: number, episode: number, language: VideoLanguage, workerOrigin: string | null, signal?: AbortSignal): Promise<NormalizedSource[]>
+  getEpisodes(anilistId: number, signal?: AbortSignal, hint?: { title?: string }): Promise<{ number: number; title?: string; thumbnail?: string }[]>
+  getSources(anilistId: number, episode: number, language: VideoLanguage, workerOrigin: string | null, signal?: AbortSignal, hint?: { title?: string }): Promise<NormalizedSource[]>
 }
 
 // --- Helpers ---
@@ -364,10 +364,15 @@ export class AnikotoProvider implements VideoSourceProvider {
     } catch {}
     return null
   }
-  async getEpisodes(anilistId: number, signal?: AbortSignal): Promise<{ number: number; title?: string; thumbnail?: string }[]> {
+  async getEpisodes(anilistId: number, signal?: AbortSignal, hint?: { title?: string }): Promise<{ number: number; title?: string; thumbnail?: string }[]> {
     try {
-      const media = await fetchAnilistMedia(anilistId, signal)
-      const title = media?.title?.romaji || media?.title?.english || ''
+      // Prefer the caller-supplied title (browser-side AniList is reliable);
+      // fall back to a Worker-side AniList fetch (often IP-blocked).
+      let title = hint?.title?.trim() || ''
+      if (!title) {
+        const media = await fetchAnilistMedia(anilistId, signal)
+        title = media?.title?.romaji || media?.title?.english || ''
+      }
       const anikotoId = await this.resolveAnikotoId(anilistId, title, signal)
       if (!anikotoId) return []
       const series = await this.getSeries(anikotoId, signal)
@@ -376,10 +381,13 @@ export class AnikotoProvider implements VideoSourceProvider {
       return eps.map((e:any)=>({ number: e.number, title: e.title || e.jp_title || `Episode ${e.number}`, thumbnail: undefined }))
     } catch { return [] }
   }
-  async getSources(anilistId: number, episode: number, language: VideoLanguage, workerOrigin: string | null, signal?: AbortSignal): Promise<NormalizedSource[]> {
+  async getSources(anilistId: number, episode: number, language: VideoLanguage, workerOrigin: string | null, signal?: AbortSignal, hint?: { title?: string }): Promise<NormalizedSource[]> {
     try {
-      const media = await fetchAnilistMedia(anilistId, signal)
-      const title = media?.title?.romaji || media?.title?.english || ''
+      let title = hint?.title?.trim() || ''
+      if (!title) {
+        const media = await fetchAnilistMedia(anilistId, signal)
+        title = media?.title?.romaji || media?.title?.english || ''
+      }
       const anikotoId = await this.resolveAnikotoId(anilistId, title, signal)
       if (!anikotoId) return []
       const series = await this.getSeries(anikotoId, signal)

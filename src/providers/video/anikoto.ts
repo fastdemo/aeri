@@ -39,9 +39,10 @@ export class AniKotoProvider implements VideoProvider {
   async getEpisodes(anime: Anime, signal?: AbortSignal): Promise<VideoEpisode[]> {
     const base = this.base
     if (!base || !anime.identity.anilistId) return []
+    const titleHint = anime.title.romaji || anime.title.english || ''
     return cachedFetch(`video:anikoto:episodes:${anime.identity.anilistId}`, async () => {
       try {
-        const res = await fetchWithTimeout(`${base}/api/episodes/${anime.identity.anilistId}?provider=anikoto`, {}, 3500, signal)
+        const res = await fetchWithTimeout(`${base}/api/episodes/${anime.identity.anilistId}?provider=anikoto&title=${encodeURIComponent(titleHint)}`, {}, 3500, signal)
         if (!res.ok) return []
         const j: any = await res.json().catch(() => null)
         const list = j?.episodes ?? []

@@ -235,7 +235,11 @@ export default {
         const p = getProviderById(providerParam)
         if (p) {
           try {
-            const eps = await withTimeout(p.getEpisodes(anilistId, signal), 5000, signal)
+            // Browser already holds full anime metadata (AniList is CORS-open
+            // there); prefer a caller-supplied title for provider resolution
+            // since AniList often 403-blocks Worker egress IPs.
+            const titleHint = url.searchParams.get('title') || undefined
+            const eps = await withTimeout(p.getEpisodes(anilistId, signal, titleHint ? { title: titleHint } : undefined), 5000, signal)
             const episodes = eps.map(e => ({
               id: `${p.id}-${anilistId}-${e.number}`,
               number: e.number,
@@ -304,6 +308,7 @@ export default {
         }
         if (!['sub','dub'].includes(language)) return json({ error: 'Invalid language, use sub or dub' }, 400, env, origin)
         const signal = request.signal
+        const titleHint = url.searchParams.get('title') || undefined
         const tried: string[] = []
         const ordered: VideoSourceProvider[] = []
         const pushIfValid = (id: string | null) => {
@@ -319,7 +324,7 @@ export default {
           if (signal.aborted) break
           tried.push(provider.id)
           try {
-            const srcs = await withTimeout(provider.getSources(anilistId, episodeNum, language, workerOrigin, signal), 5000, signal)
+            const srcs = await withTimeout(provider.getSources(anilistId, episodeNum, language, workerOrigin, signal, titleHint ? { title: titleHint } : undefined), 5000, signal)
             if (srcs && srcs.length > 0) {
               const sorted = sortByLanguageAndQuality(srcs, language)
               const filtered = sorted.filter(s => s.language === language)
