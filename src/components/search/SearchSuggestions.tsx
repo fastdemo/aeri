@@ -80,7 +80,7 @@ export function SearchSuggestions({ query, onClose, onPreview }: Props) {
   if (query.trim().length < 2) return null
   if (loading) {
     return (
-      <div ref={containerRef} className="absolute left-0 right-0 top-[calc(100%+8px)] z-[70] overflow-hidden rounded-xl border border-white/10 bg-[#141416]/95 p-2 backdrop-blur-xl shadow-[0_16px_48px_rgba(0,0,0,0.6)]">
+      <div ref={containerRef} className="absolute left-0 right-0 top-[calc(100%+8px)] z-[70] overflow-hidden rounded-xl border border-white/10 bg-black/70 p-2 backdrop-blur-2xl shadow-[0_16px_48px_rgba(0,0,0,0.6)]">
         <div className="space-y-2">
           {[0,1,2].map(i => (
             <div key={i} className="flex items-center gap-3 px-2 py-2">
@@ -98,7 +98,7 @@ export function SearchSuggestions({ query, onClose, onPreview }: Props) {
   if (!results) return null
   if (results.length === 0) {
     return (
-      <div ref={containerRef} className="absolute left-0 right-0 top-[calc(100%+8px)] z-[70] rounded-xl border border-white/10 bg-[#141416]/95 p-4 text-center backdrop-blur-xl shadow-[0_16px_48px_rgba(0,0,0,0.6)]">
+      <div ref={containerRef} className="absolute left-0 right-0 top-[calc(100%+8px)] z-[70] rounded-xl border border-white/10 bg-black/70 p-4 text-center backdrop-blur-2xl shadow-[0_16px_48px_rgba(0,0,0,0.6)]">
         <p className="text-xs text-white/60">No titles for “{query.trim()}”</p>
       </div>
     )
@@ -108,7 +108,7 @@ export function SearchSuggestions({ query, onClose, onPreview }: Props) {
     <div
       ref={containerRef}
       role="listbox"
-      className="absolute left-0 right-0 top-[calc(100%+8px)] z-[70] max-h-[min(68vh,420px)] overflow-x-hidden overflow-y-auto rounded-xl border border-white/10 bg-[#141416]/95 backdrop-blur-xl shadow-[0_16px_48px_rgba(0,0,0,0.6)]"
+      className="absolute left-0 right-0 top-[calc(100%+8px)] z-[70] max-h-[min(68vh,420px)] overflow-x-hidden overflow-y-auto rounded-xl border border-white/10 bg-black/70 backdrop-blur-2xl shadow-[0_16px_48px_rgba(0,0,0,0.6)]"
     >
       {results.map((anime, idx) => {
         const titles = getTitleHierarchy(anime, null)

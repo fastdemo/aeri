@@ -48,12 +48,12 @@ function QuickMenu({ anime }: { anime: Anime }) {
           e.preventDefault()
           setOpen((v) => !v)
         }}
-        className="absolute right-1.5 top-1.5 z-20 grid h-7 w-7 place-items-center rounded-full bg-black/60 text-white backdrop-blur transition hover:bg-black/85 focus-visible:opacity-100 md:opacity-0 md:group-hover/card:opacity-100 md:focus-within:opacity-100"
+        className="absolute right-1 top-1 z-20 grid h-5 w-5 place-items-center text-white/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] transition hover:text-white focus-visible:opacity-100 md:opacity-0 md:group-hover/card:opacity-100 md:focus-within:opacity-100"
       >
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-          <circle cx="12" cy="5" r="1.8" />
-          <circle cx="12" cy="12" r="1.8" />
-          <circle cx="12" cy="19" r="1.8" />
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+          <circle cx="12" cy="5" r="2" />
+          <circle cx="12" cy="12" r="2" />
+          <circle cx="12" cy="19" r="2" />
         </svg>
       </button>
       {open && (
@@ -72,7 +72,7 @@ function QuickMenu({ anime }: { anime: Anime }) {
           <div
             role="menu"
             aria-label={`Actions for ${getPrimaryTitle(anime)}`}
-            className="anim-pop-in absolute right-1.5 top-9 z-30 w-52 overflow-hidden rounded-lg border border-white/10 bg-[#1c1c1e] shadow-xl"
+            className="anim-pop-in absolute right-1 top-7 z-30 w-44 overflow-hidden rounded-lg border border-white/10 bg-[#1c1c1e] py-1 shadow-xl"
             onClick={(e) => {
               e.stopPropagation()
               e.preventDefault()
@@ -86,7 +86,7 @@ function QuickMenu({ anime }: { anime: Anime }) {
                 else if (current > 0) await updateProgress(anime, current)
                 await updateStatus(anime, 'completed')
               })}
-              className="flex w-full items-center px-3 py-2 text-xs text-white/80 hover:bg-white/10 hover:text-white"
+              className="flex w-full items-center px-2.5 py-1.5 text-left text-[11px] text-white/80 hover:bg-white/10 hover:text-white"
             >
               Mark as watched
             </button>
@@ -94,7 +94,7 @@ function QuickMenu({ anime }: { anime: Anime }) {
               type="button"
               role="menuitem"
               onClick={() => run(async () => updateStatus(anime, 'on_hold'))}
-              className="flex w-full items-center px-3 py-2 text-xs text-white/80 hover:bg-white/10 hover:text-white"
+              className="flex w-full items-center px-2.5 py-1.5 text-left text-[11px] text-white/80 hover:bg-white/10 hover:text-white"
             >
               Remove from Continue Watching
             </button>
@@ -153,10 +153,10 @@ export function AnimeCard({
         {/* subtle inner gradient for text legibility if needed */}
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent opacity-60 group-hover:opacity-70 transition-opacity" />
 
-        {/* Hover play affordance */}
+        {/* Hover play affordance — small, quiet */}
         <div className="absolute inset-0 grid place-items-center opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
-          <div className="grid h-9 w-9 place-items-center rounded-full bg-white/90 text-black shadow-lg transition-transform duration-200 group-hover:scale-105">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
+          <div className="grid h-6 w-6 place-items-center rounded-full bg-black/55 text-white shadow-[0_2px_10px_rgba(0,0,0,0.5)] backdrop-blur transition-transform duration-200 group-hover:scale-110">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
               <path d="M8 5.14v13.72L19 12z" />
             </svg>
           </div>
@@ -170,10 +170,10 @@ export function AnimeCard({
           <p className="text-[10px] text-white/70">{anime.year} · {formatLabel(anime.format) ?? anime.format}</p>
         </div>
 
-        {/* Progress bar — flush with the thumbnail's bottom edge */}
+        {/* Progress bar — thin, flush with the thumbnail's bottom edge, soft glow */}
         {variant === 'continue' && anime.progress && (
-          <div className="absolute inset-x-0 bottom-0 h-[5px] bg-[#333333]" aria-hidden>
-            <div className="h-full bg-white transition-[width] duration-300" style={{ width: `${Math.min(100, Math.max(0, anime.progress.percent))}%` }} />
+          <div className="absolute inset-x-0 bottom-0 h-[3px] bg-[#333333]" aria-hidden>
+            <div className="h-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.7)] transition-[width] duration-300" style={{ width: `${Math.min(100, Math.max(0, anime.progress.percent))}%` }} />
           </div>
         )}
       </div>

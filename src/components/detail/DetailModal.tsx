@@ -41,9 +41,9 @@ export function DetailModal({
   const baseAnime = entry?.anime ?? anime
 
   // Series grouping — abortable, selectedSeason === displayAnime invariant
-  // Delay preview until grouping finishes so season is correct on first paint
+  // The panel renders immediately (single entrance animation); season-dependent
+  // bits fill in when grouping resolves instead of swapping whole panels.
   const [seriesGroup, setSeriesGroup] = useState<AnimeSeriesGroup | null>(null)
-  const [groupLoading, setGroupLoading] = useState(false)
   const [selectedSeasonIdx, setSelectedSeasonIdx] = useState(0)
   const requestIdRef = useRef(0)
   const seriesGroupRef = useRef<AnimeSeriesGroup | null>(null)
@@ -55,10 +55,8 @@ export function DetailModal({
     if (!baseAnime.identity.anilistId) {
       setSeriesGroup(null)
       setSelectedSeasonIdx(0)
-      setGroupLoading(false)
       return
     }
-    setGroupLoading(true)
     const currentId = baseAnime.identity.anilistId
     const curGroup = seriesGroupRef.current
     if (curGroup) {
@@ -86,9 +84,6 @@ export function DetailModal({
         if (reqId !== requestIdRef.current) return
         setSeriesGroup(null)
         setSelectedSeasonIdx(0)
-      })
-      .finally(() => {
-        if (reqId === requestIdRef.current) setGroupLoading(false)
       })
     return () => controller.abort()
   }, [baseAnime.identity.anilistId])
@@ -159,21 +154,6 @@ export function DetailModal({
 
   const metaParts = [formatLabel(displayAnime.format), displayAnime.year ? String(displayAnime.year) : null, displayAnime.season ? displayAnime.season.charAt(0) + displayAnime.season.slice(1).toLowerCase() : null, !isMovie && displayAnime.episodes ? `${displayAnime.episodes} Episodes` : null, statusLabel(displayAnime.status)].filter(Boolean).join(' · ')
 
-  if (groupLoading) {
-    return (
-      <div className="fixed inset-x-0 bottom-0 top-14 z-40 flex items-start justify-center overflow-y-auto bg-black/75 p-2 backdrop-blur-[2px] sm:p-6 lg:p-8">
-        <div className="relative my-2 w-full max-w-[980px] rounded-xl bg-[#0e0e10] p-6">
-          <div className="animate-pulse space-y-4">
-            <div className="h-[360px] w-full rounded bg-white/5 sm:h-[420px]" />
-            <div className="h-6 w-1/3 rounded bg-white/5" />
-            <div className="h-4 w-full rounded bg-white/5" />
-            <div className="h-4 w-2/3 rounded bg-white/5" />
-          </div>
-        </div>
-      </div>
-    )
-  }
-
   return (
     <div className="fixed inset-x-0 bottom-0 top-14 z-40 flex items-start justify-center overflow-y-auto bg-black/75 p-2 backdrop-blur-[2px] anim-fade-in sm:p-6 lg:p-8">
       <button aria-label="Close" onClick={onClose} className="fixed inset-0 top-14 cursor-default" tabIndex={-1} />
@@ -205,7 +185,7 @@ export function DetailModal({
                 'linear-gradient(0deg, #0e0e10 6%, rgba(14,14,16,0.85) 18%, rgba(14,14,16,0.35) 42%, transparent 68%)',
             }}
           />
-          <div aria-hidden className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/70 to-transparent" />
+          <div aria-hidden className="absolute inset-x-0 top-0 h-28" style={{ background: 'linear-gradient(to bottom right, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.28) 38%, transparent 62%)' }} />
           <div className="absolute left-6 top-6 hidden max-w-[520px] sm:block">
             <h2 className="text-[28px] font-semibold leading-none tracking-tighter text-white drop-shadow">
               {titles.primary}
@@ -216,8 +196,8 @@ export function DetailModal({
 
           <div className="absolute bottom-0 left-0 right-0 flex flex-wrap items-center gap-2 px-4 pb-4 sm:px-6">
             {displayAnime.progress && (
-              <div className="absolute bottom-0 left-0 right-0 h-1 bg-white/10">
-                <div className="h-full bg-[#e50914]" style={{ width: `${displayAnime.progress.percent}%` }} />
+              <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-white/15">
+                <div className="h-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.7)]" style={{ width: `${displayAnime.progress.percent}%` }} />
               </div>
             )}
 

@@ -19,7 +19,7 @@ const tabs: { id: AnimeStatus | 'all'; label: string }[] = [
 export function MyList() {
   const [tab, setTab] = useState<AnimeStatus | 'all'>('all')
   const [selected, setSelected] = useState<Anime | null>(null)
-  const { isAuthenticated, isAniListAuthenticated, isMALAuthenticated, trackingProvider, combinedList, loading, error, authExpired } = useTracking()
+  const { isAuthenticated, trackingProvider, combinedList, loading, error, authExpired } = useTracking()
   const location = useLocation()
   useEffect(() => { setSelected(null) }, [location.pathname, location.hash, location.search])
   const ani = useAniList()
@@ -60,11 +60,11 @@ export function MyList() {
         </div>
       )}
 
-      {isAuthenticated && (isAniListAuthenticated || isMALAuthenticated) && (
+      {isAuthenticated && trackingProvider && (
         <div className="mt-4 flex items-center gap-2 text-xs">
           <span className="text-white/40">Connected:</span>
-          {isAniListAuthenticated && ani.user && <span className="rounded-full bg-white/10 px-2.5 py-1 text-white/70">{ani.user.name} • AniList</span>}
-          {isMALAuthenticated && mal.user && <span className="rounded-full bg-white/10 px-2.5 py-1 text-white/70">{mal.user.name} • MAL</span>}
+          {trackingProvider === 'anilist' && ani.user && <span className="rounded-full bg-white/10 px-2.5 py-1 text-white/70">{ani.user.name} • AniList</span>}
+          {trackingProvider === 'mal' && mal.user && <span className="rounded-full bg-white/10 px-2.5 py-1 text-white/70">{mal.user.name} • MAL</span>}
           <Link to="/settings" className="ml-auto text-xs text-white/50 underline hover:text-white/80">Manage in Settings</Link>
         </div>
       )}
