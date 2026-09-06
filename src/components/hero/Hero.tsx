@@ -2,10 +2,11 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { Anime } from '../../types/anime'
 import { getTitleHierarchy } from '../../lib/titles'
+import { formatLabel } from '../../lib/mediaLabels'
 
 export function Hero({ anime, onMoreInfo }: { anime: Anime; onMoreInfo?: () => void }) {
   const titles = getTitleHierarchy(anime, null)
-  const metaParts = [anime.format ?? 'TV', anime.year, anime.episodes ? `${anime.episodes} Episodes` : null].filter(Boolean).join(' · ')
+  const metaParts = [formatLabel(anime.format) ?? 'TV', anime.year, anime.episodes ? `${anime.episodes} Episodes` : null].filter(Boolean).join(' · ')
 
   return (
     <section className="relative overflow-hidden rounded-xl bg-[var(--surface)] sm:rounded-[14px]">

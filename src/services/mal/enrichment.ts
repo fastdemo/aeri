@@ -22,10 +22,22 @@ export async function enrichMalEntriesWithAnilist(
     .filter(({ e }) => (e.anime.identity.malId ?? null) !== null && e.anime.identity.anilistId == null)
   if (!pending.length) return out
 
+  // In-progress / currently-watching entries drive Continue Watching and open
+  // modals — enrich them first so the visible UI turns AniList-backed fast.
+  // Everything runs under AniList's ~90 req/min limit: a fast bounded burst
+  // for the priority set, then a paced drip for the long tail. 429s still fall
+  // back per entry (retried on a later visit via cache miss).
+  const isPriority = ({ e }: { e: AnimeListEntry }) =>
+    e.status === 'watching' || e.progress > 0
+  const priority = pending.filter(isPriority).slice(0, 40)
+  const priorityIdx = new Set(priority.map((p) => p.i))
+  const tail = pending.filter((p) => !priorityIdx.has(p.i))
+
   let done = 0
   const flush = () => {
     try { opts?.onBatch?.([...out]) } catch {}
   }
+  const delay = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
   async function enrichOne(index: number, entry: AnimeListEntry): Promise<void> {
     const malId = entry.anime.identity.malId
@@ -59,15 +71,24 @@ export async function enrichMalEntriesWithAnilist(
 
   // Bounded pool over pending entries, in list order
   let cursor = 0
-  const workers = Array.from({ length: Math.min(concurrency, pending.length) }, async () => {
-    while (cursor < pending.length) {
+  const queue = priority
+  const workers = Array.from({ length: Math.min(concurrency, queue.length) }, async () => {
+    while (cursor < queue.length) {
       if (signal?.aborted) return
-      const item = pending[cursor]
+      const item = queue[cursor]
       cursor += 1
       if (!item) return
       await enrichOne(item.i, item.e)
     }
   })
   await Promise.all(workers)
+  // Long tail: paced sequential drip (~80 req/min max) so big lists converge
+  // across the session without tripping the rate limit.
+  for (const item of tail) {
+    if (signal?.aborted) return out
+    await enrichOne(item.i, item.e)
+    if (signal?.aborted) return out
+    await delay(750)
+  }
   return out
 }

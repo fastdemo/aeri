@@ -3,6 +3,7 @@ import { useAniList } from '../../contexts/AniListContext'
 import { useMAL } from '../../contexts/MALContext'
 import { useTracking } from '../../contexts/TrackingContext'
 import { TrackerPicker } from './TrackerPicker'
+import { ProviderIcon } from './ProviderIcon'
 
 // Sign-in entry point: offer both providers; either or both may connect, but
 // exactly one is the active tracker (switchable here and in Settings).
@@ -45,11 +46,7 @@ export function SignInModal({ onClose }: { onClose: () => void }) {
 
         <div className="mt-4 space-y-2">
           <div className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2.5">
-            {ani.isAuthenticated && ani.user?.avatar?.large ? (
-              <img src={ani.user.avatar.large} alt="" className="h-7 w-7 rounded-full bg-white/10 object-cover" loading="lazy" />
-            ) : (
-              <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white/10 text-[10px] font-bold text-white">A</div>
-            )}
+            <ProviderIcon provider="anilist" />
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium text-white">AniList</p>
               <p className="truncate text-[11px] text-white/50">
@@ -59,17 +56,13 @@ export function SignInModal({ onClose }: { onClose: () => void }) {
             {ani.isAuthenticated ? (
               <button onClick={() => ani.logout()} className="shrink-0 rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/15">Disconnect</button>
             ) : (
-              <button onClick={() => ani.login()} className="shrink-0 rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-black hover:bg-white/90">Sign in</button>
+              <button onClick={() => ani.login()} className="shrink-0 rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-black hover:bg-white/90">Connect</button>
             )}
           </div>
           {ani.error && !ani.isAuthenticated && <p className="text-xs text-amber-200/70">{ani.error}</p>}
 
           <div className="flex items-center gap-3 rounded-lg border border-white/10 bg-white/[0.02] px-3 py-2.5">
-            {mal.isAuthenticated && mal.user?.avatar?.large ? (
-              <img src={mal.user.avatar.large} alt="" className="h-7 w-7 rounded-full bg-white/10 object-cover" loading="lazy" />
-            ) : (
-              <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#2e51a2] text-[10px] font-bold text-white">M</div>
-            )}
+            <ProviderIcon provider="mal" />
             <div className="min-w-0 flex-1">
               <p className="text-xs font-medium text-white">MyAnimeList</p>
               <p className="truncate text-[11px] text-white/50">
@@ -79,7 +72,7 @@ export function SignInModal({ onClose }: { onClose: () => void }) {
             {mal.isAuthenticated ? (
               <button onClick={() => mal.logout()} className="shrink-0 rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/15">Disconnect</button>
             ) : (
-              <button onClick={() => mal.login().catch(() => {})} className="shrink-0 rounded-full bg-white/10 px-4 py-1.5 text-xs font-medium text-white hover:bg-white/15">Connect</button>
+              <button onClick={() => mal.login().catch(() => {})} className="shrink-0 rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-black hover:bg-white/90">Connect</button>
             )}
           </div>
           {mal.error && <p className="text-xs text-amber-200/70">{mal.error}</p>}

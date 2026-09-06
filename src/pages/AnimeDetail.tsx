@@ -6,6 +6,7 @@ import { useAnimeDetail } from '../hooks/useAnimeMetadata'
 import { getSeriesGroup, type AnimeSeriesGroup } from '../services/anilist/series'
 import { getTitleHierarchy } from '../lib/titles'
 import { sanitizeAnimeForDisplay, sanitizeGroup } from '../lib/episodes'
+import { formatLabel, statusLabel } from '../lib/mediaLabels'
 
 export function AnimeDetail() {
   const { id } = useParams<{ id: string }>()
@@ -159,7 +160,7 @@ export function AnimeDetail() {
               <p className="text-xs text-white/50">{titles.romaji}</p>
             )}
             <p className="mt-1 text-sm text-white/60">
-              {[displayAnime.year, displayAnime.format, !isMovie && displayAnime.episodes ? `${displayAnime.episodes} episodes` : null].filter(Boolean).join(' · ')}
+              {[displayAnime.year, formatLabel(displayAnime.format), !isMovie && displayAnime.episodes ? `${displayAnime.episodes} episodes` : null].filter(Boolean).join(' · ')}
               {displayAnime.rating ? ` · ${displayAnime.rating.toFixed(1)}` : ''}
             </p>
             <div className="mt-3 flex gap-2">
@@ -211,8 +212,8 @@ export function AnimeDetail() {
           <div className="space-y-3 text-xs leading-5">
             <div><span className="text-white/50">Genres: </span><span className="text-white/80">{displayAnime.genres.join(', ') || '—'}</span></div>
             <div><span className="text-white/50">Studios: </span><span className="text-white/80">{displayAnime.studios?.join(', ') || '—'}</span></div>
-            <div><span className="text-white/50">Status: </span><span className="text-white/80">{displayAnime.status ?? '—'}</span></div>
-            <div><span className="text-white/50">Format: </span><span className="text-white/80">{displayAnime.format ?? '—'}</span></div>
+            <div><span className="text-white/50">Status: </span><span className="text-white/80">{statusLabel(displayAnime.status) ?? '—'}</span></div>
+            <div><span className="text-white/50">Format: </span><span className="text-white/80">{formatLabel(displayAnime.format) ?? '—'}</span></div>
             {displayAnime.identity.malId && <div><span className="text-white/50">MAL ID: </span><span className="text-white/80">{displayAnime.identity.malId}</span></div>}
             {loading && <p className="text-white/40">Loading metadata…</p>}
             {error && <p className="text-amber-200/70">{error}</p>}

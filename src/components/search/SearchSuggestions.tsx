@@ -4,6 +4,7 @@ import { anilistMetadataProvider } from '../../providers/metadata/anilistMetadat
 import type { Anime } from '../../types/anime'
 import { deduplicateBySeries } from '../../services/anilist/series'
 import { getTitleHierarchy } from '../../lib/titles'
+import { formatLabel } from '../../lib/mediaLabels'
 
 type Props = {
   query: string
@@ -134,7 +135,7 @@ export function SearchSuggestions({ query, onClose, onPreview }: Props) {
             {titles.romaji && (
               <p className="truncate text-[11px] text-white/40">{titles.romaji}</p>
             )}
-            <p className="text-[11px] text-white/50">{[anime.format, anime.year ? String(anime.year) : null].filter(Boolean).join(' · ')}</p>
+            <p className="text-[11px] text-white/50">{[formatLabel(anime.format) ?? anime.format, anime.year ? String(anime.year) : null].filter(Boolean).join(' · ')}</p>
           </div>
         </button>
       )})}

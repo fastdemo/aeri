@@ -6,6 +6,7 @@ import { useTracking } from '../../contexts/TrackingContext'
 import { getSeriesGroup, type AnimeSeriesGroup } from '../../services/anilist/series'
 import { getTitleHierarchy } from '../../lib/titles'
 import { sanitizeAnimeForDisplay, sanitizeGroup, getDisplayEpisodeNumber } from '../../lib/episodes'
+import { formatLabel, statusLabel } from '../../lib/mediaLabels'
 
 export function DetailModal({
   anime,
@@ -156,7 +157,7 @@ export function DetailModal({
     }
   }, [])
 
-  const metaParts = [displayAnime.format, displayAnime.year ? String(displayAnime.year) : null, displayAnime.season ? displayAnime.season.charAt(0) + displayAnime.season.slice(1).toLowerCase() : null, !isMovie && displayAnime.episodes ? `${displayAnime.episodes} Episodes` : null, displayAnime.status ? displayAnime.status.charAt(0) + displayAnime.status.slice(1).toLowerCase() : null].filter(Boolean).join(' · ')
+  const metaParts = [formatLabel(displayAnime.format), displayAnime.year ? String(displayAnime.year) : null, displayAnime.season ? displayAnime.season.charAt(0) + displayAnime.season.slice(1).toLowerCase() : null, !isMovie && displayAnime.episodes ? `${displayAnime.episodes} Episodes` : null, statusLabel(displayAnime.status)].filter(Boolean).join(' · ')
 
   if (groupLoading) {
     return (
@@ -230,7 +231,7 @@ export function DetailModal({
             </Link>
             {displayAnime.progress && (
               <span className="text-xs text-white/70">
-                {displayAnime.progress.episode} of {displayAnime.episodes ?? '?'} • {displayAnime.progress.percent}% watched
+                {displayAnime.progress.episode}{displayAnime.episodes && displayAnime.episodes > 0 ? ` of ${displayAnime.episodes}` : ''} • {displayAnime.progress.percent}% watched
               </span>
             )}
 
@@ -469,16 +470,16 @@ export function DetailModal({
                 <span className="text-white/80">{displayAnime.studios.join(', ')}</span>
               </div>
             )}
-            {displayAnime.format && (
+            {formatLabel(displayAnime.format) && (
               <div className="text-xs leading-5">
                 <span className="text-white/50">Format: </span>
-                <span className="text-white/80">{displayAnime.format}</span>
+                <span className="text-white/80">{formatLabel(displayAnime.format)}</span>
               </div>
             )}
-            {displayAnime.status && (
+            {statusLabel(displayAnime.status) && (
               <div className="text-xs leading-5">
                 <span className="text-white/50">Status: </span>
-                <span className="text-white/80">{displayAnime.status}</span>
+                <span className="text-white/80">{statusLabel(displayAnime.status)}</span>
               </div>
             )}
             {displayAnime.year && (

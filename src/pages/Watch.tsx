@@ -9,6 +9,7 @@ import { getWatchPos, putWatchPos, clearWatchPos } from '../storage/db'
 import { getPreferences } from '../storage/preferences'
 import { getTitleHierarchy } from '../lib/titles'
 import { normalizeEpisodes, sanitizeAnimeForDisplay, sanitizeGroup, getDisplayEpisodeNumber, getLocalEpisodeNumber, getNumberingOffsetAndMode, getSmartSeasonNumber } from '../lib/episodes'
+import { formatLabel } from '../lib/mediaLabels'
 import { getSeriesGroup, type AnimeSeriesGroup } from '../services/anilist/series'
 
 export function Watch() {
@@ -459,7 +460,7 @@ export function Watch() {
               {titles.native && <p className="text-xs text-white/55">{titles.native}</p>}
               {titles.romaji && <p className="text-xs text-white/45">{titles.romaji}</p>}
               <p className="mt-1 text-xs text-white/60">
-                {anime.year ? String(anime.year) : '—'} • {anime.format ?? '—'} • {anime.duration ? `${anime.duration}m` : '—'}
+                {anime.year ? String(anime.year) : '—'} • {formatLabel(anime.format) ?? anime.format ?? '—'} • {anime.duration ? `${anime.duration}m` : '—'}
                 {providerId && providerId !== 'mock' ? ` • ${providerId}` : ''}
               </p>
             </div>

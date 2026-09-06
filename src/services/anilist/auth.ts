@@ -24,8 +24,12 @@ function randomString(length: number): string {
   return result
 }
 
-async function fetchAnilistTokenWithFallback(body: URLSearchParams): Promise<Response> {
+async function fetchAnilistTokenWithFallback(body: URLSearchParams): Promise<{ res: Response; preferredUnreachable: boolean; preferredHost: string | null }> {
   const workerBase = getAnilistWorkerBase()
+  const preferredHost = (() => {
+    if (!workerBase) return null
+    try { return new URL(workerBase).host } catch { return workerBase }
+  })()
   const urls: string[] = []
   if (workerBase) {
     urls.push(`${workerBase}/api/anilist/token`)
@@ -37,7 +41,9 @@ async function fetchAnilistTokenWithFallback(body: URLSearchParams): Promise<Res
   urls.push(`/anilist/token`)
   // Do NOT fallback to direct https://anilist.co/api/v2/oauth/token — that would require client_secret in browser
   let lastError: any = null
-  for (const url of urls) {
+  let preferredUnreachable = false
+  for (let i = 0; i < urls.length; i++) {
+    const url = urls[i]
     try {
       const ctrl = new AbortController()
       const tid = setTimeout(() => ctrl.abort(), 8000)
@@ -51,13 +57,17 @@ async function fetchAnilistTokenWithFallback(body: URLSearchParams): Promise<Res
           body: body.toString(),
           signal: ctrl.signal,
         })
-        return res
+        return { res, preferredUnreachable, preferredHost }
       } finally { clearTimeout(tid) }
     } catch (e) {
       lastError = e
       const msg = e instanceof Error ? e.message : String(e)
       const isCors = /Failed to fetch|NetworkError|Load failed|CORS/i.test(msg)
       const isAbort = (e as any)?.name === 'AbortError'
+      // A network failure on the preferred (absolute, non-Cloudflare) login
+      // server usually means the browser/ad-blocker blocked it — remember so
+      // the final error can say so instead of blaming AniList.
+      if (i === 0 && preferredHost && /^https?:\/\//.test(url)) preferredUnreachable = true
       if (isCors && !isAbort) continue
       if (isAbort) throw new Error('AniList token request timed out after 8s')
       throw e
@@ -98,8 +108,13 @@ export async function exchangeAnilistCodeForToken(code: string, state: string | 
   // Do not set it in the browser.
 
   let res: Response
+  let preferredUnreachable = false
+  let preferredHost: string | null = null
   try {
-    res = await fetchAnilistTokenWithFallback(body)
+    const out = await fetchAnilistTokenWithFallback(body)
+    res = out.res
+    preferredUnreachable = out.preferredUnreachable
+    preferredHost = out.preferredHost
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     if (/Failed to fetch|NetworkError|Load failed|CORS/i.test(msg)) {
@@ -112,6 +127,12 @@ export async function exchangeAnilistCodeForToken(code: string, state: string | 
   if (!res.ok || json?.error) {
     const msg = json?.error_description || json?.error || json?.message || res.statusText
     if (json?.error === 'ANILIST_IP_BLOCKED' || /manually blocked/i.test(String(msg))) {
+      // The fallback server is blocked AND/OR the preferred login server was
+      // unreachable from this browser (ad-blocker/Brave Shields commonly block
+      // the auth host). Say which, so the user can act on it.
+      if (preferredUnreachable && preferredHost) {
+        throw new Error(`Couldn't reach the AniList login server (${preferredHost}) — your browser, ad-blocker, or Brave Shields may be blocking it. Allow it and try again; browsing still works meanwhile.`)
+      }
       throw new Error('AniList login is temporarily unavailable — browsing still works. Please try again later.')
     }
     if (/invalid_grant|invalid_code|code.*expired/i.test(String(msg))) {

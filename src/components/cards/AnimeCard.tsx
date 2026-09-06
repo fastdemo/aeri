@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import type { Anime } from '../../types/anime'
 import { getPrimaryTitle } from '../../lib/titles'
 import { getSmartSeasonNumber, getDisplayEpisodeNumber } from '../../lib/episodes'
+import { formatLabel } from '../../lib/mediaLabels'
 
 type Variant = 'default' | 'continue' | 'compact'
 
@@ -58,7 +59,7 @@ export function AnimeCard({
           <p className="line-clamp-1 text-[11px] font-medium leading-tight text-white">
             {primaryTitle}
           </p>
-          <p className="text-[10px] text-white/70">{anime.year} · {anime.format}</p>
+          <p className="text-[10px] text-white/70">{anime.year} · {formatLabel(anime.format) ?? anime.format}</p>
         </div>
       </div>
 
