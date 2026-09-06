@@ -12,8 +12,8 @@ export class AniKotoProvider implements VideoProvider {
     displayName: 'AniKoto',
     languages: ['sub', 'dub'],
     subtitles: true,
-    embed: true,
-    directVideo: false,
+    embed: false,
+    directVideo: true,
     search: true,
     episodes: true,
     sources: true,
@@ -74,26 +74,26 @@ export class AniKotoProvider implements VideoProvider {
       if (m2) anilistId = m2[1]
     }
     if (!anilistId) return []
-    return cachedFetch(`video:anikoto:sources:${episode.providerEpisodeId}:${lang}`, async () => {
-      try {
-        const url = `${base}/api/sources/anikoto-${anilistId}-${episode.number}?language=${lang}&provider=anikoto`
-        const res = await fetchWithTimeout(url, {}, 4000, options?.signal)
-        if (!res.ok) return []
-        const j: any = await res.json().catch(() => null)
-        const srcs = j?.sources ?? []
-        if (!Array.isArray(srcs)) return []
-        return srcs.map((s: any) => ({
-          url: s.url,
-          type: s.type ?? (s.url?.includes('.m3u8') ? 'hls' : s.embed ? 'embed' : 'mp4'),
-          quality: s.quality ?? 'auto',
-          provider: 'anikoto',
-          language: (s.language ?? lang) as any,
-          embed: !!s.embed,
-          subtitles: s.subtitles,
-          headers: s.headers,
-        })) as VideoSourceEnhanced[]
-      } catch { return [] }
-    })
+    // Signed source URLs expire — never serve these from cache. Episodes
+    // (stable) stay cached; sources always resolve fresh.
+    try {
+      const url = `${base}/api/sources/anikoto-${anilistId}-${episode.number}?language=${lang}&provider=anikoto`
+      const res = await fetchWithTimeout(url, {}, 4000, options?.signal)
+      if (!res.ok) return []
+      const j: any = await res.json().catch(() => null)
+      const srcs = j?.sources ?? []
+      if (!Array.isArray(srcs)) return []
+      return srcs.map((s: any) => ({
+        url: s.url,
+        type: s.type ?? (s.url?.includes('.m3u8') ? 'hls' : s.embed ? 'embed' : 'mp4'),
+        quality: s.quality ?? 'auto',
+        provider: 'anikoto',
+        language: (s.language ?? lang) as any,
+        embed: !!s.embed,
+        subtitles: s.subtitles,
+        headers: s.headers,
+      })) as VideoSourceEnhanced[]
+    } catch { return [] }
   }
 }
 

@@ -320,8 +320,12 @@ export class AnimePaheProvider implements VideoSourceProvider {
 }
 export class AnikotoProvider implements VideoSourceProvider {
   id = 'anikoto'
-  capabilities: ProviderCapabilities = { id: 'anikoto', displayName: 'AniKoto', languages: ['sub','dub'], subtitles: true, hls: false, mp4: false, embed: true, search: true, episodes: true, sources: true }
+  capabilities: ProviderCapabilities = { id: 'anikoto', displayName: 'AniKoto', languages: ['sub','dub'], subtitles: true, hls: true, mp4: false, embed: false, search: true, episodes: true, sources: true }
   private cache = new Map<string, {id:number, ani_id:string}>()
+  // Series payloads cached in worker memory so the per-episode source call
+  // only needs the cheap getSourcesNew hop (signed URLs are never cached —
+  // neither here nor by edge cache headers on this route).
+  private seriesCache = new Map<number, { at: number; data: any }>()
   private async resolveAnikotoId(anilistId: number, title: string, signal?: AbortSignal): Promise<number|null> {
     const key = String(anilistId)
     if (this.cache.has(key)) return this.cache.get(key)!.id
@@ -355,31 +359,85 @@ export class AnikotoProvider implements VideoSourceProvider {
       const title = media?.title?.romaji || media?.title?.english || ''
       const anikotoId = await this.resolveAnikotoId(anilistId, title, signal)
       if (!anikotoId) return []
-      const res = await fetchWithTimeout(`https://www.anikotoapi.site/series/${anikotoId}`, {}, 4000, signal)
-      if (!res.ok) return []
-      const j:any = await res.json().catch(()=>null)
-      const eps = j?.data?.episodes
+      const series = await this.getSeries(anikotoId, signal)
+      const eps = series?.episodes
       if (!Array.isArray(eps)) return []
       return eps.map((e:any)=>({ number: e.number, title: e.title || e.jp_title || `Episode ${e.number}`, thumbnail: undefined }))
     } catch { return [] }
   }
-  async getSources(anilistId: number, episode: number, language: VideoLanguage, _workerOrigin: string | null, signal?: AbortSignal): Promise<NormalizedSource[]> {
+  async getSources(anilistId: number, episode: number, language: VideoLanguage, workerOrigin: string | null, signal?: AbortSignal): Promise<NormalizedSource[]> {
     try {
       const media = await fetchAnilistMedia(anilistId, signal)
       const title = media?.title?.romaji || media?.title?.english || ''
       const anikotoId = await this.resolveAnikotoId(anilistId, title, signal)
       if (!anikotoId) return []
-      const res = await fetchWithTimeout(`https://www.anikotoapi.site/series/${anikotoId}`, {}, 4000, signal)
-      if (!res.ok) return []
-      const j:any = await res.json().catch(()=>null)
-      const eps = j?.data?.episodes
+      const series = await this.getSeries(anikotoId, signal)
+      const eps = series?.episodes
       if (!Array.isArray(eps)) return []
-      const ep = eps.find((e:any)=>e.number===episode)
+      const ep = eps.find((e: any) => e.number === episode)
       if (!ep) return []
-      const url = ep.embed_url?.[language] || ep.embed_url?.sub
-      if (!url || typeof url !== 'string') return []
-      return [{ provider: 'anikoto', url, type: 'embed', language, quality: 'auto', embed: true }]
+      const embedUrl: string | undefined = ep.embed_url?.[language] || ep.embed_url?.sub
+      if (!embedUrl || typeof embedUrl !== 'string') return []
+      // embed_url looks like https://megaplay.buzz/stream/s-2/<realId>/(sub|dub)
+      const m = embedUrl.match(/\/stream\/s-\d+\/(\d+)(?:\/|$)/)
+      const realId = m?.[1]
+      if (!realId) {
+        // Non-megaplay embed: return as embed fallback (honest type)
+        return [{ provider: 'anikoto', url: embedUrl, type: 'embed', language, quality: 'auto', embed: true }]
+      }
+      // MegaPlay JSON source API (plain JSON, no JS eval, no CAPTCHA):
+      // requires AJAX header, returns direct m3u8 + VTT tracks + skip times.
+      const apiRes = await fetchWithTimeout(`https://megaplay.buzz/stream/getSourcesNew?id=${encodeURIComponent(realId)}`, {
+        headers: {
+          'Accept': 'application/json',
+          'X-Requested-With': 'XMLHttpRequest',
+          'Referer': embedUrl,
+          'User-Agent': 'Mozilla/5.0',
+        },
+        signal,
+      }, 4500)
+      if (!apiRes.ok) return []
+      const aj: any = await apiRes.json().catch(() => null)
+      const file: string | undefined = aj?.sources?.file
+      if (!file || typeof file !== 'string' || !/^https?:\/\//.test(file)) return []
+      const subs = Array.isArray(aj?.tracks) ? aj.tracks
+        .filter((t: any) => t && typeof t.file === 'string' && /^https?:\/\//.test(t.file) && t.kind !== 'thumbnails')
+        .map((t: any) => ({
+          language: 'en',
+          label: t.label || 'English',
+          // Route VTT through the worker proxy (allowlisted) so the
+          // browser never hits CDN CORS/IP issues on subtitle fetches.
+          url: workerOrigin ? `${workerOrigin}/proxy?url=${encodeURIComponent(t.file)}` : t.file,
+          type: 'vtt',
+        })) : []
+      const out: NormalizedSource[] = [{
+        provider: 'anikoto',
+        url: file,
+        type: 'hls',
+        language,
+        quality: 'auto',
+        embed: false,
+        subtitles: subs.length ? subs : undefined,
+      }]
+      return out
     } catch { return [] }
+  }
+
+  private async getSeries(anikotoId: number, signal?: AbortSignal): Promise<any | null> {
+    const now = Date.now()
+    const hit = this.seriesCache.get(anikotoId)
+    if (hit && now - hit.at < 5 * 60 * 1000) return hit.data
+    try {
+      const res = await fetchWithTimeout(`https://www.anikotoapi.site/series/${anikotoId}`, {
+        headers: { 'Accept': 'application/json', 'User-Agent': 'Mozilla/5.0' },
+        signal,
+      }, 4000)
+      if (!res.ok) return null
+      const j: any = await res.json().catch(() => null)
+      const data = j?.data ?? null
+      if (data) this.seriesCache.set(anikotoId, { at: now, data })
+      return data
+    } catch { return null }
   }
 }
 export class GenericStubProvider implements VideoSourceProvider {

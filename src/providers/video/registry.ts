@@ -130,6 +130,7 @@ export async function resolveSourcesWithFallback(
         `video:miruro:sources:${episode.providerEpisodeId}:${lang}`,
         `video:custom:sources:${episode.providerEpisodeId}:${lang}`,
         `video:custom:episodes:${episode.animeId}`,
+        `video:anikoto:sources:${episode.providerEpisodeId}:${lang}`,
       ]
       for (const k of possibleKeys) {
         try { const { deleteCache } = await import('../../storage/db'); await deleteCache(k) } catch {}
