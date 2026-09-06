@@ -69,6 +69,12 @@ function randomString(length: number): string {
 
 export async function buildMalAuthorizeUrl(): Promise<string> {
   if (!MAL_CLIENT_ID) throw new Error('MAL client ID not configured. Set VITE_MAL_CLIENT_ID.')
+  // MAL client IDs are 32-char hex. Refuse to navigate with anything else:
+  // a crossed/broken build env (e.g. the AniList numeric ID ending up here)
+  // would otherwise dump the user on MAL's bare 400 page with no way back.
+  if (!/^[0-9a-f]{32}$/i.test(MAL_CLIENT_ID)) {
+    throw new Error('MAL client ID looks wrong (not 32-char hex) — this build was baked with a bad VITE_MAL_CLIENT_ID. Not opening MyAnimeList to avoid a dead-end error page.')
+  }
   const verifier = randomString(96) // 43-128, use 96
   const state = randomString(32)
   // MAL supports ONLY the `plain` PKCE method (docs: "Currently, only the
