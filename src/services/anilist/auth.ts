@@ -133,6 +133,13 @@ export async function exchangeAnilistCodeForToken(code: string, state: string | 
       if (preferredUnreachable && preferredHost) {
         throw new Error(`Couldn't reach the AniList login server (${preferredHost}) — your browser, ad-blocker, or Brave Shields may be blocking it. Allow it and try again; browsing still works meanwhile.`)
       }
+      // No separate login server was ever configured: this build is missing
+      // VITE_AUTH_API_URL, so the app could only ask the Worker (blocked).
+      // This is a build/deploy misconfiguration, not an AniList outage.
+      const talkingToSelf = !preferredHost || (() => { try { return preferredHost === window.location.host } catch { return false } })()
+      if (talkingToSelf) {
+        throw new Error('AniList login is not configured for this hosting (missing login-server address in the build). Browsing still works; the site owner needs to rebuild with VITE_AUTH_API_URL set.')
+      }
       throw new Error('AniList login is temporarily unavailable — browsing still works. Please try again later.')
     }
     if (/invalid_grant|invalid_code|code.*expired/i.test(String(msg))) {

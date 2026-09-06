@@ -1,4 +1,5 @@
-import React, { createContext, useContext, useMemo, useCallback, useEffect, useState } from 'react'
+import React, { createContext, useContext, useMemo, useCallback, useEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAniList } from './AniListContext'
 import { useMAL } from './MALContext'
 import {
@@ -41,6 +42,7 @@ export function useTracking() {
 export function TrackingProvider({ children }: { children: React.ReactNode }) {
   const ani = useAniList()
   const mal = useMAL()
+  const navigate = useNavigate()
   const [explicitTracker, setExplicitTracker] = useState<TrackingProviderId | null>(() => {
     try { return getPreferences().trackingProvider ?? null } catch { return null }
   })
@@ -59,6 +61,24 @@ export function TrackingProvider({ children }: { children: React.ReactNode }) {
     persistTrackingProvider(p)
     setExplicitTracker(p)
   }, [])
+
+  // When the last account disconnects, reset the tracker pick and leave to
+  // Home (My List / Settings account UI assume a signed-in user). Only fires
+  // on the connected → disconnected transition, never on first load.
+  const anyConnected = ani.isAuthenticated || mal.isAuthenticated
+  const wasConnectedRef = useRef(anyConnected)
+  useEffect(() => {
+    const was = wasConnectedRef.current
+    wasConnectedRef.current = anyConnected
+    if (was && !anyConnected) {
+      persistTrackingProvider(null)
+      setExplicitTracker(null)
+      try {
+        const hash = window.location.hash || '#/'
+        if (!/^#\/?(\?.*)?$/.test(hash)) navigate('/')
+      } catch {}
+    }
+  }, [anyConnected, navigate])
 
   // Raw list from the active tracker only — the other account (if connected)
   // stays signed in but is never merged in, so the two services can never

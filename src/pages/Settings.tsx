@@ -3,7 +3,6 @@ import { getPreferences, setPreferences, type Preferences } from '../storage/pre
 import { useAniList } from '../contexts/AniListContext'
 import { useMAL } from '../contexts/MALContext'
 import { useTracking } from '../contexts/TrackingContext'
-import { TrackerPicker } from '../components/auth/TrackerPicker'
 import { clearAnilistMemoryCache } from '../services/anilist/client'
 import { clearMalMemoryCache } from '../services/mal/client'
 import { getProviderCapabilities, checkProviderHealth } from '../providers/video/registry'
@@ -132,35 +131,34 @@ export function Settings() {
       {/* Account / Connections */}
       <section className="mt-6 rounded-xl border border-white/10 bg-white/[0.02] p-4 sm:p-5">
         <h2 className="text-sm font-semibold text-white">Account & Connections</h2>
-        <p className="mt-1 text-xs text-white/50">Sync your list and progress.</p>
-
-        {(ani.isAuthenticated || mal.isAuthenticated) && (
-          <div className="mt-4">
-            <p className="mb-2 text-[11px] text-white/50">Track with — one account drives your list. Discovery always uses AniList.</p>
-            <TrackerPicker
-              value={trackingProvider}
-              onChange={setTrackingProvider}
-              anilistConnected={ani.isAuthenticated}
-              malConnected={mal.isAuthenticated}
-              anilistName={ani.user?.name ?? null}
-              malName={mal.user?.name ?? null}
-            />
-          </div>
-        )}
+        <p className="mt-1 text-xs text-white/50">Connect either or both. Select one to track your list.</p>
 
         <div className="mt-4 space-y-3">
-          <div className="rounded-lg border border-white/10 bg-[#0e0e10] p-3">
-            <div className="flex items-center justify-between">
-              <div>
+          <div className={`rounded-lg border bg-[#0e0e10] p-3 ${trackingProvider === 'anilist' ? 'border-white/40' : 'border-white/10'}`}>
+            <div className="flex items-center gap-3">
+              {ani.isAuthenticated && (
+                <button
+                  role="radio"
+                  aria-checked={trackingProvider === 'anilist'}
+                  aria-label="Track with AniList"
+                  title="Track with AniList"
+                  onClick={() => setTrackingProvider('anilist')}
+                  className={`grid h-4 w-4 shrink-0 place-items-center rounded-full border ${trackingProvider === 'anilist' ? 'border-white' : 'border-white/30 hover:border-white/60'}`}
+                >
+                  {trackingProvider === 'anilist' && <span className="h-2 w-2 rounded-full bg-white" />}
+                </button>
+              )}
+              <div className="min-w-0 flex-1">
                 <p className="text-xs font-medium text-white">AniList</p>
                 <p className="text-[11px] text-white/50">
                   {ani.isAuthenticated && ani.user ? `Connected as ${ani.user.name}` : 'Not connected'}
                 </p>
               </div>
+              {trackingProvider === 'anilist' && <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-white/50">Tracking</span>}
               {ani.isAuthenticated ? (
                 <button onClick={() => ani.logout()} className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/15">Disconnect</button>
               ) : (
-                <button onClick={() => ani.login()} className="rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-black hover:bg-white/90">Sign in</button>
+                <button onClick={() => ani.login()} className="rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-black hover:bg-white/90">Connect</button>
               )}
             </div>
             {ani.isAuthenticated && ani.user?.avatar?.large && (
@@ -194,23 +192,33 @@ export function Settings() {
             {ani.error && !ani.isAuthenticated && <p className="mt-2 text-xs text-amber-200/70">{ani.error}</p>}
           </div>
 
-          <div className="rounded-lg border border-white/10 bg-[#0e0e10] p-3">
-            <div className="flex items-center justify-between">
-              <div>
+          <div className={`rounded-lg border bg-[#0e0e10] p-3 ${trackingProvider === 'mal' ? 'border-white/40' : 'border-white/10'}`}>
+            <div className="flex items-center gap-3">
+              {mal.isAuthenticated && (
+                <button
+                  role="radio"
+                  aria-checked={trackingProvider === 'mal'}
+                  aria-label="Track with MyAnimeList"
+                  title="Track with MyAnimeList"
+                  onClick={() => setTrackingProvider('mal')}
+                  className={`grid h-4 w-4 shrink-0 place-items-center rounded-full border ${trackingProvider === 'mal' ? 'border-white' : 'border-white/30 hover:border-white/60'}`}
+                >
+                  {trackingProvider === 'mal' && <span className="h-2 w-2 rounded-full bg-white" />}
+                </button>
+              )}
+              <div className="min-w-0 flex-1">
                 <p className="text-xs font-medium text-white">MyAnimeList</p>
                 <p className="text-[11px] text-white/50">
                   {mal.isAuthenticated && mal.user ? `Connected as ${mal.user.name}` : 'Not connected'}
                 </p>
               </div>
+              {trackingProvider === 'mal' && <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-white/50">Tracking</span>}
               {mal.isAuthenticated ? (
                 <button onClick={() => mal.logout()} className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/15">Disconnect</button>
               ) : (
-                <button onClick={() => mal.login().catch(()=>{})} className="rounded-full bg-white/10 px-4 py-1.5 text-xs font-medium text-white hover:bg-white/15">Connect MAL</button>
+                <button onClick={() => mal.login().catch(()=>{})} className="rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-black hover:bg-white/90">Connect</button>
               )}
             </div>
-            <p className="mt-2 text-[11px] leading-4 text-white/30">
-              Syncs through the built-in server.
-            </p>
             {mal.isAuthenticated && mal.user && (
               <div className="mt-3 flex items-center gap-2">
                 {mal.user.avatar?.large ? (
