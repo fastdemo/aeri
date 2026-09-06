@@ -502,7 +502,7 @@ export function Home() {
         ) : null}
       </div>
 
-      {selected && <DetailModal anime={selected} onClose={() => setSelected(null)} />}
+      {selected && <DetailModal key={selected.identity.internalId} anime={selected} onClose={() => setSelected(null)} />}
     </div>
   )
 }

@@ -79,7 +79,7 @@ export function EpisodeList({ anime, seasonNumber, group }: { anime: Anime; seas
       <div className="space-y-1">
         <div className="mb-2 flex items-center gap-2">
           <span className="rounded bg-white px-2 py-1 text-[11px] font-semibold text-black">S{effectiveSeasonNumber}</span>
-          <span className="text-xs text-white/50">{anime.episodes ? `${anime.episodes} episodes` : 'Loading episodes...'}</span>
+          <span className="text-xs text-white/50">{anime.episodes && anime.episodes > 0 ? `${anime.episodes} episodes` : episodes.length ? `${episodes.length} episodes` : 'Loading episodes...'}</span>
         </div>
         <div className="overflow-hidden rounded-lg border border-white/10">
           {[1,2,3,4,5].map(i => (
@@ -128,7 +128,7 @@ export function EpisodeList({ anime, seasonNumber, group }: { anime: Anime; seas
     <div className="space-y-1">
       <div className="mb-2 flex items-center gap-2">
         <span className="rounded bg-white px-2 py-1 text-[11px] font-semibold text-black">S{effectiveSeasonNumber}</span>
-        <span className="text-xs text-white/50">{anime.episodes ?? episodes.length} episodes</span>
+        <span className="text-xs text-white/50">{anime.episodes && anime.episodes > 0 ? `${anime.episodes} episodes` : `${episodes.length} episodes`}</span>
       </div>
 
       <div className="overflow-hidden rounded-lg border border-white/10">

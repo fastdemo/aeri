@@ -18,6 +18,7 @@ export function Navbar() {
   const [previewAnime, setPreviewAnime] = useState<Anime | null>(null)
   const [signInOpen, setSignInOpen] = useState(false)
   const searchRef = useRef<HTMLDivElement>(null)
+  const mobileSearchRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
   const location = useLocation()
   const { user: anilistUser, isAuthenticated: anilistAuth } = useAniList()
@@ -55,10 +56,15 @@ export function Navbar() {
     } catch {}
   }, [])
 
-  // Close suggestions on outside pointerdown — unified pointer event, no microtask delay
+  // Close suggestions on outside pointerdown — unified pointer event, no microtask delay.
+  // Both the desktop search box and the mobile search dropdown count as inside
+  // (mobile taps previously closed the dropdown on pointerdown, before click).
   useEffect(() => {
     const onDown = (e: PointerEvent) => {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+      const t = e.target as Node
+      const inDesktop = searchRef.current?.contains(t) ?? false
+      const inMobile = mobileSearchRef.current?.contains(t) ?? false
+      if (!inDesktop && !inMobile) {
         setShowSuggestions(false)
       }
     }
@@ -245,7 +251,7 @@ export function Navbar() {
       </div>
 
       {mobileSearchOpen && (
-        <div className="absolute left-0 right-0 top-14 border-t border-white/10 bg-[var(--bg)] px-4 py-3 lg:hidden shadow-lg shadow-black/20">
+        <div ref={mobileSearchRef} className="absolute left-0 right-0 top-14 border-t border-white/10 bg-[var(--bg)] px-4 py-3 lg:hidden shadow-lg shadow-black/20">
           <form onSubmit={onSearch} className="flex gap-2">
             <input
               autoFocus
@@ -298,7 +304,7 @@ export function Navbar() {
           </div>
         </nav>
       )}
-      {previewAnime && <DetailModal anime={previewAnime} onClose={() => setPreviewAnime(null)} />}
+      {previewAnime && <DetailModal key={previewAnime.identity.internalId} anime={previewAnime} onClose={() => setPreviewAnime(null)} />}
       {signInOpen && <SignInModal onClose={() => setSignInOpen(false)} />}
     </header>
   )

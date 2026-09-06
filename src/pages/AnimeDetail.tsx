@@ -43,10 +43,6 @@ export function AnimeDetail() {
   const [seriesGroup, setSeriesGroup] = useState<AnimeSeriesGroup | null>(null)
   const [selectedSeasonIdx, setSelectedSeasonIdx] = useState<number>(0)
   const requestIdRef = useRef(0)
-  const seriesGroupRef = useRef<AnimeSeriesGroup | null>(null)
-  seriesGroupRef.current = seriesGroup
-  const selectedIdxRef = useRef(0)
-  selectedIdxRef.current = selectedSeasonIdx
 
   // Effective group guards against stale seriesGroup when anime switches franchise before new fetch resolves.
   const effectiveGroupRaw = useMemo(() => {
@@ -81,14 +77,9 @@ export function AnimeDetail() {
       setSelectedSeasonIdx(0)
       return
     }
+    // Always present Season 1 on open/navigation; the user picks other seasons
+    setSelectedSeasonIdx(0)
     const currentAnilistId = anime.identity.anilistId
-    const curGroup = seriesGroupRef.current
-    if (curGroup) {
-      const idxInCurrent = curGroup.seasons.findIndex(s => s.identity.anilistId === currentAnilistId)
-      if (idxInCurrent >= 0 && idxInCurrent !== selectedIdxRef.current) {
-        setSelectedSeasonIdx(idxInCurrent)
-      }
-    }
     const reqId = ++requestIdRef.current
     const controller = new AbortController()
     getSeriesGroup(currentAnilistId, { signal: controller.signal })
@@ -96,8 +87,7 @@ export function AnimeDetail() {
         if (controller.signal.aborted || reqId !== requestIdRef.current) return
         if (group && group.seasons.length > 1) {
           setSeriesGroup(group)
-          const idx = group.seasons.findIndex(s => s.identity.anilistId === currentAnilistId)
-          setSelectedSeasonIdx(idx >= 0 ? idx : 0)
+          setSelectedSeasonIdx(0)
         } else {
           setSeriesGroup(null)
           setSelectedSeasonIdx(0)
@@ -149,7 +139,7 @@ export function AnimeDetail() {
             decoding="async"
             onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = 'none')}
           />
-          <div className="absolute inset-0" style={{ background: 'linear-gradient(0deg, #0e0e10 6%, rgba(14,14,16,0.75) 22%, transparent 58%)' }} />
+          <div className="absolute inset-0" style={{ background: 'linear-gradient(0deg, #0e0e10 4%, rgba(14,14,16,0.85) 18%, rgba(14,14,16,0.35) 45%, transparent 80%)' }} />
           <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(7,7,8,0.85) 0%, transparent 62%)' }} />
           <div className="absolute bottom-0 left-0 p-6 sm:p-8">
             <h1 className="text-2xl font-semibold text-white">{titles.primary}</h1>

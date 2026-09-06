@@ -10,7 +10,6 @@ type Props = {
   query: string
   onClose?: () => void
   onPreview?: (anime: Anime) => void
-  anchorRef?: React.RefObject<HTMLElement | null>
 }
 
 export function SearchSuggestions({ query, onClose, onPreview }: Props) {

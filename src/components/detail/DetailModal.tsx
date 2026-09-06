@@ -21,8 +21,8 @@ export function DetailModal({
   const [localError, setLocalError] = useState<string | null>(null)
   const [showStatusPicker, setShowStatusPicker] = useState(false)
 
-  // Find entry via combinedList using normalized identity (anilistId or malId or internalId)
-  const entry = (() => {
+  // Base entry: prop-only match, available before grouping resolves
+  const baseEntry = (() => {
     if (!isAuthenticated || !combinedList) return null
     const malId = anime.identity.malId
     const anilistId = anime.identity.anilistId
@@ -30,14 +30,12 @@ export function DetailModal({
       if (malId && e.anime.identity.malId === malId) return true
       if (anilistId && e.anime.identity.anilistId === anilistId) return true
       if (e.anime.identity.internalId === anime.identity.internalId) return true
-      // Also check cross: if anime has anilistId but entry has malId that matches anime's malId (via AniList's idMal)
       return false
     }) ?? null
   })()
 
-  const currentStatus: AnimeStatus | null = entry?.status ?? anime.listStatus ?? null
-  const currentScore = entry?.score ?? null
-  const baseAnime = entry?.anime ?? anime
+  const currentScore = baseEntry?.score ?? null
+  const baseAnime = baseEntry?.anime ?? anime
 
   // Series grouping — abortable, selectedSeason === displayAnime invariant
   // The panel renders immediately (single entrance animation); season-dependent
@@ -45,10 +43,6 @@ export function DetailModal({
   const [seriesGroup, setSeriesGroup] = useState<AnimeSeriesGroup | null>(null)
   const [selectedSeasonIdx, setSelectedSeasonIdx] = useState(0)
   const requestIdRef = useRef(0)
-  const seriesGroupRef = useRef<AnimeSeriesGroup | null>(null)
-  seriesGroupRef.current = seriesGroup
-  const selectedIdxRef = useRef(0)
-  selectedIdxRef.current = selectedSeasonIdx
 
   useEffect(() => {
     if (!baseAnime.identity.anilistId) {
@@ -56,14 +50,8 @@ export function DetailModal({
       setSelectedSeasonIdx(0)
       return
     }
+    setSelectedSeasonIdx(0)
     const currentId = baseAnime.identity.anilistId
-    const curGroup = seriesGroupRef.current
-    if (curGroup) {
-      const idxInCurrent = curGroup.seasons.findIndex(s => s.identity.anilistId === currentId)
-      if (idxInCurrent >= 0 && idxInCurrent !== selectedIdxRef.current) {
-        setSelectedSeasonIdx(idxInCurrent)
-      }
-    }
     const reqId = ++requestIdRef.current
     const controller = new AbortController()
     getSeriesGroup(currentId, { signal: controller.signal })
@@ -106,6 +94,38 @@ export function DetailModal({
   const displayKey = displayAnime.identity.anilistId ? `anilist:${displayAnime.identity.anilistId}` : displayAnime.identity.internalId
   const titles = getTitleHierarchy(displayAnime, effectiveGroup)
   const isMovie = displayAnime.format?.toUpperCase() === 'MOVIE'
+
+  // Tracking entry: match EITHER the opened anime or the displayed season —
+  // franchise entries live under per-season ids (S2 watched while viewing S1
+  // must still surface). Progress only counts when an episode was actually
+  // watched (episode > 0); untouched list entries carry episode 0.
+  const entry = useMemo(() => {
+    if (!isAuthenticated || !combinedList) return null
+    const candidates = [anime, displayAnime]
+    const matches = (id: { malId?: number; anilistId?: number; internalId: string }) =>
+      combinedList.find((e) => {
+        if (id.malId && e.anime.identity.malId === id.malId) return true
+        if (id.anilistId && e.anime.identity.anilistId === id.anilistId) return true
+        return e.anime.identity.internalId === id.internalId
+      }) ?? null
+    for (const c of candidates) {
+      const hit = matches(c.identity)
+      if (hit) return hit
+    }
+    return null
+  }, [isAuthenticated, combinedList, anime, displayAnime])
+  const trackedProgress = entry?.progress ?? null
+  const trackedStatus = entry?.status ?? displayAnime.listStatus ?? null
+  const currentStatus: AnimeStatus | null = trackedStatus
+  const hasWatched = (trackedProgress ?? displayAnime.progress?.episode ?? 0) > 0
+  const resumeEp = trackedProgress ?? displayAnime.progress?.episode ?? 0
+  // Finished entries always render a full bar even when no percent survived mapping
+  const barPercent = (() => {
+    const p = entry?.anime.progress?.percent ?? displayAnime.progress?.percent
+    if (typeof p === 'number' && p > 0) return Math.min(100, p)
+    if (trackedStatus === 'completed') return 100
+    return 0
+  })()
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -194,24 +214,24 @@ export function DetailModal({
           </div>
 
           <div className="absolute bottom-0 left-0 right-0 flex flex-wrap items-center gap-2 px-4 pb-4 sm:px-6">
-            {displayAnime.progress && (
+            {barPercent > 0 && (
               <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-white/15">
-                <div className="h-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.7)]" style={{ width: `${displayAnime.progress.percent}%` }} />
+                <div className="h-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.7)]" style={{ width: `${barPercent}%` }} />
               </div>
             )}
 
             <Link
-              to={`/watch/${displayAnime.identity.internalId}/${displayAnime.progress ? displayAnime.progress.episode : 1}`}
+              to={`/watch/${displayAnime.identity.internalId}/${hasWatched ? resumeEp : 1}`}
               className="inline-flex h-8 items-center gap-1.5 rounded bg-white px-4 text-[13px] font-semibold text-black hover:bg-white/90"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M8 5.14v13.72L19 12z" />
               </svg>
-              {displayAnime.progress ? 'Resume' : 'Play'}
+              {hasWatched ? 'Resume' : 'Play'}
             </Link>
-            {displayAnime.progress && (
+            {hasWatched && (
               <span className="text-xs text-white/70">
-                {displayAnime.progress.episode}{displayAnime.episodes && displayAnime.episodes > 0 ? ` of ${displayAnime.episodes}` : ''} • {displayAnime.progress.percent}% watched
+                {resumeEp}{displayAnime.episodes && displayAnime.episodes > 0 ? ` of ${displayAnime.episodes}` : ''} • {barPercent}% watched
               </span>
             )}
 

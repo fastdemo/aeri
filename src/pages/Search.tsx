@@ -40,9 +40,10 @@ export function Search() {
           <p className="text-center text-sm text-white/60">No results for “{liveQuery}”.</p>
         ) : (
           <>
-            <p className="mb-3 text-xs text-white/50">
-              {results.length} results for “{liveQuery}” • AniList
-            </p>
+            <h1 className="mb-1 text-center text-[17px] font-semibold tracking-tight text-white">
+              {results.length} result{results.length === 1 ? '' : 's'} for “{liveQuery}”
+            </h1>
+            <p className="mb-4 text-center text-xs text-white/50">from AniList.</p>
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
               {results.map((a) => (
                 <div key={a.identity.internalId} className="min-w-0">
@@ -54,7 +55,7 @@ export function Search() {
         )}
       </div>
 
-      {selected && <DetailModal anime={selected} onClose={() => setSelected(null)} />}
+      {selected && <DetailModal key={selected.identity.internalId} anime={selected} onClose={() => setSelected(null)} />}
     </div>
   )
 }

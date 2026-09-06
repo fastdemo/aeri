@@ -37,6 +37,14 @@ function FaviconGuard() {
 }
 
 function Layout() {
+  const { pathname } = useLocation()
+  // Every route change starts at the top (search typing only replaces ?q=,
+  // which keeps the pathname — no disruptive jumps while typing)
+  useEffect(() => {
+    try { window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior }) } catch {
+      try { window.scrollTo(0, 0) } catch {}
+    }
+  }, [pathname])
   return (
     <div className="min-h-screen bg-[var(--bg)]">
       <FaviconGuard />
@@ -53,8 +61,15 @@ function Layout() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
-      <footer className="mx-auto max-w-[1600px] border-t border-white/5 px-4 py-8 text-center text-xs text-white/30 sm:px-6 lg:px-12">
-        Aeri — anime, quietly. • <a href="https://github.com/fastdemo/aeri" className="underline hover:text-white/50">GitHub</a>
+      <footer className="relative overflow-hidden border-t border-white/5">
+        <div aria-hidden className="pointer-events-none select-none text-center font-semibold leading-none text-white" style={{ fontFamily: '"Cal Sans", sans-serif', fontSize: 'clamp(10rem, 28vw, 18rem)', opacity: 0.12, transform: 'translateY(28%)' }}>
+          aeri
+        </div>
+        <div className="relative z-[2] mx-auto flex max-w-[1600px] items-center justify-center gap-2 px-4 pb-8 text-xs text-white/60 sm:px-6 lg:px-12" style={{ marginTop: '-2rem' }}>
+          <span>Aeri — anime, quietly.</span>
+          <span className="text-white/20">•</span>
+          <a href="https://github.com/fastdemo/aeri" className="underline opacity-60 transition-opacity hover:opacity-100 hover:text-white">GitHub</a>
+        </div>
       </footer>
     </div>
   )
