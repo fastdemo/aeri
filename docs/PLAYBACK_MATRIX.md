@@ -191,3 +191,27 @@ PLAYBACK_BASE_URL=https://fastdemo.github.io/aeri/ npx playwright test tests/pla
 - Honors `fetchWithTimeout 3500ms` + `registry 4000ms` parallel: probes wait `≤ 8s` total, matching Watch's `2.3s to no-source` budget.
 - Respects `VITE_VIDEO_API_URL` and `getEffectiveVideoApiUrl()` (custom URL in `localStorage`).
 - Mobile/desktop switching uses `test.use({ viewport })` not UA spoof.
+
+---
+
+## 7. Phase 14 — AniKoto HLS via MegaPlay source API (2026-09-06)
+
+Resolution pipeline verified live against production (`api/*` on `aeri.fastdemo.workers.dev`):
+
+| Step | Request | Result |
+|------|---------|--------|
+| resolve | `GET /api/episodes/1?provider=anikoto&title=Cowboy%20Bebop` | 26 episodes, real titles ("Asteroid Blues"…). Chain: `anikototv.to/filter` HTML → `data-tip` series id → `anikotoapi.site/series/<id>` verify `ani_id` |
+| resolve | same for `20/Naruto` (220 eps), `16498/AoT` (25), `154587/Frieren` (28) | all correct counts |
+| sources | `GET /api/sources/anikoto-1-{1,5,26}?language=sub` | HLS `master.m3u8` + 1 VTT sub, sub + dub both work |
+| CDN survey | `megap.mikora.top`, `megap.akirax.buzz`, `megap.shiora.site`, `ncdn/cdn.imgnex.top` | **all 403 Cloudflare challenge** from worker egress, sandbox browser, and direct curl (with/without Referer) |
+
+New cells:
+
+| # | Provider | Anime | Ep | Lang | Expected → Verdict (from flagged networks) |
+|---|----------|-------|----|------|--------------------------------------------|
+| 38 | anikoto | `1` Bebop | 1 | sub | resolution T0–T1 ✓ (real m3u8 + VTT returned); playback T2–T3 ✗ (CDN 403) → `FAIL (STALL)` at CDN, surfaced as player error + Retry, no false success |
+| 39 | anikoto | `1` Bebop | 5 | sub | same (different CDN host, same 403) |
+| 40 | anikoto | `1` Bebop | 1 | dub | same (dub HLS resolves) |
+| 41 | anikoto | `154587` Frieren | 1 | sub | same |
+
+**NOT green.** Per the acceptance rule, streaming is not declared complete: no cell reaches T3 (currentTime advance) from any testable network. The pipeline is real and shippable (correct data at every hop, honest failure at the last), and playback is IP-reputation-gated — any viewer whose IP passes the CDN WAF gets full episodes; all others get the existing no-source UI.

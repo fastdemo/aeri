@@ -188,3 +188,45 @@ Aeri keeps the `VideoProvider` abstraction from `src/providers/video/types.ts` a
 * Add `GET /captions/:episodeId` to the worker for `SubtitleTrack` support (already typed in `VideoSourceEnhanced`).
 * Add server-side MAL OAuth token exchange/refresh so Settings → MAL Connect works from GH Pages (worker sets CORS for `myanimelist.net` flow).
 * Keep client `src/providers/video/registry.ts` timeout `3500ms` + parallel fallback; do not lower further (already Phase 7.1 optimized).
+
+## 8. Phase 14 — Mangayomi research + AniKoto HLS (2026-09-06)
+
+**Researched (extension source code read, not READMEs):** Mangayomi JS extensions
+(`Mallyd11/mangayomi-anime-extensions`: hianime.js, anikoto.js, miruro index),
+Consumet-equivalent Go (`hishantik/anilix` AllAnime client/decoder/queries),
+ani-cli persisted-query flow, MiruroAPI clones (walterwhite-69 + Shineii86 docs).
+
+**What the ecosystem actually does:** thin adapters over a chain of
+site-search → episode list → server pages → extractor APIs → direct files,
+with heavy use of **third-party resolver services** (vidnest.fun, myronix /
+shirayuki, bibiemb) run in parallel with fallbacks. Native advantages Aeri
+cannot copy: no CORS, arbitrary Referer/Origin headers, residential IPs, local
+JS evaluation. Closest adaptable pattern: JSON resolver APIs (no JS unpack)
+called server-side — exactly what Aeri implemented below.
+
+**Provider verdicts (all probed live from worker egress + sandbox browser):**
+
+| Provider | Resolution | Playback | Cause |
+|----------|-----------|----------|-------|
+| AniKoto → MegaPlay | ✅ full chain working | ❌ IP-gated | `anikotoapi.site` + `megaplay.buzz/stream/getSourcesNew` (AJAX header) return real m3u8 + VTT; CDN family (`imgnex/mikora/akirax/shiora`) 403-challenges worker + test IPs; megaplay embeds render "Error - MegaPlay", no video |
+| AnimePahe | ❌ | — | API returns CF challenge HTML (not JSON) from worker egress |
+| Miruro pipe | ❌ | — | documented hard-block of datacenter IPs incl. Cloudflare Workers; bypass needs `curl_cffi` TLS impersonation (impossible on Workers) |
+| HiAnime (.to 521, .ms flaky) | ❌ unreliable | — | origin errors/timeouts from all vantage points |
+| VidNest API | ✅ JSON+decode works | ❌ IP-gated | same CDN family block |
+| Shirayuki/myronix | ❌ down | — | timeout direct, 522 via worker |
+| AllAnime | ⚠️ partial | ❌ gated | search + episode lists work **from browsers** (CORS-open); `episode()` sourceUrls demands `AA_CRYPTO_MISSING` handshake (persisted-query hash rotated; admin tracks `adminAaCryptoViolations`) |
+
+**Conclusion — Option A verdict:** viable for *resolution*, not sufficient for
+*playback* from datacenter/test networks. No new backend was built; instead
+the existing Worker abstraction gained a real AniKoto→MegaPlay provider
+(`worker/src/providers.ts`: data-tip ranked resolve, embed data-id extraction,
+`getSourcesNew` mapping to HLS + VTT-through-`/proxy`, strict allowlist
+unchanged apart from `imgnex.top` for subtitles, signed URLs never cached).
+**Option B** (resolver on non-datacenter host / residential egress) is defined
+but deliberately unbuilt: it needs an owner-provisioned VPS or equivalent,
+which does not exist. If one appears, the worker provider code ports 1:1
+(same JSON APIs work from clean IPs).
+
+**To verify playback:** Settings → Preferred source → AniKoto → open any
+episode. On a network the CDN accepts, it plays with subtitles; otherwise the
+existing no-source UI appears (never a fake success).
