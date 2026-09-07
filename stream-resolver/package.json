@@ -1,0 +1,13 @@
+{
+  "name": "aeri-stream-resolver",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Aeri streaming resolver/egress: AniKoto/MegaPlay resolution + signed HLS delivery proxy (non-Cloudflare egress).",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node server.js"
+  }
+}

@@ -4,6 +4,8 @@ export interface Env {
   ANILIST_CLIENT_ID?: string
   ANILIST_CLIENT_SECRET?: string
   MAL_CLIENT_SECRET?: string
+  RESOLVER_URL?: string
+  RESOLVER_SECRET?: string
   ASSETS?: Fetcher
 }
 
@@ -15,6 +17,7 @@ import {
   AnimePaheProvider,
   AnikotoProvider,
   GenericStubProvider,
+  setResolverConfig,
   type VideoSourceProvider,
   type NormalizedSource,
   type VideoLanguage,
@@ -309,6 +312,15 @@ export default {
         if (!['sub','dub'].includes(language)) return json({ error: 'Invalid language, use sub or dub' }, 400, env, origin)
         const signal = request.signal
         const titleHint = url.searchParams.get('title') || undefined
+        // Demo/test streams must never mask a failed real provider: only
+        // include demo when explicitly requested (?provider=demo).
+        const wantsDemo = preferredProviderParam === 'demo' || parsed.providerHint === 'demo'
+        // Resolver config for providers that delegate (constant per deploy).
+        try {
+          const rUrl = (env as any).RESOLVER_URL as string | undefined
+          const rSec = (env as any).RESOLVER_SECRET as string | undefined
+          setResolverConfig(rUrl && rSec ? { url: rUrl, secret: rSec } : null)
+        } catch { setResolverConfig(null) }
         const tried: string[] = []
         const ordered: VideoSourceProvider[] = []
         const pushIfValid = (id: string | null) => {
@@ -319,12 +331,17 @@ export default {
         pushIfValid(preferredProviderParam)
         pushIfValid(parsed.providerHint)
         for (const p of providers) if (!ordered.some(o => o.id === p.id)) ordered.push(p)
-        const tryOrdered = ordered
+        // Never auto-fall back to the demo/test stream: it would make a failed
+        // real provider look like successful playback. Explicit ?provider=demo
+        // still works (dev/test + existing contract).
+        const tryOrdered = wantsDemo ? ordered : ordered.filter(p => p.id !== 'demo')
         for (const provider of tryOrdered) {
           if (signal.aborted) break
           tried.push(provider.id)
           try {
-            const srcs = await withTimeout(provider.getSources(anilistId, episodeNum, language, workerOrigin, signal, titleHint ? { title: titleHint } : undefined), 5000, signal)
+            // Resolver-backed providers can take ~5-10s cold (search+verify);
+            // registry and frontend budgets account for this on retry.
+            const srcs = await withTimeout(provider.getSources(anilistId, episodeNum, language, workerOrigin, signal, titleHint ? { title: titleHint } : undefined), 12000, signal)
             if (srcs && srcs.length > 0) {
               const sorted = sortByLanguageAndQuality(srcs, language)
               const filtered = sorted.filter(s => s.language === language)

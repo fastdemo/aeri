@@ -41,7 +41,12 @@ export interface VideoSourceProvider {
   getSources(anilistId: number, episode: number, language: VideoLanguage, workerOrigin: string | null, signal?: AbortSignal, hint?: { title?: string }): Promise<NormalizedSource[]>
 }
 
-// --- Helpers ---
+// Resolver (Option B) config — set per request from worker env (constant per
+// deployment, so sharing module state across concurrent requests is safe).
+let resolverConfig: { url: string; secret: string } | null = null
+export function setResolverConfig(cfg: { url: string; secret: string } | null) {
+  resolverConfig = cfg && cfg.url && cfg.secret ? { url: cfg.url.replace(/\/$/, ''), secret: cfg.secret } : null
+}
 
 async function fetchWithTimeout(url: string, opts: RequestInit = {}, timeoutMs = 4500): Promise<Response> {
   const ctrl = new AbortController()
@@ -406,6 +411,12 @@ export class AnikotoProvider implements VideoSourceProvider {
     } catch { return [] }
   }
   async getSources(anilistId: number, episode: number, language: VideoLanguage, workerOrigin: string | null, signal?: AbortSignal, hint?: { title?: string }): Promise<NormalizedSource[]> {
+    // Preferred path: dedicated resolver (clean egress). Falls back to direct
+    // resolution below if unconfigured or failing.
+    try {
+      const fromResolver = await this.getSourcesViaResolver(anilistId, episode, language, hint, signal)
+      if (fromResolver.length) return fromResolver
+    } catch {}
     try {
       let title = hint?.title?.trim() || ''
       if (!title) {
@@ -476,6 +487,54 @@ export class AnikotoProvider implements VideoSourceProvider {
         subtitles: subs.length ? subs : undefined,
       }]
       return out
+    } catch { return [] }
+  }
+
+  private async getSourcesViaResolver(anilistId: number, episode: number, language: VideoLanguage, hint?: { title?: string }, signal?: AbortSignal): Promise<NormalizedSource[]> {
+    if (!resolverConfig) return []
+    try {
+      const ctrl = new AbortController()
+      const tid = setTimeout(() => ctrl.abort(), 15000)
+      const onAbort = () => ctrl.abort((signal as any)?.reason)
+      if (signal) {
+        if (signal.aborted) { clearTimeout(tid); return [] }
+        signal.addEventListener('abort', onAbort, { once: true })
+      }
+      try {
+        const res = await fetch(`${resolverConfig.url}/api/resolve`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            Authorization: `Bearer ${resolverConfig.secret}`,
+          },
+          body: JSON.stringify({
+            anilistId,
+            title: hint?.title?.trim() || '',
+            episode,
+            language,
+          }),
+          signal: ctrl.signal,
+        })
+        if (!res.ok) return []
+        const j: any = await res.json().catch(() => null)
+        if (!j || typeof j.url !== 'string' || !/^https:\/\//.test(j.url)) return []
+        const subs = Array.isArray(j.subtitles) ? j.subtitles
+          .filter((t: any) => t && typeof t.url === 'string' && /^https:\/\//.test(t.url))
+          .map((t: any) => ({ language: t.language || 'en', label: t.label || 'English', url: t.url, type: 'vtt' })) : []
+        return [{
+          provider: 'anikoto',
+          url: j.url,
+          type: 'hls',
+          language,
+          quality: 'auto',
+          embed: false,
+          subtitles: subs.length ? subs : undefined,
+        }]
+      } finally {
+        clearTimeout(tid)
+        if (signal) signal.removeEventListener('abort', onAbort)
+      }
     } catch { return [] }
   }
 
