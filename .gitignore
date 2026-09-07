@@ -31,3 +31,8 @@ blob-report/
 .playwright-mcp/
 
 .dev.vars
+
+# local verification screenshots
+*.png
+!public/**/*.png
+!img/**/*.png

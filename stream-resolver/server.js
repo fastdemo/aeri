@@ -725,10 +725,10 @@ const server = createServer(async (req, res) => {
         // Backpressure-aware pipe: never end a Content-Length response short
         // (clients surface that as protocol errors) — destroy instead.
         let broken = false
-        const pump = async (value: Uint8Array): Promise<boolean> => {
+        const pump = async (value) => {
           if (res.writableEnded || (res as any).destroyed) return false
           if (res.write(value)) return true
-          return new Promise<boolean>((resolve) => {
+          return new Promise((resolve) => {
             const onDrain = () => { cleanup(); resolve(true) }
             const onAbort = () => { cleanup(); resolve(false) }
             const cleanup = () => {
