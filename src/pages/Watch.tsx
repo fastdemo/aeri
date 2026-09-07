@@ -192,7 +192,7 @@ export function Watch() {
   }, [effectiveEpisode?.id, effectiveEpisode?.providerEpisodeId, preferredProvider, preferredAudio])
 
   // Local watch position (resume)
-  const [watchPos, setWatchPos] = useState<{ currentTime: number; duration: number } | null>(null)
+  const [watchPos, setWatchPos] = useState<{ currentTime: number; duration: number; episode: number } | null>(null)
   const [showResume, setShowResume] = useState(false)
   const hasShownResume = useRef(false)
 
@@ -204,7 +204,7 @@ export function Watch() {
       // Only show resume if it's for the same episode and not near start ( >30s) and not near end ( <90% )
       if (pos.episode === epNum && pos.currentTime > 30 && pos.duration > 0 && pos.currentTime < pos.duration * 0.9) {
         if (!hasShownResume.current) {
-          setWatchPos({ currentTime: pos.currentTime, duration: pos.duration })
+          setWatchPos({ currentTime: pos.currentTime, duration: pos.duration, episode: pos.episode })
           setShowResume(true)
           hasShownResume.current = true
         }
