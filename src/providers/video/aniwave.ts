@@ -99,4 +99,4 @@ export class AniWaveProvider implements VideoProvider {
   }
 }
 
-export const aniKotoProvider = new AniWaveProvider()
+export const aniWaveProvider = new AniWaveProvider()
