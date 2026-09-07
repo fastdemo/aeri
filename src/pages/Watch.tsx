@@ -339,8 +339,10 @@ export function Watch() {
             />
           )}
 
-          {/* Resume prompt — top center, clear of player controls */}
-          {showResume && watchPos && hasVideo && (
+          {/* Resume prompt — top center, clear of player controls.
+              Shows whenever a saved position exists (not gated on video
+              readiness, which can lag behind IDB on slow networks). */}
+          {showResume && watchPos && (
             <div className="absolute inset-x-4 top-14 flex justify-center">
               <div className="flex items-center gap-2 rounded-full bg-black/80 px-4 py-2 text-xs text-white backdrop-blur">
                 <span>Resume from {Math.floor(watchPos.currentTime / 60)}:{String(Math.floor(watchPos.currentTime % 60)).padStart(2, '0')}?</span>

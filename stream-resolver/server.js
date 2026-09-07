@@ -722,21 +722,39 @@ const server = createServer(async (req, res) => {
         // Prefer correctness over Content-Length: omit it when head was consumed.
         log({ ev: 'stream-bin', host, ct, status: up.status, range: req.headers.range || '-' })
         res.writeHead(up.status, headers)
+        // Backpressure-aware pipe: never end a Content-Length response short
+        // (clients surface that as protocol errors) — destroy instead.
+        let broken = false
+        const pump = async (value: Uint8Array): Promise<boolean> => {
+          if (res.writableEnded || (res as any).destroyed) return false
+          if (res.write(value)) return true
+          return new Promise<boolean>((resolve) => {
+            const onDrain = () => { cleanup(); resolve(true) }
+            const onAbort = () => { cleanup(); resolve(false) }
+            const cleanup = () => {
+              res.off('drain', onDrain)
+              req.off('close', onAbort)
+            }
+            res.once('drain', onDrain)
+            req.once('close', onAbort)
+          })
+        }
         try {
           for (const c of headChunks) {
-            if (res.writableEnded) break
-            res.write(c)
+            if (!(await pump(c))) { broken = true; break }
           }
-          if (!upstreamDone) {
+          if (!broken && !upstreamDone) {
             for (;;) {
               const { done, value } = await reader.read()
               if (done) break
-              if (res.writableEnded) break
-              if (value) res.write(value)
+              if (value && !(await pump(value))) { broken = true; break }
             }
           }
-          res.end()
-        } catch {}
+          if (!broken) res.end()
+          else { try { res.destroy() } catch {} }
+        } catch {
+          try { res.destroy() } catch {}
+        }
         try { reader.releaseLock() } catch {}
         clearTimeout(tid)
         req.off('close', onClose)
