@@ -726,7 +726,7 @@ const server = createServer(async (req, res) => {
         // (clients surface that as protocol errors) — destroy instead.
         let broken = false
         const pump = async (value) => {
-          if (res.writableEnded || (res as any).destroyed) return false
+          if (res.writableEnded || res.destroyed) return false
           if (res.write(value)) return true
           return new Promise((resolve) => {
             const onDrain = () => { cleanup(); resolve(true) }
