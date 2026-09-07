@@ -169,6 +169,12 @@ export default {
     const origin = request.headers.get('Origin')
     const cors = corsHeaders(origin, env)
     const workerOrigin = `${url.protocol}//${url.host}`
+    // Resolver config for providers that delegate (constant per deploy).
+    try {
+      const rUrl = (env as any).RESOLVER_URL as string | undefined
+      const rSec = (env as any).RESOLVER_SECRET as string | undefined
+      setResolverConfig(rUrl && rSec ? { url: rUrl, secret: rSec } : null)
+    } catch { setResolverConfig(null) }
 
     if (request.method === 'OPTIONS') {
       const h: Record<string,string> = { ...cors }
@@ -318,12 +324,6 @@ export default {
         // Demo/test streams must never mask a failed real provider: only
         // include demo when explicitly requested (?provider=demo).
         const wantsDemo = preferredProviderParam === 'demo' || parsed.providerHint === 'demo'
-        // Resolver config for providers that delegate (constant per deploy).
-        try {
-          const rUrl = (env as any).RESOLVER_URL as string | undefined
-          const rSec = (env as any).RESOLVER_SECRET as string | undefined
-          setResolverConfig(rUrl && rSec ? { url: rUrl, secret: rSec } : null)
-        } catch { setResolverConfig(null) }
         const tried: string[] = []
         const ordered: VideoSourceProvider[] = []
         const pushIfValid = (id: string | null) => {
