@@ -215,3 +215,26 @@ New cells:
 | 41 | anikoto | `154587` Frieren | 1 | sub | same |
 
 **NOT green.** Per the acceptance rule, streaming is not declared complete: no cell reaches T3 (currentTime advance) from any testable network. The pipeline is real and shippable (correct data at every hop, honest failure at the last), and playback is IP-reputation-gated — any viewer whose IP passes the CDN WAF gets full episodes; all others get the existing no-source UI.
+
+---
+
+## 8. Phase 15 — AniWave + resolver: ACTUAL PLAYBACK (2026-09-07)
+
+Provider: AniWave (`aniwaves.ru` filter → episode list → servers → embed extract
+→ echovideo HLS / dood MP4), delivered through `aeri-stream` Fly resolver
+(signed URLs, playlist rewrite, Range, VTT) + worker delegation. patient zero:
+echovideo `play.echovideo.ru/embed-1/getSources` → `st2.*`/`hls*.echovideo.*`/
+`ru-cdn*` CDNs serving real MPEG-TS (`47 40` sync, FFmpeg metadata).
+
+| # | Case | Result |
+|---|------|--------|
+| 42 | Bebop E1, aniwave/sub, desktop 1440 | `PASS (PLAYABLE)` — rs 4, 966×721, currentTime advancing past 10 min continuous, screenshot of actual episode frames |
+| 43 | Bebop E2 (episode switch) | `PASS (PLAYABLE)` — rs 4, new stream, advances |
+| 44 | Frieren E1, aniwave/sub, mobile 375 | `PASS (PLAYABLE)` — rs 4, 1280×720 source, advancing |
+| 45 | Subtitles | N/A on echovideo (hardsubbed, no tracks exposed); VTT plumbing proven separately via anikoto `<track>` elements with resolver-signed URLs |
+| 46 | Progress | watchPos persisted to IndexedDB during playback (`anilist-1` ep 1 @ 578s); resume prompt path intact |
+| 47 | Fallback honesty | anikoto poisoned streams surface player error + Retry (no fake success); demo excluded from auto-fallback chain |
+
+MegaPlay-family verdict stands (ad-slideshow PNG segments on every tested
+anime/episode/network, including clean Fly egress) — AniWave/echovideo is the
+working provider; AniKoto remains available as resolution fallback.

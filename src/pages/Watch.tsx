@@ -330,7 +330,7 @@ export function Watch() {
               selectedSource={selectedSource}
               onTimeUpdate={handleTimeUpdate}
               onEnded={handleEnded}
-              initialTime={showResume ? undefined : (watchPos?.currentTime ?? 0)}
+              initialTime={showResume ? undefined : (watchPos && watchPos.episode === epNum ? watchPos.currentTime : 0)}
               animeTitle={titles.primary}
               episodeNumber={epDisplayForTitle}
               volume={getPreferences().volume}

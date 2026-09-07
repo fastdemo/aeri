@@ -259,55 +259,80 @@ async function awGet(path, referer, signal, timeoutMs = 8000) {
   return r
 }
 
-// AniWave: /filter → /watch slug → /ajax/episode/list → /ajax/server/list → /ajax/sources → embed → streams.
-// Embeds handled: echovideo (/embed-1/getSources → m3u8), dood-family (page → /pass_md5/ + token → mp4).
-async function aniwaveResolve(anilistId, title, episode, language, signal) {
+// AniWave anime resolution cache: title-match verdicts (aniwave exposes no
+// cross-provider ids, so title similarity IS the verification — see scoring).
+const awResolveCache = new Map()
+const AW_RESOLVE_TTL_MS = 10 * 60 * 1000
+
+function awScore(name, romaji, english) {
+  const n = (name || '').toLowerCase().trim()
+  if (!n) return 0
+  const vs = [romaji.toLowerCase().trim(), english.toLowerCase().trim()].filter(Boolean)
+  if (vs.some((v) => v === n)) return 3
+  if (vs.some((v) => v && (v.startsWith(n) || n.startsWith(v)))) return 2
+  if (vs.some((v) => v && (v.includes(n) || n.includes(v)))) return 1
+  return 0
+}
+
+async function awFindAnime(title, signal) {
   const romaji = String(title || '').split('||')[0]?.trim() || String(title || '')
   const english = String(title || '').split('||')[1]?.trim() || ''
-  const score = (t) => {
-    const n = (t || '').toLowerCase().trim()
-    if (!n) return 0
-    const vs = [romaji.toLowerCase().trim(), english.toLowerCase().trim()].filter(Boolean)
-    if (vs.some((v) => v === n)) return 3
-    if (vs.some((v) => v && (v.startsWith(n) || n.startsWith(v)))) return 2
-    if (vs.some((v) => v && (v.includes(n) || n.includes(v)))) return 1
-    return 0
-  }
-  // 1. filter → (animeId, name)
-  const fRes = await awGet(`/filter?keyword=${encodeURIComponent(romaji)}&page=1`, `${AW_BASE}/`, signal)
-  if (!fRes.ok) throw new Error(`aw filter ${fRes.status}`)
-  const fHtml = await fRes.text()
+  const gRes = await fetchUpstream(
+    `https://aniwaves.ru/filter?keyword=${encodeURIComponent(romaji)}&page=1`,
+    { headers: { Accept: 'text/html', Referer: 'https://aniwaves.ru/' }, externalSignal: signal, timeoutMs: 8000 },
+  )
+  if (!gRes.ok) throw new Error(`aw filter ${gRes.status}`)
+  const html = await gRes.text()
   const cands = []
   const seen = new Set()
   const fre = /href="\/watch\/([a-z0-9\-]+)-(\d+)"[^>]*>([^<]{1,120})<\/a>/gi
   let fm
-  while ((fm = fre.exec(fHtml)) !== null && cands.length < 30) {
+  while ((fm = fre.exec(html)) !== null && cands.length < 30) {
     const id = Number(fm[2])
     const name = (fm[3] || '').trim()
-    if (!Number.isFinite(id) || seen.has(id)) continue
+    if (!Number.isFinite(id) || seen.has(id) || !name) continue
     seen.add(id)
     cands.push({ id, name })
   }
   if (!cands.length) throw new Error('aw no filter results')
-  cands.sort((a, b) => score(b.name) - score(a.name))
-  const top = (cands.some((c) => score(c.name) > 0) ? cands.filter((c) => score(c.name) > 0) : cands).slice(0, 3)
-  // 2. verify by episode-list presence + pick first verifiable
-  let animeId = null
-  let epCount = 0
+  cands.sort((a, b) => awScore(b.name, romaji, english) - awScore(a.name, romaji, english))
+  const top = (cands.some((c) => awScore(c.name, romaji, english) > 0)
+    ? cands.filter((c) => awScore(c.name, romaji, english) > 0)
+    : cands).slice(0, 3)
   for (const c of top) {
     try {
-      const eRes = await awGet(`/ajax/episode/list/${c.id}`, `${AW_BASE}/watch/x-${c.id}`, signal, 6000)
+      const eRes = await fetchUpstream(`https://aniwaves.ru/ajax/episode/list/${c.id}`, {
+        headers: { Accept: '*/*', Referer: 'https://aniwaves.ru/', 'X-Requested-With': 'XMLHttpRequest' },
+        externalSignal: signal, timeoutMs: 6000,
+      })
       if (!eRes.ok) continue
       const eHtml = await eRes.text()
-      // count episode entries
-      const nums = [...eHtml.matchAll(/ep-(\d+)|data-ep(?:isode)?[^0-9]*(\d+)|>(\d{1,4})</gi)]
+      const collect = (h) => [...h.matchAll(/(?:ep-(\d+)|data-ep[^0-9]*(\d+)|>(\d{1,4})<)/gi)]
         .map((x) => Number(x[1] || x[2] || x[3])).filter((n) => Number.isFinite(n) && n > 0 && n < 5000)
-      const maxEp = nums.length ? Math.max(...nums) : 0
-      if (maxEp > 0) { animeId = c.id; epCount = maxEp; break }
+      let nums = collect(eHtml)
+      if (!nums.length) {
+        try {
+          const j = JSON.parse(eHtml)
+          nums = collect(j?.result || '')
+        } catch {}
+      }
+      if (nums.length) return { id: c.id, name: c.name, count: Math.max(...nums) }
     } catch {}
   }
-  if (animeId == null) throw new Error('aw no verifiable match')
-  // 3. servers for this episode
+  throw new Error('aw no episodes found')
+}
+
+async function aniwaveResolve(anilistId, title, episode, language, signal) {
+  const key = `aw:${anilistId || String(title || '')}`
+  const hit0 = awResolveCache.get(key)
+  let found = hit0 && Date.now() - hit0.at < AW_RESOLVE_TTL_MS ? hit0 : null
+  if (!found) {
+    found = await awFindAnime(title, signal)
+    awResolveCache.set(key, { ...found, at: Date.now() })
+    if (awResolveCache.size > 500) awResolveCache.delete(awResolveCache.keys().next().value)
+  }
+  const animeId = found.id
+  // servers for this episode
   const sRes = await awGet(`/ajax/server/list?servers=${animeId}&eps=${episode}`, `${AW_BASE}/watch/${animeId}/ep-1`, signal, 6000)
   if (!sRes.ok) throw new Error(`aw servers ${sRes.status}`)
   const sj = await sRes.json().catch(() => null)
@@ -323,7 +348,7 @@ async function aniwaveResolve(anilistId, title, episode, language, signal) {
     while ((lm = liRe.exec(tm[2])) !== null) jobs.push({ type, linkId: lm[1], server: lm[2].trim() })
   }
   if (!jobs.length) throw new Error('aw no servers')
-  // 4. resolve each linkId → embed → extract (parallel, first playable wins)
+  // resolve each linkId → embed → extract (parallel, first playable wins)
   const results = await Promise.all(jobs.slice(0, 6).map(async (job) => {
     try {
       const r = await awGet(`/ajax/sources?id=${encodeURIComponent(job.linkId)}`, `${AW_BASE}/`, signal, 6000)
@@ -495,6 +520,9 @@ const server = createServer(async (req, res) => {
 
   // Episode listing for providers whose episode data lives behind search
   // (AniWave has no id-based episode API): filter → best slug → ajax list.
+  // Accepts optional anilistId: verifies the top candidate (one series fetch)
+  // and warms the resolve verdict cache so the later /api/resolve call for an
+  // episode skips filter+verify entirely.
   if (req.method === 'POST' && url.pathname === '/api/episodes') {
     if (!checkAuth(req)) return sendJson(res, 401, { error: 'Unauthorized' }, origin)
     let body
@@ -505,6 +533,7 @@ const server = createServer(async (req, res) => {
     }
     const provider = body.provider === 'aniwave' ? 'aniwave' : null
     const title = String(body.title || '')
+    const anilistId = Number(body.anilistId) || null
     if (!provider || !title.trim()) return sendJson(res, 400, { error: 'provider=aniwave + title required' }, origin)
     try {
       const romaji = title.split('||')[0]?.trim() || title
