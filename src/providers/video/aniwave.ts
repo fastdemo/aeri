@@ -1,0 +1,102 @@
+import type { Anime } from '../../types/anime'
+import type { VideoProvider, VideoEpisode, VideoSourceEnhanced, ProviderCapabilities, SourceOptions } from './types'
+import { cachedFetch, fetchWithTimeout } from './base'
+import { getEffectiveVideoApiUrl } from '../../storage/preferences'
+
+export class AniWaveProvider implements VideoProvider {
+  id = 'aniwave'
+  name = 'AniWave'
+  capabilities: ProviderCapabilities = {
+    id: 'aniwave',
+    name: 'aniwave',
+    displayName: 'AniWave',
+    languages: ['sub', 'dub'],
+    subtitles: false,
+    embed: false,
+    directVideo: true,
+    search: true,
+    episodes: true,
+    sources: true,
+  }
+
+  private get base(): string | null {
+    return getEffectiveVideoApiUrl()
+  }
+
+  async resolveAnimeId(anime: Anime): Promise<string | null> {
+    const base = this.base
+    if (!base || !anime.identity.anilistId) return null
+    return cachedFetch(`video:aniwave:resolve:${anime.identity.anilistId}`, async () => {
+      try {
+        const res = await fetchWithTimeout(`${base}/api/map/${anime.identity.anilistId}?provider=aniwave`, {}, 3500)
+        if (!res.ok) return null
+        const j: any = await res.json().catch(() => null)
+        return j?.providerAnimeId ?? null
+      } catch { return null }
+    })
+  }
+
+  async getEpisodes(anime: Anime, signal?: AbortSignal): Promise<VideoEpisode[]> {
+    const base = this.base
+    if (!base || !anime.identity.anilistId) return []
+    const titleHint = [anime.title.romaji, anime.title.english].filter(Boolean).join('||')
+    return cachedFetch(`video:aniwave:episodes:${anime.identity.anilistId}`, async () => {
+      try {
+        const res = await fetchWithTimeout(`${base}/api/episodes/${anime.identity.anilistId}?provider=aniwave&title=${encodeURIComponent(titleHint)}`, {}, 3500, signal)
+        if (!res.ok) return []
+        const j: any = await res.json().catch(() => null)
+        const list = j?.episodes ?? []
+        if (!Array.isArray(list)) return []
+        return list.map((ep: any, idx: number) => ({
+          id: ep.id ?? `aniwave-${anime.identity.anilistId}-${ep.number ?? idx + 1}`,
+          animeId: anime.identity.internalId,
+          number: ep.number ?? idx + 1,
+          title: ep.title ?? `Episode ${ep.number ?? idx + 1}`,
+          thumbnail: ep.thumbnail,
+          provider: 'aniwave',
+          providerEpisodeId: ep.providerEpisodeId ?? `${anime.identity.anilistId}-${ep.number ?? idx + 1}`,
+          language: ep.language ?? 'sub',
+          availableLanguages: ep.availableLanguages ?? ['sub', 'dub'],
+        })) as VideoEpisode[]
+      } catch { return [] }
+    })
+  }
+
+  async getSources(episode: VideoEpisode, options?: SourceOptions): Promise<VideoSourceEnhanced[]> {
+    const base = this.base
+    if (!base) return []
+    const lang = options?.preferredLanguage ?? episode.language ?? 'sub'
+    // Extract anilistId from episode
+    let anilistId: string | null = null
+    const m = episode.animeId.match(/anilist-(\d+)/)
+    if (m) anilistId = m[1]
+    else {
+      const m2 = episode.providerEpisodeId.match(/(\d+)-(\d+)$/)
+      if (m2) anilistId = m2[1]
+    }
+    if (!anilistId) return []
+    const titleHint = options?.animeTitle?.trim() || ''
+    // Signed source URLs expire — never serve these from cache. Episodes
+    // (stable) stay cached; sources always resolve fresh.
+    try {
+      const url = `${base}/api/sources/aniwave-${anilistId}-${episode.number}?language=${lang}&provider=aniwave${titleHint ? `&title=${encodeURIComponent(titleHint)}` : ''}`
+      const res = await fetchWithTimeout(url, {}, 9000, options?.signal)
+      if (!res.ok) return []
+      const j: any = await res.json().catch(() => null)
+      const srcs = j?.sources ?? []
+      if (!Array.isArray(srcs)) return []
+      return srcs.map((s: any) => ({
+        url: s.url,
+        type: s.type ?? (s.url?.includes('.m3u8') ? 'hls' : s.embed ? 'embed' : 'mp4'),
+        quality: s.quality ?? 'auto',
+        provider: 'aniwave',
+        language: (s.language ?? lang) as any,
+        embed: !!s.embed,
+        subtitles: s.subtitles,
+        headers: s.headers,
+      })) as VideoSourceEnhanced[]
+    } catch { return [] }
+  }
+}
+
+export const aniKotoProvider = new AniWaveProvider()

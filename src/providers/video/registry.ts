@@ -4,6 +4,7 @@ import { mockVideoProvider } from './mock'
 import { allAnimeProvider } from './allanime'
 import { animePaheProvider } from './animepahe'
 import { aniKotoProvider } from './anikoto'
+import { aniWaveProvider } from './aniwave'
 import { megaPlayProvider } from './megaplay'
 import { animeParadiseProvider } from './animeparadise'
 import { aniNekoProvider } from './anineko'
@@ -22,6 +23,7 @@ export const videoProviders: VideoProvider[] = [
   allAnimeProvider,
   animePaheProvider,
   aniKotoProvider,
+  aniWaveProvider,
   megaPlayProvider,
   animeParadiseProvider,
   aniNekoProvider,
@@ -65,13 +67,13 @@ export async function checkProviderHealth(signal?: AbortSignal): Promise<Record<
     try {
       const res = await fetchWithTimeout(`${baseToCheck}/api/health`, {}, 4000, signal)
       if (res.ok) {
-        const baseMap: Record<string, 'available' | 'unavailable'> = { official: 'available', custom: effective ? 'available' : 'unavailable', miruro: 'available', demo: 'available', allanime: 'unavailable', animepahe: 'unavailable', anikoto: 'available', megaplay: 'unavailable', animeparadise: 'unavailable', anineko: 'unavailable' }
+        const baseMap: Record<string, 'available' | 'unavailable'> = { official: 'available', custom: effective ? 'available' : 'unavailable', miruro: 'available', demo: 'available', allanime: 'unavailable', animepahe: 'unavailable', anikoto: 'available', aniwave: 'available', megaplay: 'unavailable', animeparadise: 'unavailable', anineko: 'unavailable' }
         return baseMap
       }
     } catch {}
     return { official: 'available', custom: effective ? 'unavailable' : 'unavailable', miruro: hasWorker ? 'available' : 'unavailable' } as any
   }
-  return { official: 'available', custom: 'unavailable', miruro: 'unavailable', allanime: 'unavailable', animepahe: 'unavailable', anikoto: 'unavailable', megaplay: 'unavailable', animeparadise: 'unavailable', anineko: 'unavailable', demo: 'available' }
+  return { official: 'available', custom: 'unavailable', miruro: 'unavailable', allanime: 'unavailable', animepahe: 'unavailable', anikoto: 'unavailable', aniwave: 'unavailable', megaplay: 'unavailable', animeparadise: 'unavailable', anineko: 'unavailable', demo: 'available' }
 }
 
 export function getProviderById(id: string): VideoProvider | undefined {

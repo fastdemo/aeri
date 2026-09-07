@@ -16,6 +16,7 @@ import {
   AllAnimeStubProvider,
   AnimePaheProvider,
   AnikotoProvider,
+  AniwaveProvider,
   GenericStubProvider,
   setResolverConfig,
   type VideoSourceProvider,
@@ -62,6 +63,7 @@ const demoProvider = new DemoProvider()
 const allAnimeStub = new AllAnimeStubProvider()
 const animePaheProvider = new AnimePaheProvider()
 const anikotoProvider = new AnikotoProvider()
+const aniwaveProvider = new AniwaveProvider()
 const megaPlayStub = new GenericStubProvider('megaplay', 'MegaPlay')
 const animeParadiseStub = new GenericStubProvider('animeparadise', 'AnimeParadise')
 const aniNekoStub = new GenericStubProvider('anineko', 'AniNeko')
@@ -69,6 +71,7 @@ const aniNekoStub = new GenericStubProvider('anineko', 'AniNeko')
 const providers: VideoSourceProvider[] = [
   officialProvider,
   anikotoProvider,
+  aniwaveProvider,
   animePaheProvider,
   miruroAliasProvider,
   allAnimeStub,

@@ -49,9 +49,20 @@ const CDN_SUFFIXES = [
   'anikototv.to',
   'anikotoapi.site',
   'vidnest.fun',
+  'aniwaves.ru',
+  'echovideo.ru',
+  'echovideo.to',
+  'play.echovideo.ru',
+  'st2.dpopdrop89.store',
   ...EXTRA_SUFFIXES,
 ]
-const CDN_REGEXES = [/^megap[a-z0-9-]*\.[a-z0-9.-]+$/i]
+const CDN_REGEXES = [
+  /^megap[a-z0-9-]*\.[a-z0-9.-]+$/i,
+  // megaplay edge rotations observed in the wild
+  /^st\d+\.[a-z0-9-]+\.store$/i,
+  /^hls[a-z0-9-]*\.echovideo\.(to|ru)$/i,
+  /^[a-z0-9-]+\.imgnex\.top$/i,
+]
 
 const log = (obj) => {
   try { console.log(JSON.stringify({ t: new Date().toISOString(), ...obj })) } catch {}
@@ -237,6 +248,141 @@ async function resolveSeriesId(anilistId, romaji, english, signal) {
   return id
 }
 
+const AW_BASE = 'https://aniwaves.ru'
+const AW_UA = UA
+
+async function awGet(path, referer, signal, timeoutMs = 8000) {
+  const r = await fetchUpstream(`${AW_BASE}${path}`, {
+    headers: { Accept: '*/*', Referer: referer || `${AW_BASE}/`, 'X-Requested-With': 'XMLHttpRequest' },
+    externalSignal: signal, timeoutMs,
+  })
+  return r
+}
+
+// AniWave: /filter → /watch slug → /ajax/episode/list → /ajax/server/list → /ajax/sources → embed → streams.
+// Embeds handled: echovideo (/embed-1/getSources → m3u8), dood-family (page → /pass_md5/ + token → mp4).
+async function aniwaveResolve(anilistId, title, episode, language, signal) {
+  const romaji = String(title || '').split('||')[0]?.trim() || String(title || '')
+  const english = String(title || '').split('||')[1]?.trim() || ''
+  const score = (t) => {
+    const n = (t || '').toLowerCase().trim()
+    if (!n) return 0
+    const vs = [romaji.toLowerCase().trim(), english.toLowerCase().trim()].filter(Boolean)
+    if (vs.some((v) => v === n)) return 3
+    if (vs.some((v) => v && (v.startsWith(n) || n.startsWith(v)))) return 2
+    if (vs.some((v) => v && (v.includes(n) || n.includes(v)))) return 1
+    return 0
+  }
+  // 1. filter → (animeId, name)
+  const fRes = await awGet(`/filter?keyword=${encodeURIComponent(romaji)}&page=1`, `${AW_BASE}/`, signal)
+  if (!fRes.ok) throw new Error(`aw filter ${fRes.status}`)
+  const fHtml = await fRes.text()
+  const cands = []
+  const seen = new Set()
+  const fre = /href="\/watch\/([a-z0-9\-]+)-(\d+)"[^>]*>([^<]{1,120})<\/a>/gi
+  let fm
+  while ((fm = fre.exec(fHtml)) !== null && cands.length < 30) {
+    const id = Number(fm[2])
+    const name = (fm[3] || '').trim()
+    if (!Number.isFinite(id) || seen.has(id)) continue
+    seen.add(id)
+    cands.push({ id, name })
+  }
+  if (!cands.length) throw new Error('aw no filter results')
+  cands.sort((a, b) => score(b.name) - score(a.name))
+  const top = (cands.some((c) => score(c.name) > 0) ? cands.filter((c) => score(c.name) > 0) : cands).slice(0, 3)
+  // 2. verify by episode-list presence + pick first verifiable
+  let animeId = null
+  let epCount = 0
+  for (const c of top) {
+    try {
+      const eRes = await awGet(`/ajax/episode/list/${c.id}`, `${AW_BASE}/watch/x-${c.id}`, signal, 6000)
+      if (!eRes.ok) continue
+      const eHtml = await eRes.text()
+      // count episode entries
+      const nums = [...eHtml.matchAll(/ep-(\d+)|data-ep(?:isode)?[^0-9]*(\d+)|>(\d{1,4})</gi)]
+        .map((x) => Number(x[1] || x[2] || x[3])).filter((n) => Number.isFinite(n) && n > 0 && n < 5000)
+      const maxEp = nums.length ? Math.max(...nums) : 0
+      if (maxEp > 0) { animeId = c.id; epCount = maxEp; break }
+    } catch {}
+  }
+  if (animeId == null) throw new Error('aw no verifiable match')
+  // 3. servers for this episode
+  const sRes = await awGet(`/ajax/server/list?servers=${animeId}&eps=${episode}`, `${AW_BASE}/watch/${animeId}/ep-1`, signal, 6000)
+  if (!sRes.ok) throw new Error(`aw servers ${sRes.status}`)
+  const sj = await sRes.json().catch(() => null)
+  const sHtml = sj?.result || ''
+  const jobs = []
+  const typeRe = /<div class="type" data-type="(sub|dub|ssub)"[\s\S]*?<ul>([\s\S]*?)<\/ul>/gi
+  let tm
+  while ((tm = typeRe.exec(sHtml)) !== null) {
+    const type = tm[1]
+    if (type !== language && !(language === 'sub' && type === 'ssub')) continue
+    const liRe = /data-link-id="([^"]+)"[^>]*>([^<]{1,30})/gi
+    let lm
+    while ((lm = liRe.exec(tm[2])) !== null) jobs.push({ type, linkId: lm[1], server: lm[2].trim() })
+  }
+  if (!jobs.length) throw new Error('aw no servers')
+  // 4. resolve each linkId → embed → extract (parallel, first playable wins)
+  const results = await Promise.all(jobs.slice(0, 6).map(async (job) => {
+    try {
+      const r = await awGet(`/ajax/sources?id=${encodeURIComponent(job.linkId)}`, `${AW_BASE}/`, signal, 6000)
+      if (!r.ok) return null
+      const j = await r.json().catch(() => null)
+      const embedUrl = j?.result?.url || (typeof j?.result === 'string' ? j.result : null)
+      if (!embedUrl || typeof embedUrl !== 'string') return null
+      if (/echovideo|\/embed-1\//.test(embedUrl)) return await awExtractEchovideo(embedUrl, signal)
+      if (/myvidplay|playmogo|dood|d0o0d|ds2play|vide0/.test(embedUrl)) return await awExtractDood(embedUrl, signal)
+      return null
+    } catch { return null }
+  }))
+  const hit = results.find((x) => x && x.url)
+  if (!hit) throw new Error('aw no playable stream')
+  return { file: hit.url, subs: [], intro: null, outro: null, kind: hit.kind || 'hls' }
+}
+
+async function awExtractEchovideo(embedUrl, signal) {
+  const m = embedUrl.match(/^(https?:\/\/[^/]+)\/embed-1\/([^?#]+)/)
+  if (!m) return null
+  const [, origin, id] = m
+  const res = await fetchUpstream(`${origin}/embed-1/getSources?id=${encodeURIComponent(id)}`, {
+    headers: {
+      'User-Agent': UA, 'X-Requested-With': 'XMLHttpRequest',
+      Accept: 'application/json', Referer: embedUrl,
+    },
+    externalSignal: signal, timeoutMs: 8000,
+  })
+  if (!res.ok) return null
+  const j = await res.json().catch(() => null)
+  const file = j?.sources
+  const url = typeof file === 'string' ? file : file?.file || file?.url
+  if (typeof url !== 'string' || !/^https?:\/\//.test(url)) return null
+  return { url, kind: 'hls', subtitles: [] }
+}
+
+async function awExtractDood(embedUrl, signal) {
+  const origin = (embedUrl.match(/^(https?:\/\/[^/]+)/) || [])[1]
+  if (!origin) return null
+  const res = await fetchUpstream(embedUrl, {
+    headers: { 'User-Agent': UA, Referer: 'https://aniwaves.ru/' }, externalSignal: signal, timeoutMs: 8000,
+  })
+  if (!res.ok) return null
+  const html = await res.text()
+  const pass = html.match(/\/pass_md5\/[^'"\s]+/)
+  const token = html.match(/token=([a-zA-Z0-9]+)/)
+  if (!pass || !token) return null
+  const bRes = await fetchUpstream(origin + pass[0], {
+    headers: { 'User-Agent': UA, Referer: embedUrl }, externalSignal: signal, timeoutMs: 8000,
+  })
+  if (!bRes.ok) return null
+  const base = (await bRes.text()).trim()
+  if (!/^https?:\/\//.test(base)) return null
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789'
+  let suffix = ''
+  for (let i = 0; i < 10; i++) suffix += chars[Math.floor(Math.random() * chars.length)]
+  return { url: `${base}${suffix}.mp4?token=${token[1]}&expiry=${Date.now()}`, kind: 'mp4', subtitles: [] }
+}
+
 async function anikotoResolve(anilistId, title, episode, language, signal) {
   const fetchOpt = (extra = {}) => ({ externalSignal: signal, ...(extra || {}) })
   const romaji = String(title || '').split('||')[0]?.trim() || String(title || '')
@@ -347,6 +493,92 @@ const server = createServer(async (req, res) => {
     return sendJson(res, out.ok ? 200 : 502, out, origin)
   }
 
+  // Episode listing for providers whose episode data lives behind search
+  // (AniWave has no id-based episode API): filter → best slug → ajax list.
+  if (req.method === 'POST' && url.pathname === '/api/episodes') {
+    if (!checkAuth(req)) return sendJson(res, 401, { error: 'Unauthorized' }, origin)
+    let body
+    try {
+      body = JSON.parse(await readBody(req))
+    } catch {
+      return sendJson(res, 400, { error: 'Invalid JSON body' }, origin)
+    }
+    const provider = body.provider === 'aniwave' ? 'aniwave' : null
+    const title = String(body.title || '')
+    if (!provider || !title.trim()) return sendJson(res, 400, { error: 'provider=aniwave + title required' }, origin)
+    try {
+      const romaji = title.split('||')[0]?.trim() || title
+      const gRes = await fetchUpstream(
+        `https://aniwaves.ru/filter?keyword=${encodeURIComponent(romaji)}&page=1`,
+        { headers: { Accept: 'text/html', Referer: 'https://aniwaves.ru/' } },
+      )
+      if (!gRes.ok) throw new Error(`aw filter ${gRes.status}`)
+      const html = await gRes.text()
+      const cands = []
+      const seen = new Set()
+      const fre = /href="\/watch\/([a-z0-9\-]+)-(\d+)"[^>]*>([^<]{1,120})<\/a>/gi
+      let fm
+      while ((fm = fre.exec(html)) !== null && cands.length < 30) {
+        const id = Number(fm[2])
+        const name = (fm[3] || '').trim()
+        if (!Number.isFinite(id) || seen.has(id) || !name) continue
+        seen.add(id)
+        cands.push({ id, name })
+      }
+      if (!cands.length) throw new Error('aw no filter results')
+      const rom = romaji.toLowerCase().trim()
+      const eng = String(title.split('||')[1] || '').toLowerCase().trim()
+      const score = (t) => {
+        const n = (t || '').toLowerCase().trim()
+        if (!n) return 0
+        const vs = [rom, eng].filter(Boolean)
+        if (vs.some((v) => v === n)) return 3
+        if (vs.some((v) => v && (v.startsWith(n) || n.startsWith(v)))) return 2
+        if (vs.some((v) => v && (v.includes(n) || n.includes(v)))) return 1
+        return 0
+      }
+      cands.sort((a, b) => score(b.name) - score(a.name))
+      const top = (cands.some((c) => score(c.name) > 0) ? cands.filter((c) => score(c.name) > 0) : cands).slice(0, 3)
+      for (const c of top) {
+        try {
+          const eRes = await fetchUpstream(`https://aniwaves.ru/ajax/episode/list/${c.id}`, {
+            headers: { Accept: '*/*', Referer: 'https://aniwaves.ru/', 'X-Requested-With': 'XMLHttpRequest' },
+          })
+          if (!eRes.ok) continue
+          const eHtml = await eRes.text()
+          const nums = [...eHtml.matchAll(/(?:ep-(\d+)|data-ep[^0-9]*(\d+)|>(\d{1,4})<)/gi)]
+            .map((x) => Number(x[1] || x[2] || x[3])).filter((n) => Number.isFinite(n) && n > 0 && n < 5000)
+          // Also try JSON wrapper {result: html}
+          let count = nums.length ? Math.max(...nums) : 0
+          if (!count) {
+            try {
+              const j = JSON.parse(eHtml)
+              const h2 = j?.result || ''
+              const n2 = [...h2.matchAll(/(?:ep-(\d+)|data-ep[^0-9]*(\d+)|>(\d{1,4})<)/gi)]
+                .map((x) => Number(x[1] || x[2] || x[3])).filter((n) => Number.isFinite(n) && n > 0 && n < 5000)
+              if (n2.length) count = Math.max(...n2)
+            } catch {}
+          }
+          if (count > 0) {
+            log({ ev: 'episodes', provider: 'aniwave', animeId: c.id, count })
+            return sendJson(res, 200, {
+              provider: 'aniwave',
+              animeId: c.id,
+              title: c.name,
+              count,
+              episodes: Array.from({ length: count }, (_, i) => ({ number: i + 1 })),
+            }, origin)
+          }
+        } catch {}
+      }
+      throw new Error('aw no episodes found')
+    } catch (e) {
+      const msg = String((e && e.message) || e).slice(0, 200)
+      log({ ev: 'episodes-fail', ms: 0, err: msg })
+      return sendJson(res, 502, { error: 'EPISODES_FAILED', message: msg }, origin)
+    }
+  }
+
   // Authenticated resolution: returns resolver-signed delivery URLs.
   if (req.method === 'POST' && url.pathname === '/api/resolve') {
     if (!checkAuth(req)) return sendJson(res, 401, { error: 'Unauthorized' }, origin)
@@ -361,22 +593,26 @@ const server = createServer(async (req, res) => {
     const episode = Number(body.episode)
     const language = body.language === 'dub' ? 'dub' : 'sub'
     const title = String(body.title || '')
+    const provider = body.provider === 'aniwave' ? 'aniwave' : 'anikoto'
     if (!Number.isFinite(anilistId) || anilistId <= 0 || !Number.isFinite(episode) || episode <= 0) {
       return sendJson(res, 400, { error: 'anilistId + episode required' }, origin)
     }
     const t0 = Date.now()
     try {
-      const r = await anikotoResolve(anilistId, title, episode, language, req.signal)
+      const r = provider === 'aniwave'
+        ? await aniwaveResolve(anilistId, title, episode, language, req.signal)
+        : await anikotoResolve(anilistId, title, episode, language, req.signal)
       const playlist = streamUrlFor(r.file)
       if (!playlist) throw new Error('URL signing unavailable')
-      const subtitles = r.subs
+      const subtitles = (r.subs || [])
         .map((t) => ({ label: t.label, file: streamUrlFor(t.file) }))
         .filter((t) => t.file)
-      log({ ev: 'resolve', anilistId, episode, language, ms: Date.now() - t0, subs: subtitles.length })
+      const kind = r.kind === 'mp4' ? 'mp4' : 'hls'
+      log({ ev: 'resolve', provider, anilistId, episode, language, ms: Date.now() - t0, subs: subtitles.length })
       return sendJson(res, 200, {
-        provider: 'anikoto',
+        provider,
         url: playlist,
-        type: 'hls',
+        type: kind,
         language,
         quality: 'auto',
         subtitles: subtitles.map((t) => ({ language: 'en', label: t.label, url: t.file })),
@@ -406,6 +642,7 @@ const server = createServer(async (req, res) => {
       return
     }
     if (!hostAllowed(host)) {
+      log({ ev: 'stream-reject-host', host })
       res.writeHead(403, { ...corsHeaders(origin) })
       res.end('Host not allowed')
       return
@@ -450,53 +687,115 @@ const server = createServer(async (req, res) => {
         res.end('Upstream blocked')
         return
       }
-      if (isPlaylist || /vtt|text/i.test(ct)) {
-        // Small text bodies: cap size, pass through with correct type.
-        const text = await up.text().catch(() => '')
+      // Decide text vs binary by CONTENT SNIFFING, not URL/headers: variant
+      // playlists often have no .m3u8 extension and arrive as
+      // application/octet-stream. Buffer a small head, sniff for playlist /
+      // VTT magic, then either process text (cap 5MB) or stream bytes.
+      const reader = up.body?.getReader()
+      if (!reader) throw new Error('no body')
+      const headChunks = []
+      let headLen = 0
+      let upstreamDone = false
+      try {
+        while (headLen < 16384) {
+          const { done, value } = await reader.read()
+          if (done) { upstreamDone = true; break }
+          if (value) { headChunks.push(value); headLen += value.length }
+        }
+      } catch (e) {
+        reader.releaseLock?.()
+        throw e
+      }
+      const headText = Buffer.concat(headChunks).toString('utf8').slice(0, 200)
+      const isTextBody = /^\s*(#EXTM3U|WEBVTT)/i.test(headText)
+      if (!isTextBody) {
+        // Binary: write head + stream rest with Range passthrough, no buffering.
+        const headers = {
+          ...corsHeaders(origin),
+          'Content-Type': ct,
+          'Cache-Control': 'no-store',
+          'Accept-Ranges': 'bytes',
+        }
+        const cr = up.headers.get('content-range')
+        if (cr) headers['Content-Range'] = cr
+        // Length unknown now (head buffered); use chunked unless upstream gave total.
+        // Prefer correctness over Content-Length: omit it when head was consumed.
+        log({ ev: 'stream-bin', host, ct, status: up.status, range: req.headers.range || '-' })
+        res.writeHead(up.status, headers)
+        try {
+          for (const c of headChunks) {
+            if (res.writableEnded) break
+            res.write(c)
+          }
+          if (!upstreamDone) {
+            for (;;) {
+              const { done, value } = await reader.read()
+              if (done) break
+              if (res.writableEnded) break
+              if (value) res.write(value)
+            }
+          }
+          res.end()
+        } catch {}
+        try { reader.releaseLock() } catch {}
         clearTimeout(tid)
         req.off('close', onClose)
-        if (text.length > 5 * 1024 * 1024) {
+        return
+      }
+      {
+        // Small text bodies: cap size, rewrite playlists, fix types.
+        const rest = []
+        let total = headLen
+        try {
+          if (!upstreamDone) {
+            for (;;) {
+              const { done, value } = await reader.read()
+              if (done) break
+              if (value) { rest.push(value); total += value.length }
+              if (total > 5 * 1024 * 1024) break
+            }
+          }
+        } catch {}
+        try { reader.releaseLock() } catch {}
+        clearTimeout(tid)
+        req.off('close', onClose)
+        if (total > 5 * 1024 * 1024) {
           res.writeHead(502, { ...corsHeaders(origin) })
           res.end('Too large')
           return
         }
-        // Rewrite nested playlist/segment references? No — clients resolve
-        // relative URLs against THIS playlist URL, which already points at
-        // /api/stream… but sibling segments are unsigned raw CDN URLs. The
-        // master we serve lists absolute variant URLs issued by megaplay;
-        // hls.js resolves variant playlists, whose segments are absolute CDN
-        // URLs that would bypass the proxy. To keep delivery proxied, the
-        // RESOLVE step is what matters — variant playlists served here get
-        // rewritten below only if they contain unsigned http(s) lines.
-        // (Megaplay variants are absolute; segments inside media playlists
-        // are relative to the variant URL. Since variant URLs themselves are
-        // signed proxy URLs, relative segments resolve against /api/stream
-        // and FAIL auth. So rewrite absolute http(s) URIs in media playlists
-        // into signed proxy URLs.)
+        const text = Buffer.concat([...headChunks, ...rest]).toString('utf8')
+        // Rewrite every URI line (absolute or relative-to-playlist) into a
+        // signed proxy URL so hls.js never touches the CDN directly (it
+        // can't send the required Referer, and raw hosts may be blocked).
+        // Non-playlists (VTT) have no URI lines and pass through untouched.
         let outText = text
-        if (PUBLIC_URL && SECRET && !/^\s*#EXTM3U/i.test(text)) {
-          // not a playlist (e.g. VTT) — pass through
-        } else if (PUBLIC_URL && SECRET) {
-          const exp = Math.floor(Date.now() / 1000) + TOKEN_TTL_S
-          outText = text.split('\n').map((line) => {
-            const t = line.trim()
-            if (!t || t.startsWith('#')) return line
-            // Resolve relative against the playlist's own (CDN) URL, then sign
-            let abs
-            try { abs = new URL(t, target).toString() } catch { return line }
-            if (!/^https:\/\//.test(abs)) return line
-            let h
-            try { h = new URL(abs).hostname } catch { return line }
-            if (!hostAllowed(h)) return line
-            const { u, e, s } = signToken(abs, exp)
-            return `${PUBLIC_URL}/api/stream?u=${encodeURIComponent(u)}&e=${encodeURIComponent(e)}&s=${s}`
-          }).join('\n')
+        let outCt = ct
+        if (/^\s*#EXTM3U/i.test(text)) {
+          outCt = 'application/vnd.apple.mpegurl'
+          if (PUBLIC_URL && SECRET) {
+            const exp = Math.floor(Date.now() / 1000) + TOKEN_TTL_S
+            outText = text.split('\n').map((line) => {
+              const t = line.trim()
+              if (!t || t.startsWith('#')) return line
+              let abs
+              try { abs = new URL(t, target).toString() } catch { return line }
+              if (!/^https:\/\//.test(abs)) return line
+              let h
+              try { h = new URL(abs).hostname } catch { return line }
+              if (!hostAllowed(h)) return line
+              const { u, e, s } = signToken(abs, exp)
+              return `${PUBLIC_URL}/api/stream?u=${encodeURIComponent(u)}&e=${encodeURIComponent(e)}&s=${s}`
+            }).join('\n')
+          }
+        } else if (/WEBVTT/i.test(text.slice(0, 20))) {
+          outCt = 'text/vtt'
         }
         const buf = Buffer.from(outText, 'utf8')
-        log({ ev: 'stream-text', host, ct, bytes: buf.length, status: up.status })
+        log({ ev: 'stream-text', host, ct: outCt, bytes: buf.length, status: up.status })
         res.writeHead(up.status === 206 ? 206 : 200, {
           ...corsHeaders(origin),
-          'Content-Type': ct,
+          'Content-Type': outCt,
           'Content-Length': buf.length,
           'Cache-Control': 'no-store',
           'Accept-Ranges': 'bytes',
@@ -504,29 +803,6 @@ const server = createServer(async (req, res) => {
         res.end(buf)
         return
       }
-      // Binary segments: stream with Range passthrough, no buffering.
-      const headers = {
-        ...corsHeaders(origin),
-        'Content-Type': ct,
-        'Cache-Control': 'no-store',
-        'Accept-Ranges': 'bytes',
-      }
-      const cr = up.headers.get('content-range')
-      if (cr) headers['Content-Range'] = cr
-      const cl = up.headers.get('content-length')
-      if (cl) headers['Content-Length'] = cl
-      log({ ev: 'stream-bin', host, ct, status: up.status, range: req.headers.range || '-' })
-      res.writeHead(up.status, headers)
-      try {
-        for await (const chunk of up.body) {
-          if (res.writableEnded) break
-          res.write(chunk)
-        }
-        res.end()
-      } catch {}
-      clearTimeout(tid)
-      req.off('close', onClose)
-      return
     } catch (e) {
       clearTimeout(tid)
       req.off('close', onClose)

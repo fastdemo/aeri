@@ -566,6 +566,88 @@ export class GenericStubProvider implements VideoSourceProvider {
   async getSources(): Promise<NormalizedSource[]> { return [] }
 }
 
+// AniWave (aniwaves.ru) via the dedicated resolver: filter → episode list →
+// servers → embed extract (echovideo HLS / dood MP4). Resolution + delivery
+// both run on clean egress; the worker only relays signed URLs.
+export class AniwaveProvider implements VideoSourceProvider {
+  id = 'aniwave'
+  capabilities: ProviderCapabilities = { id: 'aniwave', displayName: 'AniWave', languages: ['sub','dub'], subtitles: true, hls: true, mp4: true, embed: false, search: true, episodes: true, sources: true }
+
+  private async resolveViaService(anilistId: number, title: string, episode: number, language: VideoLanguage, signal?: AbortSignal): Promise<NormalizedSource[]> {
+    if (!resolverConfig) return []
+    try {
+      const ctrl = new AbortController()
+      const tid = setTimeout(() => ctrl.abort(), 20000)
+      const onAbort = () => ctrl.abort((signal as any)?.reason)
+      if (signal) {
+        if (signal.aborted) { clearTimeout(tid); return [] }
+        signal.addEventListener('abort', onAbort, { once: true })
+      }
+      try {
+        const res = await fetch(`${resolverConfig.url}/api/resolve`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            Authorization: `Bearer ${resolverConfig.secret}`,
+          },
+          body: JSON.stringify({ provider: 'aniwave', anilistId, title, episode, language }),
+          signal: ctrl.signal,
+        })
+        if (!res.ok) return []
+        const j: any = await res.json().catch(() => null)
+        if (!j || typeof j.url !== 'string' || !/^https:\/\//.test(j.url)) return []
+        const subs = Array.isArray(j.subtitles) ? j.subtitles
+          .filter((t: any) => t && typeof t.url === 'string' && /^https:\/\//.test(t.url))
+          .map((t: any) => ({ language: t.language || 'en', label: t.label || 'English', url: t.url, type: 'vtt' })) : []
+        return [{
+          provider: 'aniwave',
+          url: j.url,
+          type: j.type === 'mp4' ? 'mp4' : 'hls',
+          language,
+          quality: 'auto',
+          embed: false,
+          subtitles: subs.length ? subs : undefined,
+        }]
+      } finally {
+        clearTimeout(tid)
+        if (signal) signal.removeEventListener('abort', onAbort)
+      }
+    } catch { return [] }
+  }
+
+  async getEpisodes(anilistId: number, signal?: AbortSignal, hint?: { title?: string }): Promise<{ number: number; title?: string; thumbnail?: string }[]> {
+    if (!resolverConfig) return []
+    try {
+      const ctrl = new AbortController()
+      const tid = setTimeout(() => ctrl.abort(), 12000)
+      try {
+        const res = await fetch(`${resolverConfig.url}/api/episodes`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+            Authorization: `Bearer ${resolverConfig.secret}`,
+          },
+          body: JSON.stringify({ provider: 'aniwave', title: hint?.title?.trim() || '' }),
+          signal: ctrl.signal,
+        })
+        if (!res.ok) return []
+        const j: any = await res.json().catch(() => null)
+        const eps = j?.episodes
+        if (Array.isArray(eps) && eps.length) {
+          return eps.map((e: any) => ({ number: e.number }))
+        }
+      } finally { clearTimeout(tid) }
+    } catch {}
+    return []
+  }
+
+  async getSources(anilistId: number, episode: number, language: VideoLanguage, _workerOrigin: string | null, signal?: AbortSignal, hint?: { title?: string }): Promise<NormalizedSource[]> {
+    return this.resolveViaService(anilistId, hint?.title?.trim() || '', episode, language, signal)
+  }
+}
+
 export class MiruroAliasProvider extends OfficialTrailerProvider {
   id = 'miruro'
   capabilities: ProviderCapabilities = {
