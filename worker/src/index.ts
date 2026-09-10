@@ -4,10 +4,11 @@ export interface Env {
   ANILIST_CLIENT_ID?: string
   ANILIST_CLIENT_SECRET?: string
   MAL_CLIENT_SECRET?: string
-  RESOLVER_URL?: string
   RESOLVER_SECRET?: string
   ASSETS?: Fetcher
 }
+
+import { setResolveContext, handleStream, handleDiag } from './resolver'
 
 import {
   OfficialTrailerProvider,
@@ -18,7 +19,6 @@ import {
   AnikotoProvider,
   AniwaveProvider,
   GenericStubProvider,
-  setResolverConfig,
   type VideoSourceProvider,
   type NormalizedSource,
   type VideoLanguage,
@@ -169,12 +169,12 @@ export default {
     const origin = request.headers.get('Origin')
     const cors = corsHeaders(origin, env)
     const workerOrigin = `${url.protocol}//${url.host}`
-    // Resolver config for providers that delegate (constant per deploy).
+    // In-worker resolver context (constant per deploy). Signed delivery URLs
+    // are minted against this worker's own origin.
     try {
-      const rUrl = (env as any).RESOLVER_URL as string | undefined
       const rSec = (env as any).RESOLVER_SECRET as string | undefined
-      setResolverConfig(rUrl && rSec ? { url: rUrl, secret: rSec } : null)
-    } catch { setResolverConfig(null) }
+      setResolveContext(rSec ? { secret: rSec, publicOrigin: workerOrigin } : null)
+    } catch { setResolveContext(null) }
 
     if (request.method === 'OPTIONS') {
       const h: Record<string,string> = { ...cors }
@@ -568,6 +568,23 @@ export default {
         if ((e as any)?.name === 'AbortError') return json({ error: 'Aborted' }, 499, env, origin)
         return json({ error: String(e) }, 502, env, origin)
       }
+    }
+
+    // Signed delivery: HLS playlists, video segments, subtitles. Tokens are
+    // HMAC-signed + expiring, minted only by the in-worker resolve path;
+    // hostnames allowlisted, private IPs rejected. No token = no fetch.
+    if ((url.pathname === '/api/stream' || url.pathname === '/stream') && request.method === 'GET') {
+      const h: Record<string, string> = { ...cors }
+      if (!h['Vary']) delete h['Vary']
+      return handleStream(request, h)
+    }
+
+    // Authenticated self-test: full resolve + CDN reachability from this
+    // worker's egress. Requires `Authorization: Bearer <RESOLVER_SECRET>`.
+    if (url.pathname === '/api/diag') {
+      const h: Record<string, string> = { ...cors }
+      if (!h['Vary']) delete h['Vary']
+      return handleDiag(request, h)
     }
 
     // Debug: test provider reachability from Worker

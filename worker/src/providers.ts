@@ -41,12 +41,12 @@ export interface VideoSourceProvider {
   getSources(anilistId: number, episode: number, language: VideoLanguage, workerOrigin: string | null, signal?: AbortSignal, hint?: { title?: string }): Promise<NormalizedSource[]>
 }
 
-// Resolver (Option B) config — set per request from worker env (constant per
-// deployment, so sharing module state across concurrent requests is safe).
-let resolverConfig: { url: string; secret: string } | null = null
-export function setResolverConfig(cfg: { url: string; secret: string } | null) {
-  resolverConfig = cfg && cfg.url && cfg.secret ? { url: cfg.url.replace(/\/$/, ''), secret: cfg.secret } : null
-}
+import { getResolveContext, resolveSource, findAniwaveEpisodes } from './resolver'
+
+// In-worker resolution context is configured per request from worker env
+// (constant per deployment, so sharing module state across concurrent
+// requests is safe). Providers call the resolver in-process — no HTTP hop,
+// no bearer secret on the wire.
 
 async function fetchWithTimeout(url: string, opts: RequestInit = {}, timeoutMs = 4500): Promise<Response> {
   const ctrl = new AbortController()
@@ -491,7 +491,7 @@ export class AnikotoProvider implements VideoSourceProvider {
   }
 
   private async getSourcesViaResolver(anilistId: number, episode: number, language: VideoLanguage, hint?: { title?: string }, signal?: AbortSignal): Promise<NormalizedSource[]> {
-    if (!resolverConfig) return []
+    if (!getResolveContext()) return []
     try {
       const ctrl = new AbortController()
       const tid = setTimeout(() => ctrl.abort(), 15000)
@@ -501,27 +501,17 @@ export class AnikotoProvider implements VideoSourceProvider {
         signal.addEventListener('abort', onAbort, { once: true })
       }
       try {
-        const res = await fetch(`${resolverConfig.url}/api/resolve`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-            Authorization: `Bearer ${resolverConfig.secret}`,
-          },
-          body: JSON.stringify({
-            anilistId,
-            title: hint?.title?.trim() || '',
-            episode,
-            language,
-          }),
+        const j = await resolveSource({
+          provider: 'anikoto',
+          anilistId,
+          title: hint?.title?.trim() || '',
+          episode,
+          language,
           signal: ctrl.signal,
         })
-        if (!res.ok) return []
-        const j: any = await res.json().catch(() => null)
-        if (!j || typeof j.url !== 'string' || !/^https:\/\//.test(j.url)) return []
-        const subs = Array.isArray(j.subtitles) ? j.subtitles
+        const subs = (j.subtitles || [])
           .filter((t: any) => t && typeof t.url === 'string' && /^https:\/\//.test(t.url))
-          .map((t: any) => ({ language: t.language || 'en', label: t.label || 'English', url: t.url, type: 'vtt' })) : []
+          .map((t: any) => ({ language: t.language || 'en', label: t.label || 'English', url: t.url, type: 'vtt' }))
         return [{
           provider: 'anikoto',
           url: j.url,
@@ -574,7 +564,7 @@ export class AniwaveProvider implements VideoSourceProvider {
   capabilities: ProviderCapabilities = { id: 'aniwave', displayName: 'AniWave', languages: ['sub','dub'], subtitles: true, hls: true, mp4: true, embed: false, search: true, episodes: true, sources: true }
 
   private async resolveViaService(anilistId: number, title: string, episode: number, language: VideoLanguage, signal?: AbortSignal): Promise<NormalizedSource[]> {
-    if (!resolverConfig) return []
+    if (!getResolveContext()) return []
     try {
       const ctrl = new AbortController()
       const tid = setTimeout(() => ctrl.abort(), 20000)
@@ -584,22 +574,10 @@ export class AniwaveProvider implements VideoSourceProvider {
         signal.addEventListener('abort', onAbort, { once: true })
       }
       try {
-        const res = await fetch(`${resolverConfig.url}/api/resolve`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-            Authorization: `Bearer ${resolverConfig.secret}`,
-          },
-          body: JSON.stringify({ provider: 'aniwave', anilistId, title, episode, language }),
-          signal: ctrl.signal,
-        })
-        if (!res.ok) return []
-        const j: any = await res.json().catch(() => null)
-        if (!j || typeof j.url !== 'string' || !/^https:\/\//.test(j.url)) return []
-        const subs = Array.isArray(j.subtitles) ? j.subtitles
+        const j = await resolveSource({ provider: 'aniwave', anilistId, title, episode, language, signal: ctrl.signal })
+        const subs = (j.subtitles || [])
           .filter((t: any) => t && typeof t.url === 'string' && /^https:\/\//.test(t.url))
-          .map((t: any) => ({ language: t.language || 'en', label: t.label || 'English', url: t.url, type: 'vtt' })) : []
+          .map((t: any) => ({ language: t.language || 'en', label: t.label || 'English', url: t.url, type: 'vtt' }))
         return [{
           provider: 'aniwave',
           url: j.url,
@@ -617,26 +595,14 @@ export class AniwaveProvider implements VideoSourceProvider {
   }
 
   async getEpisodes(anilistId: number, signal?: AbortSignal, hint?: { title?: string }): Promise<{ number: number; title?: string; thumbnail?: string }[]> {
-    if (!resolverConfig) return []
+    if (!getResolveContext()) return []
     try {
       const ctrl = new AbortController()
       const tid = setTimeout(() => ctrl.abort(), 12000)
       try {
-        const res = await fetch(`${resolverConfig.url}/api/episodes`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Accept: 'application/json',
-            Authorization: `Bearer ${resolverConfig.secret}`,
-          },
-          body: JSON.stringify({ provider: 'aniwave', title: hint?.title?.trim() || '' }),
-          signal: ctrl.signal,
-        })
-        if (!res.ok) return []
-        const j: any = await res.json().catch(() => null)
-        const eps = j?.episodes
-        if (Array.isArray(eps) && eps.length) {
-          return eps.map((e: any) => ({ number: e.number }))
+        const j = await findAniwaveEpisodes(hint?.title?.trim() || '', ctrl.signal)
+        if (Array.isArray(j?.episodes) && j.episodes.length) {
+          return j.episodes.map((e: any) => ({ number: e.number }))
         }
       } finally { clearTimeout(tid) }
     } catch {}
