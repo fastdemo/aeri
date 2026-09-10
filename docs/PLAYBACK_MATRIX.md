@@ -238,3 +238,20 @@ echovideo `play.echovideo.ru/embed-1/getSources` → `st2.*`/`hls*.echovideo.*`/
 MegaPlay-family verdict stands (ad-slideshow PNG segments on every tested
 anime/episode/network, including clean Fly egress) — AniWave/echovideo is the
 working provider; AniKoto remains available as resolution fallback.
+
+---
+
+## 9. Phase 16 — In-worker resolver, Fly retired (2026-09-10)
+
+Resolver + signed delivery merged into the `aeri` Cloudflare Worker
+(`worker/src/resolver.ts`; D065). Same-origin `/api/stream` URLs, same
+HMAC/allowlist/SSRF model, no Fly. Verified on preview worker + production:
+
+| # | Case | Result |
+|---|------|--------|
+| 48 | Prod diag (authed self-test, CF egress) | `PASS` — resolve 646ms, allowlist `megap.akirax.buzz`, CDN 206 `#EXTM3U` |
+| 49 | Bebop E1 prod: resolve → playlist → variant → segment | `PASS (PLAYABLE bytes)` — same-origin signed URLs, `47 40` MPEG-TS magic, FFmpeg metadata |
+| 50 | Bebop E2 + Frieren E1 resolve (×6 battery) | `PASS` — aniwave/hls every time after roburn+dpopdrop allowlist generalization |
+| 51 | Subtitles via worker | `PASS` — signed VTT, `text/vtt`, real lines ("ASTEROID BLUES", "Hey, Spike!") |
+| 52 | Range | parity — CDN ignores Range (direct fetch also 200-full); worker passes through |
+| 53 | Auth paths | MAL via worker unchanged; AniList exchange still needs non-CF host (D066, pending) |

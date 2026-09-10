@@ -113,13 +113,19 @@ grep -o 'CLIENT_SECRET[^"]*' /tmp/aeri-live.js | sort -u
 # (values live only in Worker secrets / auth-proxy env / owner's keychain)
 curl -s -o /dev/null -w 'root:%{http_code}\n' https://aeri.fastdemo.workers.dev/
 curl -s -o /dev/null -w 'health:%{http_code}\n' https://aeri.fastdemo.workers.dev/api/health
+# In-worker resolver self-test (needs RESOLVER_SECRET bearer; read-only):
+# expect {"ok":true,...} with allowlist + CDN steps — proves egress + pipeline
+curl -s -H "Authorization: Bearer $RESOLVER_SECRET" https://aeri.fastdemo.workers.dev/api/diag
 ```
 
 Optional deeper checks:
 
 ```bash
 # auth-proxy alive + secret present (expect secretConfigured:true)
-curl -s https://graceful-dream-569.fly.dev/health
+# NOTE (D066): Fly host is dead; URL becomes the Deno project URL once the
+# owner creates it. Until then this check is expected to fail — login falls
+# back to the blocked Worker and AniList login stays unavailable.
+curl -s <AUTH_PROXY_URL>/health
 # Worker MAL proxy reaches MAL (fake code → MAL's own 401, NOT a network error)
 curl -s -X POST https://aeri.fastdemo.workers.dev/api/mal/token \
   -H 'Content-Type: application/x-www-form-urlencoded' \
@@ -130,14 +136,15 @@ curl -s -X POST https://aeri.fastdemo.workers.dev/api/mal/token \
 
 | Secret | Lives in | Set via |
 |--------|----------|---------|
-| `ANILIST_CLIENT_SECRET` | Worker prod env + auth-proxy host env | `npx wrangler secret put ANILIST_CLIENT_SECRET --env production` / fly secrets |
+| `ANILIST_CLIENT_SECRET` | Worker prod env + auth-proxy host env (Deno dashboard) | `npx wrangler secret put ANILIST_CLIENT_SECRET --env production` / Deno project env (owner) |
+| `RESOLVER_SECRET` | Worker prod env (in-worker signed delivery) | `npx wrangler secret put RESOLVER_SECRET --env production` (preview too for `/api/diag`) |
 | `MAL_CLIENT_SECRET` (if MAL app is confidential) | Worker prod env | `npx wrangler secret put MAL_CLIENT_SECRET --env production` |
 | `CLOUDFLARE_API_TOKEN` / `CLOUDFLARE_ACCOUNT_ID` | GitHub repo secrets (Actions) | Repo Settings → Secrets → Actions (owner only) |
 
 ## 6. Failure catalog
 
 - Live bundle lacks `graceful-dream` → rebuild with `VITE_AUTH_API_URL` (this doc, step 1), redeploy.
-- `ANILIST_IP_BLOCKED` on a correctly-built client → the request went to the Worker, meaning the auth-proxy fetch failed browser-side (ad-blocker / Brave Shields blocking the fly host) — client now says so explicitly.
+- `ANILIST_IP_BLOCKED` on a correctly-built client → the request went to the Worker, meaning the auth-proxy fetch failed browser-side (ad-blocker / Brave Shields blocking the auth host, or the host is down — D066) — client now says so explicitly.
 - CI red at `npx ... wrangler --version` / `CLOUDFLARE_API_TOKEN` error → repo secrets missing (owner action, step 5). Code is still validated by the build step.
 - Blank page after deploy → `base` mismatch (view source: script src must be `/assets/...` for Worker hosting).
 

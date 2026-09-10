@@ -50,3 +50,43 @@ curl -X POST https://<app>.fly.dev/api/anilist/token \
 # Expect: {"error":"invalid_grant",...} or 401 invalid_client —
 # anything EXCEPT 403 "manually blocked" proves this host is not blocked.
 ```
+
+## Deploy (Deno Deploy — current path, no credit card)
+
+`deno.ts` implements the same contract as `server.js` (zero dependencies,
+fetch-handler form). Deno Deploy free tier needs no card, runs non-Cloudflare
+egress (required — AniList 403-blocks all Cloudflare IPs), and wakes in
+milliseconds (inside the frontend's 8s token-exchange budget).
+
+Owner steps (dashboard only, no CLI, ~5 minutes):
+
+1. Sign up at dash.deno.com (GitHub OAuth is fine).
+2. New Project → link the Aeri repo → entrypoint `auth-proxy/deno.ts`.
+3. Environment variables: `ANILIST_CLIENT_SECRET` (from your keychain),
+   optionally `ANILIST_CLIENT_ID` (default `50024`) and `ALLOWED_ORIGIN`
+   (default `https://aeri.fastdemo.workers.dev`).
+4. Deploy → copy the project URL (`https://<name>.deno.net`) back to the
+   agent, who bakes it as `VITE_AUTH_API_URL` and verifies login.
+
+Verify without real credentials (same contract as the Docker version):
+
+```bash
+curl https://<name>.deno.net/health
+# {"status":"healthy","service":"aeri-auth-proxy","secretConfigured":true}
+curl -X POST https://<name>.deno.net/api/anilist/token \
+  -H 'Content-Type: application/x-www-form-urlencoded' \
+  -d 'grant_type=authorization_code&client_id=50024&code=INVALID&redirect_uri=https://aeri.fastdemo.workers.dev/'
+# Expect: {"error":"invalid_grant",...} or 401 invalid_client —
+# anything EXCEPT 403 "manually blocked" proves this host is not blocked.
+```
+
+Local test (needs Deno CLI):
+
+```bash
+ANILIST_CLIENT_SECRET=x ALLOWED_ORIGIN='*' deno serve --allow-env --allow-net --port 8789 auth-proxy/deno.ts
+```
+
+## Deploy (Docker/Fly — retired)
+
+The Docker/Fly path below is kept as a fallback for any Docker host. Fly
+itself is retired (trial ended, D064); prefer Deno Deploy above.

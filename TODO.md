@@ -29,7 +29,8 @@
 - [x] Browse fills complete rows at every viewport (perPage = columns × 5), search suggestions open DetailModal popup (no /anime navigation, type=button fix), episode estimate for unknown totals (One Piece 1176 + kept in-range titles, modal line from normalized map), Settings copy simplified — verified via Playwright (1440/1100/390, modal, episodes, settings)
 - [x] Browse fixed 30-preload with local full-row slicing (no refetch on resize), page-1 shuffle per filter set, filters share the category row (right side, matching pill size, custom chevron), ContentRow subtitle right-aligned at title size, arrows move exactly one card — verified via Playwright (grid counts, shuffle across reloads, zero requests on resize, scroll delta)
 - [ ] Tune recommendation diversity (collaborative/embedding) when more history signals available
-- [ ] BLOCKED ON OWNER: Fly trial ended — add payment method to Fly org, then agent restarts machines + re-verifies playback/login (see D064)
+- [x] Fly retired for playback: resolver merged into Cloudflare Worker (D065) — no card, no Fly
+- [ ] BLOCKED ON OWNER (5 min, no card, no CLI): create Deno Deploy project for auth-proxy (see D066 + auth-proxy/README.md), then agent bakes VITE_AUTH_API_URL + verifies login
 
 ## Later
 - [ ] PWA offline shell tuning
