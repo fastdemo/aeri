@@ -255,3 +255,9 @@ HMAC/allowlist/SSRF model, no Fly. Verified on preview worker + production:
 | 51 | Subtitles via worker | `PASS` — signed VTT, `text/vtt`, real lines ("ASTEROID BLUES", "Hey, Spike!") |
 | 52 | Range | parity — CDN ignores Range (direct fetch also 200-full); worker passes through |
 | 53 | Auth paths | MAL via worker unchanged; AniList exchange still needs non-CF host (D066, pending) |
+
+### 10-minute soak + suite (same day, local stack on production code)
+| # | Case | Result |
+|---|------|--------|
+| 54 | Bebop E1 continuous in-player | `PASS` — t 0→520 continuous + seek-verified 560→628 (tmax monotonic, rs 4, 0 errors, frames screenshotted at t≈12 and t≈600 incl. hardsubbed dialogue). Sandbox egress throttled (~0.5× wall); production CF edge fetches the same segments in ~1s |
+| 55 | Worker-era smoke suite (chromium) | `PASS` — 4/4 (Bebop E1 T2/T3, E2 switch, Frieren E1, anti-masquerade) + Tier 0/1 7/7. Legacy anikoto/animepahe matrix retired (documented poison/stub, D062/D065); full 501-case GH-Pages matrix not re-run (upstream-bound, not a CI gate) |
