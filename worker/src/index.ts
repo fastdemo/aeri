@@ -347,20 +347,31 @@ export default {
         // Demo/test streams must never mask a failed real provider: only
         // include demo when explicitly requested (?provider=demo).
         const wantsDemo = preferredProviderParam === 'demo' || parsed.providerHint === 'demo'
+        // When the caller pins a provider (?provider=X, always sent by the
+        // frontend), try ONLY it and fail fast. The frontend runs its own
+        // fallback chain across providers; a worker-side cascade after a miss
+        // would burn ~12s per provider while the caller already gave up —
+        // that double fallback was the main latency multiplier on misses.
+        const pinId = preferredProviderParam || parsed.providerHint
+        const pinned = pinId ? getProviderById(pinId) : undefined
+        const tryOrdered: VideoSourceProvider[] = (pinned && (wantsDemo || pinned.id !== 'demo'))
+          ? [pinned]
+          : (() => {
+              const tried: VideoSourceProvider[] = []
+              const pushIfValid = (id: string | null) => {
+                if (!id) return
+                const p = getProviderById(id)
+                if (p && !tried.some(o => o.id === p.id)) tried.push(p)
+              }
+              pushIfValid(preferredProviderParam)
+              pushIfValid(parsed.providerHint)
+              for (const p of providers) if (!tried.some(o => o.id === p.id)) tried.push(p)
+              // Never auto-fall back to the demo/test stream: it would make a failed
+              // real provider look like successful playback. Explicit ?provider=demo
+              // still works (dev/test + existing contract).
+              return wantsDemo ? tried : tried.filter(p => p.id !== 'demo')
+            })()
         const tried: string[] = []
-        const ordered: VideoSourceProvider[] = []
-        const pushIfValid = (id: string | null) => {
-          if (!id) return
-          const p = getProviderById(id)
-          if (p && !ordered.some(o => o.id === p.id)) ordered.push(p)
-        }
-        pushIfValid(preferredProviderParam)
-        pushIfValid(parsed.providerHint)
-        for (const p of providers) if (!ordered.some(o => o.id === p.id)) ordered.push(p)
-        // Never auto-fall back to the demo/test stream: it would make a failed
-        // real provider look like successful playback. Explicit ?provider=demo
-        // still works (dev/test + existing contract).
-        const tryOrdered = wantsDemo ? ordered : ordered.filter(p => p.id !== 'demo')
         for (const provider of tryOrdered) {
           if (signal.aborted) break
           tried.push(provider.id)
