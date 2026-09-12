@@ -116,6 +116,25 @@ export interface ResolveSourcesOptions {
   /** Anime title for provider resolution (romaji). Lets the worker resolve
       without its own AniList fetch (often IP-blocked from worker egress). */
   animeTitle?: string | null
+  /** Extra identity hints threaded to the worker for title verification. */
+  animeEnglish?: string | null
+  animeNative?: string | null
+  animeEpisodes?: number | null
+  animeFormat?: string | null
+  animeYear?: number | null
+}
+
+function toSourceOptions(options?: ResolveSourcesOptions): { preferredLanguage?: VideoLanguage; signal?: AbortSignal; animeTitle?: string | null; animeEnglish?: string | null; animeNative?: string | null; animeEpisodes?: number | null; animeFormat?: string | null; animeYear?: number | null } {
+  return {
+    preferredLanguage: options?.preferredLanguage,
+    signal: options?.signal,
+    animeTitle: options?.animeTitle ?? null,
+    animeEnglish: options?.animeEnglish ?? null,
+    animeNative: options?.animeNative ?? null,
+    animeEpisodes: options?.animeEpisodes ?? null,
+    animeFormat: options?.animeFormat ?? null,
+    animeYear: options?.animeYear ?? null,
+  }
 }
 
 export async function resolveSourcesWithFallback(
@@ -156,7 +175,6 @@ export async function resolveSourcesWithFallback(
 
   const preferredLanguage = options?.preferredLanguage
   const preferredId = options?.preferredProvider
-  const animeTitle = options?.animeTitle ?? null
   const enabledOrdered = getOrderedProviders(getEnabledProviders())
   // Ensure preferred is valid and enabled
   const preferred = preferredId ? getProviderById(preferredId) : getProviderById(episode.provider)
@@ -172,7 +190,7 @@ export async function resolveSourcesWithFallback(
     const first = ordered[0]
     tried.push(first.id)
     try {
-      const srcs = await withTimeout(first.getSources(episode, { preferredLanguage, signal: options?.signal, animeTitle }))
+      const srcs = await withTimeout(first.getSources(episode, toSourceOptions(options)))
       const filtered = preferredLanguage ? srcs.filter(s => !s.language || s.language === preferredLanguage) : srcs
       const toReturn = filtered.length ? filtered : srcs
       if (toReturn.length > 0) return { sources: toReturn, tried }
@@ -182,7 +200,7 @@ export async function resolveSourcesWithFallback(
       // For accurate tried list, only push tried for providers that actually were attempted; we already pushed first.
       // For remaining, we will collect after race — push all remaining as tried since we do parallel attempt.
       const results = await Promise.allSettled(
-        remaining.map(p => withTimeout(p.getSources(episode, { preferredLanguage, signal: options?.signal, animeTitle })).catch(() => [] as VideoSourceEnhanced[])),
+        remaining.map(p => withTimeout(p.getSources(episode, toSourceOptions(options))).catch(() => [] as VideoSourceEnhanced[])),
       )
       // Mark remaining as tried after the parallel attempt started
       for (const p of remaining) tried.push(p.id)

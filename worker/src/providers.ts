@@ -19,6 +19,9 @@ export interface NormalizedSource {
   embed: boolean
   subtitles?: { language: string; label: string; url: string; type?: string }[]
   headers?: Record<string, string>
+  /** Provider-side identity of the matched show (for verification/debugging). */
+  providerAnimeId?: number | null
+  providerTitle?: string | null
 }
 
 export interface ProviderCapabilities {
@@ -34,11 +37,24 @@ export interface ProviderCapabilities {
   sources: boolean
 }
 
+// Caller-supplied identity hints (AniList metadata the frontend already
+// holds; the worker cannot fetch AniList itself). Threaded into the
+// resolver's title matching + verification. All optional — resolution fails
+// closed when verification cannot confirm the match.
+export interface ProviderHint {
+  title?: string
+  english?: string
+  native?: string
+  expectedEpisodes?: number
+  expectedFormat?: string
+  year?: number
+}
+
 export interface VideoSourceProvider {
   id: string
   capabilities: ProviderCapabilities
-  getEpisodes(anilistId: number, signal?: AbortSignal, hint?: { title?: string }): Promise<{ number: number; title?: string; thumbnail?: string }[]>
-  getSources(anilistId: number, episode: number, language: VideoLanguage, workerOrigin: string | null, signal?: AbortSignal, hint?: { title?: string }): Promise<NormalizedSource[]>
+  getEpisodes(anilistId: number, signal?: AbortSignal, hint?: ProviderHint): Promise<{ number: number; title?: string; thumbnail?: string }[]>
+  getSources(anilistId: number, episode: number, language: VideoLanguage, workerOrigin: string | null, signal?: AbortSignal, hint?: ProviderHint): Promise<NormalizedSource[]>
 }
 
 import { getResolveContext, resolveSource, findAniwaveEpisodes } from './resolver'
@@ -98,6 +114,17 @@ async function fetchAnilistMedia(anilistId: number, signal?: AbortSignal): Promi
     }
     throw e
   }
+}
+
+// Year cross-check shared by the anikoto direct paths (mirrors the
+// in-worker resolver rule): provider year must agree with the caller hint
+// (season-boundary tolerance ±1). ani_id verification already pins identity;
+// this rejects skewed series metadata instead of playing it.
+function seriesYearOk(series: any, hint?: ProviderHint): boolean {
+  const hintYear = Number(hint?.year) || 0
+  const provYear = Number(series?.anime?.year) || 0
+  if (hintYear > 0 && provYear > 0 && Math.abs(hintYear - provYear) > 1) return false
+  return true
 }
 
 // --- Official Trailer Provider ---
@@ -333,7 +360,7 @@ export class AnikotoProvider implements VideoSourceProvider {
   private seriesCache = new Map<number, { at: number; data: any }>()
   private static readonly UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
 
-  private async resolveAnikotoId(anilistId: number, title: string, signal?: AbortSignal): Promise<number|null> {
+  private async resolveAnikotoId(anilistId: number, title: string, signal?: AbortSignal, native?: string): Promise<number|null> {
     const key = String(anilistId)
     if (this.cache.has(key)) return this.cache.get(key)!.id
     // Mirror the site structure: /filter HTML cards carry the API series id
@@ -342,7 +369,7 @@ export class AnikotoProvider implements VideoSourceProvider {
     const scoreTitle = (t: string, romaji: string, english: string): number => {
       const n = (t || '').toLowerCase().trim()
       if (!n) return 0
-      const variants = [romaji.toLowerCase().trim(), english.toLowerCase().trim()].filter(Boolean)
+      const variants = [romaji.toLowerCase().trim(), english.toLowerCase().trim(), (native || '').toLowerCase().trim()].filter(Boolean)
       if (variants.some((v) => v === n)) return 3
       if (variants.some((v) => v && (v.startsWith(n) || n.startsWith(v)))) return 2
       if (variants.some((v) => v && (v.includes(n) || n.includes(v)))) return 1
@@ -393,7 +420,7 @@ export class AnikotoProvider implements VideoSourceProvider {
     } catch {}
     return null
   }
-  async getEpisodes(anilistId: number, signal?: AbortSignal, hint?: { title?: string }): Promise<{ number: number; title?: string; thumbnail?: string }[]> {
+  async getEpisodes(anilistId: number, signal?: AbortSignal, hint?: ProviderHint): Promise<{ number: number; title?: string; thumbnail?: string }[]> {
     try {
       // Prefer the caller-supplied title (browser-side AniList is reliable);
       // fall back to a Worker-side AniList fetch (often IP-blocked).
@@ -402,15 +429,16 @@ export class AnikotoProvider implements VideoSourceProvider {
         const media = await fetchAnilistMedia(anilistId, signal)
         title = media?.title?.romaji || media?.title?.english || ''
       }
-      const anikotoId = await this.resolveAnikotoId(anilistId, title, signal)
+      const anikotoId = await this.resolveAnikotoId(anilistId, title, signal, hint?.native)
       if (!anikotoId) return []
       const series = await this.getSeries(anikotoId, signal)
+      if (!seriesYearOk(series, hint)) return []
       const eps = series?.episodes
       if (!Array.isArray(eps)) return []
       return eps.map((e:any)=>({ number: e.number, title: e.title || e.jp_title || `Episode ${e.number}`, thumbnail: undefined }))
     } catch { return [] }
   }
-  async getSources(anilistId: number, episode: number, language: VideoLanguage, workerOrigin: string | null, signal?: AbortSignal, hint?: { title?: string }): Promise<NormalizedSource[]> {
+  async getSources(anilistId: number, episode: number, language: VideoLanguage, workerOrigin: string | null, signal?: AbortSignal, hint?: ProviderHint): Promise<NormalizedSource[]> {
     // Preferred path: dedicated resolver (clean egress). Falls back to direct
     // resolution below if unconfigured or failing.
     try {
@@ -423,9 +451,10 @@ export class AnikotoProvider implements VideoSourceProvider {
         const media = await fetchAnilistMedia(anilistId, signal)
         title = media?.title?.romaji || media?.title?.english || ''
       }
-      const anikotoId = await this.resolveAnikotoId(anilistId, title, signal)
+      const anikotoId = await this.resolveAnikotoId(anilistId, title, signal, hint?.native)
       if (!anikotoId) return []
       const series = await this.getSeries(anikotoId, signal)
+      if (!seriesYearOk(series, hint)) return []
       const eps = series?.episodes
       if (!Array.isArray(eps)) return []
       const ep = eps.find((e: any) => e.number === episode)
@@ -490,7 +519,7 @@ export class AnikotoProvider implements VideoSourceProvider {
     } catch { return [] }
   }
 
-  private async getSourcesViaResolver(anilistId: number, episode: number, language: VideoLanguage, hint?: { title?: string }, signal?: AbortSignal): Promise<NormalizedSource[]> {
+  private async getSourcesViaResolver(anilistId: number, episode: number, language: VideoLanguage, hint?: ProviderHint, signal?: AbortSignal): Promise<NormalizedSource[]> {
     if (!getResolveContext()) return []
     try {
       const ctrl = new AbortController()
@@ -508,6 +537,13 @@ export class AnikotoProvider implements VideoSourceProvider {
           episode,
           language,
           signal: ctrl.signal,
+          hints: hint ? {
+            english: hint.english,
+            native: hint.native,
+            expectedEpisodes: hint.expectedEpisodes,
+            expectedFormat: hint.expectedFormat,
+            year: hint.year,
+          } : null,
         })
         const subs = (j.subtitles || [])
           .filter((t: any) => t && typeof t.url === 'string' && /^https:\/\//.test(t.url))
@@ -520,6 +556,8 @@ export class AnikotoProvider implements VideoSourceProvider {
           quality: 'auto',
           embed: false,
           subtitles: subs.length ? subs : undefined,
+          providerAnimeId: j.providerAnimeId ?? null,
+          providerTitle: j.providerTitle ?? null,
         }]
       } finally {
         clearTimeout(tid)
@@ -563,7 +601,18 @@ export class AniwaveProvider implements VideoSourceProvider {
   id = 'aniwave'
   capabilities: ProviderCapabilities = { id: 'aniwave', displayName: 'AniWave', languages: ['sub','dub'], subtitles: true, hls: true, mp4: true, embed: false, search: true, episodes: true, sources: true }
 
-  private async resolveViaService(anilistId: number, title: string, episode: number, language: VideoLanguage, signal?: AbortSignal): Promise<NormalizedSource[]> {
+  private toMatchHints(hint?: ProviderHint | null) {
+    if (!hint) return null
+    return {
+      english: hint.english,
+      native: hint.native,
+      expectedEpisodes: hint.expectedEpisodes,
+      expectedFormat: hint.expectedFormat,
+      year: hint.year,
+    }
+  }
+
+  private async resolveViaService(anilistId: number, hint: ProviderHint | undefined, episode: number, language: VideoLanguage, signal?: AbortSignal): Promise<NormalizedSource[]> {
     if (!getResolveContext()) return []
     try {
       const ctrl = new AbortController()
@@ -574,7 +623,8 @@ export class AniwaveProvider implements VideoSourceProvider {
         signal.addEventListener('abort', onAbort, { once: true })
       }
       try {
-        const j = await resolveSource({ provider: 'aniwave', anilistId, title, episode, language, signal: ctrl.signal })
+        const title = hint?.title?.trim() || ''
+        const j = await resolveSource({ provider: 'aniwave', anilistId, title, episode, language, signal: ctrl.signal, hints: this.toMatchHints(hint) })
         const subs = (j.subtitles || [])
           .filter((t: any) => t && typeof t.url === 'string' && /^https:\/\//.test(t.url))
           .map((t: any) => ({ language: t.language || 'en', label: t.label || 'English', url: t.url, type: 'vtt' }))
@@ -586,6 +636,8 @@ export class AniwaveProvider implements VideoSourceProvider {
           quality: 'auto',
           embed: false,
           subtitles: subs.length ? subs : undefined,
+          providerAnimeId: j.providerAnimeId ?? null,
+          providerTitle: j.providerTitle ?? null,
         }]
       } finally {
         clearTimeout(tid)
@@ -594,13 +646,13 @@ export class AniwaveProvider implements VideoSourceProvider {
     } catch { return [] }
   }
 
-  async getEpisodes(anilistId: number, signal?: AbortSignal, hint?: { title?: string }): Promise<{ number: number; title?: string; thumbnail?: string }[]> {
+  async getEpisodes(anilistId: number, signal?: AbortSignal, hint?: ProviderHint): Promise<{ number: number; title?: string; thumbnail?: string }[]> {
     if (!getResolveContext()) return []
     try {
       const ctrl = new AbortController()
       const tid = setTimeout(() => ctrl.abort(), 12000)
       try {
-        const j = await findAniwaveEpisodes(hint?.title?.trim() || '', ctrl.signal)
+        const j = await findAniwaveEpisodes(hint?.title?.trim() || '', ctrl.signal, this.toMatchHints(hint))
         if (Array.isArray(j?.episodes) && j.episodes.length) {
           return j.episodes.map((e: any) => ({ number: e.number }))
         }
@@ -609,8 +661,8 @@ export class AniwaveProvider implements VideoSourceProvider {
     return []
   }
 
-  async getSources(anilistId: number, episode: number, language: VideoLanguage, _workerOrigin: string | null, signal?: AbortSignal, hint?: { title?: string }): Promise<NormalizedSource[]> {
-    return this.resolveViaService(anilistId, hint?.title?.trim() || '', episode, language, signal)
+  async getSources(anilistId: number, episode: number, language: VideoLanguage, _workerOrigin: string | null, signal?: AbortSignal, hint?: ProviderHint): Promise<NormalizedSource[]> {
+    return this.resolveViaService(anilistId, hint, episode, language, signal)
   }
 }
 

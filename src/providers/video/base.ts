@@ -56,6 +56,29 @@ export function deleteVideoCache(key: string) {
   inflight.delete(key)
 }
 
+/** Extra identity-hint query params for worker title verification. */
+export function hintQuery(options?: {
+  animeEnglish?: string | null
+  animeNative?: string | null
+  animeEpisodes?: number | null
+  animeFormat?: string | null
+  animeYear?: number | null
+}): string {
+  if (!options) return ''
+  let q = ''
+  const eng = options.animeEnglish?.trim()
+  if (eng) q += `&english=${encodeURIComponent(eng)}`
+  const nat = options.animeNative?.trim()
+  if (nat) q += `&native=${encodeURIComponent(nat)}`
+  const eps = options.animeEpisodes
+  if (typeof eps === 'number' && Number.isFinite(eps) && eps > 0) q += `&episodes=${eps}`
+  const fmt = options.animeFormat?.trim()
+  if (fmt) q += `&format=${encodeURIComponent(fmt)}`
+  const yr = options.animeYear
+  if (typeof yr === 'number' && Number.isFinite(yr) && yr > 1900 && yr < 3000) q += `&year=${yr}`
+  return q
+}
+
 export function isCorsError(e: unknown): boolean {
   const msg = e instanceof Error ? e.message : String(e)
   return /Failed to fetch|NetworkError|Load failed|CORS|ERR_FAILED/i.test(msg)

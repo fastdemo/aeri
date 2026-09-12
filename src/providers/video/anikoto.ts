@@ -1,6 +1,6 @@
 import type { Anime } from '../../types/anime'
 import type { VideoProvider, VideoEpisode, VideoSourceEnhanced, ProviderCapabilities, SourceOptions } from './types'
-import { cachedFetch, fetchWithTimeout } from './base'
+import { cachedFetch, fetchWithTimeout, hintQuery } from './base'
 import { getEffectiveVideoApiUrl } from '../../storage/preferences'
 
 export class AniKotoProvider implements VideoProvider {
@@ -42,7 +42,7 @@ export class AniKotoProvider implements VideoProvider {
     const titleHint = [anime.title.romaji, anime.title.english].filter(Boolean).join('||')
     return cachedFetch(`video:anikoto:episodes:${anime.identity.anilistId}`, async () => {
       try {
-        const res = await fetchWithTimeout(`${base}/api/episodes/${anime.identity.anilistId}?provider=anikoto&title=${encodeURIComponent(titleHint)}`, {}, 3500, signal)
+        const res = await fetchWithTimeout(`${base}/api/episodes/${anime.identity.anilistId}?provider=anikoto&title=${encodeURIComponent(titleHint)}${typeof anime.episodes === 'number' && anime.episodes > 0 ? `&episodes=${anime.episodes}` : ''}${anime.format ? `&format=${encodeURIComponent(anime.format)}` : ''}${typeof anime.year === 'number' && anime.year > 1900 ? `&year=${anime.year}` : ''}`, {}, 3500, signal)
         if (!res.ok) return []
         const j: any = await res.json().catch(() => null)
         const list = j?.episodes ?? []
@@ -79,7 +79,7 @@ export class AniKotoProvider implements VideoProvider {
     // Signed source URLs expire — never serve these from cache. Episodes
     // (stable) stay cached; sources always resolve fresh.
     try {
-      const url = `${base}/api/sources/anikoto-${anilistId}-${episode.number}?language=${lang}&provider=anikoto${titleHint ? `&title=${encodeURIComponent(titleHint)}` : ''}`
+      const url = `${base}/api/sources/anikoto-${anilistId}-${episode.number}?language=${lang}&provider=anikoto${titleHint ? `&title=${encodeURIComponent(titleHint)}` : ''}${hintQuery(options)}`
       const res = await fetchWithTimeout(url, {}, 9000, options?.signal)
       if (!res.ok) return []
       const j: any = await res.json().catch(() => null)

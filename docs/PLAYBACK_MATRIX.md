@@ -261,3 +261,11 @@ HMAC/allowlist/SSRF model, no Fly. Verified on preview worker + production:
 |---|------|--------|
 | 54 | Bebop E1 continuous in-player | `PASS` — t 0→520 continuous + seek-verified 560→628 (tmax monotonic, rs 4, 0 errors, frames screenshotted at t≈12 and t≈600 incl. hardsubbed dialogue). Sandbox egress throttled (~0.5× wall); production CF edge fetches the same segments in ~1s |
 | 55 | Worker-era smoke suite (chromium) | `PASS` — 4/4 (Bebop E1 T2/T3, E2 switch, Frieren E1, anti-masquerade) + Tier 0/1 7/7. Legacy anikoto/animepahe matrix retired (documented poison/stub, D062/D065); full 501-case GH-Pages matrix not re-run (upstream-bound, not a CI gate) |
+
+### Matching verification (D068, preview worker 2026-09-12, then production)
+| # | Case | Result |
+|---|------|--------|
+| 56 | Bebop/AoT/Frieren/Naruto romaji-only → provider identity | `PASS` — 80163 'Cowboy Bebop', 74865 'Attack on Titan', 74575 'Frieren…', 76396 'Naruto' |
+| 57 | Movie/season traps | `PASS` — Bebop movie→80164 (not S1); AoT S3→74861 (not S1) |
+| 58 | Fail-closed cases | `PASS` — ep99 → 0 sources; garbage title → 0 sources; anikoto wrong-year → rejected both paths |
+| 59 | Speed (production) | resolve 4.1s cold/~1s warm; playlist 2.2s; 576KB segment 11.1s @ ~50KB/s; direct CDN 8.4s @ ~68KB/s (byte-identical); worker CPU 45ms/segment (0.4%) — upstream throughput is the bottleneck |

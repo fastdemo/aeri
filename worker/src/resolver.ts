@@ -234,7 +234,7 @@ function contentTypeFor(url: string, upstreamCt: string | null): string {
 const resolveCache = new Map<string, { id: number; at: number }>()
 const RESOLVE_TTL_MS = 10 * 60 * 1000
 
-async function resolveSeriesId(anilistId: number, romaji: string, english: string, signal?: AbortSignal | null): Promise<number> {
+async function resolveSeriesId(anilistId: number, romaji: string, english: string, native: string, signal?: AbortSignal | null): Promise<number> {
   const key = `r:${anilistId}`
   const hit = resolveCache.get(key)
   if (hit && Date.now() - hit.at < RESOLVE_TTL_MS) return hit.id
@@ -255,10 +255,11 @@ async function resolveSeriesId(anilistId: number, romaji: string, english: strin
     cards.push({ id, name: (m[3] || '').trim(), jp: (m[2] || '').trim() })
   }
   if (!cards.length) throw new Error('no filter results')
+  const variants = [romaji, english, native].filter(Boolean) as string[]
   const score = (t: string) => {
     const n = (t || '').toLowerCase().trim()
     if (!n) return 0
-    const vs = [romaji.toLowerCase().trim(), english.toLowerCase().trim()].filter(Boolean)
+    const vs = variants.map((v) => v.toLowerCase().trim()).filter(Boolean)
     if (vs.some((v) => v === n)) return 3
     if (vs.some((v) => v && (v.startsWith(n) || n.startsWith(v)))) return 2
     if (vs.some((v) => v && (v.includes(n) || n.includes(v)))) return 1
@@ -287,6 +288,81 @@ async function resolveSeriesId(anilistId: number, romaji: string, english: strin
   return id
 }
 
+// ---------- title matching ----------
+
+// Hints the frontend already holds (AniList metadata). The worker cannot
+// fetch AniList itself (CF egress is IP-blocked), so the caller supplies
+// everything the matcher is allowed to use. Nothing here is secret.
+export interface MatchHints {
+  english?: string | null
+  native?: string | null
+  expectedEpisodes?: number | null
+  expectedFormat?: string | null
+  year?: number | null
+}
+
+// Minimum similarity (0-100) to accept a provider candidate. Below this the
+// resolver fails closed ('no confident match') instead of playing whatever
+// the search endpoint happened to return first.
+const MATCH_THRESHOLD = 40
+
+function normalizeTitle(s: string): string {
+  return String(s || '')
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9 ]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function tokenJaccard(a: string, b: string): number {
+  const ta = new Set(a.split(' ').filter(Boolean))
+  const tb = new Set(b.split(' ').filter(Boolean))
+  if (!ta.size || !tb.size) return 0
+  let inter = 0
+  for (const t of ta) if (tb.has(t)) inter++
+  return inter / (ta.size + tb.size - inter)
+}
+
+// Similarity of one provider-side name against all known variants.
+// exact = 100, prefix either way = 60, substring either way = 40,
+// token overlap scales 0-50 (same tokens in any order always passes).
+function titleScore(name: string, variants: string[]): number {
+  const n = normalizeTitle(name)
+  if (!n) return 0
+  let best = 0
+  for (const raw of variants) {
+    const v = normalizeTitle(raw)
+    if (!v) continue
+    if (v === n) return 100
+    if (v.startsWith(n) || n.startsWith(v)) best = Math.max(best, 60)
+    else if (v.includes(n) || n.includes(v)) best = Math.max(best, 40)
+    best = Math.max(best, Math.round(tokenJaccard(n, v) * 50))
+  }
+  return best
+}
+
+function splitTitles(title: string): { romaji: string; english: string } {
+  return {
+    romaji: String(title || '').split('||')[0]?.trim() || String(title || ''),
+    english: String(title || '').split('||')[1]?.trim() || '',
+  }
+}
+
+// Provider types are coarse (TV/Movie/OVA/Special); AniList formats are
+// finer (TV/MOVIE/OVA/ONA/SPECIAL/MUSIC). Only the movie↔non-movie conflict
+// is a hard mismatch — everything else defers to title scoring so a quirky
+// provider label can never alone veto a strong title match.
+function typeCompatible(expectedFormat: string | null | undefined, actualType: string | null | undefined): boolean {
+  const e = String(expectedFormat || '').toLowerCase()
+  const a = String(actualType || '').toLowerCase()
+  if (!e || !a) return true
+  const eMovie = e === 'movie'
+  const aMovie = a === 'movie'
+  return eMovie === aMovie
+}
+
 // ---------- AniWave resolution ----------
 
 const AW_BASE = 'https://aniwaves.ru'
@@ -301,48 +377,95 @@ async function awGet(path: string, referer: string | null, signal?: AbortSignal 
 const awResolveCache = new Map<string, { id: number; name: string; count: number; at: number }>()
 const AW_RESOLVE_TTL_MS = 10 * 60 * 1000
 
-function awScore(name: string, romaji: string, english: string): number {
-  const n = (name || '').toLowerCase().trim()
-  if (!n) return 0
-  const vs = [romaji.toLowerCase().trim(), english.toLowerCase().trim()].filter(Boolean)
-  if (vs.some((v) => v === n)) return 3
-  if (vs.some((v) => v && (v.startsWith(n) || n.startsWith(v)))) return 2
-  if (vs.some((v) => v && (v.includes(n) || n.includes(v)))) return 1
-  return 0
+ 
+
+interface AwCandidate { id: number; name: string; jp: string; count: number; type: string }
+
+function parseAwCards(html: string): AwCandidate[] {
+  // Filter cards carry everything the matcher may use: provider id
+  // (data-tip), display name, romaji name (data-jp), episode total and
+  // release type. Split by item block so counts/types attach to the right id.
+  const out: AwCandidate[] = []
+  const seen = new Set<number>()
+  for (const block of html.split('<div class="item "')) {
+    const tip = /data-tip="(\d+)"/.exec(block)
+    const nm = /<a class="name d-title"[^>]*href="\/watch\/([a-z0-9\-]+)-(\d+)"[^>]*>([^<]{1,120})<\/a>/.exec(block)
+    if (!tip || !nm) continue
+    const id = Number(tip[1])
+    if (!Number.isFinite(id) || seen.has(id)) continue
+    const jp = /data-jp="([^"]*)"/.exec(nm[0])
+    const cnt = /ep-status total"><span>\s*(\d+)/.exec(block)
+    const typ = /<div class="right">([A-Za-z]+)<\/div>/.exec(block)
+    const name = (nm[3] || '').trim()
+    if (!name) continue
+    seen.add(id)
+    out.push({
+      id,
+      name,
+      jp: (jp?.[1] || '').trim(),
+      count: cnt ? Number(cnt[1]) : 0,
+      type: (typ?.[1] || '').trim(),
+    })
+    if (out.length >= 30) break
+  }
+  return out
 }
 
-async function awFindAnime(title: string, signal?: AbortSignal | null): Promise<{ id: number; name: string; count: number }> {
-  const romaji = String(title || '').split('||')[0]?.trim() || String(title || '')
-  const english = String(title || '').split('||')[1]?.trim() || ''
+async function awFindAnime(
+  title: string,
+  signal?: AbortSignal | null,
+  episode?: number | null,
+  hints?: MatchHints | null,
+): Promise<{ id: number; name: string; count: number }> {
+  const { romaji, english: englishFromTitle } = splitTitles(title)
+  const english = (hints?.english || englishFromTitle || '').trim()
+  const native = (hints?.native || '').trim()
+  const variants = [romaji, english, native].filter(Boolean) as string[]
+  const expectedEps = Number(hints?.expectedEpisodes) || 0
   const gRes = await fetchUpstream(
     `https://aniwaves.ru/filter?keyword=${encodeURIComponent(romaji)}&page=1`,
     { headers: { Accept: 'text/html', Referer: 'https://aniwaves.ru/' }, signal, timeoutMs: 8000 },
   )
   if (!gRes.ok) throw new Error(`aw filter ${gRes.status}`)
   const html = await gRes.text()
-  const cands: { id: number; name: string }[] = []
-  const seen = new Set<number>()
-  const fre = /href="\/watch\/([a-z0-9\-]+)-(\d+)"[^>]*>([^<]{1,120})<\/a>/gi
-  let fm: RegExpExecArray | null
-  while ((fm = fre.exec(html)) !== null && cands.length < 30) {
-    const id = Number(fm[2])
-    const name = (fm[3] || '').trim()
-    if (!Number.isFinite(id) || seen.has(id) || !name) continue
-    seen.add(id)
-    cands.push({ id, name })
-  }
+  const cands = parseAwCards(html)
   if (!cands.length) throw new Error('aw no filter results')
-  cands.sort((a, b) => awScore(b.name, romaji, english) - awScore(a.name, romaji, english))
-  const top = (cands.some((c) => awScore(c.name, romaji, english) > 0)
-    ? cands.filter((c) => awScore(c.name, romaji, english) > 0)
-    : cands).slice(0, 3)
-  for (const c of top) {
+  // Hard filters first: a candidate that cannot serve the requested episode,
+  // or is the wrong release type, is out regardless of title similarity.
+  const viable = cands.filter((c) => {
+    if (episode && episode > 0 && c.count > 0 && c.count < episode) return false
+    if (!typeCompatible(hints?.expectedFormat, c.type)) return false
+    return true
+  })
+  if (!viable.length) {
+    throw new Error(`aw no viable candidate (requested ep ${episode ?? '?'}, format ${hints?.expectedFormat || '?'})`)
+  }
+  const scored = viable.map((c, i) => ({
+    c, i,
+    s: Math.max(titleScore(c.name, variants), c.jp ? titleScore(c.jp, variants) : 0),
+    dist: expectedEps > 0 && c.count > 0 ? Math.abs(c.count - expectedEps) : Number.MAX_SAFE_INTEGER,
+  }))
+  const best = Math.max(...scored.map((x) => x.s))
+  if (best < MATCH_THRESHOLD) {
+    const names = scored.slice(0, 3).map((x) => `"${x.c.name}"`).join(', ')
+    throw new Error(`aw no confident match for "${romaji}" (best score ${best}, e.g. ${names})`)
+  }
+  scored.sort((a, b) => b.s - a.s || a.dist - b.dist || a.i - b.i)
+  const [first, second] = scored
+  if (second && second.s === first.s && second.dist === first.dist && second.c.id !== first.c.id) {
+    throw new Error(`aw ambiguous match for "${romaji}": "${first.c.name}" vs "${second.c.name}"`)
+  }
+  // Liveness check on the winner only: the episode list must exist and
+  // cover the request. Runner-ups are different shows by construction, so a
+  // missing list fails closed instead of silently substituting another show.
+  {
+    const c = first.c
     try {
       const eRes = await fetchUpstream(`https://aniwaves.ru/ajax/episode/list/${c.id}`, {
         headers: { Accept: '*/*', Referer: 'https://aniwaves.ru/', 'X-Requested-With': 'XMLHttpRequest' },
         signal, timeoutMs: 6000,
       })
-      if (!eRes.ok) continue
+      if (!eRes.ok) throw new Error('list-missing')
       const eHtml = await eRes.text()
       const collect = (h: string) => [...h.matchAll(/(?:ep-(\d+)|data-ep[^0-9]*(\d+)|>(\d{1,4})<)/gi)]
         .map((x) => Number(x[1] || x[2] || x[3])).filter((n) => Number.isFinite(n) && n > 0 && n < 5000)
@@ -353,10 +476,18 @@ async function awFindAnime(title: string, signal?: AbortSignal | null): Promise<
           nums = collect(j?.result || '')
         } catch {}
       }
-      if (nums.length) return { id: c.id, name: c.name, count: Math.max(...nums) }
-    } catch {}
+      if (!nums.length) throw new Error('list-missing')
+      const maxEp = Math.max(...nums)
+      if (episode && episode > 0 && maxEp < episode) {
+        throw new Error(`aw episode ${episode} not listed for "${c.name}" (has ${maxEp})`)
+      }
+      log({ ev: 'aw-match', id: c.id, name: c.name, score: first.s, count: maxEp })
+      return { id: c.id, name: c.name, count: maxEp }
+    } catch (e) {
+      if (e instanceof Error && /not listed/.test(e.message)) throw e
+    }
   }
-  throw new Error('aw no episodes found')
+  throw new Error(`aw episode list missing for "${first.c.name}"`)
 }
 
 async function awExtractEchovideo(embedUrl: string, signal?: AbortSignal | null): Promise<{ url: string; kind: string } | null> {
@@ -407,15 +538,22 @@ interface ResolveResult {
   intro: unknown
   outro: unknown
   kind: 'hls' | 'mp4'
+  providerAnimeId?: number | null
+  providerTitle?: string | null
 }
 
-async function aniwaveResolve(anilistId: number, title: string, episode: number, language: string, signal?: AbortSignal | null): Promise<ResolveResult> {
-  const key = `aw:${anilistId || String(title || '')}`
+async function aniwaveResolve(
+  anilistId: number, title: string, episode: number, language: string,
+  signal?: AbortSignal | null, hints?: MatchHints | null,
+): Promise<ResolveResult> {
+  const { romaji } = splitTitles(title)
+  const key = `aw:${anilistId || normalizeTitle(romaji)}`
   const hit0 = awResolveCache.get(key)
   let found: { id: number; name: string; count: number } | null =
     hit0 && Date.now() - hit0.at < AW_RESOLVE_TTL_MS ? hit0 : null
+  if (found && episode > 0 && found.count > 0 && found.count < episode) found = null
   if (!found) {
-    const fresh = await awFindAnime(title, signal)
+    const fresh = await awFindAnime(title, signal, episode, hints)
     awResolveCache.set(key, { ...fresh, at: Date.now() })
     if (awResolveCache.size > 500) {
       const oldest = awResolveCache.keys().next().value as string | undefined
@@ -453,17 +591,33 @@ async function aniwaveResolve(anilistId: number, title: string, episode: number,
   }))
   const hit = results.find((x) => x && x.url)
   if (!hit) throw new Error('aw no playable stream')
-  return { file: hit.url, subs: [], intro: null, outro: null, kind: hit.kind === 'mp4' ? 'mp4' : 'hls' }
+  if (episode > 0 && found.count > 0 && found.count < episode) {
+    throw new Error(`aw episode ${episode} not listed for "${found.name}" (has ${found.count})`)
+  }
+  return { file: hit.url, subs: [], intro: null, outro: null, kind: hit.kind === 'mp4' ? 'mp4' : 'hls', providerAnimeId: found.id, providerTitle: found.name }
 }
 
-async function anikotoResolve(anilistId: number, title: string, episode: number, language: string, signal?: AbortSignal | null): Promise<ResolveResult> {
-  const romaji = String(title || '').split('||')[0]?.trim() || String(title || '')
-  const english = String(title || '').split('||')[1]?.trim() || ''
-  const seriesId = await resolveSeriesId(anilistId, romaji, english, signal)
+async function anikotoResolve(
+  anilistId: number, title: string, episode: number, language: string,
+  signal?: AbortSignal | null, hints?: MatchHints | null,
+): Promise<ResolveResult> {
+  const { romaji, english: englishFromTitle } = splitTitles(title)
+  const english = (hints?.english || englishFromTitle || '').trim()
+  const native = (hints?.native || '').trim()
+  const seriesId = await resolveSeriesId(anilistId, romaji, english, native, signal)
   const sRes = await fetchUpstream(`https://www.anikotoapi.site/series/${seriesId}`,
     { headers: { Accept: 'application/json' }, signal })
   if (!sRes.ok) throw new Error(`series ${sRes.status}`)
   const sj: any = await sRes.json().catch(() => null)
+  const seriesAnime = sj?.data?.anime
+  // Belt-and-braces on top of the ani_id verification: provider year must
+  // agree (season-boundary tolerance ±1). Year comes from the caller hint.
+  const hintYear = Number(hints?.year) || 0
+  const provYear = Number(seriesAnime?.year) || 0
+  if (hintYear > 0 && provYear > 0 && Math.abs(hintYear - provYear) > 1) {
+    throw new Error(`year mismatch for "${seriesAnime?.title || seriesId}" (want ${hintYear}, provider ${provYear})`)
+  }
+  const providerTitle = String(seriesAnime?.title || seriesAnime?.alternative || '').trim() || null
   const eps = sj?.data?.episodes
   if (!Array.isArray(eps)) throw new Error('no episodes')
   const ep = eps.find((e: any) => e.number === episode)
@@ -496,7 +650,7 @@ async function anikotoResolve(anilistId: number, title: string, episode: number,
   const subs = Array.isArray(gj?.tracks) ? gj.tracks
     .filter((t: any) => t && typeof t.file === 'string' && /^https:\/\//.test(t.file) && t.kind !== 'thumbnails')
     .map((t: any) => ({ label: t.label || 'English', file: t.file })) : []
-  return { file, subs, intro: gj?.intro ?? null, outro: gj?.outro ?? null, kind: 'hls' }
+  return { file, subs, intro: gj?.intro ?? null, outro: gj?.outro ?? null, kind: 'hls', providerAnimeId: seriesId, providerTitle }
 }
 
 // ---------- public API ----------
@@ -510,6 +664,8 @@ export interface ResolvedSource {
   subtitles: { language: string; label: string; url: string; type?: string }[]
   intro: unknown
   outro: unknown
+  providerAnimeId?: number | null
+  providerTitle?: string | null
 }
 
 export async function resolveSource(opts: {
@@ -519,10 +675,11 @@ export async function resolveSource(opts: {
   episode: number
   language: string
   signal?: AbortSignal | null
+  hints?: MatchHints | null
 }): Promise<ResolvedSource> {
   const ctx = getResolveContext()
   if (!ctx) throw new Error('resolver not configured')
-  const { provider, anilistId, title, episode, language, signal } = opts
+  const { provider, anilistId, title, episode, language, signal, hints } = opts
   if (!Number.isFinite(anilistId) || anilistId <= 0 || !Number.isFinite(episode) || episode <= 0) {
     throw new Error('anilistId + episode required')
   }
@@ -530,8 +687,8 @@ export async function resolveSource(opts: {
   const t0 = Date.now()
   try {
     const r = provider === 'aniwave'
-      ? await aniwaveResolve(anilistId, title, episode, lang, signal)
-      : await anikotoResolve(anilistId, title, episode, lang, signal)
+      ? await aniwaveResolve(anilistId, title, episode, lang, signal, hints)
+      : await anikotoResolve(anilistId, title, episode, lang, signal, hints)
     const exp = Math.floor(Date.now() / 1000) + TOKEN_TTL_S
     const mint = async (cdnUrl: string): Promise<string | null> => {
       try {
@@ -553,6 +710,8 @@ export async function resolveSource(opts: {
     return {
       provider, url: playlist, type: r.kind, language: lang, quality: 'auto',
       subtitles, intro: r.intro, outro: r.outro,
+      providerAnimeId: r.providerAnimeId ?? null,
+      providerTitle: r.providerTitle ?? null,
     }
   } catch (e) {
     const msg = String((e && (e as Error).message) || e).slice(0, 200)
@@ -561,10 +720,12 @@ export async function resolveSource(opts: {
   }
 }
 
-export async function findAniwaveEpisodes(title: string, signal?: AbortSignal | null): Promise<{
+export async function findAniwaveEpisodes(
+  title: string, signal?: AbortSignal | null, hints?: MatchHints | null,
+): Promise<{
   provider: string; animeId: number; title: string; count: number; episodes: { number: number }[]
 }> {
-  const found = await awFindAnime(title, signal)
+  const found = await awFindAnime(title, signal, null, hints)
   log({ ev: 'episodes', provider: 'aniwave', animeId: found.id, count: found.count })
   return {
     provider: 'aniwave',
@@ -609,7 +770,7 @@ export async function handleStream(request: Request, cors: Record<string, string
     if (clientSignal.aborted) onClientAbort()
     else clientSignal.addEventListener('abort', onClientAbort, { once: true })
   }
-  const tid = setTimeout(() => { try { ctrl.abort(new Error('stream timeout')) } catch {} }, 60000)
+  const tid = setTimeout(() => { try { ctrl.abort(new Error('stream timeout')) } catch {} }, 120000)
   try {
     const up = await fetchUpstream(target, {
       headers: {
@@ -618,7 +779,7 @@ export async function handleStream(request: Request, cors: Record<string, string
         Origin: 'https://megaplay.buzz',
       },
       range: request.headers.get('Range'),
-      timeoutMs: 60000,
+      timeoutMs: 120000,
       signal: ctrl.signal,
     })
     if (!up.ok && up.status !== 206) {

@@ -58,6 +58,12 @@ export interface SourceOptions {
   signal?: AbortSignal
   /** Anime title (romaji) for providers that resolve by search. */
   animeTitle?: string | null
+  /** Extra identity hints for provider title matching + verification. */
+  animeEnglish?: string | null
+  animeNative?: string | null
+  animeEpisodes?: number | null
+  animeFormat?: string | null
+  animeYear?: number | null
 }
 
 export interface VideoProvider {

@@ -236,6 +236,30 @@ export default {
       return json({ providerAnimeId: String(anilistId), title, anilistId: String(anilistId), allanimeId, provider: 'official' }, 200, env, origin, { 'Cache-Control': 'public, max-age=3600' })
     }
 
+    // Caller-supplied identity hints (AniList metadata from the browser).
+    // Numbers are validated; garbage becomes undefined (hint ignored).
+    const numParam = (v: string | null): number | undefined => {
+      if (v == null || v === '') return undefined
+      const n = Number(v)
+      return Number.isFinite(n) && n > 0 ? n : undefined
+    }
+    const buildHint = () => {
+      const h: { title?: string; english?: string; native?: string; expectedEpisodes?: number; expectedFormat?: string; year?: number } = {}
+      const t = url.searchParams.get('title') || undefined
+      if (t) h.title = t
+      const e = url.searchParams.get('english') || undefined
+      if (e) h.english = e
+      const n = url.searchParams.get('native') || undefined
+      if (n) h.native = n
+      const ep = numParam(url.searchParams.get('episodes'))
+      if (ep !== undefined) h.expectedEpisodes = ep
+      const f = url.searchParams.get('format') || undefined
+      if (f) h.expectedFormat = f
+      const y = numParam(url.searchParams.get('year'))
+      if (y !== undefined && y < 3000) h.year = y
+      return Object.keys(h).length ? h : undefined
+    }
+
     const epMatch = url.pathname.match(/^\/(?:api\/)?(?:video\/)?episodes\/(\d+)$/)
     if (epMatch) {
       const anilistId = Number(epMatch[1])
@@ -248,10 +272,9 @@ export default {
         if (p) {
           try {
             // Browser already holds full anime metadata (AniList is CORS-open
-            // there); prefer a caller-supplied title for provider resolution
-            // since AniList often 403-blocks Worker egress IPs.
-            const titleHint = url.searchParams.get('title') || undefined
-            const eps = await withTimeout(p.getEpisodes(anilistId, signal, titleHint ? { title: titleHint } : undefined), 5000, signal)
+            // there); prefer caller-supplied identity hints for provider
+            // resolution since AniList often 403-blocks Worker egress IPs.
+            const eps = await withTimeout(p.getEpisodes(anilistId, signal, buildHint()), 5000, signal)
             const episodes = eps.map(e => ({
               id: `${p.id}-${anilistId}-${e.number}`,
               number: e.number,
@@ -320,7 +343,7 @@ export default {
         }
         if (!['sub','dub'].includes(language)) return json({ error: 'Invalid language, use sub or dub' }, 400, env, origin)
         const signal = request.signal
-        const titleHint = url.searchParams.get('title') || undefined
+        const hint = buildHint()
         // Demo/test streams must never mask a failed real provider: only
         // include demo when explicitly requested (?provider=demo).
         const wantsDemo = preferredProviderParam === 'demo' || parsed.providerHint === 'demo'
@@ -344,12 +367,13 @@ export default {
           try {
             // Resolver-backed providers can take ~5-10s cold (search+verify);
             // registry and frontend budgets account for this on retry.
-            const srcs = await withTimeout(provider.getSources(anilistId, episodeNum, language, workerOrigin, signal, titleHint ? { title: titleHint } : undefined), 12000, signal)
+            const srcs = await withTimeout(provider.getSources(anilistId, episodeNum, language, workerOrigin, signal, hint), 12000, signal)
             if (srcs && srcs.length > 0) {
               const sorted = sortByLanguageAndQuality(srcs, language)
               const filtered = sorted.filter(s => s.language === language)
               const toReturn = filtered.length ? filtered : sorted
-              return json({ sources: toReturn, episodeId, language, tried, provider: provider.id, anilistId: String(anilistId), episode: episodeNum }, 200, env, origin, { 'Cache-Control': CACHE_CONTROL_SOURCES })
+              const first = toReturn[0] as any
+              return json({ sources: toReturn, episodeId, language, tried, provider: provider.id, anilistId: String(anilistId), episode: episodeNum, providerAnimeId: first?.providerAnimeId ?? null, providerTitle: first?.providerTitle ?? null }, 200, env, origin, { 'Cache-Control': CACHE_CONTROL_SOURCES })
             }
           } catch (e) {
             if ((e as any)?.name === 'AbortError') break

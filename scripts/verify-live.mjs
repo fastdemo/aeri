@@ -28,4 +28,27 @@ try {
   check('live reachable', false, String(e))
   process.exit(1)
 }
+
+// Provider title matching (D068): the resolver must map each AniList ID to
+// the SAME show on the provider — never the first search result. Romaji-only
+// titles are the weakest input, so they are the strongest test.
+const MATCH_CASES = [
+  { anilistId: 1, romaji: 'Cowboy Bebop', want: 'bebop' },
+  { anilistId: 16498, romaji: 'Shingeki no Kyojin', want: 'attack on titan' },
+  { anilistId: 154587, romaji: 'Sousou no Frieren', want: 'frieren' },
+  { anilistId: 20, romaji: 'Naruto', want: 'naruto' },
+]
+try {
+  for (const c of MATCH_CASES) {
+    const u = `${LIVE}/api/sources/aniwave-${c.anilistId}-1?language=sub&provider=aniwave&title=${encodeURIComponent(c.romaji)}`
+    const res = await fetch(u)
+    if (!res.ok) { check(`match ${c.romaji}`, false, `HTTP ${res.status}`); continue }
+    const j = await res.json().catch(() => null)
+    const got = String(j?.providerTitle || '')
+    const ok = (j?.sources?.length ?? 0) > 0 && got.toLowerCase().includes(c.want) && String(j?.episode) === '1'
+    check(`match ${c.romaji} → provider "${got.slice(0, 44)}"`, ok, ok ? '' : JSON.stringify(j)?.slice(0, 160))
+  }
+} catch (e) {
+  check('matching probes', false, String(e))
+}
 process.exit(failures.length ? 1 : 0)

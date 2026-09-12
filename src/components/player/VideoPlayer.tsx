@@ -18,6 +18,9 @@ export function VideoPlayer({ sources, selectedSource, subtitles, onTimeUpdate, 
   const videoRef = useRef<HTMLVideoElement>(null)
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  // Device targets appear only when the OS reports one — no extra chrome otherwise.
+  const [airPlayAvailable, setAirPlayAvailable] = useState(false)
+  const [castAvailable, setCastAvailable] = useState(false)
 
   const source = selectedSource ?? sources[0] ?? null
   const isHlsSource = !!(source && (source.url.includes('.m3u8') || source.type === 'hls'))
@@ -109,6 +112,78 @@ export function VideoPlayer({ sources, selectedSource, subtitles, onTimeUpdate, 
     if (videoRef.current) videoRef.current.volume = Math.max(0, Math.min(1, volume))
   }, [volume])
 
+  // OS integration: AirPlay (Safari) + Chromecast (Remote Playback API).
+  // Native controls already surface these where the OS provides them; this
+  // only wires availability detection and the explicit pickers.
+  useEffect(() => {
+    const v = videoRef.current as any
+    if (!v) return
+    // Chromecast: opt into Remote Playback so supporting browsers (Chrome/Edge)
+    // inject their Cast entry point; track availability for our button.
+    let watchCb: ((available: boolean) => void) | null = null
+    let watchHandle: Promise<number> | null = null
+    try {
+      if (v.remote && typeof v.remote.watchAvailability === 'function') {
+        try { v.setAttribute('remote', '') } catch {}
+        watchCb = (available: boolean) => setCastAvailable(!!available)
+        watchHandle = v.remote.watchAvailability(watchCb).catch?.(() => null) ?? null
+      }
+    } catch {}
+    // AirPlay: Safari fires availability events on the element.
+    const onAirPlay = (e: any) => setAirPlayAvailable(e?.availability === 'available')
+    try { v.addEventListener?.('webkitplaybacktargetavailabilitychanged', onAirPlay) } catch {}
+    // Probe once in case the event already fired before listeners attached.
+    try {
+      if (typeof v.webkitShowPlaybackTargetPicker === 'function' && v.webkitCurrentPlaybackTargetIsWireless === true) {
+        setAirPlayAvailable(true)
+      }
+    } catch {}
+    return () => {
+      try { v.removeEventListener?.('webkitplaybacktargetavailabilitychanged', onAirPlay) } catch {}
+      try {
+        if (v.remote && watchHandle && typeof v.remote.cancelWatchAvailability === 'function') {
+          v.remote.cancelWatchAvailability()
+        }
+      } catch {}
+    }
+  }, [source?.url])
+
+  // Lock-screen / Bluetooth / PiP metadata (Media Session API).
+  useEffect(() => {
+    try {
+      const md = (navigator as any).mediaSession
+      if (!md) return
+      const title = animeTitle ? `${animeTitle} — E${episodeNumber}` : `Episode ${episodeNumber}`
+      md.metadata = new (window as any).MediaMetadata({
+        title,
+        artist: animeTitle || 'Aeri',
+        album: animeTitle || 'Aeri',
+      })
+      const v = videoRef.current
+      const onPlay = () => { try { v?.play() } catch {} }
+      const onPause = () => { try { v?.pause() } catch {} }
+      const onSeek = (d: any) => {
+        try {
+          if (!v || !Number.isFinite(v.duration)) return
+          const off = Number(d?.seekOffset) || 10
+          v.currentTime = Math.max(0, Math.min(v.duration, v.currentTime + off))
+        } catch {}
+      }
+      md.setActionHandler('play', onPlay)
+      md.setActionHandler('pause', onPause)
+      md.setActionHandler('seekbackward', onSeek)
+      md.setActionHandler('seekforward', onSeek)
+      return () => {
+        try {
+          md.setActionHandler('play', null)
+          md.setActionHandler('pause', null)
+          md.setActionHandler('seekbackward', null)
+          md.setActionHandler('seekforward', null)
+        } catch {}
+      }
+    } catch { return }
+  }, [animeTitle, episodeNumber, source?.url])
+
   // Apply subtitles track mode when subtitles prop changes
   useEffect(() => {
     if (!subtitles || subtitles.length === 0) return
@@ -174,6 +249,9 @@ export function VideoPlayer({ sources, selectedSource, subtitles, onTimeUpdate, 
         playsInline
         preload="metadata"
         crossOrigin={needsCors ? "anonymous" : undefined}
+        // Lets supporting browsers (Safari, Chrome/Edge) surface their own
+        // AirPlay / Cast entry points in the native controls.
+        {...({ 'x-webkit-airplay': 'allow' } as any)}
         className="h-full w-full object-contain"
         onLoadedMetadata={() => {
           setIsLoading(false)
@@ -202,6 +280,39 @@ export function VideoPlayer({ sources, selectedSource, subtitles, onTimeUpdate, 
       {isLoading && (
         <div className="pointer-events-none absolute inset-0 grid place-items-center bg-black/30">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+        </div>
+      )}
+
+      {/* Device targets — rendered ONLY while the OS reports one available,
+          so there is no extra chrome in the common case. */}
+      {(airPlayAvailable || castAvailable) && (
+        <div className="absolute right-2 top-2 flex gap-1.5">
+          {airPlayAvailable && (
+            <button
+              type="button"
+              aria-label="AirPlay"
+              title="AirPlay"
+              onClick={() => {
+                try { (videoRef.current as any)?.webkitShowPlaybackTargetPicker?.() } catch {}
+              }}
+              className="rounded-full bg-black/70 px-2.5 py-1.5 text-[11px] font-medium text-white backdrop-blur hover:bg-black/90"
+            >
+              AirPlay
+            </button>
+          )}
+          {castAvailable && (
+            <button
+              type="button"
+              aria-label="Cast"
+              title="Cast"
+              onClick={async () => {
+                try { await (videoRef.current as any)?.remote?.prompt?.() } catch {}
+              }}
+              className="rounded-full bg-black/70 px-2.5 py-1.5 text-[11px] font-medium text-white backdrop-blur hover:bg-black/90"
+            >
+              Cast
+            </button>
+          )}
         </div>
       )}
 

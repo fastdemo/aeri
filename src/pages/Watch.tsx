@@ -28,6 +28,14 @@ export function Watch() {
 
   const { data: remote, loading: loadingAnime } = useAnimeDetail(realId)
   const anime = trackingEntry?.anime ?? remote
+  const matchHints = {
+    animeTitle: anime ? (anime.title.romaji || anime.title.english || null) : null,
+    animeEnglish: anime?.title.english ?? null,
+    animeNative: anime?.title.native ?? null,
+    animeEpisodes: typeof anime?.episodes === 'number' ? anime.episodes : null,
+    animeFormat: anime?.format ?? null,
+    animeYear: typeof anime?.year === 'number' ? anime.year : null,
+  }
 
   // Video provider: episodes — shell renders immediately, episode list is immediate from AniList metadata
   // Video provider episodes are only for source mapping, not for UI list (which uses anime.episodes/streamingEpisodes directly)
@@ -171,7 +179,7 @@ export function Watch() {
     setSources(null)
     setSelectedSource(null)
     setTriedProviders([])
-    resolveSourcesWithFallback(effectiveEpisode, { preferredProvider, preferredLanguage: preferredAudio, signal: controller.signal, animeTitle: anime ? (anime.title.romaji || anime.title.english || null) : null })
+    resolveSourcesWithFallback(effectiveEpisode, { preferredProvider, preferredLanguage: preferredAudio, signal: controller.signal, ...matchHints })
       .then(res => {
         if (cancelled || controller.signal.aborted) return
         setSources(res.sources)
@@ -375,7 +383,7 @@ export function Watch() {
                       if (effectiveEpisode) {
                         setSourcesLoading(true)
                         setSourcesError(null)
-                        resolveSourcesWithFallback(effectiveEpisode, { preferredProvider, preferredLanguage: preferredAudio, bypassCache: true, animeTitle: anime ? (anime.title.romaji || anime.title.english || null) : null }).then(res => {
+                        resolveSourcesWithFallback(effectiveEpisode, { preferredProvider, preferredLanguage: preferredAudio, bypassCache: true, ...matchHints }).then(res => {
                           setSources(res.sources)
                           setTriedProviders(res.tried)
                           if (res.sources.length) {
@@ -420,7 +428,7 @@ export function Watch() {
                       if (effectiveEpisode) {
                         setSourcesLoading(true)
                         setSourcesError(null)
-                        resolveSourcesWithFallback(effectiveEpisode, { preferredProvider, preferredLanguage: preferredAudio, bypassCache: true, animeTitle: anime ? (anime.title.romaji || anime.title.english || null) : null }).then(res => {
+                        resolveSourcesWithFallback(effectiveEpisode, { preferredProvider, preferredLanguage: preferredAudio, bypassCache: true, ...matchHints }).then(res => {
                           setSources(res.sources)
                           setTriedProviders(res.tried)
                           if (res.sources.length) {
@@ -441,13 +449,8 @@ export function Watch() {
             </div>
           )}
 
-          {/* Top bar */}
-          <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between bg-gradient-to-b from-black/70 to-transparent px-4 py-3">
-            <Link to={`/anime/${id}`} className="pointer-events-auto text-sm font-medium text-white hover:text-white/80">
-              ← {titles.primary}
-            </Link>
-            {!isMovie && <span className="pointer-events-auto text-xs text-white/60">S{effectiveSeasonNumber}:E{String(epDisplayForTitle).padStart(2, '0')}</span>}
-          </div>
+          {/* Back-to-detail + S:E live below the player (h1 + Episodes link):
+              no overlay chrome over the video — the OS/browser player owns it. */}
 
           {/* Bottom gradient when no video */}
           {!hasVideo && <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/60 to-transparent" />}
