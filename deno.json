@@ -1,0 +1,12 @@
+{
+  // Deno Deploy app configuration (repo-controlled; overrides dashboard).
+  // The `aeri` Deno app is the shared AniList token-exchange service:
+  // dynamic fetch handler, zero dependencies, no build step.
+  // Entrypoint contract: GET /health, POST /api/anilist/token.
+  "deploy": {
+    "runtime": {
+      "type": "dynamic",
+      "entrypoint": "./auth-proxy/deno.ts"
+    }
+  }
+}
