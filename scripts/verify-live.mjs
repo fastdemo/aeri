@@ -38,15 +38,31 @@ const MATCH_CASES = [
   { anilistId: 154587, romaji: 'Sousou no Frieren', want: 'frieren' },
   { anilistId: 20, romaji: 'Naruto', want: 'naruto' },
 ]
+// Upstream CDNs throttle in windows; one retry separates a transient blip
+// (pass) from a real matching regression (fail twice = fail).
+async function fetchMatch(c, attempt) {
+  const u = `${LIVE}/api/sources/aniwave-${c.anilistId}-1?language=sub&provider=aniwave&title=${encodeURIComponent(c.romaji)}${attempt > 0 ? `&retry=${attempt}` : ''}`
+  const res = await fetch(u)
+  if (!res.ok) return { http: res.status, json: null }
+  return { http: 200, json: await res.json().catch(() => null) }
+}
 try {
   for (const c of MATCH_CASES) {
-    const u = `${LIVE}/api/sources/aniwave-${c.anilistId}-1?language=sub&provider=aniwave&title=${encodeURIComponent(c.romaji)}`
-    const res = await fetch(u)
-    if (!res.ok) { check(`match ${c.romaji}`, false, `HTTP ${res.status}`); continue }
-    const j = await res.json().catch(() => null)
-    const got = String(j?.providerTitle || '')
-    const ok = (j?.sources?.length ?? 0) > 0 && got.toLowerCase().includes(c.want) && String(j?.episode) === '1'
-    check(`match ${c.romaji} → provider "${got.slice(0, 44)}"`, ok, ok ? '' : JSON.stringify(j)?.slice(0, 160))
+    let got = '', n = 0, ep = '', detail = ''
+    for (let attempt = 0; attempt < 2; attempt++) {
+      if (attempt > 0) await new Promise((r) => setTimeout(r, 5000))
+      try {
+        const { http, json: j } = await fetchMatch(c, attempt)
+        if (http !== 200) { detail = `HTTP ${http}`; continue }
+        got = String(j?.providerTitle || '')
+        n = j?.sources?.length ?? 0
+        ep = String(j?.episode)
+        if (n > 0 && got.toLowerCase().includes(c.want) && ep === '1') break
+        detail = JSON.stringify(j)?.slice(0, 160)
+      } catch (e) { detail = String(e).slice(0, 120) }
+    }
+    const ok = n > 0 && got.toLowerCase().includes(c.want) && ep === '1'
+    check(`match ${c.romaji} → provider "${got.slice(0, 44)}"`, ok, ok ? '' : (detail || 'no source'))
   }
 } catch (e) {
   check('matching probes', false, String(e))
