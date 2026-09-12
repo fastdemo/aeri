@@ -65,7 +65,7 @@ grep -E '^VITE_(ANILIST_CLIENT_ID|MAL_CLIENT_ID|AUTH_API_URL)=' .env
 # expect:
 # VITE_ANILIST_CLIENT_ID=50024
 # VITE_MAL_CLIENT_ID=ce55a1d587f549b33c1fa36ec10fe8d2
-# VITE_AUTH_API_URL=https://graceful-dream-569.fly.dev
+# VITE_AUTH_API_URL=https://aeri.fastdemo.deno.net
 ```
 
 Missing vars and their symptoms:
@@ -107,7 +107,7 @@ Manual equivalent (what the script does):
 ASSET=$(curl -s https://aeri.fastdemo.workers.dev/ | grep -o 'assets/index-[^"]*\.js' | head -1)
 echo "live: $ASSET"
 curl -s https://aeri.fastdemo.workers.dev/$ASSET -o /tmp/aeri-live.js
-grep -c 'graceful-dream' /tmp/aeri-live.js        # MUST be >= 1 (auth-proxy baked)
+grep -c 'aeri.fastdemo.deno.net' /tmp/aeri-live.js  # MUST be >= 1 (auth-proxy baked)
 grep -o 'CLIENT_SECRET[^"]*' /tmp/aeri-live.js | sort -u
 # MUST show only *names* inside error-message strings, never secret *values*
 # (values live only in Worker secrets / auth-proxy env / owner's keychain)
@@ -143,7 +143,7 @@ curl -s -X POST https://aeri.fastdemo.workers.dev/api/mal/token \
 
 ## 6. Failure catalog
 
-- Live bundle lacks `graceful-dream` → rebuild with `VITE_AUTH_API_URL` (this doc, step 1), redeploy.
+- Live bundle lacks `aeri.fastdemo.deno.net` → rebuild with `VITE_AUTH_API_URL` (this doc, step 1), redeploy.
 - `ANILIST_IP_BLOCKED` on a correctly-built client → the request went to the Worker, meaning the auth-proxy fetch failed browser-side (ad-blocker / Brave Shields blocking the auth host, or the host is down — D066) — client now says so explicitly.
 - CI red at `npx ... wrangler --version` / `CLOUDFLARE_API_TOKEN` error → repo secrets missing (owner action, step 5). Code is still validated by the build step.
 - Blank page after deploy → `base` mismatch (view source: script src must be `/assets/...` for Worker hosting).

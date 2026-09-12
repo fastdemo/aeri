@@ -21,7 +21,7 @@ try {
   if (!asset) throw new Error('no bundle to check')
 
   const js = await getText(`${LIVE}/${asset}`)
-  check('auth-proxy URL baked', js.includes('graceful-dream'), 'AniList login needs it')
+  check('auth-proxy URL baked', js.includes('aeri.fastdemo.deno.net'), 'AniList login needs it')
   check('MAL client ID baked', js.includes('ce55a1d5'), 'MAL login needs it')
   check('plain PKCE active', /code_challenge_method.{0,16}plain/.test(js), 'S256 breaks MAL login')
 } catch (e) {

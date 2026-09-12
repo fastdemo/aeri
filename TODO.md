@@ -30,7 +30,7 @@
 - [x] Browse fixed 30-preload with local full-row slicing (no refetch on resize), page-1 shuffle per filter set, filters share the category row (right side, matching pill size, custom chevron), ContentRow subtitle right-aligned at title size, arrows move exactly one card — verified via Playwright (grid counts, shuffle across reloads, zero requests on resize, scroll delta)
 - [ ] Tune recommendation diversity (collaborative/embedding) when more history signals available
 - [x] Fly retired for playback: resolver merged into Cloudflare Worker (D065) — no card, no Fly
-- [ ] BLOCKED ON OWNER (5 min, no card, no CLI): create Deno Deploy project for auth-proxy (see D066 + auth-proxy/README.md), then agent bakes VITE_AUTH_API_URL + verifies login
+- [x] Deno auth live: owner deployed `aeri` Deno app; agent pinned entrypoint via deno.json, verified exchange + baked VITE_AUTH_API_URL (D070)
 
 ## Later
 - [ ] PWA offline shell tuning
