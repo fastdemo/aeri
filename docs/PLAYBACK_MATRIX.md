@@ -269,3 +269,9 @@ HMAC/allowlist/SSRF model, no Fly. Verified on preview worker + production:
 | 57 | Movie/season traps | `PASS` — Bebop movie→80164 (not S1); AoT S3→74861 (not S1) |
 | 58 | Fail-closed cases | `PASS` — ep99 → 0 sources; garbage title → 0 sources; anikoto wrong-year → rejected both paths |
 | 59 | Speed (production) | resolve 4.1s cold/~1s warm; playlist 2.2s; 576KB segment 11.1s @ ~50KB/s; direct CDN 8.4s @ ~68KB/s (byte-identical); worker CPU 45ms/segment (0.4%) — upstream throughput is the bottleneck |
+
+### Benchmark rounds (D071, production, scripts/bench-stream.mjs)
+| # | Case | Result |
+|---|------|--------|
+| 60 | Round 1–2 matrix (Bebop E1/E2, anikoto, Frieren) | resolve 1–4.6s; worker ≈/≥ direct in 3/4; anikoto/tiktokcdn = PNG poison at 0.6–9MB/s (correctness over speed); all masters single-rendition |
+| 61 | First-success race | shipped; resolve behavior identical, tail improved; no wrong-show or security regression (verify-live 8/8) |
