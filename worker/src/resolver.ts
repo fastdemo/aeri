@@ -490,6 +490,25 @@ async function awFindAnime(
   throw new Error(`aw episode list missing for "${first.c.name}"`)
 }
 
+// Resolve with the first non-null success; null only when every task
+// fails or returns null. Handlers attach immediately so losers never produce
+// unhandled rejections.
+function firstSuccess<T>(tasks: Promise<T | null>[]): Promise<T | null> {
+  return new Promise((resolve) => {
+    let pending = tasks.length
+    if (!pending) { resolve(null); return }
+    let done = false
+    for (const t of tasks) {
+      t.then((v) => {
+        if (!done && v) { done = true; resolve(v); return }
+        if (--pending === 0 && !done) resolve(null)
+      }, () => {
+        if (--pending === 0 && !done) resolve(null)
+      })
+    }
+  })
+}
+
 async function awExtractEchovideo(embedUrl: string, signal?: AbortSignal | null): Promise<{ url: string; kind: string } | null> {
   const m = embedUrl.match(/^(https?:\/\/[^/]+)\/embed-1\/([^?#]+)/)
   if (!m) return null
@@ -577,7 +596,10 @@ async function aniwaveResolve(
     while ((lm = liRe.exec(tm[2])) !== null) jobs.push({ type, linkId: lm[1], server: lm[2].trim() })
   }
   if (!jobs.length) throw new Error('aw no servers')
-  const results = await Promise.all(jobs.slice(0, 6).map(async (job) => {
+  // First success wins: awaiting all six extracts costs the p99 tail on
+  // every resolve, while only one URL is ever used. Losers keep running to
+  // completion in the background (their signals still cancel on disconnect).
+  const runners = jobs.slice(0, 6).map((job) => (async () => {
     try {
       const r = await awGet(`/ajax/sources?id=${encodeURIComponent(job.linkId)}`, `${AW_BASE}/`, signal, 6000)
       if (!r.ok) return null
@@ -588,8 +610,8 @@ async function aniwaveResolve(
       if (/myvidplay|playmogo|dood|d0o0d|ds2play|vide0/.test(embedUrl)) return await awExtractDood(embedUrl, signal)
       return null
     } catch { return null }
-  }))
-  const hit = results.find((x) => x && x.url)
+  })())
+  const hit = await firstSuccess(runners)
   if (!hit) throw new Error('aw no playable stream')
   if (episode > 0 && found.count > 0 && found.count < episode) {
     throw new Error(`aw episode ${episode} not listed for "${found.name}" (has ${found.count})`)
