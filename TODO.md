@@ -31,6 +31,7 @@
 - [ ] Tune recommendation diversity (collaborative/embedding) when more history signals available
 - [x] Fly retired for playback: resolver merged into Cloudflare Worker (D065) — no card, no Fly
 - [x] Deno auth live: owner deployed `aeri` Deno app; agent pinned entrypoint via deno.json, verified exchange + baked VITE_AUTH_API_URL (D070)
+- [x] Source-quality mission (D072): no better source — aniwave census (2× echovideo + 1× myvidplay, no hidden servers), anikoto embeds megaplay-only, externals unreachable/blocked/dead from worker egress; megaplay `enc` rollout → anikoto 0 sources (left intact, auto-recovers; bench ank FAIL is the canary); baseline re-measured, no code changes
 
 ## Later
 - [ ] PWA offline shell tuning

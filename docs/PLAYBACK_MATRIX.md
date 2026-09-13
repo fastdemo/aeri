@@ -275,3 +275,12 @@ HMAC/allowlist/SSRF model, no Fly. Verified on preview worker + production:
 |---|------|--------|
 | 60 | Round 1–2 matrix (Bebop E1/E2, anikoto, Frieren) | resolve 1–4.6s; worker ≈/≥ direct in 3/4; anikoto/tiktokcdn = PNG poison at 0.6–9MB/s (correctness over speed); all masters single-rendition |
 | 61 | First-success race | shipped; resolve behavior identical, tail improved; no wrong-show or security regression (verify-live 8/8) |
+
+### Source-quality mission (D072, production, scripts/bench-stream.mjs)
+| # | Case | Result |
+|---|------|--------|
+| 62 | Aniwave server census (Bebop E1) | 3 sub servers: 2× echovideo embed-1 + 1× myvidplay (dood MP4) — no hidden megacloud/vidcloud; echovideo `getSources` still plaintext single HLS |
+| 63 | Anikoto embed census (Bebop) | all embeds megaplay-only (`/stream/s-2/<id>/sub|dub`) — no alternate server; `getSourcesNew` now returns `enc` (AES/trustWatch scheme, newclient v4.7) with NO `sources.file` → 0 sources, all titles + dub |
+| 64 | External candidates via worker egress | animekai / hianime / anitaku(gogo) / miruro API → `530 error 1016` (unreachable from CF edge); consumet public instance dead (301 → github); animepahe kwik = JS-unpack embed (bypass-class, rejected); AllAnime crypto still missing |
+| 65 | Baseline (2 runs, same episodes) | aniwave all MPEG-TS valid, single-rendition 655–693kbps; resolve 0.7–2.6s; worker ≈/≥ direct in most samples (e.g. 1009 vs 320, 1605 vs 179 KB/s) with run-to-run lottery both directions; byte-identical |
+| 66 | Anikoto canary | bench `Bebop E1 (ank)` FAILs `no source` (~0.8–1.1s, fails fast, closed) — doubles as regression canary; matching path (providerAnimeId) still intact |
