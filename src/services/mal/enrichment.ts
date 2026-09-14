@@ -14,7 +14,7 @@ export async function enrichMalEntriesWithAnilist(
     onBatch?: (next: AnimeListEntry[]) => void
   },
 ): Promise<AnimeListEntry[]> {
-  const concurrency = Math.max(1, Math.min(opts?.concurrency ?? 4, 8))
+  const concurrency = Math.max(1, Math.min(opts?.concurrency ?? 2, 4))
   const signal = opts?.signal
   const out: AnimeListEntry[] = [...entries]
   const pending = entries
@@ -24,12 +24,12 @@ export async function enrichMalEntriesWithAnilist(
 
   // In-progress / currently-watching entries drive Continue Watching and open
   // modals — enrich them first so the visible UI turns AniList-backed fast.
-  // Everything runs under AniList's ~90 req/min limit: a fast bounded burst
-  // for the priority set, then a paced drip for the long tail. 429s still fall
+  // AniList runs at a reduced ~30 req/min limit: a small bounded burst for
+  // the priority set, then a slow drip for the long tail. 429s still fall
   // back per entry (retried on a later visit via cache miss).
   const isPriority = ({ e }: { e: AnimeListEntry }) =>
     e.status === 'watching' || e.progress > 0
-  const priority = pending.filter(isPriority).slice(0, 40)
+  const priority = pending.filter(isPriority).slice(0, 12)
   const priorityIdx = new Set(priority.map((p) => p.i))
   const tail = pending.filter((p) => !priorityIdx.has(p.i))
 
@@ -85,13 +85,14 @@ export async function enrichMalEntriesWithAnilist(
     }
   })
   await Promise.all(workers)
-  // Long tail: paced sequential drip (~80 req/min max) so big lists converge
+  // Long tail: slow sequential drip (~24 req/min max, under the 30/min
+  // limit with headroom for foreground browsing) so big lists converge
   // across the session without tripping the rate limit.
   for (const item of tail) {
     if (signal?.aborted) return out
     await enrichOne(item.i, item.e)
     if (signal?.aborted) return out
-    await delay(750)
+    await delay(2500)
   }
   return out
 }

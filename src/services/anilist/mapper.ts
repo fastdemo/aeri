@@ -26,6 +26,7 @@ export interface AniListMedia {
   format?: string | null // TV, MOVIE etc
   popularity?: number | null
   streamingEpisodes?: { title?: string | null; thumbnail?: string | null; url?: string | null; site?: string | null }[] | null
+  trailer?: { id?: string | null; site?: string | null } | null
   nextAiringEpisode?: { airingAt: number; timeUntilAiring: number; episode: number } | null
   airingSchedule?: { nodes: { airingAt: number; episode: number }[] } | null
   isAdult?: boolean | null
@@ -172,6 +173,7 @@ export function mapAniListMediaToAnime(media: AniListMedia): Anime {
     format: media.format ?? undefined,
     popularity: media.popularity ?? undefined,
     streamingEpisodes,
+    trailer: media.trailer?.id && media.trailer?.site ? { id: media.trailer.id, site: media.trailer.site } : undefined,
     nextAiringEpisode,
     airingSchedule,
     isAdult: media.isAdult ?? undefined,

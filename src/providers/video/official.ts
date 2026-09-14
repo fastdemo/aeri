@@ -1,6 +1,7 @@
 import type { Anime } from '../../types/anime'
 import type { VideoProvider, VideoEpisode, VideoSourceEnhanced, ProviderCapabilities, ProviderAnimeMatch, SourceOptions } from './types'
 import { cachedFetch, fetchWithTimeout } from './base'
+import { anilistMetadataProvider } from '../metadata/anilistMetadata'
 
 // Official Trailer provider — legitimate, authorized, no bypass.
 // Browser-direct via AniList GraphQL (CORS *). This mirrors Worker officialProvider.
@@ -79,27 +80,20 @@ export class OfficialProvider implements VideoProvider {
         }
       } catch {}
     }
-    // Fallback to AniList direct
+    // Fallback to shared AniList metadata (NOT a raw fetch): this joins the
+    // app-wide cache + inflight dedup + 429 cooldown, so concurrent callers
+    // (detail page + episode list + sources) share one network request.
     return cachedFetch(`video:official:episodes:${anime.identity.internalId}`, async () => {
       try {
-        const res = await fetchWithTimeout('https://graphql.anilist.co', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            query: `query($id:Int){ Media(id:$id,type:ANIME){ episodes streamingEpisodes{title thumbnail} } }`,
-            variables: { id: anilistId },
-          }),
-          signal,
-        }, 4000, signal)
-        if (!res.ok) return []
-        const j: any = await res.json().catch(() => null)
-        const media = j?.data?.Media
-        const count: number = media?.episodes ?? media?.streamingEpisodes?.length ?? 0
+        const id = anime.identity.anilistId
+        if (!id) return []
+        const full = await anilistMetadataProvider.getAnime(`anilist-${id}`, signal)
+        const count: number = full.episodes ?? full.streamingEpisodes?.length ?? 0
         if (!count) return []
         // When episodes is null (e.g., One Piece), streaming may be global offset (130..62). Don't use offset titles for local EP1.
-        const isEpisodesUnknown = media?.episodes == null
+        const isEpisodesUnknown = full.episodes == null
         return Array.from({ length: count }, (_, i) => {
-          const se = media?.streamingEpisodes?.[i]
+          const se = full.streamingEpisodes?.[i]
           const raw = se?.title?.trim()
           const isGeneric = raw ? /^Episode\s+\d+$/i.test(raw) : true
           const title = (isEpisodesUnknown || !raw || isGeneric) ? `Episode ${i + 1}` : raw
@@ -172,18 +166,10 @@ export class OfficialProvider implements VideoProvider {
 
     return cachedFetch(`video:official:sources:${anilistId}:${episode.number}:${lang}`, async () => {
       try {
-        const res = await fetchWithTimeout('https://graphql.anilist.co', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            query: `query($id:Int){ Media(id:$id,type:ANIME){ trailer{id site} } }`,
-            variables: { id: anilistId },
-          }),
-          signal,
-        }, 3500, signal)
-        if (!res.ok) return []
-        const j: any = await res.json().catch(() => null)
-        const trailer = j?.data?.Media?.trailer
+        // Shared metadata path (cache + dedup + cooldown) — trailer now rides
+        // on the full Media query so no extra AniList request is sent.
+        const full = await anilistMetadataProvider.getAnime(`anilist-${anilistId}`, signal)
+        const trailer = full.trailer
         const sources: VideoSourceEnhanced[] = []
         if (trailer?.site === 'youtube' && trailer.id) {
           const yt = String(trailer.id).trim()

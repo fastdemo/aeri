@@ -284,3 +284,11 @@ HMAC/allowlist/SSRF model, no Fly. Verified on preview worker + production:
 | 64 | External candidates via worker egress | animekai / hianime / anitaku(gogo) / miruro API → `530 error 1016` (unreachable from CF edge); consumet public instance dead (301 → github); animepahe kwik = JS-unpack embed (bypass-class, rejected); AllAnime crypto still missing |
 | 65 | Baseline (2 runs, same episodes) | aniwave all MPEG-TS valid, single-rendition 655–693kbps; resolve 0.7–2.6s; worker ≈/≥ direct in most samples (e.g. 1009 vs 320, 1605 vs 179 KB/s) with run-to-run lottery both directions; byte-identical |
 | 66 | Anikoto canary | bench `Bebop E1 (ank)` FAILs `no source` (~0.8–1.1s, fails fast, closed) — doubles as regression canary; matching path (providerAnimeId) still intact |
+
+### Rate-limit resilience (D073, prod build + production endpoints)
+| # | Case | Result |
+|---|------|--------|
+| 67 | P0 path trace (Bebop E1) | resolve ok → playlist 200 (1.2s) → variant ok → media segment MPEG-TS `47 40`, 577KB/0.73s; AniList direct 200, `x-ratelimit-limit: 30` — CDN/worker healthy, throttle is the break |
+| 68 | Watch request audit (prod build) | BEFORE 4 (3× Media + Relations) → AFTER 2 (1 shared Media + Relations); Home steady 4 distinct cached Pages; stack-trace instrumentation proved the dupes were `official.ts` raw fetches, now removed |
+| 69 | Watch page playback state | `PASS` — real titles (Asteroid Blues…), 26 episodes, trailer embeds, 0 page errors (chromium) |
+| 70 | Concurrency probe (6 segs, k=1/2/3) | cold 116–247 KB/s all k; warm 1284/804/1218 KB/s — no scaling → parallel downloading rejected, aggregate throttle confirmed |

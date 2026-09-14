@@ -3,9 +3,25 @@ import { getPreferences, setPreferences, type Preferences } from '../storage/pre
 import { useAniList } from '../contexts/AniListContext'
 import { useMAL } from '../contexts/MALContext'
 import { useTracking } from '../contexts/TrackingContext'
-import { clearAnilistMemoryCache } from '../services/anilist/client'
+import { clearAnilistMemoryCache, getAnilistStats } from '../services/anilist/client'
 import { clearMalMemoryCache } from '../services/mal/client'
 import { getProviderCapabilities, checkProviderHealth } from '../providers/video/registry'
+
+// Counters only — no tokens, no user data. Refreshes while visible.
+function AnilistDiagnostics() {
+  const [s, setS] = useState(() => ({ ...getAnilistStats(), now: Date.now() }))
+  useEffect(() => {
+    const t = setInterval(() => setS({ ...getAnilistStats(), now: Date.now() }), 2000)
+    return () => clearInterval(t)
+  }, [])
+  const cooling = s.cooldownUntil > s.now
+  return (
+    <p className="mt-2 text-[11px] text-white/30">
+      AniList requests: {s.requests} · cache {s.memoryHits + s.idbHits} · shared {s.dedupHits} · throttled {s.status429}
+      {cooling ? ` · cooling down` : ''}{s.lastRemaining !== null ? ` · remaining ${s.lastRemaining}` : ''}
+    </p>
+  )
+}
 
 export function Settings() {
   const [prefs, setPrefs] = useState<Preferences>(() => getPreferences())
@@ -451,6 +467,7 @@ export function Settings() {
           </button>
         </div>
         <p className="mt-2 text-[11px] text-white/30">Reset also restores default settings. Your accounts stay connected.</p>
+        <AnilistDiagnostics />
       </section>
 
       {/* About */}

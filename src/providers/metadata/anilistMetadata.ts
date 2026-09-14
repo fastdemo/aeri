@@ -52,6 +52,7 @@ const MEDIA_QUERY = `
 query ($id: Int) {
   Media(id: $id, type: ANIME) {
     ${MEDIA_FIELDS}
+    trailer { id site }
   }
 }
 `
@@ -60,6 +61,7 @@ const MEDIA_BY_MAL_QUERY = `
 query ($malId: Int) {
   Media(idMal: $malId, type: ANIME) {
     ${MEDIA_FIELDS}
+    trailer { id site }
   }
 }
 `
