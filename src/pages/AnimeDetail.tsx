@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { EpisodeList } from '../components/episodes/EpisodeList'
 import { useTracking } from '../contexts/TrackingContext'
 import { useAnimeDetail } from '../hooks/useAnimeMetadata'
-import { getSeriesGroup, type AnimeSeriesGroup } from '../services/anilist/series'
+import { useSeriesGroup } from '../hooks/useSeriesGroup'
 import { getTitleHierarchy } from '../lib/titles'
 import { sanitizeAnimeForDisplay, sanitizeGroup } from '../lib/episodes'
 import { formatLabel, statusLabel } from '../lib/mediaLabels'
@@ -38,11 +38,21 @@ export function AnimeDetail() {
   // Prefer real remote data when available, else fromList (no mock fallback in production)
   const anime = remote ?? fromList
 
-  // Series grouping — abortable, selectedSeason === displayAnime invariant
-  // All hooks must be before any early return (Rules of Hooks)
-  const [seriesGroup, setSeriesGroup] = useState<AnimeSeriesGroup | null>(null)
+  // Series grouping — starts from the route/list id at mount (parallel with
+  // page metadata), not after `anime` arrives. Season 1 is always presented
+  // on open; the user picks other seasons.
+  const routeAnilistId = (() => {
+    if (realId?.startsWith('anilist-')) return Number(realId.replace('anilist-', '')) || null
+    if (realId && /^\d+$/.test(realId)) return Number(realId)
+    return fromList?.identity.anilistId ?? null
+  })()
+  const { group: seriesGroup, ready: groupReady } = useSeriesGroup(routeAnilistId)
   const [selectedSeasonIdx, setSelectedSeasonIdx] = useState<number>(0)
-  const requestIdRef = useRef(0)
+
+  useEffect(() => {
+    // Always present Season 1 on open/navigation; the user picks other seasons
+    setSelectedSeasonIdx(0)
+  }, [routeAnilistId])
 
   // Effective group guards against stale seriesGroup when anime switches franchise before new fetch resolves.
   const effectiveGroupRaw = useMemo(() => {
@@ -70,37 +80,6 @@ export function AnimeDetail() {
   const backdrop = displayAnime ? (displayAnime.backdropImage || displayAnime.coverImage || '') : ''
   const displayKey = displayAnime ? (displayAnime.identity.anilistId ? `anilist:${displayAnime.identity.anilistId}` : displayAnime.identity.internalId) : 'none'
   const isMovie = displayAnime ? displayAnime.format?.toUpperCase() === 'MOVIE' : false
-
-  useEffect(() => {
-    if (!anime?.identity.anilistId) {
-      setSeriesGroup(null)
-      setSelectedSeasonIdx(0)
-      return
-    }
-    // Always present Season 1 on open/navigation; the user picks other seasons
-    setSelectedSeasonIdx(0)
-    const currentAnilistId = anime.identity.anilistId
-    const reqId = ++requestIdRef.current
-    const controller = new AbortController()
-    getSeriesGroup(currentAnilistId, { signal: controller.signal })
-      .then(group => {
-        if (controller.signal.aborted || reqId !== requestIdRef.current) return
-        if (group && group.seasons.length > 1) {
-          setSeriesGroup(group)
-          setSelectedSeasonIdx(0)
-        } else {
-          setSeriesGroup(null)
-          setSelectedSeasonIdx(0)
-        }
-      })
-      .catch(e => {
-        if ((e as any)?.name === 'AbortError') return
-        if (reqId !== requestIdRef.current) return
-        setSeriesGroup(null)
-        setSelectedSeasonIdx(0)
-      })
-    return () => controller.abort()
-  }, [anime?.identity.anilistId])
 
   if (loading && !anime) {
     return (
@@ -163,8 +142,10 @@ export function AnimeDetail() {
           <div>
             <p className="text-sm leading-6 text-white/70">{displayAnime.description || 'No description available.'}</p>
 
-            {/* Netflix-like season selector — uses effectiveGroup to avoid stale franchise */}
-            {!isMovie && effectiveGroup && (
+            {/* Netflix-like season selector — uses effectiveGroup to avoid stale franchise.
+                Renders a same-size placeholder until the season model settles,
+                so the control never pops in late and shifts layout. */}
+            {!isMovie && groupReady && effectiveGroup && (
               <div className="mt-6">
                 <div className="flex items-center gap-2">
                   <div className="relative">
@@ -188,9 +169,15 @@ export function AnimeDetail() {
               </div>
             )}
 
+            {!isMovie && !groupReady && anime && (
+              <div className="mt-6" aria-label="Loading seasons">
+                <div className="h-[30px] w-32 animate-pulse rounded-full bg-white/5" />
+              </div>
+            )}
+
             {!isMovie && (
               <div className="mt-6">
-                <EpisodeList key={displayKey} anime={displayAnime} seasonNumber={selectedSeasonIdx + 1} group={effectiveGroup} />
+                <EpisodeList key={displayKey} anime={displayAnime} seasonNumber={selectedSeasonIdx + 1} group={groupReady ? effectiveGroup : null} />
               </div>
             )}
           </div>

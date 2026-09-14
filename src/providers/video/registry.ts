@@ -14,16 +14,20 @@ import { customProvider } from './custom'
 import { getPreferences, getEffectiveVideoApiUrl } from '../../storage/preferences'
 import { fetchWithTimeout } from './base'
 
-// Priority order: official trailer is first (honest, no fake), custom endpoint (user self-hosted full-episode) is second when configured, then miruro alias, then stubs.
+// Priority order: Aniwave first (real full-episode streams when a valid
+// source exists), then official trailer (honest fallback/option), custom
+// endpoint (user self-hosted full-episode) when configured, then miruro
+// alias, then stubs. Resolution is preferred-not-forced: the first provider
+// with episodes wins, and source fallback walks the same order.
 // Mock is last for episode list only (no video)
 export const videoProviders: VideoProvider[] = [
+  aniWaveProvider,
   officialProvider,
   customProvider,
   miruroProvider,
   allAnimeProvider,
   animePaheProvider,
   aniKotoProvider,
-  aniWaveProvider,
   megaPlayProvider,
   animeParadiseProvider,
   aniNekoProvider,

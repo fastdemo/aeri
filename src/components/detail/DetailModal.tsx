@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import type { Anime, AnimeStatus } from '../../types/anime'
 import { EpisodeList, getEpisodes } from '../episodes/EpisodeList'
 import { useTracking } from '../../contexts/TrackingContext'
-import { getSeriesGroup, type AnimeSeriesGroup } from '../../services/anilist/series'
+import { useSeriesGroup } from '../../hooks/useSeriesGroup'
 import { getTitleHierarchy } from '../../lib/titles'
 import { sanitizeAnimeForDisplay, sanitizeGroup, getDisplayEpisodeNumber } from '../../lib/episodes'
 import { formatLabel, statusLabel } from '../../lib/mediaLabels'
@@ -37,42 +37,17 @@ export function DetailModal({
   const currentScore = baseEntry?.score ?? null
   const baseAnime = baseEntry?.anime ?? anime
 
-  // Series grouping — abortable, selectedSeason === displayAnime invariant
-  // The panel renders immediately (single entrance animation); season-dependent
-  // bits fill in when grouping resolves instead of swapping whole panels.
-  const [seriesGroup, setSeriesGroup] = useState<AnimeSeriesGroup | null>(null)
+  // Series grouping — starts at mount from the card's id (parallel with the
+  // modal's own open), not after any other fetch. Season UI stays in a stable
+  // placeholder until the model is ready, so nothing pops in mid-animation.
+  const routeAnilistId = baseAnime.identity.anilistId ?? null
+  const { group: seriesGroup, ready: groupReady } = useSeriesGroup(routeAnilistId)
   const [selectedSeasonIdx, setSelectedSeasonIdx] = useState(0)
-  const requestIdRef = useRef(0)
 
   useEffect(() => {
-    if (!baseAnime.identity.anilistId) {
-      setSeriesGroup(null)
-      setSelectedSeasonIdx(0)
-      return
-    }
+    // Always present Season 1 on open/anime change; the user picks others.
     setSelectedSeasonIdx(0)
-    const currentId = baseAnime.identity.anilistId
-    const reqId = ++requestIdRef.current
-    const controller = new AbortController()
-    getSeriesGroup(currentId, { signal: controller.signal })
-      .then(g => {
-        if (controller.signal.aborted || reqId !== requestIdRef.current) return
-        if (g && g.seasons.length > 1) {
-          setSeriesGroup(g)
-          setSelectedSeasonIdx(0)
-        } else {
-          setSeriesGroup(null)
-          setSelectedSeasonIdx(0)
-        }
-      })
-      .catch(e => {
-        if ((e as any)?.name === 'AbortError') return
-        if (reqId !== requestIdRef.current) return
-        setSeriesGroup(null)
-        setSelectedSeasonIdx(0)
-      })
-    return () => controller.abort()
-  }, [baseAnime.identity.anilistId])
+  }, [baseAnime.identity.anilistId, baseAnime.identity.internalId])
 
   const effectiveGroupRaw = useMemo(() => {
     if (!seriesGroup || seriesGroup.seasons.length <= 1) return null
@@ -355,7 +330,12 @@ export function DetailModal({
               {displayAnime.description || 'No description available.'}
             </p>
 
-            {!isMovie && effectiveGroup && (
+            {!isMovie && !groupReady && (
+              <div className="mt-4" aria-label="Loading seasons">
+                <div className="h-[30px] w-32 animate-pulse rounded-full bg-white/5" />
+              </div>
+            )}
+            {!isMovie && groupReady && effectiveGroup && (
               <div className="mt-4 flex items-center gap-2">
                 <div className="relative">
                   <select

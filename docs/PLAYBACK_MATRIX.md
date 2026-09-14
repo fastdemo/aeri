@@ -292,3 +292,13 @@ HMAC/allowlist/SSRF model, no Fly. Verified on preview worker + production:
 | 68 | Watch request audit (prod build) | BEFORE 4 (3× Media + Relations) → AFTER 2 (1 shared Media + Relations); Home steady 4 distinct cached Pages; stack-trace instrumentation proved the dupes were `official.ts` raw fetches, now removed |
 | 69 | Watch page playback state | `PASS` — real titles (Asteroid Blues…), 26 episodes, trailer embeds, 0 page errors (chromium) |
 | 70 | Concurrency probe (6 segs, k=1/2/3) | cold 116–247 KB/s all k; warm 1284/804/1218 KB/s — no scaling → parallel downloading rejected, aggregate throttle confirmed |
+
+### Deployment + season loading (D074, production endpoints + local prod build, UNDEPLOYED)
+| # | Case | Result |
+|---|------|--------|
+| 71 | Live bundle check | `PASS` — production serves index-C0S4MHdV.js == HEAD af326a2; deployment current, no staleness |
+| 72 | Live full path (Bebop E1) | `PASS` — /api/sources + /api/video/sources resolve (80163 'Cowboy Bebop'); playlist → variant → MPEG-TS `47 40` segment, all 200 |
+| 73 | Live browser playback (aniwave) | `PASS` — muted play t 0→12s continuous, rs 4, 0 page errors; default provider remains trailer embed (by design, unchanged) |
+| 74 | AoT season before | 6.25s, 7 AniList reqs (1 Media + 6 sequential Rel), selector pops in late |
+| 75 | AoT season after | cold 5.9s/7 reqs (Rel starts parallel with Media); repeat 0 reqs/0.5s/6 options; skeleton→6 stable, no pop-in |
+| 76 | Generalization | Naruto →4 stable, MHA →8 stable, 0 page errors; Watch grid gated (25 tiles, no shift); matching logic untouched |

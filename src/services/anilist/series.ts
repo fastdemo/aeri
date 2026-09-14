@@ -3,6 +3,20 @@ import { mapAniListMediaToAnime } from './mapper'
 import type { Anime } from '../../types/anime'
 import type { AniListMedia } from './mapper'
 import { getFranchiseTitle } from '../../lib/titles'
+import { getCache, putCache } from '../../storage/db'
+
+// Completed season models are cached (memory 30min + IDB 24h, bounded) so
+// repeat visits and chain-walk revisits cost zero AniList requests — critical
+// under the reduced 30/min limit. Stale entries may serve during throttling;
+// entries are real fetched models, never fabricated.
+const GROUP_MEM_TTL = 1000 * 60 * 30
+const GROUP_MEM_MAX = 100
+const groupMem = new Map<number, { group: AnimeSeriesGroup | null; expiry: number }>()
+const groupInflight = new Map<number, Promise<AnimeSeriesGroup | null>>()
+
+function groupCacheKey(id: number): string {
+  return `anilist:seriesgroup:${id}`
+}
 
 export interface AnimeSeriesGroup {
   rootId: number
@@ -221,6 +235,56 @@ async function collectSeasons(root: AniListMedia & { relations: any }, signal?: 
 
 export async function getSeriesGroup(animeId: number, opts?: { signal?: AbortSignal }): Promise<AnimeSeriesGroup | null> {
   const signal = opts?.signal
+  if (!Number.isFinite(animeId) || animeId <= 0) return null
+  // Memory fast path (shared across components, like anilistGraphQL dedup)
+  const memHit = groupMem.get(animeId)
+  if (memHit && memHit.expiry > Date.now()) return memHit.group
+  // Concurrent callers for the same id share one build
+  const shared = groupInflight.get(animeId)
+  if (shared) {
+    if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError')
+    if (!signal) return shared
+    return Promise.race([
+      shared,
+      new Promise<AnimeSeriesGroup | null>((_, reject) => {
+        signal.addEventListener('abort', () => reject(signal.reason ?? new DOMException('Aborted', 'AbortError')), { once: true })
+      }),
+    ])
+  }
+  const build = (async (): Promise<AnimeSeriesGroup | null> => {
+    // IDB before walking the chain (repeat visits: zero network)
+    try {
+      const cached = await getCache<{ group: AnimeSeriesGroup | null; at: number }>(groupCacheKey(animeId))
+      if (cached && Date.now() - cached.at < 1000 * 60 * 60 * 24) {
+        groupMem.set(animeId, { group: cached.group, expiry: Date.now() + GROUP_MEM_TTL })
+        return cached.group
+      }
+    } catch {}
+    const group = await buildSeriesGroup(animeId, signal)
+    groupMem.set(animeId, { group, expiry: Date.now() + GROUP_MEM_TTL })
+    if (groupMem.size > GROUP_MEM_MAX) {
+      const oldest = groupMem.keys().next().value as number | undefined
+      if (oldest !== undefined) groupMem.delete(oldest)
+    }
+    try { await putCache(groupCacheKey(animeId), { group, at: Date.now() }) } catch {}
+    return group
+  })()
+  groupInflight.set(animeId, build)
+  try {
+    if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError')
+    if (!signal) return await build
+    return await Promise.race([
+      build,
+      new Promise<AnimeSeriesGroup | null>((_, reject) => {
+        signal.addEventListener('abort', () => reject(signal.reason ?? new DOMException('Aborted', 'AbortError')), { once: true })
+      }),
+    ])
+  } finally {
+    if (groupInflight.get(animeId) === build) groupInflight.delete(animeId)
+  }
+}
+
+async function buildSeriesGroup(animeId: number, signal?: AbortSignal): Promise<AnimeSeriesGroup | null> {
   try {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
     const initial = await fetchWithRelations(animeId, signal)

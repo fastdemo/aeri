@@ -10,7 +10,7 @@ import { getPreferences } from '../storage/preferences'
 import { getTitleHierarchy } from '../lib/titles'
 import { normalizeEpisodes, sanitizeAnimeForDisplay, sanitizeGroup, getDisplayEpisodeNumber, getLocalEpisodeNumber, getNumberingOffsetAndMode, getSmartSeasonNumber } from '../lib/episodes'
 import { formatLabel } from '../lib/mediaLabels'
-import { getSeriesGroup, type AnimeSeriesGroup } from '../services/anilist/series'
+import { useSeriesGroup } from '../hooks/useSeriesGroup'
 
 export function Watch() {
   const { id, episode } = useParams<{ id: string; episode: string }>()
@@ -43,25 +43,16 @@ export function Watch() {
   const episodesLoading = false // episode list is immediate from AniList, not blocked by video provider
   const [providerId, setProviderId] = useState<string | null>(null)
 
-  // Group-aware sanitization — ensures S2 doesn't get S1's streamingEpisodes duplicates
-  const [seriesGroup, setSeriesGroup] = useState<AnimeSeriesGroup | null>(null)
-  const requestIdRef = useRef(0)
-  useEffect(() => {
-    if (!anime || !anime.identity.anilistId) { setSeriesGroup(null); return }
-    const currentId = anime.identity.anilistId
-    const reqId = ++requestIdRef.current
-    const ctrl = new AbortController()
-    getSeriesGroup(currentId, { signal: ctrl.signal }).then(g => {
-      if (ctrl.signal.aborted || reqId !== requestIdRef.current) return
-      if (g && g.seasons.length > 1) setSeriesGroup(g)
-      else setSeriesGroup(null)
-    }).catch(e => {
-      if ((e as any)?.name === 'AbortError') return
-      if (reqId !== requestIdRef.current) return
-      setSeriesGroup(null)
-    })
-    return () => ctrl.abort()
-  }, [anime?.identity.anilistId])
+  // Group-aware sanitization — ensures S2 doesn't get S1's streamingEpisodes duplicates.
+  // Season resolution starts from the ROUTE id at mount (parallel with page
+  // metadata), not after `anime` arrives — the id is all the walk needs.
+  const routeAnilistId = (() => {
+    if (!id) return null
+    if (id.startsWith('anilist-')) return Number(id.replace('anilist-', '')) || null
+    if (/^\d+$/.test(id)) return Number(id)
+    return trackingEntry?.anime.identity.anilistId ?? null
+  })()
+  const { group: seriesGroup, ready: groupReady } = useSeriesGroup(routeAnilistId)
 
   const sanitizedAnimeForWatch = useMemo(() => {
     if (!anime) return null
@@ -567,11 +558,19 @@ export function Watch() {
             </Link>
           )}
 
-          {/* Episode list — immediate from AniList metadata, not blocked by video provider */}
+          {/* Episode list — revealed only once the season model is settled,
+              so numbering never shifts underneath the user. Player, title and
+              source resolution run independently above. */}
           {!isMovie && (
             <div className="mt-6">
               <h2 className="mb-2 text-sm font-semibold text-white">Episodes</h2>
-              {immediateEpisodes.length > 0 ? (
+              {!groupReady && anime ? (
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5" aria-label="Loading episodes">
+                  {Array.from({ length: 10 }).map((_, i) => (
+                    <div key={i} className="aspect-video animate-pulse rounded bg-white/5" />
+                  ))}
+                </div>
+              ) : immediateEpisodes.length > 0 ? (
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                   {immediateEpisodes.map(ep => {
                     const isCurrent = ep.number === epNum

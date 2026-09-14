@@ -33,6 +33,7 @@
 - [x] Deno auth live: owner deployed `aeri` Deno app; agent pinned entrypoint via deno.json, verified exchange + baked VITE_AUTH_API_URL (D070)
 - [x] Source-quality mission (D072): no better source — aniwave census (2× echovideo + 1× myvidplay, no hidden servers), anikoto embeds megaplay-only, externals unreachable/blocked/dead from worker egress; megaplay `enc` rollout → anikoto 0 sources (left intact, auto-recovers; bench ank FAIL is the canary); baseline re-measured, no code changes
 - [x] Rate-limit resilience (D073): P0 proven CDN-healthy/AniList-30-min; StrictMode-safe inflight dedup, shared 429 cooldown (no retry) + stale-while-throttled, trailer into shared Media query (official.ts raw fetches removed; Watch 4→2 reqs), enrichment re-paced (2×12 burst, 2.5s tail), bounded cache, Settings diagnostics; concurrency probe shows no k-scaling → no parallel downloading; matching/security/worker/auth untouched
+- [x] Season loading + deployment audit (D074, UNDEPLOYED): prod bundle current, live path + browser playback pass, default stays trailer-by-design; useSeriesGroup hook (parallel start, cached models, 8s-bounded ready gate + skeletons) in Watch/AnimeDetail/DetailModal; AoT cold 5.9s/repeat 0-req-0.5s, stable skeleton→full transitions (AoT 6, Naruto 4, MHA 8)
 
 ## Later
 - [ ] PWA offline shell tuning
