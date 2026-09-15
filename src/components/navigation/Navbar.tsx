@@ -97,10 +97,12 @@ export function Navbar() {
     setShowSuggestions(false)
   }
 
-  // Desktop nav items — Settings and My List only when authenticated
+  // Desktop nav items — Settings and My List only when authenticated.
+  // Manga is a visible placeholder; the feature is not built yet.
   const desktopNav = [
     { to: '/', label: 'Home' },
     { to: '/browse', label: 'Anime' },
+    { to: '/manga', label: 'Manga' },
     ...(isAuthenticated ? [{ to: '/list', label: 'My List' } as const] : []),
     ...(isAuthenticated ? [{ to: '/settings', label: 'Settings' } as const] : []),
   ]
@@ -108,6 +110,7 @@ export function Navbar() {
   const mobileNav = [
     { to: '/', label: 'Home' },
     { to: '/browse', label: 'Anime' },
+    { to: '/manga', label: 'Manga' },
     ...(isAuthenticated ? [{ to: '/list', label: 'My List' } as const] : []),
     { to: '/search', label: 'Search' },
     ...(isAuthenticated ? [{ to: '/settings', label: 'Settings' } as const] : []),

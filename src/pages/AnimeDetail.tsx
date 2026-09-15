@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { useParams, Link } from 'react-router-dom'
+import { useMemo } from 'react'
+import { useParams, Link, useNavigate } from 'react-router-dom'
 import { EpisodeList } from '../components/episodes/EpisodeList'
 import { useTracking } from '../contexts/TrackingContext'
 import { useAnimeDetail } from '../hooks/useAnimeMetadata'
@@ -10,6 +10,7 @@ import { formatLabel, statusLabel } from '../lib/mediaLabels'
 
 export function AnimeDetail() {
   const { id } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const { combinedList } = useTracking()
   const animeList = combinedList
 
@@ -47,14 +48,8 @@ export function AnimeDetail() {
     return fromList?.identity.anilistId ?? null
   })()
   const { group: seriesGroup, ready: groupReady } = useSeriesGroup(routeAnilistId)
-  const [selectedSeasonIdx, setSelectedSeasonIdx] = useState<number>(0)
-
-  useEffect(() => {
-    // Always present Season 1 on open/navigation; the user picks other seasons
-    setSelectedSeasonIdx(0)
-  }, [routeAnilistId])
-
-  // Effective group guards against stale seriesGroup when anime switches franchise before new fetch resolves.
+  // Effective group: the canonical model. Deep-linking a later season keeps
+  // the SAME group — selection follows the route id instead of resetting.
   const effectiveGroupRaw = useMemo(() => {
     if (!seriesGroup || seriesGroup.seasons.length <= 1) return null
     if (!anime?.identity.anilistId) return seriesGroup
@@ -65,6 +60,14 @@ export function AnimeDetail() {
     if (!effectiveGroupRaw) return null
     return sanitizeGroup(effectiveGroupRaw)
   }, [effectiveGroupRaw])
+  // Selection follows the route id: S3 deep-link opens on S3, and navigating
+  // the selector updates the route so resolveGroup stays idempotent
+  // (resolveGroup(S1) === resolveGroup(S2) === resolveGroup(S3)).
+  const selectedSeasonIdx = useMemo(() => {
+    if (!effectiveGroup || !anime?.identity.anilistId) return 0
+    const idx = effectiveGroup.seasons.findIndex(s => s.identity.anilistId === anime.identity.anilistId)
+    return idx >= 0 ? idx : 0
+  }, [effectiveGroup, anime?.identity.anilistId])
   const displayAnime = useMemo(() => {
     if (!anime) return null as any
     if (effectiveGroup) {
@@ -151,7 +154,13 @@ export function AnimeDetail() {
                   <div className="relative">
                     <select
                       value={String(selectedSeasonIdx)}
-                      onChange={e => setSelectedSeasonIdx(Number(e.target.value))}
+                      onChange={e => {
+                        const next = effectiveGroup.seasons[Number(e.target.value)]
+                        const nextId = next?.identity.anilistId ?? null
+                        // Navigate to the season's canonical entry so the URL,
+                        // metadata, episodes and Watch links all follow it.
+                        if (nextId) navigate(`/anime/anilist-${nextId}`)
+                      }}
                       aria-label="Select season"
                       className="appearance-none rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 pr-8 text-xs font-medium text-white focus:border-white/20 focus:outline-none"
                     >

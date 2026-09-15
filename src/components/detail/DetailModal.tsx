@@ -42,13 +42,10 @@ export function DetailModal({
   // placeholder until the model is ready, so nothing pops in mid-animation.
   const routeAnilistId = baseAnime.identity.anilistId ?? null
   const { group: seriesGroup, ready: groupReady } = useSeriesGroup(routeAnilistId)
+
+  // Modal opens on Season 1; picking another season swaps the displayed
+  // season in place (same group, no route change inside the modal).
   const [selectedSeasonIdx, setSelectedSeasonIdx] = useState(0)
-
-  useEffect(() => {
-    // Always present Season 1 on open/anime change; the user picks others.
-    setSelectedSeasonIdx(0)
-  }, [baseAnime.identity.anilistId, baseAnime.identity.internalId])
-
   const effectiveGroupRaw = useMemo(() => {
     if (!seriesGroup || seriesGroup.seasons.length <= 1) return null
     if (!baseAnime.identity.anilistId) return seriesGroup

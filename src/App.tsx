@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { HashRouter, Routes, Route, useLocation } from 'react-router-dom'
 import { Navbar } from './components/navigation/Navbar'
 import { Home } from './pages/Home'
 import { Browse } from './pages/Browse'
@@ -8,6 +8,7 @@ import { MyList } from './pages/MyList'
 import { Watch } from './pages/Watch'
 import { AnimeDetail } from './pages/AnimeDetail'
 import { Settings } from './pages/Settings'
+import { NotFound, MangaPlaceholder } from './pages/NotFound'
 import { AniListProvider } from './contexts/AniListContext'
 import { MALProvider } from './contexts/MALContext'
 import { TrackingProvider } from './contexts/TrackingContext'
@@ -58,7 +59,8 @@ function Layout() {
           <Route path="/anime/:id" element={<AnimeDetail />} />
           <Route path="/watch/:id/:episode" element={<Watch />} />
           <Route path="/settings" element={<Settings />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="/manga" element={<MangaPlaceholder />} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
       <footer className="border-t border-white/5">

@@ -107,6 +107,9 @@ export function SearchSuggestions({ query, onClose, onPreview }: Props) {
     <div
       ref={containerRef}
       role="listbox"
+      // Isolate compositing so ancestor transforms/filters can't flatten the
+      // backdrop blur while the page scrolls underneath.
+      style={{ isolation: 'isolate' }}
       className="absolute left-0 right-0 top-[calc(100%+8px)] z-[70] max-h-[min(68vh,420px)] overflow-x-hidden overflow-y-auto rounded-xl border border-white/10 bg-black/70 backdrop-blur-2xl shadow-[0_16px_48px_rgba(0,0,0,0.6)]"
     >
       {results.map((anime, idx) => {
