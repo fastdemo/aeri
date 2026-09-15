@@ -168,7 +168,7 @@ export function AnimeCard({
             <p className="line-clamp-1 text-[11px] font-medium leading-tight text-white">
               {primaryTitle}
             </p>
-            <p className="text-[10px] text-white/70">{anime.year} · {formatLabel(anime.format) ?? anime.format}</p>
+            <p className="text-[10px] text-white/70">{anime.year} • {formatLabel(anime.format) ?? anime.format}</p>
           </div>
         )}
 

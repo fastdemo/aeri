@@ -138,7 +138,7 @@ export function DetailModal({
     }
   }, [])
 
-  const metaParts = [formatLabel(displayAnime.format), displayAnime.year ? String(displayAnime.year) : null, displayAnime.season ? displayAnime.season.charAt(0) + displayAnime.season.slice(1).toLowerCase() : null, !isMovie && displayAnime.episodes ? `${displayAnime.episodes} Episodes` : null, statusLabel(displayAnime.status)].filter(Boolean).join(' · ')
+  const metaParts = [formatLabel(displayAnime.format), displayAnime.year ? String(displayAnime.year) : null, displayAnime.season ? displayAnime.season.charAt(0) + displayAnime.season.slice(1).toLowerCase() : null, !isMovie && displayAnime.episodes ? `${displayAnime.episodes} Episodes` : null, statusLabel(displayAnime.status)].filter(Boolean).join(' • ')
 
   return (
     <div className="fixed inset-x-0 bottom-0 top-14 z-40 flex items-start justify-center overflow-y-auto bg-black/75 p-2 backdrop-blur-[2px] anim-fade-in sm:p-6 lg:p-8">
@@ -319,7 +319,7 @@ export function DetailModal({
               const sNum = selectedSeasonIdx + 1
               return (
                 <p className="mt-2 text-[12px] font-semibold text-white/90">
-                  S{sNum}:E{target.displayNumber} {epTitle ? `· ${epTitle}` : ''}
+                  S{sNum}:E{target.displayNumber} {epTitle ? `• ${epTitle}` : ''}
                 </p>
               )
             })()}

@@ -137,7 +137,7 @@ export function SearchSuggestions({ query, onClose, onPreview }: Props) {
             {titles.romaji && (
               <p className="truncate text-[11px] text-white/40">{titles.romaji}</p>
             )}
-            <p className="text-[11px] text-white/50">{[formatLabel(anime.format) ?? anime.format, anime.year ? String(anime.year) : null].filter(Boolean).join(' · ')}</p>
+            <p className="text-[11px] text-white/50">{[formatLabel(anime.format) ?? anime.format, anime.year ? String(anime.year) : null].filter(Boolean).join(' • ')}</p>
           </div>
         </button>
       )})}

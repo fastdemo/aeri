@@ -250,13 +250,14 @@ export function Home() {
     ])
   }, [trending.data, popular.data, airing.data, news.data])
 
-  // --- Personalized: "Because you watched X" — real history, weighted random ---
+  // --- Personalized: "Because you watched X" — first-genre match ---
+  // Takes the reference show's FIRST genre (e.g. AoT → "Action") and shows
+  // only pool titles whose FIRST genre is the same. Strict, predictable,
+  // no genre-soup: every card visibly belongs with the reference.
   const becauseContext = useMemo(() => {
     if (!isAuthenticated || !combinedList || !combinedList.length || !allPool.length) return null
-    // Build suitable candidates: those with genres and at least a few recommendable titles
     const listIds = new Set(combinedList.map(e => e.anime.identity.internalId))
     const poolIds = new Set(allPool.map(a => a.identity.internalId))
-    // Filter to entries that could actually generate recommendations (at least 5 candidates share a genre and not in list)
     const scored = combinedList
       .filter(e => e.anime.genres?.length)
       .map(e => {
@@ -264,11 +265,14 @@ export function Home() {
         const scoreWeight = ((e.score ?? 5) / 10) + 0.6 // 0.6..1.6
         const ratingWeight = ((e.anime.rating ?? 7) / 10) + 0.6
         const popularityWeight = e.anime.popularity ? Math.min(1.2, Math.log10(e.anime.popularity + 10) / 5) + 0.5 : 0.8
-        // How much useful recommendation data exists for this title (genre overlap with pool not in list)
-        const overlapCount = allPool.filter(a => !listIds.has(a.identity.internalId) && a.genres.some(g => e.anime.genres.includes(g))).length
+        // Candidates under the new rule: pool titles (not in list) whose
+        // FIRST genre equals the reference's FIRST genre.
+        const first = e.anime.genres[0]?.toLowerCase()
+        const overlapCount = first
+          ? allPool.filter(a => !listIds.has(a.identity.internalId) && a.genres[0]?.toLowerCase() === first).length
+          : 0
         const recencyWeight = e.status === 'watching' ? 1.1 + Math.min(0.4, e.progress / 24) : 1
         const availabilityWeight = overlapCount >= 8 ? 1.3 : overlapCount >= 4 ? 1.0 : overlapCount >= 2 ? 0.6 : 0.3
-        // Slight boost for recently relevant: if anime is in poolIds (trending/popular) it is more recognizable
         const poolBoost = poolIds.has(e.anime.identity.internalId) ? 1.1 : 1
         const weight = statusWeight * scoreWeight * ratingWeight * popularityWeight * recencyWeight * availabilityWeight * poolBoost
         return { entry: e, weight, overlapCount }
@@ -277,29 +281,27 @@ export function Home() {
       .sort((a,b) => b.weight - a.weight)
 
     if (!scored.length) return null
-    // Take top 10 most suitable, then pick one — stable per mount (variety
-    // across loads, never reshuffles mid-session on background refetches).
-    const top = scored.slice(0, 10)
-    const ordered = stableOrder('because-ctx', top.map((x) => x.entry.anime))
-    const firstId = ordered[0]?.identity.internalId
-    return top.find((x) => x.entry.anime.identity.internalId === firstId)?.entry ?? top[0]?.entry ?? null
-  }, [isAuthenticated, combinedList, allPool, stableOrder])
+    // Highest-weighted reference wins outright — no shuffle, fully
+    // deterministic for the same list + pool.
+    return scored[0]?.entry ?? null
+  }, [isAuthenticated, combinedList, allPool])
 
   const becauseRecommendations = useMemo(() => {
     if (!becauseContext || !allPool.length) return null
     const ref = becauseContext.anime
-    const refGenres = ref.genres
-    if (!refGenres.length) return null
+    const first = ref.genres[0]?.toLowerCase()
+    if (!first) return null
     // pool excluding already in list and the ref itself
     const listIds = new Set((combinedList ?? []).map(e => e.anime.identity.internalId))
     listIds.add(ref.identity.internalId)
-    const candidates = allPool.filter(a => !listIds.has(a.identity.internalId))
-    if (!candidates.length) return null
-    const recs = getRecommendations(refGenres, candidates)
-    // take top 16 then stable sample 8 (relevance kept, order fixed per mount)
-    const topSlice = recs.slice(0, 16)
-    return stableOrder('because', topSlice).slice(0, 8)
-  }, [becauseContext, allPool, combinedList, stableOrder])
+    // Strict first-genre match, ordered by rating then popularity —
+    // deterministic, no shuffle, identical every render for the same data.
+    const matched = allPool
+      .filter(a => !listIds.has(a.identity.internalId) && a.genres[0]?.toLowerCase() === first)
+      .sort((a, b) => ((b.rating ?? 0) - (a.rating ?? 0)) || ((b.popularity ?? 0) - (a.popularity ?? 0)))
+      .slice(0, 10)
+    return matched.length >= 2 ? matched : null
+  }, [becauseContext, allPool, combinedList])
 
   // Derived categories from pool (filtered, not additional fetches) — varied pools, always ≥10 for visual fullness
   const derived = useMemo(() => {
@@ -395,13 +397,13 @@ export function Home() {
     const personalized: typeof sections = []
     if (derived?.topPicks?.length) {
       const v = ensureMinRow(derived.topPicks, allPool, 10, undefined, 'sec:toppicks', stableOrder)
-      if (v.length) personalized.push({ key: 'toppicks', title: 'Top Picks for You', subtitle: derived.topGenres?.length ? derived.topGenres.join(' · ') : undefined, data: v })
+      if (v.length) personalized.push({ key: 'toppicks', title: 'Top Picks for You', subtitle: derived.topGenres?.length ? derived.topGenres.join(' • ') : undefined, data: v })
     }
     if (becauseContext && becauseRecommendations?.length) {
       const v = ensureMinRow(becauseRecommendations, allPool, 10, undefined, 'sec:because', stableOrder)
       if (v.length) {
         const refTitle = becauseContext.anime.title.english?.trim() || becauseContext.anime.title.romaji
-        const subtitle = becauseContext.anime.genres.slice(0,2).join(' · ') || undefined
+        const subtitle = becauseContext.anime.genres.slice(0,2).join(' • ') || undefined
         personalized.push({ key: 'because', title: `Because you watched ${refTitle}`, subtitle, data: v })
       }
     }

@@ -17,6 +17,8 @@ export function Navbar() {
   // Preview popup for suggestion picks (same DetailModal as Home/Browse cards)
   const [previewAnime, setPreviewAnime] = useState<Anime | null>(null)
   const [signInOpen, setSignInOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
+  const profileRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLDivElement>(null)
   const mobileSearchRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
@@ -41,6 +43,7 @@ export function Navbar() {
     setShowSuggestions(false)
     setPreviewAnime(null)
     setSignInOpen(false)
+    setProfileOpen(false)
   }, [location.pathname, location.search, location.hash])
 
   // Returning from OAuth (full page load): reopen the sign-in popup so the
@@ -56,16 +59,22 @@ export function Navbar() {
     } catch {}
   }, [])
 
-  // Close suggestions on outside pointerdown — unified pointer event, no microtask delay.
-  // Both the desktop search box and the mobile search dropdown count as inside
-  // (mobile taps previously closed the dropdown on pointerdown, before click).
+  // Close suggestions + profile menu on outside pointerdown — unified
+  // pointer event, no microtask delay.
+  // The desktop search box, mobile search dropdown, and profile menu all
+  // count as inside (mobile taps previously closed the dropdown on
+  // pointerdown, before click).
   useEffect(() => {
     const onDown = (e: PointerEvent) => {
       const t = e.target as Node
       const inDesktop = searchRef.current?.contains(t) ?? false
       const inMobile = mobileSearchRef.current?.contains(t) ?? false
+      const inProfile = profileRef.current?.contains(t) ?? false
       if (!inDesktop && !inMobile) {
         setShowSuggestions(false)
+      }
+      if (!inProfile) {
+        setProfileOpen(false)
       }
     }
     document.addEventListener('pointerdown', onDown, { passive: true })
@@ -97,14 +106,12 @@ export function Navbar() {
     setShowSuggestions(false)
   }
 
-  // Desktop nav items — Settings and My List only when authenticated.
-  // Manga is a visible placeholder; the feature is not built yet.
+  // Desktop nav items — Settings lives in the profile menu, not the top bar.
   const desktopNav = [
     { to: '/', label: 'Home' },
     { to: '/browse', label: 'Anime' },
     { to: '/manga', label: 'Manga' },
     ...(isAuthenticated ? [{ to: '/list', label: 'My List' } as const] : []),
-    ...(isAuthenticated ? [{ to: '/settings', label: 'Settings' } as const] : []),
   ]
 
   const mobileNav = [
@@ -113,7 +120,6 @@ export function Navbar() {
     { to: '/manga', label: 'Manga' },
     ...(isAuthenticated ? [{ to: '/list', label: 'My List' } as const] : []),
     { to: '/search', label: 'Search' },
-    ...(isAuthenticated ? [{ to: '/settings', label: 'Settings' } as const] : []),
   ]
 
   return (
@@ -238,19 +244,64 @@ export function Navbar() {
               Sign in
             </button>
           ) : (
-            <Link
-              to="/list"
-              onClick={() => dispatchNavigate('/list')}
-              aria-label="Profile"
-              className="relative h-7 w-7 touch-manipulation overflow-hidden rounded bg-transparent"
-              style={{ touchAction: 'manipulation' } as any}
-            >
-              {user?.avatar?.large ? (
-                <img src={user.avatar.large} alt={user.name} className="h-full w-full object-cover" loading="lazy" />
-              ) : (
-                <span className="grid h-full w-full place-items-center text-[10px] font-bold text-white">{trackingProvider === 'mal' ? 'M' : 'A'}</span>
+            <div ref={profileRef} className="relative">
+              <button
+                onClick={() => setProfileOpen((v) => !v)}
+                aria-label="Profile"
+                aria-expanded={profileOpen}
+                aria-haspopup="menu"
+                className="relative grid h-7 w-7 touch-manipulation place-items-center overflow-hidden rounded bg-transparent focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                style={{ touchAction: 'manipulation' } as any}
+              >
+                {user?.avatar?.large ? (
+                  <img src={user.avatar.large} alt={user.name} className="h-full w-full object-cover" loading="lazy" />
+                ) : (
+                  <span className="grid h-full w-full place-items-center text-[10px] font-bold text-white">{trackingProvider === 'mal' ? 'M' : 'A'}</span>
+                )}
+              </button>
+              {profileOpen && (
+                <div
+                  role="menu"
+                  aria-label="Profile menu"
+                  style={{ isolation: 'isolate' }}
+                  className="absolute right-0 top-[calc(100%+8px)] z-[70] w-[168px] overflow-hidden rounded-xl border border-white/10 bg-black/70 backdrop-blur-2xl shadow-[0_16px_48px_rgba(0,0,0,0.6)]"
+                >
+                  <div className="p-1">
+                    <Link
+                      to="/profile"
+                      role="menuitem"
+                      onClick={() => { setProfileOpen(false); dispatchNavigate('/profile') }}
+                      className="flex w-full touch-manipulation items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-white/5"
+                      style={{ touchAction: 'manipulation' } as any}
+                    >
+                      <span className="grid h-6 w-6 shrink-0 place-items-center overflow-hidden rounded-full bg-white/10 text-[9px] font-bold text-white">
+                        {user?.avatar?.large ? (
+                          <img src={user.avatar.large} alt="" className="h-full w-full object-cover" loading="lazy" />
+                        ) : (
+                          trackingProvider === 'mal' ? 'M' : 'A'
+                        )}
+                      </span>
+                      <span className="text-xs font-medium text-white">Profile</span>
+                    </Link>
+                    <Link
+                      to="/settings"
+                      role="menuitem"
+                      onClick={() => { setProfileOpen(false); dispatchNavigate('/settings') }}
+                      className="flex w-full touch-manipulation items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-white/5"
+                      style={{ touchAction: 'manipulation' } as any}
+                    >
+                      <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white/10" aria-hidden>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white/80">
+                          <circle cx="12" cy="12" r="3" />
+                          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
+                        </svg>
+                      </span>
+                      <span className="text-xs font-medium text-white">Settings</span>
+                    </Link>
+                  </div>
+                </div>
               )}
-            </Link>
+            </div>
           )}
         </div>
       </div>

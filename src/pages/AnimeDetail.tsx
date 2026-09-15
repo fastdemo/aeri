@@ -132,8 +132,8 @@ export function AnimeDetail() {
               <p className="text-xs text-white/50">{titles.romaji}</p>
             )}
             <p className="mt-1 text-sm text-white/60">
-              {[displayAnime.year, formatLabel(displayAnime.format), !isMovie && displayAnime.episodes ? `${displayAnime.episodes} episodes` : null].filter(Boolean).join(' · ')}
-              {displayAnime.rating ? ` · ${displayAnime.rating.toFixed(1)}` : ''}
+              {[displayAnime.year, formatLabel(displayAnime.format), !isMovie && displayAnime.episodes ? `${displayAnime.episodes} episodes` : null].filter(Boolean).join(' • ')}
+              {displayAnime.rating ? ` • ${displayAnime.rating.toFixed(1)}` : ''}
             </p>
             <div className="mt-3 flex gap-2">
               <Link to={`/watch/${displayAnime.identity.internalId}/1`} className="rounded-full bg-white px-5 py-2 text-sm font-semibold text-black">Play</Link>

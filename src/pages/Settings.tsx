@@ -18,8 +18,8 @@ function AnilistDiagnostics() {
   const cooling = s.cooldownUntil > s.now
   return (
     <p className="mt-2 text-[11px] text-white/30">
-      AniList requests: {s.requests} · cache {s.memoryHits + s.idbHits} · shared {s.dedupHits} · throttled {s.status429}
-      {cooling ? ` · cooling down` : ''}{s.lastRemaining !== null ? ` · remaining ${s.lastRemaining}` : ''}
+      AniList requests: {s.requests} • cache {s.memoryHits + s.idbHits} • shared {s.dedupHits} • throttled {s.status429}
+      {cooling ? ` • cooling down` : ''}{s.lastRemaining !== null ? ` • remaining ${s.lastRemaining}` : ''}
     </p>
   )
 }

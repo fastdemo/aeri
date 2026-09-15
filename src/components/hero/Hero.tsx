@@ -6,7 +6,7 @@ import { formatLabel } from '../../lib/mediaLabels'
 
 export function Hero({ anime, onMoreInfo }: { anime: Anime; onMoreInfo?: () => void }) {
   const titles = getTitleHierarchy(anime, null)
-  const metaParts = [formatLabel(anime.format) ?? 'TV', anime.year, anime.episodes ? `${anime.episodes} Episodes` : null].filter(Boolean).join(' · ')
+  const metaParts = [formatLabel(anime.format) ?? 'TV', anime.year, anime.episodes ? `${anime.episodes} Episodes` : null].filter(Boolean).join(' • ')
 
   return (
     <section className="relative overflow-hidden rounded-xl bg-[var(--surface)] sm:rounded-[14px]">
@@ -258,7 +258,7 @@ export function HeroCarousel({
                 active.episodes ? `${active.episodes} Episodes` : null,
               ]
                 .filter(Boolean)
-                .join(' · ')
+                .join(' • ')
               return (
                 <>
                   <h1 className="text-[22px] font-semibold leading-[1.05] tracking-[-0.03em] text-white sm:text-[30px] lg:text-[34px]">

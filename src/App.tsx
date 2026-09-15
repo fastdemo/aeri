@@ -8,7 +8,7 @@ import { MyList } from './pages/MyList'
 import { Watch } from './pages/Watch'
 import { AnimeDetail } from './pages/AnimeDetail'
 import { Settings } from './pages/Settings'
-import { NotFound, MangaPlaceholder } from './pages/NotFound'
+import { NotFound, MangaPlaceholder, ProfilePlaceholder } from './pages/NotFound'
 import { AniListProvider } from './contexts/AniListContext'
 import { MALProvider } from './contexts/MALContext'
 import { TrackingProvider } from './contexts/TrackingContext'
@@ -60,6 +60,7 @@ function Layout() {
           <Route path="/watch/:id/:episode" element={<Watch />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/manga" element={<MangaPlaceholder />} />
+          <Route path="/profile" element={<ProfilePlaceholder />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
