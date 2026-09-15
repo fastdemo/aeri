@@ -311,3 +311,10 @@ HMAC/allowlist/SSRF model, no Fly. Verified on preview worker + production:
 | 79 | Warm repeat | 0 reqs/0.4s AoT (unchanged); Watch grid 25 tiles, no shift, no errors |
 | 80 | Startup breakdown (Bebop E1, worker) | resolve 3.5s + playlist 1.2s + variant 2.4s + seg1 4.6s + seg2 12.9s + seg3 1.8s — all upstream latency, no Aeri-side serial fat |
 | 81 | Matrix + verify-live | 21 passed; 8/8 (one transient Naruto upstream miss, clean on retry) |
+
+### Unified groups + live specs (D076, production)
+| # | Case | Result |
+|---|------|--------|
+| 82 | Series grouping spec (live) | `PASS` 2/2 — AoT S1/S2/S3 same 6-season group, selections 0/1/2, selector nav lands anilist-20958; Naruto multi, Bebop standalone none |
+| 83 | Streaming spec (live) | `PASS` 4/4 — AoT/Bebop/Frieren/Naruto E1, currentTime advances, rs>=2, 0 page errors |
+| 84 | UI (live) | 404 yes, /manga placeholder yes, Manga in nav yes, all 6 valid routes ok, blur(40px) stable across scroll |
