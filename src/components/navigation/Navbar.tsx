@@ -195,7 +195,9 @@ export function Navbar() {
                 <path d="m20 20-3.5-3.5" />
               </svg>
               {showSuggestions && query.trim().length >= 2 && (
-                <SearchSuggestions query={query} onClose={() => setShowSuggestions(false)} onPreview={setPreviewAnime} />
+                <div className="hidden lg:block">
+                  <SearchSuggestions query={query} onClose={() => setShowSuggestions(false)} onPreview={setPreviewAnime} />
+                </div>
               )}
             </div>
           </form>
@@ -240,7 +242,7 @@ export function Navbar() {
               to="/list"
               onClick={() => dispatchNavigate('/list')}
               aria-label="Profile"
-              className="relative h-7 w-7 touch-manipulation overflow-hidden rounded bg-black"
+              className="relative h-7 w-7 touch-manipulation overflow-hidden rounded bg-transparent"
               style={{ touchAction: 'manipulation' } as any}
             >
               {user?.avatar?.large ? (
@@ -269,7 +271,7 @@ export function Navbar() {
             </button>
           </form>
           {showSuggestions && query.trim().length >= 2 && (
-            <div className="relative mt-2">
+            <div className="relative mt-2 isolate">
               <SearchSuggestions query={query} onClose={() => { setShowSuggestions(false); setMobileSearchOpen(false) }} onPreview={(a) => { setPreviewAnime(a); setMobileSearchOpen(false) }} />
             </div>
           )}

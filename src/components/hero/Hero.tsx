@@ -102,7 +102,8 @@ export function Hero({ anime, onMoreInfo }: { anime: Anime; onMoreInfo?: () => v
 }
 
 // ---------------------------------------------------------------------------
-// HeroCarousel — auto-cycling hero used on Home
+// HeroCarousel — auto-cycling hero used on Home (carousel rotation only;
+// the feed rows below never refresh on their own).
 // ---------------------------------------------------------------------------
 
 const INTERVAL_MS = 5500
@@ -132,7 +133,7 @@ export function HeroCarousel({
     setIndex((i) => (i + 1) % animes.length)
   }, [animes.length])
 
-  // auto-cycle
+  // auto-cycle (carousel rotation only — never touches feed rows)
   useEffect(() => {
     if (prefersReducedMotion || animes.length <= 1 || paused) return
     if (typeof document !== 'undefined' && document.hidden) return

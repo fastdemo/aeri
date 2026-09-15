@@ -47,10 +47,10 @@ function Layout() {
     }
   }, [pathname])
   return (
-    <div className="min-h-screen bg-[var(--bg)]">
+    <div className="flex min-h-screen flex-col bg-[var(--bg)]">
       <FaviconGuard />
       <Navbar />
-      <main className="pt-14">
+      <main className="flex-1 pt-14">
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/browse" element={<Browse />} />
@@ -66,14 +66,12 @@ function Layout() {
       <footer className="border-t border-white/5">
         <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-3 px-4 py-5 text-[11px] sm:px-6 lg:px-12">
           <div className="flex min-w-0 items-center gap-2">
-            <span className="font-semibold tracking-[-0.02em] text-white/80" style={{ fontFamily: '"Cal Sans", sans-serif' }}>aeri</span>
-            <span className="hidden truncate text-white/40 sm:inline">anime, quietly.</span>
+            <span className="shrink-0 text-white/25">aeri by @fastdemo</span>
           </div>
-          <span className="hidden shrink-0 text-white/25 md:inline">© 2026 Aeri - by @fastdemo</span>
           <div className="flex shrink-0 items-center gap-3">
-            <a href="https://github.com/fastdemo/aeri" className="text-white/40 transition hover:text-white">GitHub</a>
-            <span className="text-white/40">Privacy</span>
-            <a href="https://aeri.fastdemo.workers.dev/api/health" className="text-white/40 transition hover:text-white">Status</a>
+            <a href="https://github.com/fastdemo/aeri" className="text-white/40 transition-colors duration-200 hover:text-white">GitHub</a>
+            <span className="cursor-pointer text-white/40 transition-colors duration-200 hover:text-white">Docs</span>
+            <span className="cursor-pointer text-white/40 transition-colors duration-200 hover:text-white">Legal</span>
           </div>
         </div>
       </footer>

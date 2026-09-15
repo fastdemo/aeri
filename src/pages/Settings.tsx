@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link } from 'react-router-dom'
 import { getPreferences, setPreferences, type Preferences } from '../storage/preferences'
 import { useAniList } from '../contexts/AniListContext'
 import { useMAL } from '../contexts/MALContext'
@@ -473,12 +474,16 @@ export function Settings() {
       {/* About */}
       <section className="mt-6 rounded-xl border border-white/10 bg-white/[0.02] p-4 sm:p-5">
         <h2 className="text-sm font-semibold text-white">About</h2>
+        <p className="mt-1 text-xs text-white/50">Aeri is a quiet anime discovery, tracking, and watching app. No tracking, no ads — your data stays in this browser.</p>
         <div className="mt-3 space-y-2 text-xs leading-5">
-          <p><span className="text-white/50">Data:</span> <span className="text-white/80">AniList</span></p>
+          <p><span className="text-white/50">Metadata:</span> <span className="text-white/80">AniList</span><span className="mx-2 text-white/20">•</span><span className="text-white/50">Tracking:</span> <span className="text-white/80">{trackingProvider === 'mal' ? 'MyAnimeList' : trackingProvider === 'anilist' ? 'AniList' : 'Not connected'}</span></p>
+          <p><span className="text-white/50">Video:</span> <span className="text-white/80">{prefs.preferredProvider ? prefs.preferredProvider : 'Auto'} {health ? (Object.values(health).includes('available') ? '' : '(checking…)') : ''}</span><span className="mx-2 text-white/20">•</span><span className="text-white/50">Storage:</span> <span className="text-white/80">This browser only</span></p>
           <p className="pt-2">
             <a href="https://github.com/fastdemo/aeri" className="underline hover:text-white/80 text-white/50">GitHub</a>
             <span className="mx-2 text-white/20">•</span>
-            <span className="text-white/30">No tracking, no ads.</span>
+            <a href="https://aeri.fastdemo.workers.dev/api/health" className="underline hover:text-white/80 text-white/50">Service status</a>
+            <span className="mx-2 text-white/20">•</span>
+            <Link to="/manga" className="underline hover:text-white/80 text-white/50">Manga (soon)</Link>
           </p>
         </div>
       </section>
