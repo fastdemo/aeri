@@ -56,27 +56,19 @@ export function normalizeTitleStem(raw: string): string {
 // Re-export canonical helper from lib/titles for backwards compat
 export { getFranchiseTitle } from '../../lib/titles'
 
-const RELATIONS_QUERY = `
+// Slim spine hop: id + titles + format + one-level nested relations of every
+// related node. Small (~6KB vs ~60KB) and carries everything the chain walk
+// needs: sequel/prequel TV ids AND their mutual back-links, verifiable purely
+// in memory with zero follow-up fetches for the walk itself.
+const SPINE_QUERY = `
 query ($id: Int) {
   Media(id: $id, type: ANIME) {
     id
     title { romaji english native }
     format
-    status
-    season
     seasonYear
     startDate { year month day }
     episodes
-    duration
-    averageScore
-    popularity
-    genres
-    studios { edges { isMain } nodes { name isAnimationStudio } }
-    coverImage { extraLarge large medium }
-    bannerImage
-    description
-    isAdult
-    streamingEpisodes { title thumbnail url site }
     relations {
       edges {
         relationType
@@ -84,22 +76,15 @@ query ($id: Int) {
           id
           title { romaji english native }
           format
-          status
-          season
           seasonYear
           startDate { year month day }
           episodes
-          duration
-          averageScore
-          popularity
-          genres
-          studios { edges { isMain } nodes { name isAnimationStudio } }
-          coverImage { extraLarge large medium }
-          bannerImage
-          description
-          isAdult
-          streamingEpisodes { title thumbnail url site }
-          idMal
+          relations {
+            edges {
+              relationType
+              node { id format }
+            }
+          }
         }
       }
     }
@@ -107,37 +92,101 @@ query ($id: Int) {
 }
 `
 
-type RelationsResponse = {
-  Media: AniListMedia & {
-    relations: { edges: { relationType: string; node: AniListMedia }[] }
-  }
+type SlimNode = {
+  id: number
+  title?: { romaji?: string | null; english?: string | null; native?: string | null } | null
+  format?: string | null
+  seasonYear?: number | null
+  startDate?: { year?: number | null } | null
+  episodes?: number | null
+  relations?: { edges?: { relationType: string; node: SlimEdgeNode }[] }
 }
 
-async function fetchWithRelations(id: number, signal?: AbortSignal): Promise<AniListMedia & { relations: { edges: { relationType: string; node: AniListMedia }[] } }> {
-  const data = await anilistGraphQL<RelationsResponse>(RELATIONS_QUERY, { id }, { cacheKey: `anilist:relations:${id}`, useCache: true, signal })
+type SlimEdgeNode = {
+  id: number
+  title?: { romaji?: string | null; english?: string | null; native?: string | null } | null
+  format?: string | null
+  seasonYear?: number | null
+  startDate?: { year?: number | null } | null
+  episodes?: number | null
+  relations?: { edges?: { relationType: string; node: { id: number; format?: string | null } }[] }
+}
+
+type SpineResponse = {
+  Media: SlimNode | null
+}
+
+async function fetchSpine(id: number, signal?: AbortSignal): Promise<SlimNode> {
+  const data = await anilistGraphQL<SpineResponse>(SPINE_QUERY, { id }, { cacheKey: `anilist:spine:${id}`, useCache: true, signal })
   if (!data.Media) throw new Error('Not found')
-  return data.Media as any
+  return data.Media
 }
 
-// Walk PREQUEL chain to find root (earliest season)
-// Now with mutual-link check and branching safety
-async function findRoot(media: AniListMedia & { relations: any }, signal?: AbortSignal): Promise<AniListMedia & { relations: any }> {
+// Full display fields for a batch of known ids in ONE request (multi-aliased
+// Media). Used after the slim walk fixes the chain: N ids, 1 round trip,
+// resolved server-side in parallel. Cache keys match the single-Media path
+// (`anilist:anime:<id>`) so page metadata and series data share entries.
+const FULL_NODE_FIELDS = `
+  id
+  idMal
+  title { romaji english native }
+  description
+  coverImage { extraLarge large medium }
+  bannerImage
+  startDate { year month day }
+  season
+  seasonYear
+  episodes
+  duration
+  status
+  averageScore
+  genres
+  studios { edges { isMain } nodes { name isAnimationStudio } }
+  format
+  popularity
+  streamingEpisodes { title thumbnail url site }
+  trailer { id site }
+  nextAiringEpisode { airingAt timeUntilAiring episode }
+  airingSchedule { nodes { airingAt episode } }
+  isAdult
+`
+
+async function fetchFullBatch(ids: number[], signal?: AbortSignal): Promise<(AniListMedia | null)[]> {
+  const unique = [...new Set(ids.filter((id) => Number.isFinite(id) && id > 0))].slice(0, 12)
+  if (!unique.length) return ids.map(() => null)
+  const parts = unique.map((id, i) => `m${i}: Media(id: ${id}, type: ANIME) { ${FULL_NODE_FIELDS} }`).join('\n')
+  const query = `query { ${parts} }`
+  type BatchRes = { [k: string]: AniListMedia | null }
+  const data = await anilistGraphQL<BatchRes>(query, {}, { cacheKey: `anilist:batch:${unique.join(',')}`, useCache: true, signal })
+  return ids.map((id) => {
+    const idx = unique.indexOf(id)
+    return idx >= 0 ? (data?.[`m${idx}`] ?? null) : null
+  })
+}
+
+// Walk PREQUEL chain to find root (earliest season), using slim spine hops.
+// Each hop's nested relations carry the candidate's own edge list, so the
+// mutual back-link check runs in memory — no follow-up fetch per candidate.
+// Same rules as before: exactly one TV prequel + mutual SEQUEL back-link.
+async function findRootSpine(media: SlimNode, signal?: AbortSignal): Promise<SlimNode> {
   let current = media
   const visited = new Set<number>([current.id])
   while (true) {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
-    const prequelEdges = current.relations?.edges?.filter((e: any) => e.relationType === 'PREQUEL' && isSeasonFormat(e.node.format)) ?? []
+    const prequelEdges = (current.relations?.edges ?? []).filter((e) => e.relationType === 'PREQUEL' && isSeasonFormat(e.node.format))
     if (prequelEdges.length !== 1) break // 0 = root, >1 = branching -> stop
     const prequelEdge = prequelEdges[0]
     const prequelId = prequelEdge.node.id
     if (visited.has(prequelId)) break
+    // Mutual link check from the ALREADY-FETCHED nested edges: the prequel
+    // candidate lists its own relations inside this hop's payload.
+    const backLink = (prequelEdge.node.relations?.edges ?? []).some(
+      (e) => e.relationType === 'SEQUEL' && e.node.id === current.id,
+    )
+    if (!backLink) break
     visited.add(prequelId)
     try {
-      const prequelMedia = await fetchWithRelations(prequelId, signal)
-      // Mutual link check: prequel should have SEQUEL back to current
-      const backLink = prequelMedia.relations?.edges?.some((e: any) => e.relationType === 'SEQUEL' && e.node.id === current.id && isSeasonFormat(e.node.format))
-      if (!backLink) break
-      current = prequelMedia
+      current = await fetchSpine(prequelId, signal)
     } catch (e) {
       if ((e as any)?.name === 'AbortError') throw e
       break
@@ -146,91 +195,83 @@ async function findRoot(media: AniListMedia & { relations: any }, signal?: Abort
   return current
 }
 
-// Walk SEQUEL chain from root to collect ordered seasons
-async function collectSeasons(root: AniListMedia & { relations: any }, signal?: AbortSignal): Promise<{ seasons: AniListMedia[]; confidence: 'high' | 'medium' | 'low' }> {
-  const seasons: AniListMedia[] = []
+// Walk SEQUEL chain from root, collecting slim nodes in order. Branching uses
+// the same mutual-link + stem rule, resolved in memory from nested edges;
+// only the CHOSEN next season costs a hop. Returns slim nodes + confidence.
+async function collectSpine(root: SlimNode, signal?: AbortSignal): Promise<{ chain: SlimNode[]; confidence: 'high' | 'medium' | 'low' }> {
+  const chain: SlimNode[] = []
   const visited = new Set<number>()
-  let current: AniListMedia & { relations: any } | null = root
+  let current: SlimNode | null = root
   let confidence: 'high' | 'medium' | 'low' = 'high'
 
   while (current && !visited.has(current.id)) {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
     visited.add(current.id)
     if (isSeasonFormat(current.format)) {
-      seasons.push(current)
+      chain.push(current)
     }
-    const sequelEdges = current.relations?.edges?.filter((e: any) => e.relationType === 'SEQUEL' && isSeasonFormat(e.node.format)) ?? []
+    const sequelEdges = (current.relations?.edges ?? []).filter((e) => e.relationType === 'SEQUEL' && isSeasonFormat(e.node.format))
     if (sequelEdges.length === 0) break
     if (sequelEdges.length > 1) {
-      // Branching: try to disambiguate via mutual link + stem match
+      // Branching, resolved in memory: mutual back-link + title-stem match.
       const currentStem = normalizeTitleStem(current.title?.romaji ?? '')
-      const scored: { edge: any; node: any; hasBack: boolean; stemMatch: boolean; year: number }[] = await Promise.all(sequelEdges.map(async (edge: any) => {
-        try {
-          if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
-          const node = await fetchWithRelations(edge.node.id, signal)
-          const hasBack = node.relations?.edges?.some((e: any) => e.relationType === 'PREQUEL' && e.node.id === current!.id)
-          const stem = normalizeTitleStem(edge.node.title?.romaji ?? '')
-          const stemMatch = !!(currentStem && stem && (stem === currentStem || stem.startsWith(currentStem) || currentStem.startsWith(stem)))
-          const year: number = edge.node.startDate?.year ?? edge.node.seasonYear ?? 9999
-          return { edge, node, hasBack, stemMatch, year }
-        } catch (e) {
-          if ((e as any)?.name === 'AbortError') throw e
-          return { edge, node: null as any, hasBack: false, stemMatch: false, year: 9999 }
-        }
-      }))
-      // Prefer hasBack + stemMatch
-      const withBack = scored.filter((s: any) => s.hasBack)
-      const pool: typeof scored = withBack.length ? withBack : scored
-      const stemMatched = pool.filter((s: any) => s.stemMatch)
-      let chosen: typeof scored[number] | undefined
+      const scored = sequelEdges.map((edge) => {
+        const hasBack = (edge.node.relations?.edges ?? []).some((e) => e.relationType === 'PREQUEL' && e.node.id === current!.id)
+        const stem = normalizeTitleStem(edge.node.title?.romaji ?? '')
+        const stemMatch = !!(currentStem && stem && (stem === currentStem || stem.startsWith(currentStem) || currentStem.startsWith(stem)))
+        const year: number = edge.node.seasonYear ?? edge.node.startDate?.year ?? 9999
+        return { edge, hasBack, stemMatch, year }
+      })
+      const withBack = scored.filter((s) => s.hasBack)
+      const pool = withBack.length ? withBack : scored
+      const stemMatched = pool.filter((s) => s.stemMatch)
+      let chosen: (typeof scored)[number] | undefined
       if (stemMatched.length === 1) chosen = stemMatched[0]
       else if (stemMatched.length > 1) {
-        stemMatched.sort((a: any, b: any) => a.year - b.year)
+        stemMatched.sort((a, b) => a.year - b.year)
         chosen = stemMatched[0]
         confidence = 'low'
       } else if (pool.length === 1) {
         chosen = pool[0]
         confidence = 'medium'
       } else {
-        // Multiple candidates, no stem match - ambiguous (e.g., Fate)
-        pool.sort((a: any, b: any) => a.year - b.year)
+        pool.sort((a, b) => a.year - b.year)
         chosen = pool[0]
         confidence = 'low'
       }
-      const nextId2 = (chosen as any).edge.node.id
-      if (visited.has(nextId2)) break
+      const nextId = chosen!.edge.node.id
+      if (visited.has(nextId)) break
+      if (chosen!.hasBack === false) confidence = 'low'
       try {
-        const nextMedia2: any = (chosen as any).node ?? await fetchWithRelations(nextId2)
-        if ((chosen as any).hasBack === false) confidence = 'low'
-        current = nextMedia2
-      } catch {
+        if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+        current = await fetchSpine(nextId, signal)
+      } catch (e) {
+        if ((e as any)?.name === 'AbortError') throw e
         break
       }
       continue
     }
-    // Single sequel
-    const sequelEdge2: any = sequelEdges[0]
-    const nextId3 = sequelEdge2.node.id
-    if (visited.has(nextId3)) break
+    // Single sequel: back-link verified in memory from nested edges.
+    const sequelEdge = sequelEdges[0]
+    const nextId = sequelEdge.node.id
+    if (visited.has(nextId)) break
+    const hasBack = (sequelEdge.node.relations?.edges ?? []).some((e) => e.relationType === 'PREQUEL' && e.node.id === current!.id)
+    if (!hasBack) {
+      const curStem = normalizeTitleStem(current.title?.romaji ?? '')
+      const nextStem = normalizeTitleStem(sequelEdge.node.title?.romaji ?? '')
+      if (curStem && nextStem && curStem !== nextStem && !nextStem.startsWith(curStem) && !curStem.startsWith(nextStem)) {
+        confidence = 'medium'
+      }
+    }
     try {
       if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
-      const nextMedia3: any = await fetchWithRelations(nextId3, signal)
-      const hasBack = nextMedia3.relations?.edges?.some((e: any) => e.relationType === 'PREQUEL' && e.node.id === current!.id)
-      if (!hasBack) {
-        // Check stem as advisory
-        const curStem = normalizeTitleStem(current.title?.romaji ?? '')
-        const nextStem = normalizeTitleStem(sequelEdge2.node.title?.romaji ?? '')
-        if (curStem && nextStem && curStem !== nextStem && !nextStem.startsWith(curStem) && !curStem.startsWith(nextStem)) {
-          confidence = 'medium'
-        }
-      }
-      current = nextMedia3
+      current = await fetchSpine(nextId, signal)
     } catch (e) {
       if ((e as any)?.name === 'AbortError') throw e
       break
     }
   }
-  return { seasons, confidence }
+  return { chain, confidence }
 }
 
 export async function getSeriesGroup(animeId: number, opts?: { signal?: AbortSignal }): Promise<AnimeSeriesGroup | null> {
@@ -287,19 +328,30 @@ export async function getSeriesGroup(animeId: number, opts?: { signal?: AbortSig
 async function buildSeriesGroup(animeId: number, signal?: AbortSignal): Promise<AnimeSeriesGroup | null> {
   try {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
-    const initial = await fetchWithRelations(animeId, signal)
+    // Phase 1 — slim spine walk (small payloads, in-memory verification):
+    // one hop per chain step, zero follow-up fetches for back-link checks.
+    const initial = await fetchSpine(animeId, signal)
     if (!isSeasonFormat(initial.format)) {
       return null
     }
-    const root = await findRoot(initial, signal)
-    const { seasons: seasonMedias, confidence } = await collectSeasons(root, signal)
-    if (seasonMedias.length <= 1) return null
-
-    const seasons: Anime[] = seasonMedias.map(m => mapAniListMediaToAnime(m as any))
+    const root = await findRootSpine(initial, signal)
+    const { chain, confidence } = await collectSpine(root, signal)
+    if (chain.length <= 1) return null
+    // Phase 2 — one aliased batch fetches FULL display fields for every chain
+    // id in a single request (parallel server-side), instead of N sequential
+    // full fetches. Cache keys match the single-Media path so page metadata
+    // and series data share entries.
+    const full = await fetchFullBatch(
+      chain.map((n) => n.id),
+      signal,
+    )
+    const seasonMedias = chain.map((_n, i) => full[i] ?? null)
+    if (seasonMedias.some((m) => !m)) return null
+    const seasons: Anime[] = (seasonMedias as AniListMedia[]).map((m) => mapAniListMediaToAnime(m as any))
 
     // Compute franchise title from root, normalized
-    const franchiseRomaji = getFranchiseTitle(root.title?.romaji ?? seasons[0].title.romaji)
-    const years = seasonMedias.map(m => m.seasonYear ?? m.startDate?.year).filter(Boolean) as number[]
+    const franchiseRomaji = getFranchiseTitle(root.title?.romaji ?? seasons[0]?.title.romaji ?? '')
+    const years = seasonMedias.map((m) => m?.seasonYear ?? m?.startDate?.year).filter(Boolean) as number[]
     const span = years.length ? { from: Math.min(...years), to: Math.max(...years) } : undefined
 
     return {

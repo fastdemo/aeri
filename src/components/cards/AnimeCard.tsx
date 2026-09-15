@@ -196,10 +196,26 @@ export function AnimeCard({
     </div>
   )
 
+  // Hover/focus prewarm: the user is demonstrably navigating toward this
+  // anime (card interaction precedes route change by ~100-500ms). Starts the
+  // series-group spine walk early so the destination reveals with seasons
+  // ready. No-op without an id; shared cache + inflight make repeats free.
+  const prewarmId = anime.identity.anilistId ?? null
+  const prewarm = () => {
+    if (!prewarmId || Number.isNaN(prewarmId)) return
+    try {
+      void import('../../services/anilist/series').then((m) => {
+        m.getSeriesGroup(prewarmId).catch(() => {})
+      })
+    } catch {}
+  }
+
   if (onSelect) {
     return (
       <button
         onClick={() => onSelect(anime)}
+        onMouseEnter={prewarm}
+        onFocus={prewarm}
         className={`text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 ${fullWidth ? 'w-full' : ''}`}
         aria-label={`Open ${primaryTitle}`}
       >
@@ -211,6 +227,8 @@ export function AnimeCard({
   return (
     <Link
       to={`/anime/${anime.identity.internalId}`}
+      onMouseEnter={prewarm}
+      onFocus={prewarm}
       aria-label={`Open ${primaryTitle}`}
       className={`focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 block ${fullWidth ? 'w-full' : ''}`}
     >

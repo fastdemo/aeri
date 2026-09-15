@@ -302,3 +302,12 @@ HMAC/allowlist/SSRF model, no Fly. Verified on preview worker + production:
 | 74 | AoT season before | 6.25s, 7 AniList reqs (1 Media + 6 sequential Rel), selector pops in late |
 | 75 | AoT season after | cold 5.9s/7 reqs (Rel starts parallel with Media); repeat 0 reqs/0.5s/6 options; skeleton→6 stable, no pop-in |
 | 76 | Generalization | Naruto →4 stable, MHA →8 stable, 0 page errors; Watch grid gated (25 tiles, no shift); matching logic untouched |
+
+### Season + startup instrumentation (D075, production endpoints + local prod build, UNDEPLOYED)
+| # | Case | Result |
+|---|------|--------|
+| 77 | AoT cold before/after | 7 reqs/5.3s (6× ~60KB sequential FULL-REL) → 8 reqs/4.0–4.5s (6× ~6KB SPINE + 1 BATCH + page Media) |
+| 78 | Naruto / MHA cold | 4 seasons/6 reqs/2.9–3.3s; 8 seasons/9 reqs OK (one throttled run proved the 8s bounded fallback + retry path) |
+| 79 | Warm repeat | 0 reqs/0.4s AoT (unchanged); Watch grid 25 tiles, no shift, no errors |
+| 80 | Startup breakdown (Bebop E1, worker) | resolve 3.5s + playlist 1.2s + variant 2.4s + seg1 4.6s + seg2 12.9s + seg3 1.8s — all upstream latency, no Aeri-side serial fat |
+| 81 | Matrix + verify-live | 21 passed; 8/8 (one transient Naruto upstream miss, clean on retry) |
