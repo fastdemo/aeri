@@ -170,8 +170,10 @@ export function Navbar() {
 
   // Hidden measurer: same links + same search input, same classes, but
   // always mounted invisibly so widths are TRUE at every scale. It never
-  // intercepts clicks and never affects layout. NOT inside the flex bar
-  // (querySelector('header > div') must resolve to the real bar).
+  // intercepts clicks and never affects layout. Rendered OUTSIDE <header>
+  // (fragment sibling) so no header query can match it — the old in-header
+  // measurer hijacked `header > div` lookups and broke every width reading
+  // (iPad Pro 834px incident). Query the bar via [data-navbar-bar].
   const measurer = (
     <div
       ref={measureRef}
@@ -191,6 +193,8 @@ export function Navbar() {
   )
 
   return (
+    <>
+    {measurer}
     <header
       className={`fixed inset-x-0 top-0 z-50 h-14 touch-manipulation transition-colors duration-300 ${
         scrolled
@@ -200,8 +204,7 @@ export function Navbar() {
       style={{ touchAction: 'manipulation' } as any}
       aria-label="Primary"
     >
-      {measurer}
-      <div ref={barRef} className="mx-auto flex h-full max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-12 lg:gap-6">
+      <div ref={barRef} data-navbar-bar="true" className="mx-auto flex h-full max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-12 lg:gap-6">
         <div className="flex items-center gap-6">
           {/* Logo — simple Aeri, unselectable */}
           {/* Logo — simple Aeri, unselectable */}
@@ -435,5 +438,6 @@ export function Navbar() {
       {previewAnime && <DetailModal key={previewAnime.identity.internalId} anime={previewAnime} onClose={() => setPreviewAnime(null)} />}
       {signInOpen && <SignInModal onClose={() => setSignInOpen(false)} />}
     </header>
+    </>
   )
 }

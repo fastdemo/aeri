@@ -118,6 +118,46 @@ export function useBrowse(params: { sort?: string; status?: string; genre?: stri
   return { ...state, loadMore }
 }
 
+export function useMangaBrowse(params: { sort?: string; status?: string; genre?: string; seasonYear?: number; format?: string; yearFrom?: number; yearTo?: number; perPage?: number; page?: number }): BrowseState & { loadMore: () => void } {
+  const { sort, status, genre, seasonYear, format, yearFrom, yearTo, perPage = 24 } = params
+  const [state, setState] = useState<BrowseState>({ data: null, loading: true, error: null, hasNextPage: false, page: 1 })
+  const [page, setPage] = useState(1)
+
+  useEffect(() => { setPage(1) }, [sort, status, genre, seasonYear, format, yearFrom, yearTo, perPage])
+
+  useEffect(() => {
+    const controller = new AbortController()
+    let cancelled = false
+    setState(s => ({ ...s, loading: true, error: null }))
+    const p = params.page ?? page
+    anilistMetadataProvider.browseManga({ sort: sort as any, status: status as any, genre, seasonYear, format: format as any, yearFrom, yearTo, perPage, page: p }, controller.signal)
+      .then(res => {
+        if (cancelled || controller.signal.aborted) return
+        setState(prev => ({
+          data: p === 1 ? res.data : [...(prev.data ?? []), ...res.data],
+          loading: false,
+          error: null,
+          hasNextPage: res.hasNextPage,
+          page: res.pageInfo.currentPage,
+        }))
+      })
+      .catch(e => {
+        if (cancelled || controller.signal.aborted || (e as any)?.name === 'AbortError') return
+        if (e instanceof ProviderError && e.code === 'THROTTLED') {
+          if (!cancelled) setState(s => (s.data ? { ...s, loading: false, error: null } : { ...s, loading: false, error: friendlyError(e, 'Something went wrong.') }))
+          return
+        }
+        const msg = friendlyError(e, 'Something went wrong.')
+        if (!cancelled) setState(s => ({ ...s, loading: false, error: msg }))
+      })
+    return () => { cancelled = true; controller.abort() }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sort, status, genre, seasonYear, format, yearFrom, yearTo, perPage, page])
+
+  const loadMore = () => { if (state.hasNextPage && !state.loading) setPage(p => p + 1) }
+  return { ...state, loadMore }
+}
+
 export function useAnimeSearch(query: string, perPage = 12): State<Anime[]> {
   const [state, setState] = useState<State<Anime[]>>({ data: null, loading: false, error: null })
   useEffect(() => {

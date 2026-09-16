@@ -130,6 +130,46 @@ function buildBrowseQuery(params: BrowseParams): { query: string; variables: Rec
   return { query, variables, cacheKey: `anilist:browse:${keyParts}` }
 }
 
+export interface BrowseMangaParams {
+  sort?: 'TRENDING_DESC' | 'POPULARITY_DESC' | 'SCORE_DESC' | 'START_DATE_DESC' | 'END_DATE_DESC'
+  status?: 'RELEASING' | 'NOT_YET_RELEASED' | 'FINISHED' | 'CANCELLED' | 'HIATUS'
+  genre?: string
+  seasonYear?: number
+  format?: 'MANGA' | 'NOVEL' | 'ONE_SHOT'
+  yearFrom?: number
+  yearTo?: number
+  perPage?: number
+  page?: number
+}
+
+function buildBrowseMangaQuery(params: BrowseMangaParams): { query: string; variables: Record<string, any>; cacheKey: string } {
+  const { sort = 'POPULARITY_DESC', status, genre, seasonYear, format, yearFrom, yearTo, perPage = 24, page = 1 } = params
+  const filters: string[] = ['type: MANGA', 'isAdult: false', `sort: ${sort}`]
+  if (status) filters.push(`status: ${status}`)
+  if (genre) filters.push(`genre: "${genre}"`)
+  if (yearFrom != null || yearTo != null) {
+    if (yearFrom != null) filters.push(`startDate_greaterThan: ${yearFrom * 10000 + 101}`)
+    if (yearTo != null) filters.push(`startDate_lesserThan: ${yearTo * 10000 + 1232}`)
+  } else if (seasonYear) {
+    filters.push(`startDate_greaterThan: ${seasonYear * 10000 + 101}`)
+    filters.push(`startDate_lesserThan: ${seasonYear * 10000 + 1232}`)
+  }
+  if (format) filters.push(`format: ${format}`)
+  const filterStr = filters.join(', ')
+  const query = `
+  query ($perPage: Int, $page: Int) {
+    Page(perPage: $perPage, page: $page) {
+      pageInfo { hasNextPage currentPage lastPage total }
+      media(${filterStr}) {
+        ${MEDIA_FIELDS}
+      }
+    }
+  }`
+  const variables = { perPage, page }
+  const keyParts = [sort, status || '', genre || '', seasonYear || '', format || '', yearFrom ?? '', yearTo ?? '', perPage, page].join(':')
+  return { query, variables, cacheKey: `anilist:browsemanga:${keyParts}` }
+}
+
 export class AniListMetadataProvider implements AnimeMetadataProvider {
   id = 'anilist-metadata' as const
 
@@ -171,6 +211,13 @@ export class AniListMetadataProvider implements AnimeMetadataProvider {
 
   async browse(params: BrowseParams, signal?: AbortSignal): Promise<{ data: import('../../types/anime').Anime[]; hasNextPage: boolean; pageInfo: { currentPage: number; lastPage?: number } }> {
     const { query, variables, cacheKey } = buildBrowseQuery(params)
+    type Res = { Page: { media: AniListMedia[]; pageInfo: { hasNextPage: boolean; currentPage: number; lastPage: number; total: number } } }
+    const data = await anilistGraphQL<Res>(query, variables, { cacheKey, useCache: true, signal })
+    return { data: mapPage(data), hasNextPage: !!data.Page.pageInfo?.hasNextPage, pageInfo: { currentPage: data.Page.pageInfo?.currentPage ?? params.page ?? 1, lastPage: data.Page.pageInfo?.lastPage } }
+  }
+
+  async browseManga(params: BrowseMangaParams, signal?: AbortSignal): Promise<{ data: import('../../types/anime').Anime[]; hasNextPage: boolean; pageInfo: { currentPage: number; lastPage?: number } }> {
+    const { query, variables, cacheKey } = buildBrowseMangaQuery(params)
     type Res = { Page: { media: AniListMedia[]; pageInfo: { hasNextPage: boolean; currentPage: number; lastPage: number; total: number } } }
     const data = await anilistGraphQL<Res>(query, variables, { cacheKey, useCache: true, signal })
     return { data: mapPage(data), hasNextPage: !!data.Page.pageInfo?.hasNextPage, pageInfo: { currentPage: data.Page.pageInfo?.currentPage ?? params.page ?? 1, lastPage: data.Page.pageInfo?.lastPage } }
