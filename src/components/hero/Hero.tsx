@@ -3,8 +3,19 @@ import { Link } from 'react-router-dom'
 import type { Anime } from '../../types/anime'
 import { getTitleHierarchy } from '../../lib/titles'
 import { formatLabel } from '../../lib/mediaLabels'
+import { displayRating, formatRating } from '../../lib/rating'
 
-export function Hero({ anime, onMoreInfo }: { anime: Anime; onMoreInfo?: () => void }) {
+function ScoreBadge({ anime, trackingProvider }: { anime: Anime; trackingProvider?: 'anilist' | 'mal' | null }) {
+  const text = formatRating(displayRating(anime, trackingProvider))
+  if (!text) return null
+  return (
+    <span className="inline-flex items-center gap-1 rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+      <span className="text-white">★</span> {text}
+    </span>
+  )
+}
+
+export function Hero({ anime, onMoreInfo, trackingProvider }: { anime: Anime; onMoreInfo?: () => void; trackingProvider?: 'anilist' | 'mal' | null }) {
   const titles = getTitleHierarchy(anime, null)
   const metaParts = [formatLabel(anime.format) ?? 'TV', anime.year, anime.episodes ? `${anime.episodes} Episodes` : null].filter(Boolean).join(' • ')
 
@@ -62,11 +73,7 @@ export function Hero({ anime, onMoreInfo }: { anime: Anime; onMoreInfo?: () => v
 
             <p className="text-[12px] font-medium tracking-wide text-white/70 flex items-center gap-2">
               <span>{metaParts}</span>
-              {anime.rating && (
-                <span className="inline-flex items-center gap-1 rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                  <span className="text-white">★</span> {anime.rating.toFixed(1)}
-                </span>
-              )}
+              <ScoreBadge anime={anime} trackingProvider={trackingProvider} />
             </p>
 
             <p className="line-clamp-2 max-w-[520px] text-[13px] leading-6 text-white/75 sm:line-clamp-3 sm:text-[14px]">
@@ -112,9 +119,11 @@ const CROSSFADE_MS = 700
 export function HeroCarousel({
   animes,
   onMoreInfo,
+  trackingProvider,
 }: {
   animes: Anime[]
   onMoreInfo?: (anime: Anime) => void
+  trackingProvider?: 'anilist' | 'mal' | null
 }) {
   const [index, setIndex] = useState(0)
   const [paused, setPaused] = useState(false)
@@ -268,11 +277,7 @@ export function HeroCarousel({
                   {titles.romaji && <p className="-mt-1 text-[11px] tracking-wide text-white/50">{titles.romaji}</p>}
                   <p className="text-[12px] font-medium tracking-wide text-white/70 flex items-center gap-2">
                     <span>{metaParts}</span>
-                    {active.rating && (
-                      <span className="inline-flex items-center gap-1 rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                        <span className="text-white">★</span> {active.rating.toFixed(1)}
-                      </span>
-                    )}
+                    <ScoreBadge anime={active} trackingProvider={trackingProvider} />
                   </p>
                   <p className="line-clamp-2 max-w-[520px] text-[13px] leading-6 text-white/75 sm:line-clamp-3 sm:text-[14px]">
                     {active.description}

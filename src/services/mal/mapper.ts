@@ -95,7 +95,7 @@ export function mapMALNodeToAnime(node: MALNode, listStatus?: MALListStatus): An
   const cover = node.main_picture?.large ?? node.main_picture?.medium ?? ''
   // MAL has no banner; use cover as backdrop as fallback (will be overridden by AniList banner if merged)
   const year = parseYear(node.start_date)
-  const rating = node.mean ? Math.round(node.mean * 10) / 10 : undefined // already 0-10
+  const rating = node.mean != null ? node.mean : undefined // already 0-10, full precision
 
   const anime: Anime = {
     identity: {
@@ -114,6 +114,7 @@ export function mapMALNodeToAnime(node: MALNode, listStatus?: MALListStatus): An
     duration: undefined, // MAL has average_episode_duration but not in list_status
     status: node.status ?? undefined,
     rating,
+    ratings: rating != null ? { mal: rating } : undefined,
     genres: node.genres?.map(g => g.name) ?? [],
     studios: node.studios?.map(s => s.name) ?? [],
     format: node.media_type ?? undefined,

@@ -4,6 +4,7 @@ import { matchKnownGenre } from '../../lib/genres'
 import { rankSearchResults } from '../../lib/searchRank'
 import { ProviderError } from '../../services/anilist/errors'
 import type { AnimeMetadataProvider } from './types'
+import { getCachedAnime, putCachedAnime } from '../../services/anilist/animeCache'
 
 const MEDIA_FIELDS = `
   id
@@ -77,7 +78,13 @@ query ($search: String, $perPage: Int) {
 `
 
 function mapPage(res: { Page: { media: AniListMedia[] } }): ReturnType<typeof mapAniListMediaToAnime>[] {
-  return (res.Page.media ?? []).map(mapAniListMediaToAnime)
+  const out = (res.Page.media ?? []).map(mapAniListMediaToAnime)
+  // Page results are full media records: publish each to the shared cache so
+  // later detail visits for the same id cost zero network.
+  for (const a of out) {
+    if (a.identity.anilistId) putCachedAnime(a.identity.anilistId, a)
+  }
+  return out
 }
 
 export interface BrowseParams {
@@ -179,10 +186,17 @@ export class AniListMetadataProvider implements AnimeMetadataProvider {
     }
     const anilistId = id.startsWith('anilist-') ? Number(id.replace('anilist-', '')) : Number(id)
     if (Number.isNaN(anilistId)) throw new ProviderError('NOT_FOUND', 'We couldn’t find that anime.', false)
+    // Shared media record first: the series spine walk writes the same entry,
+    // so the page Media query usually costs zero network (and vice versa).
+    const shared = await getCachedAnime(anilistId)
+    if (shared) return shared
+    if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError')
     type Res = { Media: AniListMedia }
     const data = await anilistGraphQL<Res>(MEDIA_QUERY, { id: anilistId }, { cacheKey: `anilist:anime:${anilistId}`, useCache: true, signal })
     if (!data.Media) throw new ProviderError('NOT_FOUND', 'We couldn’t find that anime.', false)
-    return mapAniListMediaToAnime(data.Media)
+    const anime = mapAniListMediaToAnime(data.Media)
+    putCachedAnime(anilistId, anime)
+    return anime
   }
 
   async getAnimeByMalId(malId: number, signal?: AbortSignal): Promise<import('../../types/anime').Anime> {

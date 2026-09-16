@@ -126,9 +126,10 @@ export function Browse() {
       <h1 className="text-[18px] font-semibold tracking-tight text-white">Anime</h1>
       <p className="text-xs text-white/50">Discover anime by category and filters • AniList</p>
 
-      {/* Categories (left) + filters (right) on one row */}
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto no-scrollbar">
+      {/* Categories scroll on their own row; filters wrap below on narrow.
+          Two independent rows can never overlap each other. */}
+      <div className="mt-4 flex flex-col gap-2">
+        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
           {categories.map(c => (
             <button
               key={c.id}
@@ -142,7 +143,7 @@ export function Browse() {
           ))}
         </div>
 
-        <div className="ml-auto flex shrink-0 flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {[
             { value: genre, set: (v: string) => setGenre(v), label: 'Genre', options: [{ label: 'All Genres', value: 'All' }, ...genres.slice(1).map(g => ({ label: g, value: g }))] },
             { value: yearKey, set: (v: string) => setYearKey(v), label: 'Year', options: yearPresets.map(y => ({ label: y.label, value: y.label })) },

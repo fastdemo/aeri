@@ -107,6 +107,8 @@ export function Navbar() {
   }
 
   // Desktop nav items — Settings lives in the profile menu, not the top bar.
+  // Fixed gaps: the left cluster uses ONE gap value at all scales so logo↔nav
+  // spacing never breathes during scaling transitions.
   const desktopNav = [
     { to: '/', label: 'Home' },
     { to: '/browse', label: 'Anime' },
@@ -122,6 +124,72 @@ export function Navbar() {
     { to: '/search', label: 'Search' },
   ]
 
+  // Fit-based breakpoint: show the inline nav only when everything fits in
+  // one row with ~30% breathing room; otherwise collapse to the mini menu.
+  // A hidden measurer renders the SAME links + search input with the SAME
+  // classes, so the decision uses true widths — never an estimate that can
+  // disagree with reality at some scales (the old estimate measured the
+  // collapsed 44px search icon instead of the 200px inline input, and never
+  // re-measured after switching, so narrow scales could stick inline and
+  // overflow). State-independent measurement ⇒ no oscillation possible.
+  // Starts collapsed (mobile-first) to avoid a flash of overflowing nav.
+  const barRef = useRef<HTMLDivElement>(null)
+  const measureRef = useRef<HTMLDivElement>(null)
+  const [navFits, setNavFits] = useState(false)
+  useEffect(() => {
+    const measure = () => {
+      const bar = barRef.current
+      const m = measureRef.current
+      if (!bar || !m) return
+      const barW = bar.clientWidth
+      if (!barW) return
+      const need = (m.scrollWidth + 48) * 1.3
+      setNavFits((prev) => {
+        const next = need <= barW
+        return prev === next ? prev : next
+      })
+    }
+    measure()
+    let ro: ResizeObserver | null = null
+    try {
+      ro = new ResizeObserver(measure)
+      ro.observe(barRef.current!)
+    } catch {}
+    window.addEventListener('resize', measure)
+    try {
+      ;(document as any).fonts?.ready?.then?.(() => measure())?.catch?.(() => {})
+    } catch {}
+    // auth state / late layout shifts change widths — re-measure shortly after
+    const t = setTimeout(measure, 300)
+    return () => {
+      window.removeEventListener('resize', measure)
+      clearTimeout(t)
+      try { ro?.disconnect() } catch {}
+    }
+  }, [desktopNav.length, isAuthenticated])
+
+  // Hidden measurer: same links + same search input, same classes, but
+  // always mounted invisibly so widths are TRUE at every scale. It never
+  // intercepts clicks and never affects layout. NOT inside the flex bar
+  // (querySelector('header > div') must resolve to the real bar).
+  const measurer = (
+    <div
+      ref={measureRef}
+      aria-hidden
+      className="pointer-events-none fixed left-0 top-0 -z-10 flex h-14 w-max items-center gap-5 opacity-0"
+      style={{ visibility: 'hidden' } as any}
+    >
+      <span className="text-[19px] font-semibold tracking-[-0.02em]" style={{ fontFamily: '"Cal Sans", sans-serif' } as any}>aeri</span>
+      <span className="flex items-center gap-5">
+        {desktopNav.map((l) => (
+          <span key={l.to} className="whitespace-nowrap px-2 py-1.5 text-[13px] font-medium">{l.label}</span>
+        ))}
+      </span>
+      <span className="h-8 w-[180px] shrink-0 rounded-full border lg:w-[200px]" />
+      {isAuthenticated ? <span className="h-7 w-7 shrink-0 rounded" /> : <span className="h-8 px-5 text-[13px]">Sign in</span>}
+    </div>
+  )
+
   return (
     <header
       className={`fixed inset-x-0 top-0 z-50 h-14 touch-manipulation transition-colors duration-300 ${
@@ -132,8 +200,10 @@ export function Navbar() {
       style={{ touchAction: 'manipulation' } as any}
       aria-label="Primary"
     >
-      <div className="mx-auto flex h-full max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-12 lg:gap-6">
-        <div className="flex items-center gap-5 lg:gap-8">
+      {measurer}
+      <div ref={barRef} className="mx-auto flex h-full max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-12 lg:gap-6">
+        <div className="flex items-center gap-6">
+          {/* Logo — simple Aeri, unselectable */}
           {/* Logo — simple Aeri, unselectable */}
           <Link
             to="/"
@@ -146,14 +216,15 @@ export function Navbar() {
             aeri
           </Link>
 
-          <nav className="hidden items-center gap-5 lg:flex" aria-label="Sections">
+          {navFits ? (
+          <nav className="flex items-center gap-6" aria-label="Sections">
             {desktopNav.map((l) => (
               <NavLink
                 key={l.to}
                 to={l.to}
                 onClick={() => dispatchNavigate(l.to)}
                 className={({ isActive }) =>
-                  `touch-manipulation text-[13px] font-medium transition-colors px-2 py-1.5 rounded -mx-2 ${
+                  `touch-manipulation whitespace-nowrap text-[13px] font-medium transition-colors px-2 py-1.5 rounded -mx-2 ${
                     isActive ? 'text-white' : 'text-white/70 hover:text-white'
                   }`
                 }
@@ -163,21 +234,24 @@ export function Navbar() {
               </NavLink>
             ))}
           </nav>
+          ) : (
           <button
             aria-label="Menu"
             aria-expanded={mobileNavOpen}
             onClick={() => setMobileNavOpen((v) => !v)}
-            className="grid h-11 w-11 touch-manipulation place-items-center rounded-full text-white/80 hover:bg-white/10 hover:text-white lg:hidden"
+            className="grid h-11 w-11 touch-manipulation place-items-center rounded-full text-white/80 hover:bg-white/10 hover:text-white"
             style={{ touchAction: 'manipulation' } as any}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
               <path d="M4 7h16M4 12h16M4 17h16" />
             </svg>
           </button>
+          )}
         </div>
 
         <div className="flex items-center gap-2 lg:gap-3">
-          <form onSubmit={onSearch} className="hidden items-center lg:flex">
+          {navFits ? (
+          <form onSubmit={onSearch} className="flex items-center">
             <div ref={searchRef} className="relative">
               <input
                 value={query}
@@ -201,17 +275,15 @@ export function Navbar() {
                 <path d="m20 20-3.5-3.5" />
               </svg>
               {showSuggestions && query.trim().length >= 2 && (
-                <div className="hidden lg:block">
-                  <SearchSuggestions query={query} onClose={() => setShowSuggestions(false)} onPreview={setPreviewAnime} />
-                </div>
+                <SearchSuggestions query={query} onClose={() => setShowSuggestions(false)} onPreview={setPreviewAnime} />
               )}
             </div>
           </form>
-
+          ) : (
           <button
             aria-label="Search"
             onClick={() => setMobileSearchOpen((v) => !v)}
-            className="grid h-11 w-11 touch-manipulation place-items-center rounded-full text-white/80 hover:bg-white/10 hover:text-white lg:hidden"
+            className="grid h-11 w-11 touch-manipulation place-items-center rounded-full text-white/80 hover:bg-white/10 hover:text-white"
             style={{ touchAction: 'manipulation' } as any}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -219,11 +291,12 @@ export function Navbar() {
               <path d="m20 20-3.5-3.5" />
             </svg>
           </button>
+          )}
 
-          {isAuthenticated && (
+          {isAuthenticated && navFits && (
             <button
               aria-label="Notifications"
-              className="hidden h-8 w-8 place-items-center rounded-full text-white/70 hover:bg-white/10 hover:text-white lg:grid"
+              className="grid h-8 w-8 place-items-center rounded-full text-white/70 hover:bg-white/10 hover:text-white"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="M12 3a5 5 0 0 1 5 5v4a2 2 0 0 0 .45 1.26L18.5 15H5.5l1.05-1.74A2 2 0 0 0 7 12V8a5 5 0 0 1 5-5Z" />
@@ -232,7 +305,7 @@ export function Navbar() {
             </button>
           )}
 
-          {isAuthenticated && <div className="h-6 w-px bg-white/10 hidden lg:block" />}
+          {isAuthenticated && navFits && <div className="h-6 w-px bg-white/10" />}
 
           {!isAuthenticated ? (
             <button
@@ -274,12 +347,11 @@ export function Navbar() {
                       className="flex w-full touch-manipulation items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-white/5"
                       style={{ touchAction: 'manipulation' } as any}
                     >
-                      <span className="grid h-6 w-6 shrink-0 place-items-center overflow-hidden rounded-full bg-white/10 text-[9px] font-bold text-white">
-                        {user?.avatar?.large ? (
-                          <img src={user.avatar.large} alt="" className="h-full w-full object-cover" loading="lazy" />
-                        ) : (
-                          trackingProvider === 'mal' ? 'M' : 'A'
-                        )}
+                      <span className="grid h-6 w-6 shrink-0 place-items-center overflow-hidden rounded-full bg-white/10 text-[9px] font-bold text-white" aria-hidden>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white/80">
+                          <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                          <circle cx="12" cy="7" r="4" />
+                        </svg>
                       </span>
                       <span className="text-xs font-medium text-white">Profile</span>
                     </Link>
@@ -306,8 +378,8 @@ export function Navbar() {
         </div>
       </div>
 
-      {mobileSearchOpen && (
-        <div ref={mobileSearchRef} className="absolute left-0 right-0 top-14 border-t border-white/10 bg-[var(--bg)] px-4 py-3 lg:hidden shadow-lg shadow-black/20">
+      {mobileSearchOpen && !navFits && (
+        <div ref={mobileSearchRef} className="absolute left-0 right-0 top-14 border-t border-white/10 bg-[var(--bg)] px-4 py-3 shadow-lg shadow-black/20">
           <form onSubmit={onSearch} className="flex gap-2">
             <input
               autoFocus
@@ -328,8 +400,8 @@ export function Navbar() {
           )}
         </div>
       )}
-      {mobileNavOpen && (
-        <nav className="absolute left-0 right-0 top-14 border-t border-white/10 bg-[var(--bg)] px-4 py-3 lg:hidden shadow-lg shadow-black/20 anim-slide-down" aria-label="Mobile sections">
+      {mobileNavOpen && !navFits && (
+        <nav className="absolute left-0 right-0 top-14 border-t border-white/10 bg-[var(--bg)] px-4 py-3 shadow-lg shadow-black/20 anim-slide-down" aria-label="Mobile sections">
           <div className="flex flex-col gap-1">
             {mobileNav.map((l) => (
               <Link

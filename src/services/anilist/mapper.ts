@@ -99,8 +99,8 @@ export function mapAniListMediaToAnime(media: AniListMedia): Anime {
   const year = media.seasonYear ?? media.startDate?.year ?? undefined
   const season = media.season ?? undefined
 
-  // averageScore is 0-100, convert to 0-10
-  const rating = media.averageScore ? Math.round((media.averageScore / 10) * 10) / 10 : undefined
+  // averageScore is 0-100, convert to 0-10 (keep full precision; display formats)
+  const rating = media.averageScore != null ? media.averageScore / 10 : undefined
 
   // Only animation studios — not all studios (producers are not studios)
   const studios = (() => {
@@ -168,6 +168,7 @@ export function mapAniListMediaToAnime(media: AniListMedia): Anime {
     duration: media.duration ?? undefined,
     status: media.status ?? undefined,
     rating,
+    ratings: rating != null ? { anilist: rating } : undefined,
     genres: media.genres ?? [],
     studios,
     format: media.format ?? undefined,

@@ -6,6 +6,18 @@ import { deduplicateBySeries } from '../services/anilist/series'
 
 type State<T> = { data: T | null; loading: boolean; error: string | null }
 
+function friendlyError(e: unknown, fallback: string): string {
+  // THROTTLED must never surface a countdown/timer to users during normal
+  // browsing — the page keeps cached data and recovers quietly. Only when NO
+  // usable data exists at all does the caller show this generic line.
+  if (e instanceof ProviderError && e.code === 'THROTTLED') {
+    return 'AniList is busy right now. Showing cached content.'
+  }
+  if (e instanceof ProviderError) return e.message
+  if (e instanceof Error) return e.message
+  return fallback
+}
+
 function useData<T>(fetcher: (signal: AbortSignal) => Promise<T>, deps: any[], options?: { dedupe?: boolean }): State<T> {
   const [state, setState] = useState<State<T>>({ data: null, loading: true, error: null })
   useEffect(() => {
@@ -22,7 +34,13 @@ function useData<T>(fetcher: (signal: AbortSignal) => Promise<T>, deps: any[], o
       })
       .catch(e => {
         if (cancelled || controller.signal.aborted || (e as any)?.name === 'AbortError') return
-        const msg = e instanceof ProviderError ? e.message : e instanceof Error ? e.message : 'Something went wrong.'
+        // THROTTLED with existing data: keep the cached page, clear the error
+        // — no countdown banner during normal browsing.
+        if (e instanceof ProviderError && e.code === 'THROTTLED') {
+          if (!cancelled) setState(s => (s.data ? { data: s.data, loading: false, error: null } : { data: s.data, loading: false, error: friendlyError(e, 'Something went wrong.') }))
+          return
+        }
+        const msg = friendlyError(e, 'Something went wrong.')
         if (!cancelled) setState(s => ({ data: s.data, loading: false, error: msg }))
       })
     return () => {
@@ -85,7 +103,11 @@ export function useBrowse(params: { sort?: string; status?: string; genre?: stri
       })
       .catch(e => {
         if (cancelled || controller.signal.aborted || (e as any)?.name === 'AbortError') return
-        const msg = e instanceof ProviderError ? e.message : e instanceof Error ? e.message : 'Something went wrong.'
+        if (e instanceof ProviderError && e.code === 'THROTTLED') {
+          if (!cancelled) setState(s => (s.data ? { ...s, loading: false, error: null } : { ...s, loading: false, error: friendlyError(e, 'Something went wrong.') }))
+          return
+        }
+        const msg = friendlyError(e, 'Something went wrong.')
         if (!cancelled) setState(s => ({ ...s, loading: false, error: msg }))
       })
     return () => { cancelled = true; controller.abort() }
@@ -115,7 +137,11 @@ export function useAnimeSearch(query: string, perPage = 12): State<Anime[]> {
         })
         .catch(e => {
           if (cancelled || controller.signal.aborted || (e as any)?.name === 'AbortError') return
-          const msg = e instanceof ProviderError ? e.message : e instanceof Error ? e.message : 'Search failed'
+          if (e instanceof ProviderError && e.code === 'THROTTLED') {
+            if (!cancelled) setState(s => (s.data ? { data: s.data, loading: false, error: null } : { data: s.data, loading: false, error: friendlyError(e, 'Search failed') }))
+            return
+          }
+          const msg = friendlyError(e, 'Search failed')
           if (!cancelled) setState(s => ({ data: s.data, loading: false, error: msg }))
         })
     }, 300)
@@ -135,7 +161,11 @@ export function useAnimeDetail(id: string | undefined): State<Anime> {
       .then(d => { if (!cancelled && !controller.signal.aborted) setState({ data: d, loading: false, error: null }) })
       .catch(e => {
         if (cancelled || controller.signal.aborted || (e as any)?.name === 'AbortError') return
-        const msg = e instanceof ProviderError ? e.message : e instanceof Error ? e.message : 'Not found'
+        if (e instanceof ProviderError && e.code === 'THROTTLED') {
+          if (!cancelled) setState(s => (s.data ? { data: s.data, loading: false, error: null } : { data: s.data, loading: false, error: friendlyError(e, 'Not found') }))
+          return
+        }
+        const msg = friendlyError(e, 'Not found')
         if (!cancelled) setState(s => ({ data: s.data, loading: false, error: msg }))
       })
     return () => { cancelled = true; controller.abort() }

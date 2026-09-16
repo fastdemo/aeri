@@ -74,6 +74,9 @@ export async function anilistGraphQL<T>(
   // share ONE network promise. Each caller races its own abort signal, so one
   // unmounted component never cancels the fetch others are waiting on — the
   // underlying request runs on its own timeout controller only.
+  // NOTE: dedup covers cache MISSES only (memory/IDB are checked outside).
+  // Two mounts racing on a cold id BOTH miss memory, BOTH miss IDB, then meet
+  // here: the second joins the first's fetch instead of sending its own.
   const dedupKey = `${mKey}::${token ?? 'anon'}`
   const shared = inflight.get(dedupKey)
   if (useCache && !force && shared) {
@@ -104,13 +107,14 @@ export async function anilistGraphQL<T>(
   }
 
   // Cooldown fast path: while rate-limited, NEVER hit the network — serve
-  // stale cache or fail with a clear throttled error (no request is sent).
+  // stale cache or fail with a machine-readable THROTTLED error (no request
+  // is sent). UI layers must treat THROTTLED as "keep showing cached data,
+  // never surface a countdown to the user during normal browsing".
   if (Date.now() < rateLimitedUntil) {
     const stale = await readStale()
     if (stale !== null) return stale
     stats.cooldownSkips += 1
-    const waitS = Math.ceil((rateLimitedUntil - Date.now()) / 1000)
-    throw new ProviderError('NETWORK', `AniList is rate-limited. Try again in ~${waitS}s.`, true)
+    throw new ProviderError('THROTTLED', 'AniList is temporarily busy. Showing cached content.', true)
   }
 
   const p = (async () => {
@@ -209,7 +213,7 @@ export async function anilistGraphQL<T>(
         stats.cooldownUntil = rateLimitedUntil
         const stale = await readStale()
         if (stale !== null) return stale
-        throw new ProviderError('NETWORK', `AniList is rate-limited. Try again in ~${Math.ceil(waitMs / 1000)}s.`, true)
+        throw new ProviderError('THROTTLED', 'AniList is temporarily busy. Showing cached content.', true)
       }
       if (status >= 500) {
         throw new ProviderError('NETWORK', 'AniList is temporarily unavailable.', true)

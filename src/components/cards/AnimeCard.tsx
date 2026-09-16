@@ -129,6 +129,11 @@ export function AnimeCard({
   const displayEp = progressEp > 0 ? getDisplayEpisodeNumber(anime, progressEp) : 0
   const epTitle = progressEp > 0 ? getStreamingEpisodeTitle(anime, progressEp) : null
 
+  // Desktop-only caption under the thumbnail: touch has no hover, so the
+  // title/year is always visible (was hover-overlay only ⇒ invisible on
+  // mobile, the "missing titles" report).
+  const showCaption = variant !== 'continue'
+
   const content = (
     <div className="group group/card relative flex-shrink-0">
       <div
@@ -140,6 +145,8 @@ export function AnimeCard({
           alt={primaryTitle}
           loading="lazy"
           decoding="async"
+          width={400}
+          height={225}
           onError={(e) => {
             const t = e.currentTarget
             t.style.display = 'none'
@@ -153,18 +160,20 @@ export function AnimeCard({
         {/* subtle inner gradient for text legibility if needed */}
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent opacity-60 group-hover:opacity-70 transition-opacity" />
 
-        {/* Hover play affordance — small, quiet */}
-        <div className="absolute inset-0 grid place-items-center opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100">
-          <div className="grid h-6 w-6 place-items-center rounded-full bg-black/55 text-white shadow-[0_2px_10px_rgba(0,0,0,0.5)] backdrop-blur transition-transform duration-200 group-hover:scale-110">
+        {/* Hover play affordance — small, quiet (desktop only: no touch
+            equivalent, and :hover sticks on tap which looks broken) */}
+        <div className="absolute inset-0 hidden place-items-center opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100 md:grid">
+          <div className="grid h-6 w-6 place-items-center rounded-full bg-black/55 text-white shadow-[0_2px_10px_rgba(0,0,0,0.5)]">
             <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
               <path d="M8 5.14v13.72L19 12z" />
             </svg>
           </div>
         </div>
 
-        {/* Title overlay on hover — default variant only (continue cards stay clean) */}
+        {/* Title overlay on hover — desktop only; touch uses the always-visible
+            caption below instead (no hover state to get stuck) */}
         {variant !== 'continue' && (
-          <div className="absolute inset-x-0 bottom-0 translate-y-1 bg-gradient-to-t from-black/75 to-transparent p-2 opacity-0 transition group-hover:translate-y-0 group-hover:opacity-100">
+          <div className="absolute inset-x-0 bottom-0 hidden translate-y-1 bg-gradient-to-t from-black/75 to-transparent p-2 opacity-0 transition group-hover:translate-y-0 group-hover:opacity-100 md:block">
             <p className="line-clamp-1 text-[11px] font-medium leading-tight text-white">
               {primaryTitle}
             </p>
@@ -189,6 +198,14 @@ export function AnimeCard({
           <p className="truncate text-[11px] text-[#A0A0A0]">
             S{seasonNum}:E{displayEp}{epTitle ? ` • ${epTitle}` : ''}
           </p>
+        </div>
+      )}
+      {/* Default/compact caption: always visible on touch (no hover there),
+          hover-overlay handles desktop. */}
+      {showCaption && (
+        <div className="px-0.5 pb-0.5 pt-1.5 md:hidden">
+          <p className="line-clamp-1 text-[11px] font-medium leading-tight text-white">{primaryTitle}</p>
+          <p className="text-[10px] text-white/50">{anime.year} • {formatLabel(anime.format) ?? anime.format}</p>
         </div>
       )}
       </div>

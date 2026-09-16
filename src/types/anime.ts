@@ -23,6 +23,8 @@ export interface Anime {
   duration?: number
   status?: string
   rating?: number
+  /** Per-tracker public scores (0-10). Display picks by active tracker. */
+  ratings?: { anilist?: number; mal?: number }
   genres: string[]
   studios?: string[]
   format?: string

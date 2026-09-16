@@ -4,6 +4,7 @@ import type { Anime } from '../../types/anime'
 import type { AniListMedia } from './mapper'
 import { getFranchiseTitle } from '../../lib/titles'
 import { getCache, putCache } from '../../storage/db'
+import { putCachedAnime } from './animeCache'
 
 // Completed season models are cached (memory 30min + IDB 24h, bounded) so
 // repeat visits and chain-walk revisits cost zero AniList requests — critical
@@ -57,18 +58,36 @@ export function normalizeTitleStem(raw: string): string {
 export { getFranchiseTitle } from '../../lib/titles'
 
 // Slim spine hop: id + titles + format + one-level nested relations of every
-// related node. Small (~6KB vs ~60KB) and carries everything the chain walk
-// needs: sequel/prequel TV ids AND their mutual back-links, verifiable purely
-// in memory with zero follow-up fetches for the walk itself.
+// One query serves BOTH the chain walk and the display model. Each hop
+// carries full display fields for its own node PLUS the nested back-link
+// ids/titles/formats needed to verify the NEXT step in memory — so the walk
+// needs exactly one request per chain step and zero follow-up fetches of any
+// kind (no slim pass, no batch pass, no per-season Media queries).
 const SPINE_QUERY = `
 query ($id: Int) {
   Media(id: $id, type: ANIME) {
     id
+    idMal
     title { romaji english native }
-    format
-    seasonYear
+    description
+    coverImage { extraLarge large medium }
+    bannerImage
     startDate { year month day }
+    season
+    seasonYear
     episodes
+    duration
+    status
+    averageScore
+    genres
+    studios { edges { isMain } nodes { name isAnimationStudio } }
+    format
+    popularity
+    streamingEpisodes { title thumbnail url site }
+    trailer { id site }
+    nextAiringEpisode { airingAt timeUntilAiring episode }
+    airingSchedule { nodes { airingAt episode } }
+    isAdult
     relations {
       edges {
         relationType
@@ -92,13 +111,9 @@ query ($id: Int) {
 }
 `
 
-type SlimNode = {
-  id: number
-  title?: { romaji?: string | null; english?: string | null; native?: string | null } | null
-  format?: string | null
-  seasonYear?: number | null
-  startDate?: { year?: number | null } | null
-  episodes?: number | null
+// A spine hop IS a full media node (walk fields + display fields together).
+// Display mapping reuses mapAniListMediaToAnime directly — no second fetch.
+type SlimNode = AniListMedia & {
   relations?: { edges?: { relationType: string; node: SlimEdgeNode }[] }
 }
 
@@ -120,48 +135,6 @@ async function fetchSpine(id: number, signal?: AbortSignal): Promise<SlimNode> {
   const data = await anilistGraphQL<SpineResponse>(SPINE_QUERY, { id }, { cacheKey: `anilist:spine:${id}`, useCache: true, signal })
   if (!data.Media) throw new Error('Not found')
   return data.Media
-}
-
-// Full display fields for a batch of known ids in ONE request (multi-aliased
-// Media). Used after the slim walk fixes the chain: N ids, 1 round trip,
-// resolved server-side in parallel. Cache keys match the single-Media path
-// (`anilist:anime:<id>`) so page metadata and series data share entries.
-const FULL_NODE_FIELDS = `
-  id
-  idMal
-  title { romaji english native }
-  description
-  coverImage { extraLarge large medium }
-  bannerImage
-  startDate { year month day }
-  season
-  seasonYear
-  episodes
-  duration
-  status
-  averageScore
-  genres
-  studios { edges { isMain } nodes { name isAnimationStudio } }
-  format
-  popularity
-  streamingEpisodes { title thumbnail url site }
-  trailer { id site }
-  nextAiringEpisode { airingAt timeUntilAiring episode }
-  airingSchedule { nodes { airingAt episode } }
-  isAdult
-`
-
-async function fetchFullBatch(ids: number[], signal?: AbortSignal): Promise<(AniListMedia | null)[]> {
-  const unique = [...new Set(ids.filter((id) => Number.isFinite(id) && id > 0))].slice(0, 12)
-  if (!unique.length) return ids.map(() => null)
-  const parts = unique.map((id, i) => `m${i}: Media(id: ${id}, type: ANIME) { ${FULL_NODE_FIELDS} }`).join('\n')
-  const query = `query { ${parts} }`
-  type BatchRes = { [k: string]: AniListMedia | null }
-  const data = await anilistGraphQL<BatchRes>(query, {}, { cacheKey: `anilist:batch:${unique.join(',')}`, useCache: true, signal })
-  return ids.map((id) => {
-    const idx = unique.indexOf(id)
-    return idx >= 0 ? (data?.[`m${idx}`] ?? null) : null
-  })
 }
 
 // Walk PREQUEL chain to find root (earliest season), using slim spine hops.
@@ -328,8 +301,9 @@ export async function getSeriesGroup(animeId: number, opts?: { signal?: AbortSig
 async function buildSeriesGroup(animeId: number, signal?: AbortSignal): Promise<AnimeSeriesGroup | null> {
   try {
     if (signal?.aborted) throw new DOMException('Aborted', 'AbortError')
-    // Phase 1 — slim spine walk (small payloads, in-memory verification):
-    // one hop per chain step, zero follow-up fetches for back-link checks.
+    // Single walk: each hop already carries full display fields, so the
+    // collected chain maps straight to seasons — no batch pass, no
+    // per-season Media queries. One request per chain step, nothing else.
     const initial = await fetchSpine(animeId, signal)
     if (!isSeasonFormat(initial.format)) {
       return null
@@ -337,21 +311,17 @@ async function buildSeriesGroup(animeId: number, signal?: AbortSignal): Promise<
     const root = await findRootSpine(initial, signal)
     const { chain, confidence } = await collectSpine(root, signal)
     if (chain.length <= 1) return null
-    // Phase 2 — one aliased batch fetches FULL display fields for every chain
-    // id in a single request (parallel server-side), instead of N sequential
-    // full fetches. Cache keys match the single-Media path so page metadata
-    // and series data share entries.
-    const full = await fetchFullBatch(
-      chain.map((n) => n.id),
-      signal,
-    )
-    const seasonMedias = chain.map((_n, i) => full[i] ?? null)
-    if (seasonMedias.some((m) => !m)) return null
-    const seasons: Anime[] = (seasonMedias as AniListMedia[]).map((m) => mapAniListMediaToAnime(m as any))
+    const seasons: Anime[] = chain.map((m) => {
+      const anime = mapAniListMediaToAnime(m as any)
+      // Every hop is a full media record: publish it to the shared cache so
+      // the page Media query (and later visits) cost zero network.
+      if (m?.id) putCachedAnime(m.id, anime)
+      return anime
+    })
 
     // Compute franchise title from root, normalized
     const franchiseRomaji = getFranchiseTitle(root.title?.romaji ?? seasons[0]?.title.romaji ?? '')
-    const years = seasonMedias.map((m) => m?.seasonYear ?? m?.startDate?.year).filter(Boolean) as number[]
+    const years = chain.map((m) => m?.seasonYear ?? m?.startDate?.year).filter(Boolean) as number[]
     const span = years.length ? { from: Math.min(...years), to: Math.max(...years) } : undefined
 
     return {

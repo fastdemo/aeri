@@ -4,9 +4,20 @@ import type { Anime, AnimeStatus } from '../../types/anime'
 import { EpisodeList, getEpisodes } from '../episodes/EpisodeList'
 import { useTracking } from '../../contexts/TrackingContext'
 import { useSeriesGroup } from '../../hooks/useSeriesGroup'
+import { displayRating, formatRating } from '../../lib/rating'
 import { getTitleHierarchy } from '../../lib/titles'
 import { sanitizeAnimeForDisplay, sanitizeGroup, getDisplayEpisodeNumber } from '../../lib/episodes'
 import { formatLabel, statusLabel } from '../../lib/mediaLabels'
+
+function ScoreBadge({ anime, trackingProvider }: { anime: Anime; trackingProvider?: 'anilist' | 'mal' | null }) {
+  const text = formatRating(displayRating(anime, trackingProvider))
+  if (!text) return null
+  return (
+    <span className="inline-flex items-center gap-1 rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+      <span className="text-white">★</span> {text}
+    </span>
+  )
+}
 
 export function DetailModal({
   anime,
@@ -16,7 +27,7 @@ export function DetailModal({
   onClose: () => void
 }) {
   const dialogRef = useRef<HTMLDivElement>(null)
-  const { isAuthenticated, combinedList, updateStatus, error: trackingError } = useTracking()
+  const { isAuthenticated, combinedList, updateStatus, error: trackingError, trackingProvider } = useTracking()
   const [syncing, setSyncing] = useState<string | null>(null)
   const [localError, setLocalError] = useState<string | null>(null)
   const [showStatusPicker, setShowStatusPicker] = useState(false)
@@ -297,11 +308,7 @@ export function DetailModal({
             </div>
             <div className="flex flex-wrap items-center gap-2 text-[12px] text-white/70">
               <span>{metaParts}</span>
-              {displayAnime.rating && (
-                <span className="inline-flex items-center gap-1 rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-                  <span className="text-white">★</span> {displayAnime.rating.toFixed(1)}
-                </span>
-              )}
+              <ScoreBadge anime={displayAnime} trackingProvider={trackingProvider} />
             </div>
 
             {!isMovie && (() => {

@@ -1,4 +1,4 @@
-export type ProviderErrorCode = 'NETWORK' | 'AUTH' | 'NOT_FOUND' | 'UNKNOWN'
+export type ProviderErrorCode = 'NETWORK' | 'AUTH' | 'NOT_FOUND' | 'UNKNOWN' | 'THROTTLED'
 
 export class ProviderError extends Error {
   code: ProviderErrorCode

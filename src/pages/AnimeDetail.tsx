@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { EpisodeList } from '../components/episodes/EpisodeList'
 import { useTracking } from '../contexts/TrackingContext'
+import { displayRating, formatRating } from '../lib/rating'
 import { useAnimeDetail } from '../hooks/useAnimeMetadata'
 import { useSeriesGroup } from '../hooks/useSeriesGroup'
 import { getTitleHierarchy } from '../lib/titles'
@@ -11,7 +12,7 @@ import { formatLabel, statusLabel } from '../lib/mediaLabels'
 export function AnimeDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { combinedList } = useTracking()
+  const { combinedList, trackingProvider } = useTracking()
   const animeList = combinedList
 
   // Try to resolve from the active tracker's list first (real, with progress)
@@ -133,7 +134,7 @@ export function AnimeDetail() {
             )}
             <p className="mt-1 text-sm text-white/60">
               {[displayAnime.year, formatLabel(displayAnime.format), !isMovie && displayAnime.episodes ? `${displayAnime.episodes} episodes` : null].filter(Boolean).join(' • ')}
-              {displayAnime.rating ? ` • ${displayAnime.rating.toFixed(1)}` : ''}
+              {(() => { const r = formatRating(displayRating(displayAnime, trackingProvider)); return r ? ` • ${r}` : '' })()}
             </p>
             <div className="mt-3 flex gap-2">
               <Link to={`/watch/${displayAnime.identity.internalId}/1`} className="rounded-full bg-white px-5 py-2 text-sm font-semibold text-black">Play</Link>
