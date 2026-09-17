@@ -17,6 +17,8 @@ const MEDIA_FIELDS = `
   season
   seasonYear
   episodes
+  chapters
+  volumes
   duration
   status
   averageScore

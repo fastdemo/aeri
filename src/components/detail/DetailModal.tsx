@@ -13,8 +13,8 @@ function ScoreBadge({ anime, trackingProvider }: { anime: Anime; trackingProvide
   const text = formatRating(displayRating(anime, trackingProvider))
   if (!text) return null
   return (
-    <span className="inline-flex items-center gap-1 rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-      <span className="text-white">★</span> {text}
+    <span className="inline-flex items-center gap-1 rounded bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--text)]">
+      <span className="text-[var(--text)]">★</span> {text}
     </span>
   )
 }
@@ -152,7 +152,7 @@ export function DetailModal({
   const metaParts = [formatLabel(displayAnime.format), displayAnime.year ? String(displayAnime.year) : null, displayAnime.season ? displayAnime.season.charAt(0) + displayAnime.season.slice(1).toLowerCase() : null, !isMovie && displayAnime.episodes ? `${displayAnime.episodes} Episodes` : null, statusLabel(displayAnime.status)].filter(Boolean).join(' • ')
 
   return (
-    <div className="fixed inset-x-0 bottom-0 top-14 z-40 flex items-start justify-center overflow-y-auto bg-black/75 p-2 backdrop-blur-[2px] anim-fade-in sm:p-6 lg:p-8">
+    <div className="fixed inset-x-0 bottom-0 top-14 z-40 flex items-start justify-center overflow-y-auto bg-[color-mix(in_srgb,var(--bg)_75%,transparent)] p-2 backdrop-blur-[2px] anim-fade-in sm:p-6 lg:p-8">
       <button aria-label="Close" onClick={onClose} className="fixed inset-0 top-14 cursor-default" tabIndex={-1} />
       <div
         ref={dialogRef}
@@ -160,12 +160,12 @@ export function DetailModal({
         aria-modal="true"
         aria-label={titles.primary}
         tabIndex={-1}
-        className="relative my-2 flex max-h-none w-full max-w-[980px] flex-col overflow-visible rounded-xl bg-[#0e0e10] shadow-[0_24px_64px_rgba(0,0,0,0.9)] outline-none anim-pop-in-center sm:my-6"
+        className="relative my-2 flex max-h-none w-full max-w-[980px] flex-col overflow-visible rounded-xl bg-[var(--bg-soft)] shadow-[0_24px_64px_var(--shadow)] outline-none anim-pop-in-center sm:my-6"
       >
         <button
           onClick={onClose}
           aria-label="Close"
-          className="absolute right-3 top-3 z-20 grid h-8 w-8 place-items-center rounded-full bg-black/60 text-white backdrop-blur hover:bg-black/80"
+          className="absolute right-3 top-3 z-20 grid h-8 w-8 place-items-center rounded-full bg-[color-mix(in_srgb,var(--bg)_60%,transparent)] text-[var(--text)] backdrop-blur hover:bg-[color-mix(in_srgb,var(--bg)_80%,transparent)]"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M18 6 6 18M6 6l12 12" />
@@ -179,28 +179,27 @@ export function DetailModal({
             className="absolute inset-0"
             style={{
               background:
-                'linear-gradient(0deg, #0e0e10 6%, rgba(14,14,16,0.85) 18%, rgba(14,14,16,0.35) 42%, transparent 68%)',
+                'linear-gradient(180deg, color-mix(in srgb, var(--bg) 55%, transparent) 0%, transparent 22%, transparent 55%, color-mix(in srgb, var(--bg) 45%, transparent) 78%, var(--bg) 100%)',
             }}
           />
-          <div aria-hidden className="absolute inset-x-0 top-0 h-28" style={{ background: 'linear-gradient(to bottom right, rgba(0,0,0,0.72) 0%, rgba(0,0,0,0.28) 38%, transparent 62%)' }} />
           <div className="absolute left-6 top-6 hidden max-w-[520px] sm:block">
-            <h2 className="text-[28px] font-semibold leading-none tracking-tighter text-white drop-shadow">
+            <h2 className="text-[28px] font-semibold leading-none tracking-tighter text-[var(--text)] drop-shadow">
               {titles.primary}
             </h2>
-            {titles.native && <p className="mt-1 text-xs text-white/65">{titles.native}</p>}
-            {titles.romaji && <p className="mt-1 text-[11px] tracking-wide text-white/50">{titles.romaji}</p>}
+            {titles.native && <p className="mt-1 text-xs text-[var(--text-muted)]">{titles.native}</p>}
+            {titles.romaji && <p className="mt-1 text-[11px] tracking-wide text-[var(--text-faint)]">{titles.romaji}</p>}
           </div>
 
           <div className="absolute bottom-0 left-0 right-0 flex flex-wrap items-center gap-2 px-4 pb-4 sm:px-6">
             {barPercent > 0 && (
-              <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-white/15">
-                <div className="h-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.7)]" style={{ width: `${barPercent}%` }} />
+              <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-[color-mix(in_srgb,var(--text)_15%,transparent)]">
+                <div className="h-full bg-[var(--text)] shadow-[0_0_8px_var(--shadow)]" style={{ width: `${barPercent}%` }} />
               </div>
             )}
 
             <Link
               to={`/watch/${displayAnime.identity.internalId}/${hasWatched ? resumeEp : 1}`}
-              className="inline-flex h-8 items-center gap-1.5 rounded bg-white px-4 text-[13px] font-semibold text-black hover:bg-white/90"
+              className="inline-flex h-8 items-center gap-1.5 rounded bg-[var(--text)] px-4 text-[13px] font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]"
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M8 5.14v13.72L19 12z" />
@@ -208,7 +207,7 @@ export function DetailModal({
               {hasWatched ? 'Resume' : 'Play'}
             </Link>
             {hasWatched && (
-              <span className="text-xs text-white/70">
+              <span className="text-xs text-[var(--text-muted)]">
                 {resumeEp}{displayAnime.episodes && displayAnime.episodes > 0 ? ` of ${displayAnime.episodes}` : ''} • {barPercent}% watched
               </span>
             )}
@@ -236,10 +235,10 @@ export function DetailModal({
                       setShowStatusPicker((v) => !v)
                     }
                   }}
-                  className={`grid h-8 w-8 place-items-center rounded-full border bg-black/30 backdrop-blur hover:bg-white/10 ${currentStatus ? 'border-white/30 text-white bg-white/10' : 'border-white/20 text-white'}`}
+                  className={`grid h-8 w-8 place-items-center rounded-full border bg-[color-mix(in_srgb,var(--bg)_30%,transparent)] backdrop-blur hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)] ${currentStatus ? 'border-[var(--border-strong)] text-[var(--text)] bg-[color-mix(in_srgb,var(--text)_10%,transparent)]' : 'border-[var(--border-strong)] text-[var(--text)]'}`}
                 >
                   {syncing === 'status' ? (
-                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--border-strong)] border-t-[var(--text)]" />
                   ) : currentStatus ? (
                     <span className="text-[10px] font-bold">{currentStatus === 'watching' ? '●' : currentStatus === 'completed' ? '✓' : '+'}</span>
                   ) : (
@@ -249,7 +248,7 @@ export function DetailModal({
                   )}
                 </button>
                 {showStatusPicker && (
-                  <div className="absolute right-0 top-9 z-10 w-40 overflow-hidden rounded-lg border border-white/10 bg-[#1c1c1e] shadow-xl anim-pop-in">
+                  <div className="absolute right-0 top-9 z-10 w-40 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] shadow-xl anim-pop-in">
                     {(['watching', 'completed', 'planned', 'on_hold', 'dropped'] as AnimeStatus[]).map((s) => (
                       <button
                         key={s}
@@ -264,7 +263,7 @@ export function DetailModal({
                             setSyncing(null)
                           }
                         }}
-                        className={`flex w-full items-center justify-between px-3 py-2 text-xs hover:bg-white/10 ${currentStatus === s ? 'bg-white/10 text-white' : 'text-white/70'}`}
+                        className={`flex w-full items-center justify-between px-3 py-2 text-xs hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)] ${currentStatus === s ? 'bg-[color-mix(in_srgb,var(--text)_10%,transparent)] text-[var(--text)]' : 'text-[var(--text-muted)]'}`}
                       >
                         <span className="capitalize">{s.replace('_', ' ')}</span>
                         {currentStatus === s && <span className="text-[10px]">●</span>}
@@ -278,23 +277,23 @@ export function DetailModal({
         </div>
 
         {(localError || trackingError) && (
-          <div className="mx-4 mt-3 rounded border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-200/90 sm:mx-6">
+          <div className="mx-4 mt-3 rounded border border-[var(--warn)] bg-[var(--warn)] px-3 py-2 text-xs text-[var(--warn)] sm:mx-6">
             {localError ?? trackingError}
           </div>
         )}
         {isAuthenticated && (currentStatus || currentScore !== null) && (
           <div className="flex flex-wrap gap-2 px-4 pt-3 text-[11px] sm:px-6">
             {currentStatus && (
-              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-white/70">
-                Status: <span className="capitalize text-white">{currentStatus.replace('_', ' ')}</span>
+              <span className="rounded-full border border-[var(--border)] bg-[color-mix(in_srgb,var(--text)_5%,transparent)] px-2 py-1 text-[var(--text-muted)]">
+                Status: <span className="capitalize text-[var(--text)]">{currentStatus.replace('_', ' ')}</span>
               </span>
             )}
             {currentScore !== null && currentScore > 0 && (
-              <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-white/90">
-                <span className="text-white">★</span> {currentScore}/10
+              <span className="rounded-full border border-[var(--border)] bg-[color-mix(in_srgb,var(--text)_5%,transparent)] px-2 py-1 text-[var(--text)]">
+                <span className="text-[var(--text)]">★</span> {currentScore}/10
               </span>
             )}
-            {syncing && <span className="px-2 py-1 text-white/50">Syncing…</span>}
+            {syncing && <span className="px-2 py-1 text-[var(--text-faint)]">Syncing…</span>}
           </div>
         )}
 
@@ -302,11 +301,11 @@ export function DetailModal({
           <div className="min-w-0">
             {/* Mobile title hierarchy — visible only when desktop overlay hidden */}
             <div className="mb-3 sm:hidden">
-              <h2 className="text-[20px] font-semibold leading-none tracking-tighter text-white">{titles.primary}</h2>
-              {titles.native && <p className="mt-1 text-xs text-white/60">{titles.native}</p>}
-              {titles.romaji && <p className="mt-1 text-[11px] tracking-wide text-white/50">{titles.romaji}</p>}
+              <h2 className="text-[20px] font-semibold leading-none tracking-tighter text-[var(--text)]">{titles.primary}</h2>
+              {titles.native && <p className="mt-1 text-xs text-[var(--text-muted)]">{titles.native}</p>}
+              {titles.romaji && <p className="mt-1 text-[11px] tracking-wide text-[var(--text-faint)]">{titles.romaji}</p>}
             </div>
-            <div className="flex flex-wrap items-center gap-2 text-[12px] text-white/70">
+            <div className="flex flex-wrap items-center gap-2 text-[12px] text-[var(--text-muted)]">
               <span>{metaParts}</span>
               <ScoreBadge anime={displayAnime} trackingProvider={trackingProvider} />
             </div>
@@ -325,18 +324,18 @@ export function DetailModal({
               if (!epTitle && !hasWatched && !displayAnime.progress) return null
               const sNum = selectedSeasonIdx + 1
               return (
-                <p className="mt-2 text-[12px] font-semibold text-white/90">
+                <p className="mt-2 text-[12px] font-semibold text-[var(--text)]">
                   S{sNum}:E{target.displayNumber} {epTitle ? `• ${epTitle}` : ''}
                 </p>
               )
             })()}
-            <p className="mt-1 line-clamp-3 text-[13px] leading-6 text-white/70">
+            <p className="mt-1 line-clamp-3 text-[13px] leading-6 text-[var(--text-muted)]">
               {displayAnime.description || 'No description available.'}
             </p>
 
             {!isMovie && !groupReady && (
               <div className="mt-4" aria-label="Loading seasons">
-                <div className="h-[30px] w-32 animate-pulse rounded-full bg-white/5" />
+                <div className="h-[30px] w-32 animate-pulse rounded-full bg-[color-mix(in_srgb,var(--text)_5%,transparent)]" />
               </div>
             )}
             {!isMovie && groupReady && effectiveGroup && (
@@ -346,15 +345,15 @@ export function DetailModal({
                     value={String(selectedSeasonIdx)}
                     onChange={e => setSelectedSeasonIdx(Number(e.target.value))}
                     aria-label="Select season"
-                    className="appearance-none rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 pr-8 text-xs font-medium text-white focus:border-white/20 focus:outline-none"
+                    className="appearance-none rounded-full border border-[var(--border)] bg-[var(--text)]/[0.06] px-3 py-1.5 pr-8 text-xs font-medium text-[var(--text)] focus:border-[var(--border-strong)] focus:outline-none"
                   >
                     {effectiveGroup.seasons.map((s, idx) => (
-                      <option key={s.identity.anilistId ? `anilist:${s.identity.anilistId}` : s.identity.internalId} value={String(idx)} className="bg-[#141416]">
+                      <option key={s.identity.anilistId ? `anilist:${s.identity.anilistId}` : s.identity.internalId} value={String(idx)} className="bg-[var(--surface)]">
                         Season {idx + 1}
                       </option>
                     ))}
                   </select>
-                  <svg aria-hidden className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-white/50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <svg aria-hidden className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--text-faint)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <path d="m6 9 6 6 6-6" />
                   </svg>
                 </div>
@@ -363,7 +362,7 @@ export function DetailModal({
 
             {!isMovie && (
               <>
-                <h3 className="mt-6 text-[14px] font-semibold text-white">Episodes</h3>
+                <h3 className="mt-6 text-[14px] font-semibold text-[var(--text)]">Episodes</h3>
                 <div className="mt-3">
                   <EpisodeList key={displayKey} anime={displayAnime} seasonNumber={selectedSeasonIdx + 1} />
                 </div>
@@ -371,35 +370,35 @@ export function DetailModal({
             )}
           </div>
 
-          <div className="space-y-3 border-t border-white/10 pt-4 lg:border-t-0 lg:pt-0">
+          <div className="space-y-3 border-t border-[var(--border)] pt-4 lg:border-t-0 lg:pt-0">
             {displayAnime.genres.length > 0 && (
               <div className="text-xs leading-5">
-                <span className="text-white/50">Genres: </span>
-                <span className="text-white/80">{displayAnime.genres.join(', ')}</span>
+                <span className="text-[var(--text-faint)]">Genres: </span>
+                <span className="text-[var(--text)]">{displayAnime.genres.join(', ')}</span>
               </div>
             )}
             {displayAnime.studios && displayAnime.studios.length > 0 && (
               <div className="text-xs leading-5">
-                <span className="text-white/50">Studios: </span>
-                <span className="text-white/80">{displayAnime.studios.join(', ')}</span>
+                <span className="text-[var(--text-faint)]">Studios: </span>
+                <span className="text-[var(--text)]">{displayAnime.studios.join(', ')}</span>
               </div>
             )}
             {formatLabel(displayAnime.format) && (
               <div className="text-xs leading-5">
-                <span className="text-white/50">Format: </span>
-                <span className="text-white/80">{formatLabel(displayAnime.format)}</span>
+                <span className="text-[var(--text-faint)]">Format: </span>
+                <span className="text-[var(--text)]">{formatLabel(displayAnime.format)}</span>
               </div>
             )}
             {statusLabel(displayAnime.status) && (
               <div className="text-xs leading-5">
-                <span className="text-white/50">Status: </span>
-                <span className="text-white/80">{statusLabel(displayAnime.status)}</span>
+                <span className="text-[var(--text-faint)]">Status: </span>
+                <span className="text-[var(--text)]">{statusLabel(displayAnime.status)}</span>
               </div>
             )}
             {displayAnime.year && (
               <div className="text-xs leading-5">
-                <span className="text-white/50">Year: </span>
-                <span className="text-white/80">{displayAnime.year}{displayAnime.season ? ` • ${displayAnime.season.charAt(0) + displayAnime.season.slice(1).toLowerCase()}` : ''}</span>
+                <span className="text-[var(--text-faint)]">Year: </span>
+                <span className="text-[var(--text)]">{displayAnime.year}{displayAnime.season ? ` • ${displayAnime.season.charAt(0) + displayAnime.season.slice(1).toLowerCase()}` : ''}</span>
               </div>
             )}
           </div>

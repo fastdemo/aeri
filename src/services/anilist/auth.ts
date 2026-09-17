@@ -251,7 +251,24 @@ export async function handleAnilistOAuthCallback(): Promise<string | null> {
     // Do not throw, just proceed
   }
 
-  const tokenRes = await exchangeAnilistCodeForToken(code, state)
+  const tokenRes = await exchangeAnilistCodeForToken(code, state).catch((e) => {
+    // ANY exchange failure must clean the URL + state, or the stuck ?code=
+    // re-triggers this same failure on every load and the app sits on a
+    // black non-hash page (same bug class as the MAL callback incident).
+    try {
+      localStorage.removeItem('aeri:anilist:last_code')
+      sessionStorage.removeItem('aeri:signin:oauth')
+    } catch {}
+    clearAnilistOAuthState()
+    try {
+      const u = new URL(window.location.href)
+      u.searchParams.delete('code')
+      u.searchParams.delete('state')
+      const base = (import.meta as any).env?.BASE_URL as string || '/'
+      window.history.replaceState(null, '', `${window.location.origin}${base}#/`)
+    } catch {}
+    throw e
+  })
   const token = tokenRes.access_token
   if (!token) throw new Error('AniList token exchange returned no access_token')
   const expiresIn = tokenRes.expires_in

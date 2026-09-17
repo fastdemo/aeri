@@ -3,6 +3,7 @@ import { HeroCarousel } from '../components/hero/Hero'
 import { AnimeCard } from '../components/cards/AnimeCard'
 import { ContentRow } from '../components/rows/ContentRow'
 import { DetailModal } from '../components/detail/DetailModal'
+import { SignInModal } from '../components/auth/SignInModal'
 import type { Anime } from '../types/anime'
 import { useTracking } from '../contexts/TrackingContext'
 import { RowSkeleton } from '../components/ui/Skeleton'
@@ -36,7 +37,7 @@ function Section({
       )
     }
     return (
-      <div className="rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-amber-200/70">
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--text)]/[0.03] px-4 py-3 text-xs text-[var(--warn)]">
         {state.error}
       </div>
     )
@@ -140,6 +141,7 @@ function ensureMinRow(primary: Anime[], fallback: Anime[], min: number, used?: S
 
 export function Home() {
   const [selected, setSelected] = useState<Anime | null>(null)
+  const [signInOpen, setSignInOpen] = useState(false)
   const mountSalt = useRef(Math.floor(Math.random() * 1e9))
   const { isAuthenticated, trackingProvider, combinedList, loading, error, authExpired } = useTracking()
   const location = useLocation()
@@ -147,7 +149,11 @@ export function Home() {
   // Close modal on navigation (fixes navbar Home click while modal open)
   useEffect(() => { setSelected(null) }, [location.pathname, location.hash, location.search])
 
-  const handleSelect = (a: Anime) => setSelected(a)
+  const handleSelect = (a: Anime) => {
+    // Signed-out users get the sign-in gate, not the preview card.
+    if (!isAuthenticated) { setSignInOpen(true); return }
+    setSelected(a)
+  }
 
   // Fetch larger pools so varied sampling has room to vary
   const trending = useTrending(24)
@@ -250,14 +256,12 @@ export function Home() {
     ])
   }, [trending.data, popular.data, airing.data, news.data])
 
-  // --- Personalized: "Because you watched X" — first-genre match ---
-  // Takes the reference show's FIRST genre (e.g. AoT → "Action") and shows
-  // only pool titles whose FIRST genre is the same. Strict, predictable,
-  // no genre-soup: every card visibly belongs with the reference.
-  // Reference = 50/50 highest-weighted (old scoring) vs most-recently-active
-  // (updatedAt desc). Row = 5 from each, highest first, recent second,
-  // interleaved A B A B… and deduped — deterministic, no shuffle.
-  const becausePair = useMemo(() => {
+  // --- Personalized: "Because you watched X" — ONE row, mixed 50/50.
+  // Pool A = highest-weighted entry's first-genre matches (rating ordered).
+  // Pool B = most-recent entry's first-genre matches (rating ordered).
+  // Row = A,B,A,B... interleaved, deduped. No forced ratio when a pool is
+  // short; row needs >= 2 total. Deterministic: same list+pool, same row.
+  const becauseRecommendations = useMemo(() => {
     if (!isAuthenticated || !combinedList || !combinedList.length || !allPool.length) return null
     const listIds = new Set(combinedList.map(e => e.anime.identity.internalId))
     const poolIds = new Set(allPool.map(a => a.identity.internalId))
@@ -268,55 +272,48 @@ export function Home() {
     }
     const eligible = combinedList.filter(e => e.anime.genres?.length && matchCount(e.anime.genres) >= 2)
     if (!eligible.length) return null
-    // Highest: the old weight scoring (status/score/rating/pop/recency/pool).
-    const byWeight = [...eligible].sort((a, b) => {
-      const w = (e: typeof a) => {
-        const statusWeight = e.status === 'watching' ? 4 : e.status === 'completed' ? 3 : e.status === 'planned' ? 0.5 : 1
-        const scoreWeight = ((e.score ?? 5) / 10) + 0.6
-        const ratingWeight = ((e.anime.rating ?? 7) / 10) + 0.6
-        const popularityWeight = e.anime.popularity ? Math.min(1.2, Math.log10(e.anime.popularity + 10) / 5) + 0.5 : 0.8
-        const recencyWeight = e.status === 'watching' ? 1.1 + Math.min(0.4, e.progress / 24) : 1
-        const avail = matchCount(e.anime.genres)
-        const availabilityWeight = avail >= 8 ? 1.3 : avail >= 4 ? 1.0 : avail >= 2 ? 0.6 : 0.3
-        const poolBoost = poolIds.has(e.anime.identity.internalId) ? 1.1 : 1
-        return statusWeight * scoreWeight * ratingWeight * popularityWeight * recencyWeight * availabilityWeight * poolBoost
-      }
-      return w(b) - w(a)
-    })[0]!
-    // Most recent: last list activity first (unknown timestamps sort last).
+    const weightOf = (e: (typeof eligible)[number]) => {
+      const statusWeight = e.status === 'watching' ? 4 : e.status === 'completed' ? 3 : e.status === 'planned' ? 0.5 : 1
+      const scoreWeight = ((e.score ?? 5) / 10) + 0.6
+      const ratingWeight = ((e.anime.rating ?? 7) / 10) + 0.6
+      const popularityWeight = e.anime.popularity ? Math.min(1.2, Math.log10(e.anime.popularity + 10) / 5) + 0.5 : 0.8
+      const recencyWeight = e.status === 'watching' ? 1.1 + Math.min(0.4, e.progress / 24) : 1
+      const avail = matchCount(e.anime.genres)
+      const availabilityWeight = avail >= 8 ? 1.3 : avail >= 4 ? 1.0 : avail >= 2 ? 0.6 : 0.3
+      const poolBoost = poolIds.has(e.anime.identity.internalId) ? 1.1 : 1
+      return statusWeight * scoreWeight * ratingWeight * popularityWeight * recencyWeight * availabilityWeight * poolBoost
+    }
+    const byWeight = [...eligible].sort((a, b) => weightOf(b) - weightOf(a))[0]!
     const byRecent = [...eligible].sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))[0]!
-    return { byWeight, byRecent }
-  }, [isAuthenticated, combinedList, allPool])
-
-  const becauseRecommendations = useMemo(() => {
-    if (!becausePair || !allPool.length) return null
-    const listIds = new Set((combinedList ?? []).map(e => e.anime.identity.internalId))
-    // pool excluding already in list and both refs
-    listIds.add(becausePair.byWeight.anime.identity.internalId)
-    listIds.add(becausePair.byRecent.anime.identity.internalId)
-    const matchesFor = (ref: (typeof combinedList extends (infer U)[] | null | undefined ? U : never)['anime']) => {
-      const first = ref.genres[0]?.toLowerCase()
-      if (!first) return []
+    const matchesFor = (ref: (typeof eligible)[number]) => {
+      const first = ref.anime.genres[0]?.toLowerCase()
+      if (!first) return [] as Anime[]
       return allPool
-        .filter(a => !listIds.has(a.identity.internalId) && a.genres[0]?.toLowerCase() === first)
+        .filter(a => !listIds.has(a.identity.internalId) && a.identity.internalId !== ref.anime.identity.internalId && a.genres[0]?.toLowerCase() === first)
         .sort((a, b) => ((b.rating ?? 0) - (a.rating ?? 0)) || ((b.popularity ?? 0) - (a.popularity ?? 0)))
         .slice(0, 5)
     }
-    const fromHigh = matchesFor(becausePair.byWeight.anime)
-    const fromRecent = matchesFor(becausePair.byRecent.anime)
-    // Interleave 50/50: highest, recent, highest, recent… deduped.
-    const out: Anime[] = []
+    const poolA = matchesFor(byWeight)
+    const poolB = matchesFor(byRecent)
+    const items: Anime[] = []
     const seen = new Set<string>()
     for (let i = 0; i < 5; i++) {
-      for (const cand of [fromHigh[i], fromRecent[i]]) {
+      for (const cand of [poolA[i], poolB[i]]) {
         if (cand && !seen.has(cand.identity.internalId)) {
           seen.add(cand.identity.internalId)
-          out.push(cand)
+          items.push(cand)
         }
       }
     }
-    return out.length >= 2 ? { refs: becausePair, items: out } : null
-  }, [becausePair, allPool, combinedList])
+    if (items.length < 2) return null
+    const titleOf = (e: (typeof eligible)[number]) => e.anime.title.english?.trim() || e.anime.title.romaji
+    const sameRef = byWeight.anime.identity.internalId === byRecent.anime.identity.internalId
+    const refTitle = sameRef ? titleOf(byWeight) : `${titleOf(byWeight)} + ${titleOf(byRecent)}`
+    const subA = byWeight.anime.genres[0]
+    const subB = byRecent.anime.genres[0]
+    const subtitle = subA && subB && subA !== subB ? `${subA} / ${subB}` : (subA || subB)
+    return { refTitle, subtitle, items }
+  }, [isAuthenticated, combinedList, allPool])
 
   // Derived categories from pool (filtered, not additional fetches) — varied pools, always ≥10 for visual fullness
   const derived = useMemo(() => {
@@ -414,15 +411,9 @@ export function Home() {
       const v = ensureMinRow(derived.topPicks, allPool, 10, undefined, 'sec:toppicks', stableOrder)
       if (v.length) personalized.push({ key: 'toppicks', title: 'Top Picks for You', subtitle: derived.topGenres?.length ? derived.topGenres.join(' • ') : undefined, data: v })
     }
-    // Because row: fixed interleaved picks (no shuffle, no padding — the
-    // picks ARE the row, exactly as computed).
+    // Because row: ONE reference show + right-side genre subheading.
     if (becauseRecommendations && becauseRecommendations.items.length >= 2) {
-      const { refs, items } = becauseRecommendations
-      const titles = [refs.byWeight, refs.byRecent].map(e => e.anime.title.english?.trim() || e.anime.title.romaji)
-      const genres = [refs.byWeight, refs.byRecent].map(e => e.anime.genres[0]).filter(Boolean)
-      const refTitle = titles[0] === titles[1] ? titles[0] : `${titles[0]} + ${titles[1]}`
-      const subtitle = [...new Set(genres)].join(' • ') || undefined
-      personalized.push({ key: 'because', title: `Because you watched ${refTitle}`, subtitle, data: items })
+      personalized.push({ key: 'because', title: `Because you watched ${becauseRecommendations.refTitle}`, subtitle: becauseRecommendations.subtitle, data: becauseRecommendations.items })
     }
 
     // Section order: Trending first, rest in mount-stable varied order (fresh
@@ -447,19 +438,19 @@ export function Home() {
       <div className="mx-auto max-w-[1600px] px-0 sm:px-6 lg:px-12">
         <div className="px-0 sm:px-0">
           {trending.loading ? (
-            <div className="aspect-[21/9] w-full animate-pulse rounded-xl bg-white/5 lg:min-h-[460px]" />
+            <div className="aspect-[21/9] w-full animate-pulse rounded-xl bg-[color-mix(in_srgb,var(--text)_5%,transparent)] lg:min-h-[460px]" />
           ) : trending.error ? (
-            <div className="flex aspect-[21/9] w-full items-center justify-center rounded-xl bg-white/[0.03] px-6 text-center lg:min-h-[460px]">
+            <div className="flex aspect-[21/9] w-full items-center justify-center rounded-xl bg-[var(--text)]/[0.03] px-6 text-center lg:min-h-[460px]">
               <div>
-                <p className="text-sm text-amber-200/80">{trending.error}</p>
-                <p className="mt-1 text-xs text-white/40">Hero unavailable — other rows still work</p>
+                <p className="text-sm text-[var(--warn)]">{trending.error}</p>
+                <p className="mt-1 text-xs text-[var(--text-faint)]">Hero unavailable — other rows still work</p>
               </div>
             </div>
           ) : heroes.length ? (
-            <HeroCarousel animes={heroes} onMoreInfo={setSelected} trackingProvider={trackingProvider} />
+            <HeroCarousel animes={heroes} onMoreInfo={(a) => { if (!isAuthenticated) setSignInOpen(true); else setSelected(a) }} trackingProvider={trackingProvider} />
           ) : (
-            <div className="flex aspect-[21/9] w-full items-center justify-center rounded-xl bg-white/[0.03] lg:min-h-[460px]">
-              <p className="text-sm text-white/40">No hero available</p>
+            <div className="flex aspect-[21/9] w-full items-center justify-center rounded-xl bg-[var(--text)]/[0.03] lg:min-h-[460px]">
+              <p className="text-sm text-[var(--text-faint)]">No hero available</p>
             </div>
           )}
         </div>
@@ -479,7 +470,7 @@ export function Home() {
           ) : null
         ) : null}
         {isAuthenticated && !loading && (error || authExpired) && (
-          <div className="rounded-lg border border-white/10 bg-white/[0.03] px-4 py-3 text-xs text-white/60">
+          <div className="rounded-lg border border-[var(--border)] bg-[var(--text)]/[0.03] px-4 py-3 text-xs text-[var(--text-muted)]">
             {authExpired ? 'Session expired. Reconnect in My List.' : error}
           </div>
         )}
@@ -514,7 +505,7 @@ export function Home() {
               ))}
             </ContentRow>
           ) : (
-            <div className="rounded-lg border border-white/5 bg-white/[0.02] px-4 py-6 text-center text-xs text-white/40">
+            <div className="rounded-lg border border-[var(--border)] bg-[var(--text)]/[0.02] px-4 py-6 text-center text-xs text-[var(--text-faint)]">
               Your list is empty. Add titles from Trending or Search.
             </div>
           )
@@ -522,6 +513,7 @@ export function Home() {
       </div>
 
       {selected && <DetailModal key={selected.identity.internalId} anime={selected} onClose={() => setSelected(null)} />}
+      {signInOpen && <SignInModal onClose={() => setSignInOpen(false)} />}
     </div>
   )
 }

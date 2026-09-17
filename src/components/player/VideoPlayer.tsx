@@ -213,7 +213,7 @@ export function VideoPlayer({ sources, selectedSource, subtitles, onTimeUpdate, 
   // Embed: use iframe
   if (source.embed) {
     return (
-      <div className="relative aspect-video w-full overflow-hidden bg-black">
+      <div className="relative aspect-video w-full overflow-hidden bg-[var(--bg)]">
         <iframe
           src={source.url}
           title={`${animeTitle ?? 'Anime'} Episode ${episodeNumber}`}
@@ -226,11 +226,11 @@ export function VideoPlayer({ sources, selectedSource, subtitles, onTimeUpdate, 
           onError={() => setError('Embed failed to load. Try another source.')}
         />
         {isLoading && (
-          <div className="pointer-events-none absolute inset-0 grid place-items-center bg-black/60">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+          <div className="pointer-events-none absolute inset-0 grid place-items-center bg-[color-mix(in_srgb,var(--bg)_60%,transparent)]">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--border-strong)] border-t-[var(--text)]" />
           </div>
         )}
-        {error && <p className="absolute left-1/2 top-3 -translate-x-1/2 rounded bg-red-500/90 px-3 py-1 text-xs text-white">{error}</p>}
+        {error && <p className="absolute left-1/2 top-3 -translate-x-1/2 rounded bg-[var(--accent)] px-3 py-1 text-xs text-[var(--text)]">{error}</p>}
       </div>
     )
   }
@@ -239,7 +239,7 @@ export function VideoPlayer({ sources, selectedSource, subtitles, onTimeUpdate, 
   // crossOrigin only when subtitles require it (CORS VTT) — avoids breaking non-CORS MP4s
   const needsCors = !!(subtitles && subtitles.length > 0)
   return (
-    <div className="relative aspect-video w-full overflow-hidden bg-black">
+    <div className="relative aspect-video w-full overflow-hidden bg-[var(--bg)]">
       {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
       <video
         ref={videoRef}
@@ -278,8 +278,8 @@ export function VideoPlayer({ sources, selectedSource, subtitles, onTimeUpdate, 
       </video>
 
       {isLoading && (
-        <div className="pointer-events-none absolute inset-0 grid place-items-center bg-black/30">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white" />
+        <div className="pointer-events-none absolute inset-0 grid place-items-center bg-[color-mix(in_srgb,var(--bg)_30%,transparent)]">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--border-strong)] border-t-[var(--text)]" />
         </div>
       )}
 
@@ -295,7 +295,7 @@ export function VideoPlayer({ sources, selectedSource, subtitles, onTimeUpdate, 
               onClick={() => {
                 try { (videoRef.current as any)?.webkitShowPlaybackTargetPicker?.() } catch {}
               }}
-              className="rounded-full bg-black/70 px-2.5 py-1.5 text-[11px] font-medium text-white backdrop-blur hover:bg-black/90"
+              className="rounded-full bg-[color-mix(in_srgb,var(--bg)_70%,transparent)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--text)] backdrop-blur hover:bg-[color-mix(in_srgb,var(--bg)_90%,transparent)]"
             >
               AirPlay
             </button>
@@ -308,7 +308,7 @@ export function VideoPlayer({ sources, selectedSource, subtitles, onTimeUpdate, 
               onClick={async () => {
                 try { await (videoRef.current as any)?.remote?.prompt?.() } catch {}
               }}
-              className="rounded-full bg-black/70 px-2.5 py-1.5 text-[11px] font-medium text-white backdrop-blur hover:bg-black/90"
+              className="rounded-full bg-[color-mix(in_srgb,var(--bg)_70%,transparent)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--text)] backdrop-blur hover:bg-[color-mix(in_srgb,var(--bg)_90%,transparent)]"
             >
               Cast
             </button>
@@ -316,7 +316,7 @@ export function VideoPlayer({ sources, selectedSource, subtitles, onTimeUpdate, 
         </div>
       )}
 
-      {error && <p className="absolute left-1/2 top-3 -translate-x-1/2 rounded bg-red-500/90 px-3 py-1 text-xs text-white">{error}</p>}
+      {error && <p className="absolute left-1/2 top-3 -translate-x-1/2 rounded bg-[var(--accent)] px-3 py-1 text-xs text-[var(--text)]">{error}</p>}
     </div>
   )
 }

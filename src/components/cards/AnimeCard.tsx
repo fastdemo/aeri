@@ -48,7 +48,7 @@ function QuickMenu({ anime }: { anime: Anime }) {
           e.preventDefault()
           setOpen((v) => !v)
         }}
-        className="absolute right-1 top-1 z-20 grid h-6 w-6 place-items-center text-white/80 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)] transition hover:text-white focus-visible:opacity-100 md:opacity-0 md:group-hover/card:opacity-100 md:focus-within:opacity-100"
+        className="absolute right-1 top-1 z-20 grid h-6 w-6 place-items-center text-[var(--text)] drop-shadow-[0_1px_2px_var(--shadow)] transition hover:text-[var(--text)] focus-visible:opacity-100 md:opacity-0 md:group-hover/card:opacity-100 md:focus-within:opacity-100"
       >
         <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
           <circle cx="12" cy="5" r="2" />
@@ -72,7 +72,7 @@ function QuickMenu({ anime }: { anime: Anime }) {
           <div
             role="menu"
             aria-label={`Actions for ${getPrimaryTitle(anime)}`}
-            className="anim-pop-in absolute right-1 top-7 z-30 w-44 overflow-hidden rounded-lg border border-white/10 bg-[#1c1c1e] py-1 shadow-xl"
+            className="anim-pop-in absolute right-1 top-7 z-30 w-44 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] py-1 shadow-xl"
             onClick={(e) => {
               e.stopPropagation()
               e.preventDefault()
@@ -86,7 +86,7 @@ function QuickMenu({ anime }: { anime: Anime }) {
                 else if (current > 0) await updateProgress(anime, current)
                 await updateStatus(anime, 'completed')
               })}
-              className="flex w-full items-center px-2.5 py-1.5 text-left text-[11px] text-white/80 hover:bg-white/10 hover:text-white"
+              className="flex w-full items-center px-2.5 py-1.5 text-left text-[11px] text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)] hover:text-[var(--text)]"
             >
               Mark as watched
             </button>
@@ -94,7 +94,7 @@ function QuickMenu({ anime }: { anime: Anime }) {
               type="button"
               role="menuitem"
               onClick={() => run(async () => updateStatus(anime, 'on_hold'))}
-              className="flex w-full items-center px-2.5 py-1.5 text-left text-[11px] text-white/80 hover:bg-white/10 hover:text-white"
+              className="flex w-full items-center px-2.5 py-1.5 text-left text-[11px] text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)] hover:text-[var(--text)]"
             >
               Remove from Continue Watching
             </button>
@@ -129,15 +129,15 @@ export function AnimeCard({
   const displayEp = progressEp > 0 ? getDisplayEpisodeNumber(anime, progressEp) : 0
   const epTitle = progressEp > 0 ? getStreamingEpisodeTitle(anime, progressEp) : null
 
-  // Desktop-only caption under the thumbnail: touch has no hover, so the
-  // title/year is always visible (was hover-overlay only ⇒ invisible on
-  // mobile, the "missing titles" report).
-  const showCaption = variant !== 'continue'
+  // Captions exist ONLY on Continue Watching cards (below). All other
+  // rows are clean thumbnails; name/year/category appear in the hover
+  // overlay on desktop (see below).
+  const hoverMeta = `${anime.year ?? ''}${anime.year ? ' • ' : ''}${formatLabel(anime.format) ?? anime.format ?? ''}${anime.genres?.[0] ? ` • ${anime.genres[0]}` : ''}`
 
   const content = (
     <div className="group group/card relative flex-shrink-0">
       <div
-        className={`relative flex-shrink-0 overflow-hidden rounded-[6px] bg-[var(--surface)] ring-1 ring-white/5 transition-all duration-200 hover:z-10 hover:scale-[1.03] hover:ring-white/15 ${width}`}
+        className={`relative flex-shrink-0 overflow-hidden rounded-[6px] bg-[var(--surface)] ring-1 ring-[var(--border-strong)] transition-[ring-color] duration-200 hover:z-10 hover:ring-[var(--border-strong)] ${width}`}
       >
       <div className="relative aspect-[16/9] w-full overflow-hidden bg-[var(--surface-elevated)]">
         <img
@@ -158,54 +158,48 @@ export function AnimeCard({
         />
 
         {/* subtle inner gradient for text legibility if needed */}
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent opacity-60 group-hover:opacity-70 transition-opacity" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[color-mix(in_srgb,var(--bg)_55%,transparent)] via-transparent to-transparent opacity-60 group-hover:opacity-70 transition-opacity" />
 
         {/* Hover play affordance — small, quiet (desktop only: no touch
             equivalent, and :hover sticks on tap which looks broken) */}
         <div className="absolute inset-0 hidden place-items-center opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100 md:grid">
-          <div className="grid h-6 w-6 place-items-center rounded-full bg-black/55 text-white shadow-[0_2px_10px_rgba(0,0,0,0.5)]">
+          <div className="grid h-6 w-6 place-items-center rounded-full bg-[color-mix(in_srgb,var(--bg)_55%,transparent)] text-[var(--text)] shadow-[0_2px_10px_var(--shadow)]">
             <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
               <path d="M8 5.14v13.72L19 12z" />
             </svg>
           </div>
         </div>
 
-        {/* Title overlay on hover — desktop only; touch uses the always-visible
-            caption below instead (no hover state to get stuck) */}
+        {/* Title overlay on hover — name + year + format + first genre.
+            Desktop only (touch uses tap → detail). Continue cards keep their
+            own metadata block below instead. */}
         {variant !== 'continue' && (
-          <div className="absolute inset-x-0 bottom-0 hidden translate-y-1 bg-gradient-to-t from-black/75 to-transparent p-2 opacity-0 transition group-hover:translate-y-0 group-hover:opacity-100 md:block">
-            <p className="line-clamp-1 text-[11px] font-medium leading-tight text-white">
+          <div className="absolute inset-x-0 bottom-0 hidden translate-y-1 bg-gradient-to-t from-[color-mix(in_srgb,var(--bg)_75%,transparent)] to-transparent p-2 opacity-0 transition group-hover:translate-y-0 group-hover:opacity-100 md:block">
+            <p className="line-clamp-1 text-[11px] font-medium leading-tight text-[var(--text)]">
               {primaryTitle}
             </p>
-            <p className="text-[10px] text-white/70">{anime.year} • {formatLabel(anime.format) ?? anime.format}</p>
+            {hoverMeta && <p className="truncate text-[10px] text-[var(--text-muted)]">{hoverMeta}</p>}
           </div>
         )}
 
-        {/* Progress bar — thin, flush with the thumbnail's bottom edge, soft glow */}
+        {/* Progress bar — thin (2px) with a soft glow, flush with the
+            thumbnail's bottom edge */}
         {variant === 'continue' && anime.progress && (
-          <div className="absolute inset-x-0 bottom-0 h-[2px] bg-[#333333]" aria-hidden>
-            <div className="h-full bg-white shadow-[0_0_8px_rgba(255,255,255,0.7)] transition-[width] duration-300" style={{ width: `${Math.min(100, Math.max(0, anime.progress.percent))}%` }} />
+          <div className="absolute inset-x-0 bottom-0 h-[2px] bg-[color-mix(in_srgb,var(--text)_15%,transparent)]" aria-hidden>
+            <div className="h-full bg-[var(--text)] shadow-[0_0_6px_var(--text)] transition-[width] duration-300" style={{ width: `${Math.min(100, Math.max(0, anime.progress.percent))}%` }} />
           </div>
         )}
       </div>
 
-      {/* Continue variant metadata */}
+      {/* Captions ONLY on Continue Watching (clean rows everywhere else). */}
       {variant === 'continue' && anime.progress && (
         <div className="space-y-1 bg-[var(--surface)] px-2.5 py-2">
           <div className="flex items-center justify-between">
-            <p className="line-clamp-1 text-[11px] font-medium text-white">{primaryTitle}</p>
+            <p className="line-clamp-1 text-[11px] font-medium text-[var(--text)]">{primaryTitle}</p>
           </div>
-          <p className="truncate text-[11px] text-[#A0A0A0]">
+          <p className="truncate text-[11px] text-[var(--text-muted)]">
             S{seasonNum}:E{displayEp}{epTitle ? ` • ${epTitle}` : ''}
           </p>
-        </div>
-      )}
-      {/* Default/compact caption: always visible on touch (no hover there),
-          hover-overlay handles desktop. */}
-      {showCaption && (
-        <div className="px-0.5 pb-0.5 pt-1.5 md:hidden">
-          <p className="line-clamp-1 text-[11px] font-medium leading-tight text-white">{primaryTitle}</p>
-          <p className="text-[10px] text-white/50">{anime.year} • {formatLabel(anime.format) ?? anime.format}</p>
         </div>
       )}
       </div>
@@ -233,7 +227,7 @@ export function AnimeCard({
         onClick={() => onSelect(anime)}
         onMouseEnter={prewarm}
         onFocus={prewarm}
-        className={`text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 ${fullWidth ? 'w-full' : ''}`}
+        className={`text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)] ${fullWidth ? 'w-full' : ''}`}
         aria-label={`Open ${primaryTitle}`}
       >
         {content}
@@ -247,7 +241,7 @@ export function AnimeCard({
       onMouseEnter={prewarm}
       onFocus={prewarm}
       aria-label={`Open ${primaryTitle}`}
-      className={`focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60 block ${fullWidth ? 'w-full' : ''}`}
+      className={`focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)] block ${fullWidth ? 'w-full' : ''}`}
     >
       {content}
     </Link>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { getPreferences, setPreferences, type Preferences } from '../storage/preferences'
 import { useAniList } from '../contexts/AniListContext'
 import { useMAL } from '../contexts/MALContext'
@@ -7,6 +7,7 @@ import { useTracking } from '../contexts/TrackingContext'
 import { clearAnilistMemoryCache, getAnilistStats } from '../services/anilist/client'
 import { clearMalMemoryCache } from '../services/mal/client'
 import { getProviderCapabilities, checkProviderHealth } from '../providers/video/registry'
+import { THEMES, applyTheme } from '../lib/themes'
 
 // Counters only — no tokens, no user data. Refreshes while visible.
 function AnilistDiagnostics() {
@@ -17,7 +18,7 @@ function AnilistDiagnostics() {
   }, [])
   const cooling = s.cooldownUntil > s.now
   return (
-    <p className="mt-2 text-[11px] text-white/30">
+    <p className="mt-2 text-[11px] text-[color-mix(in_srgb,var(--text)_30%,transparent)]">
       AniList requests: {s.requests} • cache {s.memoryHits + s.idbHits} • shared {s.dedupHits} • throttled {s.status429}
       {cooling ? ` • cooling down` : ''}{s.lastRemaining !== null ? ` • remaining ${s.lastRemaining}` : ''}
     </p>
@@ -134,24 +135,27 @@ export function Settings() {
   })()
 
   const isAuthenticated = ani.isAuthenticated || mal.isAuthenticated
+  if (!isAuthenticated) {
+    return <Navigate to="/" replace />
+  }
 
   return (
     <div className="mx-auto max-w-[900px] px-4 py-6 sm:px-6 lg:px-12">
-      <h1 className="text-[18px] font-semibold tracking-tight text-white">Settings</h1>
-      <p className="text-xs text-white/50">Accounts, playback, and your data.</p>
+      <h1 className="text-[18px] font-semibold tracking-tight text-[var(--text)]">Settings</h1>
+      <p className="text-xs text-[var(--text-faint)]">Accounts, playback, and your data.</p>
       {!isAuthenticated && (
-        <div className="mt-4 rounded-lg border border-white/10 bg-white/[0.02] px-4 py-3 flex items-center justify-between gap-3">
-          <p className="text-xs text-white/60">Sign in with AniList or connect MyAnimeList to sync your list and enable tracking. Playback preferences work without an account.</p>
+        <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--text)]/[0.02] px-4 py-3 flex items-center justify-between gap-3">
+          <p className="text-xs text-[var(--text-muted)]">Sign in with AniList or connect MyAnimeList to sync your list and enable tracking. Playback preferences work without an account.</p>
         </div>
       )}
 
       {/* Account / Connections */}
-      <section className="mt-6 rounded-xl border border-white/10 bg-white/[0.02] p-4 sm:p-5">
-        <h2 className="text-sm font-semibold text-white">Account & Connections</h2>
-        <p className="mt-1 text-xs text-white/50">Connect either or both. Select one to track your list.</p>
+      <section className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--text)]/[0.02] p-4 sm:p-5">
+        <h2 className="text-sm font-semibold text-[var(--text)]">Account & Connections</h2>
+        <p className="mt-1 text-xs text-[var(--text-faint)]">Connect either or both. Select one to track your list.</p>
 
         <div className="mt-4 space-y-3">
-          <div className={`rounded-lg border bg-[#0e0e10] p-3 ${trackingProvider === 'anilist' ? 'border-white' : 'border-white/10'}`}>
+          <div className={`rounded-lg border bg-[var(--bg-soft)] p-3 ${trackingProvider === 'anilist' ? 'border-[var(--border-strong)]' : 'border-[var(--border)]'}`}>
             <div className="flex items-center gap-3">
               {ani.isAuthenticated && (
                 <button
@@ -160,44 +164,44 @@ export function Settings() {
                   aria-label="Track with AniList"
                   title="Track with AniList"
                   onClick={() => setTrackingProvider('anilist')}
-                  className={`grid h-4 w-4 shrink-0 place-items-center rounded-full border ${trackingProvider === 'anilist' ? 'border-white' : 'border-white/30 hover:border-white/60'}`}
+                  className={`grid h-4 w-4 shrink-0 place-items-center rounded-full border ${trackingProvider === 'anilist' ? 'border-[var(--border-strong)]' : 'border-[var(--border-strong)] hover:border-[var(--border-strong)]'}`}
                 >
-                  {trackingProvider === 'anilist' && <span className="h-2 w-2 rounded-full bg-white" />}
+                  {trackingProvider === 'anilist' && <span className="h-2 w-2 rounded-full bg-[var(--text)]" />}
                 </button>
               )}
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium text-white">AniList</p>
-                <p className="text-[11px] text-white/50">
+                <p className="text-xs font-medium text-[var(--text)]">AniList</p>
+                <p className="text-[11px] text-[var(--text-faint)]">
                   {ani.isAuthenticated && ani.user ? `Connected as ${ani.user.name}` : 'Not connected'}
                 </p>
               </div>
               {ani.isAuthenticated ? (
-                <button onClick={() => ani.logout()} className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/15">Disconnect</button>
+                <button onClick={() => ani.logout()} className="rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-3 py-1.5 text-xs font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)]">Disconnect</button>
               ) : (
-                <button onClick={() => ani.login()} className="rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-black hover:bg-white/90">Connect</button>
+                <button onClick={() => ani.login()} className="rounded-full bg-[var(--text)] px-4 py-1.5 text-xs font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]">Connect</button>
               )}
             </div>
             {ani.isAuthenticated && ani.user?.avatar?.large && (
               <div className="mt-3 flex items-center gap-2">
-                <img src={ani.user.avatar.large} alt="" className="h-7 w-7 rounded-full bg-white/10" loading="lazy" />
-                <span className="text-xs text-white/70">{ani.user.name}</span>
-                {ani.authExpired && <span className="text-xs text-amber-200/70">• Session expired</span>}
+                <img src={ani.user.avatar.large} alt="" className="h-7 w-7 rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)]" loading="lazy" />
+                <span className="text-xs text-[var(--text-muted)]">{ani.user.name}</span>
+                {ani.authExpired && <span className="text-xs text-[var(--warn)]">• Session expired</span>}
               </div>
             )}
             {ani.isAuthenticated && (
-              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-white/5 pt-3">
-                <span className="text-[11px] text-white/40">Sync to AniList:</span>
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-[var(--border)] pt-3">
+                <span className="text-[11px] text-[var(--text-faint)]">Sync to AniList:</span>
                 {([
                   ['status', 'Status'],
                   ['progress', 'Episodes watched'],
                   ['rating', 'Score'],
                 ] as const).map(([field, label]) => (
-                  <label key={field} className="flex cursor-pointer items-center gap-1.5 text-xs text-white/70">
+                  <label key={field} className="flex cursor-pointer items-center gap-1.5 text-xs text-[var(--text-muted)]">
                     <input
                       type="checkbox"
                       checked={syncOn('anilist', field)}
                       onChange={e => setSync('anilist', field, e.target.checked)}
-                      className="h-3.5 w-3.5 rounded border-white/20 bg-white/10"
+                      className="h-3.5 w-3.5 rounded border-[var(--border-strong)] bg-[color-mix(in_srgb,var(--text)_10%,transparent)]"
                       aria-label={`Sync ${label} to AniList`}
                     />
                     {label}
@@ -205,10 +209,10 @@ export function Settings() {
                 ))}
               </div>
             )}
-            {ani.error && !ani.isAuthenticated && <p className="mt-2 text-xs text-amber-200/70">{ani.error}</p>}
+            {ani.error && !ani.isAuthenticated && <p className="mt-2 text-xs text-[var(--warn)]">{ani.error}</p>}
           </div>
 
-          <div className={`rounded-lg border bg-[#0e0e10] p-3 ${trackingProvider === 'mal' ? 'border-white' : 'border-white/10'}`}>
+          <div className={`rounded-lg border bg-[var(--bg-soft)] p-3 ${trackingProvider === 'mal' ? 'border-[var(--border-strong)]' : 'border-[var(--border)]'}`}>
             <div className="flex items-center gap-3">
               {mal.isAuthenticated && (
                 <button
@@ -217,48 +221,48 @@ export function Settings() {
                   aria-label="Track with MyAnimeList"
                   title="Track with MyAnimeList"
                   onClick={() => setTrackingProvider('mal')}
-                  className={`grid h-4 w-4 shrink-0 place-items-center rounded-full border ${trackingProvider === 'mal' ? 'border-white' : 'border-white/30 hover:border-white/60'}`}
+                  className={`grid h-4 w-4 shrink-0 place-items-center rounded-full border ${trackingProvider === 'mal' ? 'border-[var(--border-strong)]' : 'border-[var(--border-strong)] hover:border-[var(--border-strong)]'}`}
                 >
-                  {trackingProvider === 'mal' && <span className="h-2 w-2 rounded-full bg-white" />}
+                  {trackingProvider === 'mal' && <span className="h-2 w-2 rounded-full bg-[var(--text)]" />}
                 </button>
               )}
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-medium text-white">MyAnimeList</p>
-                <p className="text-[11px] text-white/50">
+                <p className="text-xs font-medium text-[var(--text)]">MyAnimeList</p>
+                <p className="text-[11px] text-[var(--text-faint)]">
                   {mal.isAuthenticated && mal.user ? `Connected as ${mal.user.name}` : 'Not connected'}
                 </p>
               </div>
               {mal.isAuthenticated ? (
-                <button onClick={() => mal.logout()} className="rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/15">Disconnect</button>
+                <button onClick={() => mal.logout()} className="rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-3 py-1.5 text-xs font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)]">Disconnect</button>
               ) : (
-                <button onClick={() => mal.login().catch(()=>{})} className="rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-black hover:bg-white/90">Connect</button>
+                <button onClick={() => mal.login().catch(()=>{})} className="rounded-full bg-[var(--text)] px-4 py-1.5 text-xs font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]">Connect</button>
               )}
             </div>
             {mal.isAuthenticated && mal.user && (
               <div className="mt-3 flex items-center gap-2">
                 {mal.user.avatar?.large ? (
-                  <img src={mal.user.avatar.large} alt="" className="h-7 w-7 rounded-full bg-white/10 object-cover" loading="lazy" />
+                  <img src={mal.user.avatar.large} alt="" className="h-7 w-7 rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)] object-cover" loading="lazy" />
                 ) : (
-                  <div className="grid h-7 w-7 place-items-center rounded-full bg-[#2e51a2] text-[10px] font-bold text-white" aria-hidden>MAL</div>
+                  <div className="grid h-7 w-7 place-items-center rounded-full bg-[var(--accent)] text-[10px] font-bold text-[var(--text)]" aria-hidden>MAL</div>
                 )}
-                <span className="text-xs text-white/70">{mal.user.name}</span>
-                {mal.authExpired && <span className="text-xs text-amber-200/70">• Session expired</span>}
+                <span className="text-xs text-[var(--text-muted)]">{mal.user.name}</span>
+                {mal.authExpired && <span className="text-xs text-[var(--warn)]">• Session expired</span>}
               </div>
             )}
             {mal.isAuthenticated && (
-              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-white/5 pt-3">
-                <span className="text-[11px] text-white/40">Sync to MAL:</span>
+              <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-[var(--border)] pt-3">
+                <span className="text-[11px] text-[var(--text-faint)]">Sync to MAL:</span>
                 {([
                   ['status', 'Status'],
                   ['progress', 'Episodes watched'],
                   ['rating', 'Score'],
                 ] as const).map(([field, label]) => (
-                  <label key={field} className="flex cursor-pointer items-center gap-1.5 text-xs text-white/70">
+                  <label key={field} className="flex cursor-pointer items-center gap-1.5 text-xs text-[var(--text-muted)]">
                     <input
                       type="checkbox"
                       checked={syncOn('mal', field)}
                       onChange={e => setSync('mal', field, e.target.checked)}
-                      className="h-3.5 w-3.5 rounded border-white/20 bg-white/10"
+                      className="h-3.5 w-3.5 rounded border-[var(--border-strong)] bg-[color-mix(in_srgb,var(--text)_10%,transparent)]"
                       aria-label={`Sync ${label} to MyAnimeList`}
                     />
                     {label}
@@ -266,47 +270,47 @@ export function Settings() {
                 ))}
               </div>
             )}
-            {mal.error && <p className="mt-2 text-xs text-amber-200/70">{mal.error}</p>}
+            {mal.error && <p className="mt-2 text-xs text-[var(--warn)]">{mal.error}</p>}
           </div>
         </div>
       </section>
 
       {/* Playback */}
-      <section className="mt-6 rounded-xl border border-white/10 bg-white/[0.02] p-4 sm:p-5">
-        <h2 className="text-sm font-semibold text-white">Playback</h2>
+      <section className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--text)]/[0.02] p-4 sm:p-5">
+        <h2 className="text-sm font-semibold text-[var(--text)]">Playback</h2>
         <div className="mt-4 space-y-4">
           <label className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-xs font-medium text-white">Autoplay next episode</p>
-              <p className="text-[11px] text-white/50">When a video ends, automatically go to the next episode (if available).</p>
+              <p className="text-xs font-medium text-[var(--text)]">Autoplay next episode</p>
+              <p className="text-[11px] text-[var(--text-faint)]">When a video ends, automatically go to the next episode (if available).</p>
             </div>
             <input
               type="checkbox"
               checked={prefs.autoplay}
               onChange={e => updatePref({ autoplay: e.target.checked })}
-              className="h-4 w-4 rounded border-white/20 bg-white/10 text-white focus:ring-white/20"
+              className="h-4 w-4 rounded border-[var(--border-strong)] bg-[color-mix(in_srgb,var(--text)_10%,transparent)] text-[var(--text)] focus:ring-[var(--border-strong)]"
               aria-label="Autoplay next episode"
             />
           </label>
 
           <label className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-xs font-medium text-white">Subtitles</p>
-              <p className="text-[11px] text-white/50">Show subtitles by default when the provider supplies them.</p>
+              <p className="text-xs font-medium text-[var(--text)]">Subtitles</p>
+              <p className="text-[11px] text-[var(--text-faint)]">Show subtitles by default when the provider supplies them.</p>
             </div>
             <input
               type="checkbox"
               checked={prefs.subtitles}
               onChange={e => updatePref({ subtitles: e.target.checked })}
-              className="h-4 w-4 rounded border-white/20 bg-white/10 text-white focus:ring-white/20"
+              className="h-4 w-4 rounded border-[var(--border-strong)] bg-[color-mix(in_srgb,var(--text)_10%,transparent)] text-[var(--text)] focus:ring-[var(--border-strong)]"
               aria-label="Subtitles on"
             />
           </label>
 
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="text-xs font-medium text-white">Volume</p>
-              <p className="text-[11px] text-white/50">Default volume for videos.</p>
+              <p className="text-xs font-medium text-[var(--text)]">Volume</p>
+              <p className="text-[11px] text-[var(--text-faint)]">Default volume for videos.</p>
             </div>
             <input
               type="range"
@@ -316,28 +320,28 @@ export function Settings() {
               value={prefs.volume}
               onChange={e => updatePref({ volume: Number(e.target.value) })}
               aria-label="Default volume"
-              className="w-24 accent-white"
+              className="w-24 accent-[var(--accent)]"
             />
           </div>
         </div>
       </section>
 
       {/* Video Sources */}
-      <section className="mt-6 rounded-xl border border-white/10 bg-white/[0.02] p-4 sm:p-5">
-        <h2 className="text-sm font-semibold text-white">Playback Sources</h2>
-        <p className="mt-1 text-xs text-white/50">Choose how Aeri picks video sources.</p>
+      <section className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--text)]/[0.02] p-4 sm:p-5">
+        <h2 className="text-sm font-semibold text-[var(--text)]">Playback Sources</h2>
+        <p className="mt-1 text-xs text-[var(--text-faint)]">Choose how Aeri picks video sources.</p>
         <div className="mt-4 space-y-4">
           <div>
-            <p className="text-xs font-medium text-white">Preferred audio</p>
-            <p className="text-[11px] text-white/50">Sub: Japanese with subtitles. Dub: English where available. Falls back if missing.</p>
-            <div className="mt-2 inline-flex rounded-full border border-white/10 bg-white/[0.04] p-1" role="radiogroup" aria-label="Preferred audio">
+            <p className="text-xs font-medium text-[var(--text)]">Preferred audio</p>
+            <p className="text-[11px] text-[var(--text-faint)]">Sub: Japanese with subtitles. Dub: English where available. Falls back if missing.</p>
+            <div className="mt-2 inline-flex rounded-full border border-[var(--border)] bg-[var(--surface)] p-1" role="radiogroup" aria-label="Preferred audio">
               {(['sub','dub'] as const).map(lang => (
                 <button
                   key={lang}
                   role="radio"
                   aria-checked={prefs.preferredAudio === lang}
                   onClick={() => updatePref({ preferredAudio: lang })}
-                  className={`rounded-full px-4 py-1 text-xs font-medium ${prefs.preferredAudio === lang ? 'bg-white text-black' : 'text-white/70 hover:text-white'}`}
+                  className={`rounded-full px-4 py-1 text-xs font-medium ${prefs.preferredAudio === lang ? 'bg-[var(--text)] text-[var(--on-text)]' : 'text-[var(--text-muted)] hover:text-[var(--text)]'}`}
                 >
                   {lang === 'sub' ? 'Sub' : 'Dub'}
                 </button>
@@ -345,46 +349,46 @@ export function Settings() {
             </div>
           </div>
           <div>
-            <p className="text-xs font-medium text-white">Preferred source</p>
-            <p className="text-[11px] text-white/50">Auto tries your choice first, then others.</p>
+            <p className="text-xs font-medium text-[var(--text)]">Preferred source</p>
+            <p className="text-[11px] text-[var(--text-faint)]">Auto tries your choice first, then others.</p>
             <select
               value={prefs.preferredProvider ?? ''}
               onChange={e => updatePref({ preferredProvider: e.target.value || null })}
               aria-label="Preferred source"
-              className="mt-2 w-full max-w-[260px] rounded-full border border-white/10 bg-white/[0.06] px-3 py-2 text-xs text-white focus:border-white/20 focus:outline-none"
+              className="mt-2 w-full max-w-[260px] rounded-full border border-[var(--border)] bg-[var(--text)]/[0.06] px-3 py-2 text-xs text-[var(--text)] focus:border-[var(--border-strong)] focus:outline-none"
             >
-              <option value="" className="bg-[#141416]">Auto (Recommended)</option>
+              <option value="" className="bg-[var(--surface)]">Auto (Recommended)</option>
               {orderedCaps.filter(c=>isEnabled(c.id)).map(c => (
-                <option key={c.id} value={c.id} className="bg-[#141416]">{c.displayName}</option>
+                <option key={c.id} value={c.id} className="bg-[var(--surface)]">{c.displayName}</option>
               ))}
             </select>
-            <p className="mt-1 text-[11px] text-white/30">
+            <p className="mt-1 text-[11px] text-[color-mix(in_srgb,var(--text)_30%,transparent)]">
               {prefs.preferredProvider ? `Trying ${prefs.preferredProvider} first, then fallback.` : 'Auto picks the best available source.'}
             </p>
           </div>
           <div className="space-y-2 pt-2">
-            <p className="text-xs font-medium text-white">Providers</p>
-            <div className="overflow-hidden rounded-lg border border-white/10">
+            <p className="text-xs font-medium text-[var(--text)]">Providers</p>
+            <div className="overflow-hidden rounded-lg border border-[var(--border)]">
               {orderedCaps.map((c, idx) => {
                 const enabled = isEnabled(c.id)
                 const h = health?.[c.id]
                 const isAvailable = h === 'available'
-                const dotColor = h ? (isAvailable ? 'bg-emerald-400' : 'bg-white/20') : 'bg-white/10'
+                const dotColor = h ? (isAvailable ? 'bg-[var(--ok)]' : 'bg-[color-mix(in_srgb,var(--text)_20%,transparent)]') : 'bg-[color-mix(in_srgb,var(--text)_10%,transparent)]'
                 const label = h ? (isAvailable ? 'Available' : 'Unavailable') : '…'
                 return (
-                  <div key={c.id} className={`flex items-center justify-between gap-3 px-3 py-2.5 ${idx !== orderedCaps.length-1 ? 'border-b border-white/5' : ''} ${enabled ? 'bg-white/[0.02]' : 'bg-black/20 opacity-60'}`}>
+                  <div key={c.id} className={`flex items-center justify-between gap-3 px-3 py-2.5 ${idx !== orderedCaps.length-1 ? 'border-b border-[var(--border)]' : ''} ${enabled ? 'bg-[var(--text)]/[0.02]' : 'bg-[color-mix(in_srgb,var(--bg)_20%,transparent)] opacity-60'}`}>
                     <div className="flex items-center gap-2 min-w-0">
                       <span className={`h-2 w-2 rounded-full shrink-0 ${dotColor}`} aria-hidden />
                       <div className="min-w-0">
-                        <p className="text-xs font-medium text-white truncate">{c.displayName}</p>
-                        <p className="text-[10px] text-white/40">{c.languages.join('/')} {c.embed ? '• embed' : ''} {c.directVideo ? '• video' : ''} • <span className={isAvailable ? 'text-emerald-300' : 'text-white/30'}>{label}</span>{h === 'unavailable' && <span className="text-white/20"> — Requires backend</span>}</p>
+                        <p className="text-xs font-medium text-[var(--text)] truncate">{c.displayName}</p>
+                        <p className="text-[10px] text-[var(--text-faint)]">{c.languages.join('/')} {c.embed ? '• embed' : ''} {c.directVideo ? '• video' : ''} • <span className={isAvailable ? 'text-[var(--ok)]' : 'text-[color-mix(in_srgb,var(--text)_30%,transparent)]'}>{label}</span>{h === 'unavailable' && <span className="text-[color-mix(in_srgb,var(--text)_20%,transparent)]"> — Requires backend</span>}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <button onClick={()=>moveProvider(c.id,-1)} disabled={idx===0} className="h-6 w-6 grid place-items-center rounded text-white/40 hover:text-white disabled:opacity-20" aria-label={`Move ${c.displayName} up`}>↑</button>
-                      <button onClick={()=>moveProvider(c.id,1)} disabled={idx===orderedCaps.length-1} className="h-6 w-6 grid place-items-center rounded text-white/40 hover:text-white disabled:opacity-20" aria-label={`Move ${c.displayName} down`}>↓</button>
-                      <label className="flex items-center gap-1.5 text-xs text-white/60">
-                        <input type="checkbox" checked={enabled} onChange={e=>toggleProvider(c.id, e.target.checked)} className="h-3.5 w-3.5 rounded border-white/20 bg-white/10" aria-label={`Enable ${c.displayName}`} />
+                      <button onClick={()=>moveProvider(c.id,-1)} disabled={idx===0} className="h-6 w-6 grid place-items-center rounded text-[var(--text-faint)] hover:text-[var(--text)] disabled:opacity-20" aria-label={`Move ${c.displayName} up`}>↑</button>
+                      <button onClick={()=>moveProvider(c.id,1)} disabled={idx===orderedCaps.length-1} className="h-6 w-6 grid place-items-center rounded text-[var(--text-faint)] hover:text-[var(--text)] disabled:opacity-20" aria-label={`Move ${c.displayName} down`}>↓</button>
+                      <label className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
+                        <input type="checkbox" checked={enabled} onChange={e=>toggleProvider(c.id, e.target.checked)} className="h-3.5 w-3.5 rounded border-[var(--border-strong)] bg-[color-mix(in_srgb,var(--text)_10%,transparent)]" aria-label={`Enable ${c.displayName}`} />
                         <span className="hidden sm:inline">Enable</span>
                       </label>
                     </div>
@@ -392,11 +396,11 @@ export function Settings() {
                 )
               })}
             </div>
-            <p className="text-[11px] text-white/30">Disable providers you don’t want to try. Reorder with ↑/↓ — preferred source still tried first.</p>
+            <p className="text-[11px] text-[color-mix(in_srgb,var(--text)_30%,transparent)]">Disable providers you don’t want to try. Reorder with ↑/↓ — preferred source still tried first.</p>
           </div>
-          <div className="space-y-2 pt-4 border-t border-white/10">
-            <p className="text-xs font-medium text-white">Custom video server (optional)</p>
-            <p className="text-[11px] text-white/50">Optional server for full episodes. Leave empty to use the built-in server.</p>
+          <div className="space-y-2 pt-4 border-t border-[var(--border)]">
+            <p className="text-xs font-medium text-[var(--text)]">Custom video server (optional)</p>
+            <p className="text-[11px] text-[var(--text-faint)]">Optional server for full episodes. Leave empty to use the built-in server.</p>
             <div className="flex gap-2">
               <input
                 type="url"
@@ -404,7 +408,7 @@ export function Settings() {
                 onChange={e => updatePref({ customVideoApiUrl: e.target.value.trim() ? e.target.value.trim() : null })}
                 placeholder="https://your-worker.workers.dev"
                 aria-label="Custom video endpoint"
-                className="flex-1 rounded-full border border-white/10 bg-white/[0.06] px-3 py-2 text-xs text-white placeholder:text-white/40 focus:border-white/20 focus:outline-none"
+                className="flex-1 rounded-full border border-[var(--border)] bg-[var(--text)]/[0.06] px-3 py-2 text-xs text-[var(--text)] placeholder:text-[var(--text-faint)] focus:border-[var(--border-strong)] focus:outline-none"
               />
               <button
                 onClick={async () => {
@@ -418,72 +422,97 @@ export function Settings() {
                   }
                 }}
                 disabled={!prefs.customVideoApiUrl}
-                className="rounded-full bg-white/10 px-4 py-2 text-xs font-medium text-white hover:bg-white/15 disabled:opacity-30"
+                className="rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-4 py-2 text-xs font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)] disabled:opacity-30"
               >
                 Test
               </button>
             </div>
-            <p className="text-[11px] text-white/30">Your address stays in this browser. Nothing secret is stored here.</p>
+            <p className="text-[11px] text-[color-mix(in_srgb,var(--text)_30%,transparent)]">Your address stays in this browser. Nothing secret is stored here.</p>
           </div>
         </div>
       </section>
 
       {/* Appearance */}
-      <section className="mt-6 rounded-xl border border-white/10 bg-white/[0.02] p-4 sm:p-5">
-        <h2 className="text-sm font-semibold text-white">Appearance</h2>
-        <div className="mt-3 flex items-center justify-between gap-4">
-          <div>
-            <p className="text-xs font-medium text-white">Reduced motion</p>
-            <p className="text-[11px] text-white/50">Follows your system setting {reducedMotion ? '(currently on)' : '(currently off)'}. Dark theme only.</p>
+      <section className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--text)]/[0.02] p-4 sm:p-5">
+        <h2 className="text-sm font-semibold text-[var(--text)]">Appearance</h2>
+        <div className="mt-3">
+          <p className="text-xs font-medium text-[var(--text)]">Color theme</p>
+          <p className="text-[11px] text-[var(--text-faint)]">Applies instantly across the whole site.</p>
+          <div className="mt-2 grid grid-cols-2 gap-1.5 sm:grid-cols-3" role="radiogroup" aria-label="Color theme">
+            {THEMES.map(t => {
+              const active = (prefs.theme || 'aeri-dark') === t.id
+              return (
+                <button
+                  key={t.id}
+                  role="radio"
+                  aria-checked={active}
+                  onClick={() => { applyTheme(t.id); updatePref({ theme: t.id }) }}
+                  className={`flex items-center gap-2 rounded-lg border px-2.5 py-2 text-left ${active ? 'border-[var(--border-strong)] bg-[color-mix(in_srgb,var(--text)_10%,transparent)]' : 'border-[var(--border)] bg-[var(--text)]/[0.03] hover:bg-[var(--text)]/[0.07]'}`}
+                >
+                  <span className="flex shrink-0 overflow-hidden rounded-full" aria-hidden>
+                    <span className="h-4 w-2" style={{ background: t.vars['--bg'] }} />
+                    <span className="h-4 w-2" style={{ background: t.vars['--surface'] }} />
+                    <span className="h-4 w-2" style={{ background: t.vars['--accent'] }} />
+                  </span>
+                  <span className="truncate text-xs text-[var(--text)]">{t.name}</span>
+                </button>
+              )
+            })}
           </div>
-          <span className="text-xs text-white/30">{reducedMotion ? 'On' : 'Off'}</span>
+        </div>
+        <div className="mt-3 flex items-center justify-between gap-4 border-t border-[var(--border)] pt-3">
+          <div>
+            <p className="text-xs font-medium text-[var(--text)]">Reduced motion</p>
+            <p className="text-[11px] text-[var(--text-faint)]">Follows your system setting {reducedMotion ? '(currently on)' : '(currently off)'}.</p>
+          </div>
+          <span className="text-xs text-[color-mix(in_srgb,var(--text)_30%,transparent)]">{reducedMotion ? 'On' : 'Off'}</span>
         </div>
       </section>
 
       {/* Data / Cache */}
-      <section className="mt-6 rounded-xl border border-white/10 bg-white/[0.02] p-4 sm:p-5">
-        <h2 className="text-sm font-semibold text-white">Data & Cache</h2>
-        <p className="mt-1 text-xs text-white/50">Your data stays in this browser. Clearing it never disconnects your accounts.</p>
+      <section className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--text)]/[0.02] p-4 sm:p-5">
+        <h2 className="text-sm font-semibold text-[var(--text)]">Data & Cache</h2>
+        <p className="mt-1 text-xs text-[var(--text-faint)]">Your data stays in this browser. Clearing it never disconnects your accounts.</p>
         <div className="mt-4 grid gap-2 sm:grid-cols-3">
           <button
             onClick={handleClearCache}
             disabled={clearing === 'cache'}
-            className="rounded-full bg-white/10 px-4 py-2 text-xs font-medium text-white hover:bg-white/15 disabled:opacity-50"
+            className="rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-4 py-2 text-xs font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)] disabled:opacity-50"
           >
             {clearing === 'cache' ? 'Clearing…' : 'Clear cached data'}
           </button>
           <button
             onClick={handleClearWatchPos}
             disabled={clearing === 'watchPos'}
-            className="rounded-full bg-white/10 px-4 py-2 text-xs font-medium text-white hover:bg-white/15 disabled:opacity-50"
+            className="rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-4 py-2 text-xs font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)] disabled:opacity-50"
           >
             {clearing === 'watchPos' ? 'Clearing…' : 'Clear watch positions'}
           </button>
           <button
             onClick={handleResetAll}
             disabled={!!clearing}
-            className="rounded-full bg-white px-4 py-2 text-xs font-semibold text-black hover:bg-white/90 disabled:opacity-50"
+            className="rounded-full bg-[var(--text)] px-4 py-2 text-xs font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)] disabled:opacity-50"
           >
             Reset local data
           </button>
         </div>
-        <p className="mt-2 text-[11px] text-white/30">Reset also restores default settings. Your accounts stay connected.</p>
+        <p className="mt-2 text-[11px] text-[color-mix(in_srgb,var(--text)_30%,transparent)]">Reset also restores default settings. Your accounts stay connected.</p>
         <AnilistDiagnostics />
       </section>
 
       {/* About */}
-      <section className="mt-6 rounded-xl border border-white/10 bg-white/[0.02] p-4 sm:p-5">
-        <h2 className="text-sm font-semibold text-white">About</h2>
-        <p className="mt-1 text-xs text-white/50">Aeri is a quiet anime discovery, tracking, and watching app. No tracking, no ads — your data stays in this browser.</p>
+      <section className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--text)]/[0.02] p-4 sm:p-5">
+        <h2 className="text-sm font-semibold text-[var(--text)]">About</h2>
+        <p className="mt-1 text-xs text-[var(--text-faint)]">Aeri is a quiet anime discovery, tracking, and watching app. No tracking, no ads — your data stays in this browser.</p>
         <div className="mt-3 space-y-2 text-xs leading-5">
-          <p><span className="text-white/50">Metadata:</span> <span className="text-white/80">AniList</span><span className="mx-2 text-white/20">•</span><span className="text-white/50">Tracking:</span> <span className="text-white/80">{trackingProvider === 'mal' ? 'MyAnimeList' : trackingProvider === 'anilist' ? 'AniList' : 'Not connected'}</span></p>
-          <p><span className="text-white/50">Video:</span> <span className="text-white/80">{prefs.preferredProvider ? prefs.preferredProvider : 'Auto'} {health ? (Object.values(health).includes('available') ? '' : '(checking…)') : ''}</span><span className="mx-2 text-white/20">•</span><span className="text-white/50">Storage:</span> <span className="text-white/80">This browser only</span></p>
+          <p><span className="text-[var(--text-faint)]">Metadata:</span> <span className="text-[var(--text)]">AniList</span><span className="mx-2 text-[color-mix(in_srgb,var(--text)_20%,transparent)]">•</span><span className="text-[var(--text-faint)]">Tracking:</span> <span className="text-[var(--text)]">{trackingProvider === 'mal' ? 'MyAnimeList' : trackingProvider === 'anilist' ? 'AniList' : 'Not connected'}</span></p>
+          <p><span className="text-[var(--text-faint)]">Video:</span> <span className="text-[var(--text)]">{prefs.preferredProvider ? prefs.preferredProvider : 'Auto'} {health ? (Object.values(health).includes('available') ? '' : '(checking…)') : ''}</span><span className="mx-2 text-[color-mix(in_srgb,var(--text)_20%,transparent)]">•</span><span className="text-[var(--text-faint)]">Storage:</span> <span className="text-[var(--text)]">This browser only</span></p>
           <p className="pt-2">
-            <a href="https://github.com/fastdemo/aeri" className="underline hover:text-white/80 text-white/50">GitHub</a>
-            <span className="mx-2 text-white/20">•</span>
-            <a href="https://aeri.fastdemo.workers.dev/api/health" className="underline hover:text-white/80 text-white/50">Service status</a>
-            <span className="mx-2 text-white/20">•</span>
-            <Link to="/manga" className="underline hover:text-white/80 text-white/50">Manga (soon)</Link>
+            <a href="https://github.com/fastdemo/aeri" className="underline hover:text-[var(--text)] text-[var(--text-faint)]">GitHub</a>
+            <span className="mx-2 text-[color-mix(in_srgb,var(--text)_20%,transparent)]">•</span>
+            <a href="https://aeri.fastdemo.workers.dev/api/health" className="underline hover:text-[var(--text)] text-[var(--text-faint)]">Service status</a>
+            <span className="mx-2 text-[color-mix(in_srgb,var(--text)_20%,transparent)]">•</span>
+            <Link to="/manga" className="underline hover:text-[var(--text)] text-[var(--text-faint)]">Manga (soon)</Link>
           </p>
         </div>
       </section>

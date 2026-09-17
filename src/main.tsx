@@ -2,6 +2,17 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './styles/globals.css'
 import App from './App.tsx'
+import { applyTheme } from './lib/themes'
+
+// Apply persisted theme before first render (no wrong-theme flash).
+// Reads the same `aeri:prefs` key the app persists — no new storage.
+try {
+  const raw = localStorage.getItem('aeri:prefs')
+  const saved = raw ? (JSON.parse(raw) as { theme?: string }).theme : undefined
+  applyTheme(saved || 'aeri-dark')
+} catch {
+  try { applyTheme('aeri-dark') } catch {}
+}
 
 // Early MAL OAuth callback handling before HashRouter — MAL uses ?code= & state= at the static document
 // Must handle at origin + base (e.g. https://aeri.fastdemo.workers.dev/ or legacy https://fastdemo.github.io/aeri/) (no hash) and then hand back to HashRouter #/

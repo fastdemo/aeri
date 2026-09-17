@@ -49,8 +49,8 @@ export function ContentRow({
   return (
     <section className="group/row relative">
       <div className="mb-2 flex items-baseline justify-between gap-2 px-4 sm:px-6 lg:px-0">
-        <h2 className="min-w-0 flex-1 truncate text-[14px] font-semibold tracking-[-0.01em] text-white">{title}</h2>
-        {subtitle && <span className="shrink-0 text-[14px] text-white/50">{subtitle}</span>}
+        <h2 className="min-w-0 flex-1 truncate text-[14px] font-semibold tracking-[-0.01em] text-[var(--text)]">{title}</h2>
+        {subtitle && <span className="shrink-0 text-[14px] text-[var(--text-faint)]">{subtitle}</span>}
       </div>
 
       <div className="relative">
@@ -60,26 +60,26 @@ export function ContentRow({
           <button
             aria-label="Scroll left"
             onClick={() => scroll(-1)}
-            className="absolute left-0 top-1/2 z-10 hidden h-full -translate-y-1/2 items-center justify-center bg-gradient-to-r from-black/60 to-transparent px-2 text-white opacity-0 transition hover:opacity-100 focus-visible:opacity-100 group-hover/row:opacity-100 md:flex"
+            className="absolute left-0 top-1/2 z-10 hidden h-full -translate-y-1/2 items-center justify-center bg-gradient-to-r from-[color-mix(in_srgb,var(--bg)_60%,transparent)] to-transparent px-2 text-[var(--text)] opacity-0 transition hover:opacity-100 focus-visible:opacity-100 group-hover/row:opacity-100 md:flex"
             style={{ width: 56 }}
           >
-            <span className="grid h-8 w-8 place-items-center rounded-full bg-black/60 text-white backdrop-blur">‹</span>
+            <span className="grid h-8 w-8 place-items-center rounded-full bg-[color-mix(in_srgb,var(--bg)_60%,transparent)] text-[var(--text)] backdrop-blur">‹</span>
           </button>
         )}
         {canRight && (
           <button
             aria-label="Scroll right"
             onClick={() => scroll(1)}
-            className="absolute right-0 top-1/2 z-10 hidden h-full -translate-y-1/2 items-center justify-center bg-gradient-to-l from-black/60 to-transparent px-2 text-white opacity-0 transition hover:opacity-100 focus-visible:opacity-100 group-hover/row:opacity-100 md:flex"
+            className="absolute right-0 top-1/2 z-10 hidden h-full -translate-y-1/2 items-center justify-center bg-gradient-to-l from-[color-mix(in_srgb,var(--bg)_60%,transparent)] to-transparent px-2 text-[var(--text)] opacity-0 transition hover:opacity-100 focus-visible:opacity-100 group-hover/row:opacity-100 md:flex"
             style={{ width: 56 }}
           >
-            <span className="grid h-8 w-8 place-items-center rounded-full bg-black/60 text-white backdrop-blur">›</span>
+            <span className="grid h-8 w-8 place-items-center rounded-full bg-[color-mix(in_srgb,var(--bg)_60%,transparent)] text-[var(--text)] backdrop-blur">›</span>
           </button>
         )}
 
         <div
           ref={scrollerRef}
-          className="no-scrollbar flex snap-x snap-mandatory gap-2 overflow-x-auto scroll-smooth px-4 pb-1 pt-1 sm:px-6 lg:px-0"
+          className="no-scrollbar flex snap-x snap-mandatory gap-2 overflow-x-auto scroll-smooth px-4 pb-1 pt-1 sm:px-6 lg:px-1"
           style={{ scrollbarWidth: 'none' }}
         >
           {children}

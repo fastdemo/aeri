@@ -1,18 +1,23 @@
 @import "tailwindcss";
 
 :root {
-  --bg: #070708;
-  --bg-soft: #0f0f10;
-  --surface: #141416;
-  --surface-hover: #1c1c1e;
-  --surface-elevated: #1e1e21;
-  --border: rgba(255,255,255,0.07);
-  --border-strong: rgba(255,255,255,0.12);
-  --text: #f2f2f3;
-  --text-muted: #9a9aa0;
-  --text-faint: #6b6b70;
-  --accent: #e50914;
-  --accent-hover: #f40612;
+  --bg: #000000;
+  --bg-soft: #0a0a0a;
+  --surface: #101010;
+  --surface-hover: #1a1a1a;
+  --surface-elevated: #1e1e1e;
+  --border: rgba(255,255,255,0.08);
+  --border-strong: rgba(255,255,255,0.16);
+  --text: #ffffff;
+  --text-muted: #a3a3a3;
+  --text-faint: #6e6e6e;
+  --on-text: #000000;
+  --accent: #ffffff;
+  --accent-hover: #d4d4d4;
+  --warn: #fbbf24;
+  --ok: #4ade80;
+  --scrim: rgba(0,0,0,0.75);
+  --shadow: rgba(0,0,0,0.6);
   --radius-sm: 4px;
   --radius-md: 8px;
   --radius-lg: 12px;
@@ -21,7 +26,7 @@
 
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255,255,255,0.12) transparent;
+  scrollbar-color: var(--border-strong) transparent;
 }
 
 html {
@@ -51,7 +56,7 @@ body {
 }
 
 ::selection {
-  background: rgba(229, 9, 20, 0.35);
+  background: var(--border-strong);
 }
 
 /* Hide scrollbar for rows but keep scroll */
@@ -65,14 +70,14 @@ body {
 
 /* Focus — preserve pill shape: use box-shadow for rounded-full, keep outline for others */
 :focus-visible {
-  outline: 2px solid rgba(255,255,255,0.9);
+  outline: 2px solid var(--text);
   outline-offset: 2px;
 }
 input.rounded-full:focus-visible,
 select.rounded-full:focus-visible,
 button.rounded-full:focus-visible {
   outline: none;
-  box-shadow: 0 0 0 2px rgba(255,255,255,0.9), 0 0 0 4px rgba(255,255,255,0.15);
+  box-shadow: 0 0 0 2px var(--text), 0 0 0 4px var(--border-strong);
   border-radius: 9999px;
 }
 

@@ -8,7 +8,8 @@ import { MyList } from './pages/MyList'
 import { Watch } from './pages/Watch'
 import { AnimeDetail } from './pages/AnimeDetail'
 import { Settings } from './pages/Settings'
-import { NotFound, MangaPlaceholder, ProfilePlaceholder } from './pages/NotFound'
+import { NotFound, ProfilePlaceholder } from './pages/NotFound'
+import { Manga } from './pages/Manga'
 import { AniListProvider } from './contexts/AniListContext'
 import { MALProvider } from './contexts/MALContext'
 import { TrackingProvider } from './contexts/TrackingContext'
@@ -59,20 +60,20 @@ function Layout() {
           <Route path="/anime/:id" element={<AnimeDetail />} />
           <Route path="/watch/:id/:episode" element={<Watch />} />
           <Route path="/settings" element={<Settings />} />
-          <Route path="/manga" element={<MangaPlaceholder />} />
+          <Route path="/manga" element={<Manga />} />
           <Route path="/profile" element={<ProfilePlaceholder />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
-      <footer className="border-t border-white/5">
+      <footer className="border-t border-[var(--border)]">
         <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-3 px-4 py-5 text-[11px] sm:px-6 lg:px-12">
           <div className="flex min-w-0 items-center gap-2">
-            <span className="shrink-0 text-white/25">aeri by @fastdemo</span>
+            <span className="shrink-0 text-[color-mix(in_srgb,var(--text)_25%,transparent)]">aeri by @fastdemo</span>
           </div>
           <div className="flex shrink-0 items-center gap-3">
-            <a href="https://github.com/fastdemo/aeri" className="text-white/40 transition-colors duration-200 hover:text-white">GitHub</a>
-            <span className="cursor-pointer text-white/40 transition-colors duration-200 hover:text-white">Docs</span>
-            <span className="cursor-pointer text-white/40 transition-colors duration-200 hover:text-white">Legal</span>
+            <a href="https://github.com/fastdemo/aeri" className="text-[var(--text-faint)] transition-colors duration-200 hover:text-[var(--text)]">GitHub</a>
+            <span className="cursor-pointer text-[var(--text-faint)] transition-colors duration-200 hover:text-[var(--text)]">Docs</span>
+            <span className="cursor-pointer text-[var(--text-faint)] transition-colors duration-200 hover:text-[var(--text)]">Legal</span>
           </div>
         </div>
       </footer>

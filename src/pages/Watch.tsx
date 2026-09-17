@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
-import { Link, useParams, useNavigate } from 'react-router-dom'
+import { Link, useParams, useNavigate, Navigate } from 'react-router-dom'
 import { useTracking } from '../contexts/TrackingContext'
 import { useAnimeDetail } from '../hooks/useAnimeMetadata'
 import { VideoPlayer } from '../components/player/VideoPlayer'
@@ -257,10 +257,13 @@ export function Watch() {
     if (anime) clearWatchPos(anime.identity.internalId).catch(() => {})
   }
 
+  if (!isAuthenticated) {
+    return <Navigate to="/" replace />
+  }
   if (loadingAnime && !anime) {
     return (
       <div className="mx-auto max-w-[1280px] px-0 sm:px-4 lg:px-6">
-        <div className="aspect-video w-full animate-pulse rounded-lg bg-white/5" />
+        <div className="aspect-video w-full animate-pulse rounded-lg bg-[color-mix(in_srgb,var(--text)_5%,transparent)]" />
       </div>
     )
   }
@@ -268,8 +271,8 @@ export function Watch() {
   if (!anime) {
     return (
       <div className="mx-auto max-w-[1200px] px-4 py-12 text-center">
-        <p className="text-white">Anime not found.</p>
-        <Link to="/" className="mt-4 inline-block text-sm text-white/60 underline">
+        <p className="text-[var(--text)]">Anime not found.</p>
+        <Link to="/" className="mt-4 inline-block text-sm text-[var(--text-muted)] underline">
           Back to home
         </Link>
       </div>
@@ -293,10 +296,10 @@ export function Watch() {
   const capabilities = getProviderCapabilities().filter(c => c.id !== 'mock')
 
   return (
-    <div className="min-h-screen bg-black">
+    <div className="min-h-screen bg-[var(--bg)]">
       <div className="mx-auto max-w-[1280px] px-0 sm:px-4 lg:px-6">
         {/* Player area */}
-        <div className="relative aspect-video w-full overflow-hidden bg-[#0a0a0a] sm:rounded-lg">
+        <div className="relative aspect-video w-full overflow-hidden bg-[var(--bg-soft)] sm:rounded-lg">
           {/* Backdrop fallback (visible when no video) */}
           {!hasVideo && (
             <img
@@ -311,13 +314,13 @@ export function Watch() {
 
           {/* Loading: episode finding - pointer-events-none so navbar remains clickable even while loading */}
           {isLoadingVideo && (
-            <div className="pointer-events-none absolute inset-0 grid place-items-center bg-black/40">
+            <div className="pointer-events-none absolute inset-0 grid place-items-center bg-[color-mix(in_srgb,var(--bg)_40%,transparent)]">
               <div className="text-center">
-                <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-white/20 border-t-white" />
-                <p className="mt-3 text-sm font-medium text-white">
+                <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-[var(--border-strong)] border-t-[var(--text)]" />
+                <p className="mt-3 text-sm font-medium text-[var(--text)]">
                   {episodesLoading ? 'Finding episodes…' : 'Finding video source…'}
                 </p>
-                <p className="text-xs text-white/50">Trying {providerId ?? 'providers'} • {triedProviders.join(', ') || '…'}</p>
+                <p className="text-xs text-[var(--text-faint)]">Trying {providerId ?? 'providers'} • {triedProviders.join(', ') || '…'}</p>
               </div>
             </div>
           )}
@@ -343,30 +346,30 @@ export function Watch() {
               readiness, which can lag behind IDB on slow networks). */}
           {showResume && watchPos && (
             <div className="absolute inset-x-4 top-14 flex justify-center">
-              <div className="flex items-center gap-2 rounded-full bg-black/80 px-4 py-2 text-xs text-white backdrop-blur">
+              <div className="flex items-center gap-2 rounded-full bg-[color-mix(in_srgb,var(--bg)_80%,transparent)] px-4 py-2 text-xs text-[var(--text)] backdrop-blur">
                 <span>Resume from {Math.floor(watchPos.currentTime / 60)}:{String(Math.floor(watchPos.currentTime % 60)).padStart(2, '0')}?</span>
-                <button onClick={handleResume} className="rounded-full bg-white px-3 py-1 text-xs font-semibold text-black hover:bg-white/90">Resume</button>
-                <button onClick={handleRestart} className="rounded-full bg-white/20 px-3 py-1 text-xs text-white hover:bg-white/30">Restart</button>
+                <button onClick={handleResume} className="rounded-full bg-[var(--text)] px-3 py-1 text-xs font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]">Resume</button>
+                <button onClick={handleRestart} className="rounded-full bg-[color-mix(in_srgb,var(--text)_20%,transparent)] px-3 py-1 text-xs text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_30%,transparent)]">Restart</button>
               </div>
             </div>
           )}
 
           {/* No-source placeholder (when no provider works) - outer pointer-events-none so navbar stays clickable, inner auto for buttons */}
           {showNoSource && !isLoadingVideo && (
-            <div className="pointer-events-none absolute inset-0 grid place-items-center bg-black/60 p-6 text-center">
+            <div className="pointer-events-none absolute inset-0 grid place-items-center bg-[color-mix(in_srgb,var(--bg)_60%,transparent)] p-6 text-center">
               <div className="pointer-events-auto max-w-md">
-                <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-white text-black">
+                <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-[var(--text)] text-[var(--on-text)]">
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
                     <path d="M10 16l6-4-6-4v8z" />
                     <circle cx="12" cy="12" r="10" />
                   </svg>
                 </div>
-                <p className="mt-3 text-sm font-medium text-white">No playable source is currently available for this {isMovie ? 'title' : 'episode'}.</p>
-                <p className="mx-auto mt-1 text-xs leading-5 text-white/60">
+                <p className="mt-3 text-sm font-medium text-[var(--text)]">No playable source is currently available for this {isMovie ? 'title' : 'episode'}.</p>
+                <p className="mx-auto mt-1 text-xs leading-5 text-[var(--text-muted)]">
                   This source isn&apos;t available right now. Try another source{isMovie ? '' : ' or episode'}. Aeri is static on GitHub Pages — most providers need a server proxy. Configure a video backend in Settings for playback.
                 </p>
                 {triedProviders.length > 0 && (
-                  <p className="mt-2 text-[11px] text-white/40">Tried: {triedProviders.join(' • ')}</p>
+                  <p className="mt-2 text-[11px] text-[var(--text-faint)]">Tried: {triedProviders.join(' • ')}</p>
                 )}
                 <div className="mt-4 flex flex-wrap justify-center gap-2">
                   <button
@@ -385,20 +388,20 @@ export function Watch() {
                         }).catch(() => setSourcesLoading(false))
                       }
                     }}
-                    className="rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-black hover:bg-white/90"
+                    className="rounded-full bg-[var(--text)] px-4 py-1.5 text-xs font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]"
                   >
                     Retry
                   </button>
-                  <Link to="/settings" className="rounded-full bg-white/15 px-4 py-1.5 text-xs font-medium text-white backdrop-blur hover:bg-white/20">
+                  <Link to="/settings" className="rounded-full bg-[color-mix(in_srgb,var(--text)_15%,transparent)] px-4 py-1.5 text-xs font-medium text-[var(--text)] backdrop-blur hover:bg-[color-mix(in_srgb,var(--text)_20%,transparent)]">
                     Change source
                   </Link>
-                  <Link to={`/anime/${id}`} className="rounded-full bg-white/15 px-4 py-1.5 text-xs font-medium text-white backdrop-blur hover:bg-white/20">
+                  <Link to={`/anime/${id}`} className="rounded-full bg-[color-mix(in_srgb,var(--text)_15%,transparent)] px-4 py-1.5 text-xs font-medium text-[var(--text)] backdrop-blur hover:bg-[color-mix(in_srgb,var(--text)_20%,transparent)]">
                     {isMovie ? 'Details' : 'Episodes'}
                   </Link>
                 </div>
                 <div className="mt-4 flex flex-wrap justify-center gap-1.5">
                   {capabilities.slice(0,4).map(c => (
-                    <span key={c.id} className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] text-white/50">
+                    <span key={c.id} className="rounded-full border border-[var(--border)] bg-[color-mix(in_srgb,var(--text)_5%,transparent)] px-2 py-1 text-[10px] text-[var(--text-faint)]">
                       {c.displayName}
                     </span>
                   ))}
@@ -409,10 +412,10 @@ export function Watch() {
 
           {/* Source error */}
           {sourcesError && !isLoadingVideo && (
-            <div className="pointer-events-none absolute inset-0 grid place-items-center bg-black/60 p-6 text-center">
+            <div className="pointer-events-none absolute inset-0 grid place-items-center bg-[color-mix(in_srgb,var(--bg)_60%,transparent)] p-6 text-center">
               <div className="pointer-events-auto">
-                <p className="text-sm font-medium text-white">This source isn&apos;t available right now.</p>
-                <p className="mt-1 text-xs text-white/60">{sourcesError}</p>
+                <p className="text-sm font-medium text-[var(--text)]">This source isn&apos;t available right now.</p>
+                <p className="mt-1 text-xs text-[var(--text-muted)]">{sourcesError}</p>
                 <div className="mt-3 flex justify-center gap-2">
                   <button
                     onClick={() => {
@@ -430,11 +433,11 @@ export function Watch() {
                         }).catch(() => setSourcesLoading(false))
                       }
                     }}
-                    className="rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-black"
+                    className="rounded-full bg-[var(--text)] px-4 py-1.5 text-xs font-semibold text-[var(--on-text)]"
                   >
                     Try another source
                   </button>
-                  <Link to="/settings" className="rounded-full bg-white/15 px-4 py-1.5 text-xs font-medium text-white">Change source</Link>
+                  <Link to="/settings" className="rounded-full bg-[color-mix(in_srgb,var(--text)_15%,transparent)] px-4 py-1.5 text-xs font-medium text-[var(--text)]">Change source</Link>
                 </div>
               </div>
             </div>
@@ -444,18 +447,18 @@ export function Watch() {
               no overlay chrome over the video — the OS/browser player owns it. */}
 
           {/* Bottom gradient when no video */}
-          {!hasVideo && <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-black/60 to-transparent" />}
+          {!hasVideo && <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[color-mix(in_srgb,var(--bg)_60%,transparent)] to-transparent" />}
         </div>
 
         <div className="px-4 py-5 sm:px-0">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h1 className="text-[15px] font-semibold text-white">
+              <h1 className="text-[15px] font-semibold text-[var(--text)]">
                 {isMovie ? titles.primary : `${titles.primary} — S${effectiveSeasonNumber}:E${epDisplayForTitle}`}
               </h1>
-              {titles.native && <p className="text-xs text-white/55">{titles.native}</p>}
-              {titles.romaji && <p className="text-xs text-white/45">{titles.romaji}</p>}
-              <p className="mt-1 text-xs text-white/60">
+              {titles.native && <p className="text-xs text-[var(--text-muted)]">{titles.native}</p>}
+              {titles.romaji && <p className="text-xs text-[var(--text-faint)]">{titles.romaji}</p>}
+              <p className="mt-1 text-xs text-[var(--text-muted)]">
                 {anime.year ? String(anime.year) : '—'} • {formatLabel(anime.format) ?? anime.format ?? '—'} • {anime.duration ? `${anime.duration}m` : '—'}
                 {providerId && providerId !== 'mock' ? ` • ${providerId}` : ''}
               </p>
@@ -465,7 +468,7 @@ export function Watch() {
               {/* Source selector */}
               {sources && sources.length > 0 && (
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-white/50">Source:</span>
+                  <span className="text-xs text-[var(--text-faint)]">Source:</span>
                   <div className="relative">
                     <select
                       value={selectedSource?.url ?? ''}
@@ -474,24 +477,24 @@ export function Watch() {
                         if (s) setSelectedSource(s)
                       }}
                       aria-label="Select video source"
-                      className="appearance-none rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 pr-8 text-xs text-white focus:border-white/20 focus:outline-none"
+                      className="appearance-none rounded-full border border-[var(--border)] bg-[var(--text)]/[0.06] px-3 py-1.5 pr-8 text-xs text-[var(--text)] focus:border-[var(--border-strong)] focus:outline-none"
                     >
                       {sources.map(s => (
-                        <option key={s.url} value={s.url} className="bg-[#141416]">
+                        <option key={s.url} value={s.url} className="bg-[var(--surface)]">
                           {s.provider} {s.quality ? `• ${s.quality}` : ''} {s.language ? `• ${s.language}` : ''} {s.embed ? '• embed' : ''}
                         </option>
                       ))}
                     </select>
-                    <svg aria-hidden className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-white/50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <svg aria-hidden className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--text-faint)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="m6 9 6 6 6-6" />
                     </svg>
                   </div>
-                  <span className="text-[10px] text-white/30">{preferredProvider ? `Preferred: ${preferredProvider}` : 'Auto'}</span>
+                  <span className="text-[10px] text-[color-mix(in_srgb,var(--text)_30%,transparent)]">{preferredProvider ? `Preferred: ${preferredProvider}` : 'Auto'}</span>
                 </div>
               )}
               {/* SUB/DUB toggle when available */}
               {sources && sources.some(s => s.language) && (
-                <div className="flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.04] p-1">
+                <div className="flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--text)]/[0.04] p-1">
                   {(['sub','dub'] as const).map(lang => {
                     const hasLang = sources.some(s => s.language === lang)
                     const isActive = selectedSource?.language === lang || (!selectedSource?.language && preferredAudio === lang)
@@ -503,7 +506,7 @@ export function Watch() {
                           const match = sources.find(s => s.language === lang)
                           if (match) setSelectedSource(match)
                         }}
-                        className={`rounded-full px-3 py-1 text-xs font-medium ${isActive ? 'bg-white text-black' : hasLang ? 'text-white/70 hover:text-white' : 'text-white/20'}`}
+                        className={`rounded-full px-3 py-1 text-xs font-medium ${isActive ? 'bg-[var(--text)] text-[var(--on-text)]' : hasLang ? 'text-[var(--text-muted)] hover:text-[var(--text)]' : 'text-[color-mix(in_srgb,var(--text)_20%,transparent)]'}`}
                       >
                         {lang === 'sub' ? 'Sub' : 'Dub'}
                       </button>
@@ -520,17 +523,17 @@ export function Watch() {
               {prev ? (
                 <Link
                   to={`/watch/${id}/${prev}`}
-                  className="rounded-full border border-white/15 bg-white/10 px-4 py-1.5 text-xs font-medium text-white hover:bg-white/15"
+                  className="rounded-full border border-[var(--border)] bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-4 py-1.5 text-xs font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)]"
                 >
                   ← Previous
                 </Link>
               ) : (
-                <span className="rounded-full border border-white/10 px-4 py-1.5 text-xs text-white/30">← Previous</span>
+                <span className="rounded-full border border-[var(--border)] px-4 py-1.5 text-xs text-[color-mix(in_srgb,var(--text)_30%,transparent)]">← Previous</span>
               )}
 
               <Link
                 to={`/anime/${id}`}
-                className="rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-black hover:bg-white/90"
+                className="rounded-full bg-[var(--text)] px-4 py-1.5 text-xs font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]"
               >
                 Episodes
               </Link>
@@ -538,21 +541,21 @@ export function Watch() {
               {next ? (
                 <Link
                   to={`/watch/${id}/${next}`}
-                  className="rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-black hover:bg-white/90"
+                  className="rounded-full bg-[var(--text)] px-4 py-1.5 text-xs font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]"
                 >
                   Next →
                 </Link>
               ) : (
-                <span className="rounded-full border border-white/10 px-4 py-1.5 text-xs text-white/30">Next →</span>
+                <span className="rounded-full border border-[var(--border)] px-4 py-1.5 text-xs text-[color-mix(in_srgb,var(--text)_30%,transparent)]">Next →</span>
               )}
 
-              <span className="ml-2 text-xs text-white/40">{immediateEpisodes.length} episodes{providerId && providerId !== 'mock' ? ` • ${providerId}` : ''}</span>
+              <span className="ml-2 text-xs text-[var(--text-faint)]">{immediateEpisodes.length} episodes{providerId && providerId !== 'mock' ? ` • ${providerId}` : ''}</span>
             </div>
           )}
           {!isMovie && (
             <Link
               to={`/anime/${id}`}
-              className={`mt-4 ${isMovie ? 'hidden' : 'inline-flex'} rounded-full bg-white/10 px-4 py-1.5 text-xs font-medium text-white hover:bg-white/15 sm:hidden`}
+              className={`mt-4 ${isMovie ? 'hidden' : 'inline-flex'} rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-4 py-1.5 text-xs font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)] sm:hidden`}
             >
               Details
             </Link>
@@ -563,11 +566,11 @@ export function Watch() {
               source resolution run independently above. */}
           {!isMovie && (
             <div className="mt-6">
-              <h2 className="mb-2 text-sm font-semibold text-white">Episodes</h2>
+              <h2 className="mb-2 text-sm font-semibold text-[var(--text)]">Episodes</h2>
               {!groupReady && anime ? (
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5" aria-label="Loading episodes">
                   {Array.from({ length: 10 }).map((_, i) => (
-                    <div key={i} className="aspect-video animate-pulse rounded bg-white/5" />
+                    <div key={i} className="aspect-video animate-pulse rounded bg-[color-mix(in_srgb,var(--text)_5%,transparent)]" />
                   ))}
                 </div>
               ) : immediateEpisodes.length > 0 ? (
@@ -580,28 +583,28 @@ export function Watch() {
                       <Link
                         key={epKey}
                         to={`/watch/${id}/${ep.displayNumber}`}
-                        className={`relative flex aspect-video flex-col items-center justify-center overflow-hidden rounded bg-white/5 p-2 text-center transition ${isCurrent ? 'ring-1 ring-white/30 bg-white/10' : 'hover:bg-white/10'}`}
+                        className={`relative flex aspect-video flex-col items-center justify-center overflow-hidden rounded bg-[color-mix(in_srgb,var(--text)_5%,transparent)] p-2 text-center transition ${isCurrent ? 'ring-1 ring-[var(--border-strong)] bg-[color-mix(in_srgb,var(--text)_10%,transparent)]' : 'hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)]'}`}
                         aria-label={`Watch S${effectiveSeasonNumber}:E${ep.displayNumber}${realTitle ? ` - ${realTitle}` : ''}`}
                       >
-                        <span className={`text-xs font-medium ${isCurrent ? 'text-white' : 'text-white/70'}`}>S{effectiveSeasonNumber}:E{ep.displayNumber}</span>
-                        {realTitle && <span className="mt-1 line-clamp-1 text-[10px] text-white/40">{realTitle}</span>}
-                        {isCurrent && <span className="absolute bottom-1 left-1/2 h-0.5 w-8 -translate-x-1/2 bg-[#e50914]" />}
+                        <span className={`text-xs font-medium ${isCurrent ? 'text-[var(--text)]' : 'text-[var(--text-muted)]'}`}>S{effectiveSeasonNumber}:E{ep.displayNumber}</span>
+                        {realTitle && <span className="mt-1 line-clamp-1 text-[10px] text-[var(--text-faint)]">{realTitle}</span>}
+                        {isCurrent && <span className="absolute bottom-1 left-1/2 h-0.5 w-8 -translate-x-1/2 bg-[var(--accent)]" />}
                       </Link>
                     )
                   })}
                 </div>
               ) : (
-                <p className="text-sm text-white/50">No episodes found. Try another anime.</p>
+                <p className="text-sm text-[var(--text-faint)]">No episodes found. Try another anime.</p>
               )}
             </div>
           )}
 
-          <p className="mt-6 max-w-[720px] text-sm leading-6 text-white/70">{anime.description || 'No description available.'}</p>
+          <p className="mt-6 max-w-[720px] text-sm leading-6 text-[var(--text-muted)]">{anime.description || 'No description available.'}</p>
 
           {/* Provider capabilities footer (quiet) */}
           <div className="mt-6 flex flex-wrap gap-1.5">
             {getProviderCapabilities().filter(c => c.id !== 'mock').map(c => (
-              <span key={c.id} className="rounded-full border border-white/5 bg-white/[0.02] px-2 py-1 text-[10px] text-white/30">
+              <span key={c.id} className="rounded-full border border-[var(--border)] bg-[var(--text)]/[0.02] px-2 py-1 text-[10px] text-[color-mix(in_srgb,var(--text)_30%,transparent)]">
                 {c.displayName} {c.languages.join('/')}
               </span>
             ))}

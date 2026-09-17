@@ -79,14 +79,14 @@ export function SearchSuggestions({ query, onClose, onPreview }: Props) {
   if (query.trim().length < 2) return null
   if (loading) {
     return (
-      <div ref={containerRef} className="absolute left-0 right-0 top-[calc(100%+8px)] z-[70] overflow-hidden rounded-xl border border-white/10 bg-black/70 p-2 backdrop-blur-2xl shadow-[0_16px_48px_rgba(0,0,0,0.6)]">
+      <div ref={containerRef} className="absolute left-0 right-0 top-[calc(100%+8px)] z-[70] overflow-hidden rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--bg)_70%,transparent)] p-2 backdrop-blur-2xl shadow-[0_16px_48px_var(--shadow)]">
         <div className="space-y-2">
           {[0,1,2].map(i => (
             <div key={i} className="flex items-center gap-3 px-2 py-2">
-              <div className="h-14 w-10 animate-pulse rounded bg-white/10" />
+              <div className="h-14 w-10 animate-pulse rounded bg-[color-mix(in_srgb,var(--text)_10%,transparent)]" />
               <div className="flex-1 space-y-2">
-                <div className="h-3 w-3/4 animate-pulse rounded bg-white/10" />
-                <div className="h-2 w-1/2 animate-pulse rounded bg-white/5" />
+                <div className="h-3 w-3/4 animate-pulse rounded bg-[color-mix(in_srgb,var(--text)_10%,transparent)]" />
+                <div className="h-2 w-1/2 animate-pulse rounded bg-[color-mix(in_srgb,var(--text)_5%,transparent)]" />
               </div>
             </div>
           ))}
@@ -97,8 +97,8 @@ export function SearchSuggestions({ query, onClose, onPreview }: Props) {
   if (!results) return null
   if (results.length === 0) {
     return (
-      <div ref={containerRef} className="absolute left-0 right-0 top-[calc(100%+8px)] z-[70] rounded-xl border border-white/10 bg-black/70 p-4 text-center backdrop-blur-2xl shadow-[0_16px_48px_rgba(0,0,0,0.6)]">
-        <p className="text-xs text-white/60">No titles for “{query.trim()}”</p>
+      <div ref={containerRef} className="absolute left-0 right-0 top-[calc(100%+8px)] z-[70] rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--bg)_70%,transparent)] p-4 text-center backdrop-blur-2xl shadow-[0_16px_48px_var(--shadow)]">
+        <p className="text-xs text-[var(--text-muted)]">No titles for “{query.trim()}”</p>
       </div>
     )
   }
@@ -110,7 +110,7 @@ export function SearchSuggestions({ query, onClose, onPreview }: Props) {
       // Isolate compositing so ancestor transforms/filters can't flatten the
       // backdrop blur while the page scrolls underneath.
       style={{ isolation: 'isolate' }}
-      className="absolute left-0 right-0 top-[calc(100%+8px)] z-[70] max-h-[min(68vh,420px)] overflow-x-hidden overflow-y-auto rounded-xl border border-white/10 bg-black/70 backdrop-blur-2xl shadow-[0_16px_48px_rgba(0,0,0,0.6)]"
+      className="absolute left-0 right-0 top-[calc(100%+8px)] z-[70] max-h-[min(68vh,420px)] overflow-x-hidden overflow-y-auto rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--bg)_70%,transparent)] backdrop-blur-2xl shadow-[0_16px_48px_var(--shadow)]"
     >
       {results.map((anime, idx) => {
         const titles = getTitleHierarchy(anime, null)
@@ -123,21 +123,21 @@ export function SearchSuggestions({ query, onClose, onPreview }: Props) {
           onPointerEnter={() => setActiveIdx(idx)}
           onMouseEnter={() => setActiveIdx(idx)}
           onClick={() => openPreview(anime)}
-          className={`flex w-full touch-manipulation items-center gap-3 px-3 py-2 text-left hover:bg-white/5 ${idx === activeIdx ? 'bg-white/10' : ''}`}
+          className={`flex w-full touch-manipulation items-center gap-3 px-3 py-2 text-left hover:bg-[color-mix(in_srgb,var(--text)_5%,transparent)] ${idx === activeIdx ? 'bg-[color-mix(in_srgb,var(--text)_10%,transparent)]' : ''}`}
           style={{ touchAction: 'manipulation' } as any}
         >
-          <div className="h-14 w-10 shrink-0 overflow-hidden rounded bg-white/5">
+          <div className="h-14 w-10 shrink-0 overflow-hidden rounded bg-[color-mix(in_srgb,var(--text)_5%,transparent)]">
             <img src={anime.coverImage} alt="" className="h-full w-full object-cover" loading="lazy" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-[13px] font-medium leading-tight text-white">{titles.primary}</p>
+            <p className="truncate text-[13px] font-medium leading-tight text-[var(--text)]">{titles.primary}</p>
             {titles.native && (
-              <p className="truncate text-[11px] text-white/45">{titles.native}</p>
+              <p className="truncate text-[11px] text-[var(--text-faint)]">{titles.native}</p>
             )}
             {titles.romaji && (
-              <p className="truncate text-[11px] text-white/40">{titles.romaji}</p>
+              <p className="truncate text-[11px] text-[var(--text-faint)]">{titles.romaji}</p>
             )}
-            <p className="text-[11px] text-white/50">{[formatLabel(anime.format) ?? anime.format, anime.year ? String(anime.year) : null].filter(Boolean).join(' • ')}</p>
+            <p className="text-[11px] text-[var(--text-faint)]">{[formatLabel(anime.format) ?? anime.format, anime.year ? String(anime.year) : null].filter(Boolean).join(' • ')}</p>
           </div>
         </button>
       )})}
@@ -147,7 +147,7 @@ export function SearchSuggestions({ query, onClose, onPreview }: Props) {
           navigate(`/search?q=${encodeURIComponent(query.trim())}`)
           onClose?.()
         }}
-        className="w-full border-t border-white/10 px-3 py-2 text-center text-xs text-white/60 hover:bg-white/5 hover:text-white"
+        className="w-full border-t border-[var(--border)] px-3 py-2 text-center text-xs text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--text)_5%,transparent)] hover:text-[var(--text)]"
       >
         See all results for “{query.trim()}” →
       </button>

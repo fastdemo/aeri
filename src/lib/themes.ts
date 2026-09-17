@@ -4,24 +4,134 @@ export interface ThemeDef {
   vars: Record<string, string>
 }
 
+// Every color the site uses flows through these tokens — no hardcoded
+// whites/blacks/reds anywhere in components. `text` doubles as the "white"
+// (primary buttons, pills, badges sit on --text with --on-text ink).
+export const THEME_KEYS = [
+  '--bg', '--bg-soft', '--surface', '--surface-hover', '--surface-elevated',
+  '--border', '--border-strong',
+  '--text', '--text-muted', '--text-faint', '--on-text',
+  '--accent', '--accent-hover',
+  '--warn', '--ok',
+  '--scrim', '--shadow',
+] as const
+
+function t(bg: string, bgSoft: string, surface: string, surfaceHover: string, surfaceElevated: string,
+  border: string, borderStrong: string, text: string, textMuted: string, textFaint: string,
+  onText: string, accent: string, accentHover: string, warn: string, ok: string,
+  scrim: string, shadow: string): Record<string, string> {
+  return {
+    '--bg': bg, '--bg-soft': bgSoft, '--surface': surface, '--surface-hover': surfaceHover,
+    '--surface-elevated': surfaceElevated, '--border': border, '--border-strong': borderStrong,
+    '--text': text, '--text-muted': textMuted, '--text-faint': textFaint, '--on-text': onText,
+    '--accent': accent, '--accent-hover': accentHover, '--warn': warn, '--ok': ok,
+    '--scrim': scrim, '--shadow': shadow,
+  }
+}
+
 export const THEMES: ThemeDef[] = [
-  { id: 'aeri-dark', name: 'Aeri Dark', vars: { '--bg': '#070708', '--bg-soft': '#0f0f10', '--surface': '#141416', '--surface-elevated': '#1e1e21', '--text': '#f2f2f3', '--text-muted': '#9a9aa0', '--text-faint': '#6b6b70', '--border': 'rgba(255,255,255,0.07)', '--accent': '#e50914' } },
-  { id: 'catppuccin-latte', name: 'Catppuccin Latte', vars: { '--bg': '#eff1f5', '--bg-soft': '#e6e9ef', '--surface': '#ccd0da', '--surface-elevated': '#bcc0cc', '--text': '#4c4f69', '--text-muted': '#6c6f85', '--text-faint': '#8c8fa1', '--border': 'rgba(76,79,105,0.14)', '--accent': '#d20f39' } },
-  { id: 'catppuccin-frappe', name: 'Catppuccin Frappé', vars: { '--bg': '#303446', '--bg-soft': '#292c3c', '--surface': '#414559', '--surface-elevated': '#51576d', '--text': '#c6d0f5', '--text-muted': '#a5adce', '--text-faint': '#737994', '--border': 'rgba(198,208,245,0.12)', '--accent': '#e78284' } },
-  { id: 'catppuccin-macchiato', name: 'Catppuccin Macchiato', vars: { '--bg': '#24273a', '--bg-soft': '#1e2030', '--surface': '#363a4f', '--surface-elevated': '#494d64', '--text': '#cad3f5', '--text-muted': '#a5adcb', '--text-faint': '#8087a2', '--border': 'rgba(202,211,245,0.12)', '--accent': '#ed8796' } },
-  { id: 'catppuccin-mocha', name: 'Catppuccin Mocha', vars: { '--bg': '#1e1e2e', '--bg-soft': '#181825', '--surface': '#313244', '--surface-elevated': '#45475a', '--text': '#cdd6f4', '--text-muted': '#a6adc8', '--text-faint': '#7f849c', '--border': 'rgba(205,214,244,0.12)', '--accent': '#f38ba8' } },
-  { id: 'gruvbox-dark', name: 'Gruvbox Dark', vars: { '--bg': '#282828', '--bg-soft': '#1d2021', '--surface': '#3c3836', '--surface-elevated': '#504945', '--text': '#ebdbb2', '--text-muted': '#d5c4a1', '--text-faint': '#a89984', '--border': 'rgba(235,219,178,0.14)', '--accent': '#fb4934' } },
-  { id: 'gruvbox-light', name: 'Gruvbox Light', vars: { '--bg': '#fbf1c7', '--bg-soft': '#f2e5bc', '--surface': '#ebdbb2', '--surface-elevated': '#d5c4a1', '--text': '#3c3836', '--text-muted': '#665c54', '--text-faint': '#928374', '--border': 'rgba(60,56,54,0.14)', '--accent': '#cc241d' } },
-  { id: 'dracula', name: 'Dracula', vars: { '--bg': '#282a36', '--bg-soft': '#21222c', '--surface': '#44475a', '--surface-elevated': '#565973', '--text': '#f8f8f2', '--text-muted': '#bfbfbf', '--text-faint': '#6272a4', '--border': 'rgba(248,248,242,0.12)', '--accent': '#ff79c6' } },
-  { id: 'nord', name: 'Nord', vars: { '--bg': '#2e3440', '--bg-soft': '#292e39', '--surface': '#3b4252', '--surface-elevated': '#434c5e', '--text': '#eceff4', '--text-muted': '#d8dee9', '--text-faint': '#4c566a', '--border': 'rgba(236,239,244,0.12)', '--accent': '#88c0d0' } },
-  { id: 'tokyo-night', name: 'Tokyo Night', vars: { '--bg': '#1a1b26', '--bg-soft': '#16161e', '--surface': '#24283b', '--surface-elevated': '#2f3549', '--text': '#c0caf5', '--text-muted': '#9aa5ce', '--text-faint': '#565f89', '--border': 'rgba(192,202,245,0.12)', '--accent': '#7aa2f7' } },
-  { id: 'one-dark', name: 'One Dark', vars: { '--bg': '#282c34', '--bg-soft': '#21252b', '--surface': '#353b45', '--surface-elevated': '#3e4451', '--text': '#abb2bf', '--text-muted': '#828997', '--text-faint': '#5c6370', '--border': 'rgba(171,178,191,0.14)', '--accent': '#61afef' } },
-  { id: 'solarized-dark', name: 'Solarized Dark', vars: { '--bg': '#002b36', '--bg-soft': '#00212b', '--surface': '#073642', '--surface-elevated': '#0b4a5a', '--text': '#839496', '--text-muted': '#708183', '--text-faint': '#586e75', '--border': 'rgba(131,148,150,0.16)', '--accent': '#268bd2' } },
-  { id: 'solarized-light', name: 'Solarized Light', vars: { '--bg': '#fdf6e3', '--bg-soft': '#f5efdc', '--surface': '#eee8d5', '--surface-elevated': '#e2d9c2', '--text': '#657b83', '--text-muted': '#839496', '--text-faint': '#93a1a1', '--border': 'rgba(101,123,131,0.2)', '--accent': '#268bd2' } },
-  { id: 'rose-pine', name: 'Rosé Pine', vars: { '--bg': '#191724', '--bg-soft': '#12111a', '--surface': '#1f1d2e', '--surface-elevated': '#26233a', '--text': '#e0def4', '--text-muted': '#c4c2dd', '--text-faint': '#908caa', '--border': 'rgba(224,222,244,0.12)', '--accent': '#eb6f92' } },
-  { id: 'everforest-dark', name: 'Everforest Dark', vars: { '--bg': '#2d353b', '--bg-soft': '#232a2f', '--surface': '#3d484d', '--surface-elevated': '#4a555b', '--text': '#d3c6aa', '--text-muted': '#b8ab8d', '--text-faint': '#859289', '--border': 'rgba(211,198,170,0.14)', '--accent': '#e67e80' } },
-  { id: 'kanagawa', name: 'Kanagawa', vars: { '--bg': '#1f1f28', '--bg-soft': '#1a1a22', '--surface': '#2a2a37', '--surface-elevated': '#363646', '--text': '#dcd7ba', '--text-muted': '#b8b29e', '--text-faint': '#727169', '--border': 'rgba(220,215,186,0.12)', '--accent': '#7e9cd8' } },
-  { id: 'monokai', name: 'Monokai', vars: { '--bg': '#272822', '--bg-soft': '#1e1f1c', '--surface': '#3e3d32', '--surface-elevated': '#49483e', '--text': '#f8f8f2', '--text-muted': '#cfcfc2', '--text-faint': '#75715e', '--border': 'rgba(248,248,242,0.12)', '--accent': '#f92672' } },
+  { id: 'aeri-dark', name: 'Aeri Dark', vars: t(
+    '#000000', '#0a0a0a', '#101010', '#1a1a1a', '#1e1e1e',
+    'rgba(255,255,255,0.08)', 'rgba(255,255,255,0.16)',
+    '#ffffff', '#a3a3a3', '#6e6e6e', '#000000',
+    '#ffffff', '#d4d4d4', '#fbbf24', '#4ade80',
+    'rgba(0,0,0,0.75)', 'rgba(0,0,0,0.6)') },
+  { id: 'catppuccin-latte', name: 'Catppuccin Latte', vars: t(
+    '#eff1f5', '#e6e9ef', '#ccd0da', '#bcc0cc', '#acb0be',
+    'rgba(76,79,105,0.16)', 'rgba(76,79,105,0.3)',
+    '#4c4f69', '#5c5f77', '#8c8fa1', '#eff1f5',
+    '#8839ef', '#7c2bd6', '#df8e1d', '#40a02b',
+    'rgba(76,79,105,0.45)', 'rgba(76,79,105,0.25)') },
+  { id: 'catppuccin-frappe', name: 'Catppuccin Frappé', vars: t(
+    '#303446', '#292c3c', '#414559', '#51576d', '#626880',
+    'rgba(198,208,245,0.14)', 'rgba(198,208,245,0.28)',
+    '#c6d0f5', '#a5adce', '#737994', '#303446',
+    '#ca9ee6', '#b68ae0', '#e5c890', '#a6d189',
+    'rgba(35,38,52,0.7)', 'rgba(0,0,0,0.5)') },
+  { id: 'catppuccin-macchiato', name: 'Catppuccin Macchiato', vars: t(
+    '#24273a', '#1e2030', '#363a4f', '#494d64', '#5b6078',
+    'rgba(202,211,245,0.14)', 'rgba(202,211,245,0.28)',
+    '#cad3f5', '#a5adcb', '#8087a2', '#24273a',
+    '#c6a0f6', '#b484f0', '#e5c890', '#a6da95',
+    'rgba(24,25,38,0.7)', 'rgba(0,0,0,0.5)') },
+  { id: 'catppuccin-mocha', name: 'Catppuccin Mocha', vars: t(
+    '#1e1e2e', '#181825', '#313244', '#45475a', '#585b70',
+    'rgba(205,214,244,0.14)', 'rgba(205,214,244,0.28)',
+    '#cdd6f4', '#a6adc8', '#7f849c', '#1e1e2e',
+    '#cba6f7', '#b784f5', '#f9e2af', '#a6e3a1',
+    'rgba(17,17,27,0.7)', 'rgba(0,0,0,0.5)') },
+  { id: 'gruvbox-dark', name: 'Gruvbox Dark', vars: t(
+    '#282828', '#1d2021', '#3c3836', '#504945', '#665c54',
+    'rgba(235,219,178,0.16)', 'rgba(235,219,178,0.32)',
+    '#ebdbb2', '#d5c4a1', '#a89984', '#282828',
+    '#fabd2f', '#eab308', '#fe8019', '#b8bb26',
+    'rgba(29,32,33,0.72)', 'rgba(0,0,0,0.5)') },
+  { id: 'gruvbox-light', name: 'Gruvbox Light', vars: t(
+    '#fbf1c7', '#f2e5bc', '#ebdbb2', '#d5c4a1', '#c9b896',
+    'rgba(60,56,54,0.18)', 'rgba(60,56,54,0.34)',
+    '#3c3836', '#504945', '#928374', '#fbf1c7',
+    '#af3a03', '#9c3303', '#b57614', '#79740e',
+    'rgba(60,56,54,0.4)', 'rgba(60,56,54,0.22)') },
+  { id: 'dracula', name: 'Dracula', vars: t(
+    '#282a36', '#21222c', '#44475a', '#565973', '#6272a4',
+    'rgba(248,248,242,0.14)', 'rgba(248,248,242,0.28)',
+    '#f8f8f2', '#bfbfbf', '#8a8f9e', '#282a36',
+    '#bd93f9', '#a87df0', '#ffb86c', '#50fa7b',
+    'rgba(33,34,44,0.72)', 'rgba(0,0,0,0.5)') },
+  { id: 'nord', name: 'Nord', vars: t(
+    '#2e3440', '#292e39', '#3b4252', '#434c5e', '#4c566a',
+    'rgba(236,239,244,0.14)', 'rgba(236,239,244,0.28)',
+    '#eceff4', '#d8dee9', '#7b8698', '#2e3440',
+    '#88c0d0', '#6fb3c8', '#ebcb8b', '#a3be8c',
+    'rgba(46,52,64,0.72)', 'rgba(0,0,0,0.45)') },
+  { id: 'tokyo-night', name: 'Tokyo Night', vars: t(
+    '#1a1b26', '#16161e', '#24283b', '#2f3549', '#414868',
+    'rgba(192,202,245,0.14)', 'rgba(192,202,245,0.28)',
+    '#c0caf5', '#9aa5ce', '#636b8c', '#1a1b26',
+    '#7aa2f7', '#5f86e8', '#e0af68', '#9ece6a',
+    'rgba(22,22,30,0.72)', 'rgba(0,0,0,0.5)') },
+  { id: 'one-dark', name: 'One Dark', vars: t(
+    '#282c34', '#21252b', '#353b45', '#3e4451', '#4b5261',
+    'rgba(171,178,191,0.16)', 'rgba(171,178,191,0.32)',
+    '#abb2bf', '#828997', '#636a78', '#282c34',
+    '#61afef', '#4d9ede', '#d19a66', '#98c379',
+    'rgba(33,37,43,0.72)', 'rgba(0,0,0,0.5)') },
+  { id: 'solarized-dark', name: 'Solarized Dark', vars: t(
+    '#002b36', '#00212b', '#073642', '#0b4a5a', '#0f5c6e',
+    'rgba(131,148,150,0.18)', 'rgba(131,148,150,0.34)',
+    '#93a1a1', '#7d8c8d', '#586e75', '#002b36',
+    '#2aa198', '#1f8a82', '#b58900', '#859900',
+    'rgba(0,33,43,0.72)', 'rgba(0,0,0,0.5)') },
+  { id: 'solarized-light', name: 'Solarized Light', vars: t(
+    '#fdf6e3', '#f5efdc', '#eee8d5', '#e2d9c2', '#d3c9ab',
+    'rgba(101,123,131,0.22)', 'rgba(101,123,131,0.38)',
+    '#405055', '#56676d', '#93a1a1', '#fdf6e3',
+    '#268bd2', '#1d74b3', '#b58900', '#728c00',
+    'rgba(101,123,131,0.4)', 'rgba(101,123,131,0.25)') },
+  { id: 'rose-pine', name: 'Rosé Pine', vars: t(
+    '#191724', '#12111a', '#1f1d2e', '#26233a', '#35315b',
+    'rgba(224,222,244,0.14)', 'rgba(224,222,244,0.28)',
+    '#e0def4', '#c4c2dd', '#8e8aa8', '#191724',
+    '#c4a7e7', '#b28ce0', '#f6c177', '#9ccfd8',
+    'rgba(18,17,26,0.72)', 'rgba(0,0,0,0.5)') },
+  { id: 'everforest-dark', name: 'Everforest Dark', vars: t(
+    '#2d353b', '#232a2f', '#3d484d', '#4a555b', '#5a666c',
+    'rgba(211,198,170,0.16)', 'rgba(211,198,170,0.32)',
+    '#d3c6aa', '#b8ab8d', '#7f8c7a', '#2d353b',
+    '#a7c080', '#93b06c', '#dbbc7f', '#83c092',
+    'rgba(35,42,47,0.72)', 'rgba(0,0,0,0.5)') },
+  { id: 'kanagawa', name: 'Kanagawa', vars: t(
+    '#1f1f28', '#1a1a22', '#2a2a37', '#363646', '#44475c',
+    'rgba(220,215,186,0.14)', 'rgba(220,215,186,0.28)',
+    '#dcd7ba', '#b8b29e', '#6e6a58', '#1f1f28',
+    '#7e9cd8', '#6890d4', '#dca561', '#98bb6c',
+    'rgba(26,26,34,0.72)', 'rgba(0,0,0,0.5)') },
+  { id: 'monokai', name: 'Monokai', vars: t(
+    '#272822', '#1e1f1c', '#3e3d32', '#49483e', '#5a5947',
+    'rgba(248,248,242,0.14)', 'rgba(248,248,242,0.28)',
+    '#f8f8f2', '#cfcfc2', '#7a7965', '#272822',
+    '#66d9ef', '#4fc9e8', '#fd971f', '#a6e22e',
+    'rgba(30,31,28,0.72)', 'rgba(0,0,0,0.5)') },
 ]
 
 export const DEFAULT_THEME_ID = 'aeri-dark'
@@ -33,6 +143,10 @@ export function getThemeById(id: string | null | undefined): ThemeDef {
 export function applyTheme(id: string) {
   try {
     const theme = getThemeById(id)
-    document.documentElement.dataset.theme = theme.id
+    const root = document.documentElement
+    root.dataset.theme = theme.id
+    for (const [key, value] of Object.entries(theme.vars)) {
+      root.style.setProperty(key, value)
+    }
   } catch {}
 }

@@ -234,16 +234,23 @@ export async function handleMalOAuthCallback(): Promise<string | null> {
     tokenRes = await exchangeMalCodeForToken(code, verifier)
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
+    // ALWAYS clean the URL + verifier state on ANY exchange failure, or the
+    // stuck ?code= re-triggers this same failure on every load and the app
+    // sits on a black non-hash page forever (real reported bug).
+    clearMalOAuthState()
+    clearMalCodeVerifier()
+    try {
+      localStorage.removeItem('aeri:mal:last_code')
+      sessionStorage.removeItem('aeri:signin:oauth')
+    } catch {}
+    url.searchParams.delete('code')
+    url.searchParams.delete('state')
+    const base = import.meta.env.BASE_URL as string
+    const clean = `${window.location.origin}${base}#/`
+    window.history.replaceState(null, '', clean)
     if (/invalid_grant|invalid_client|invalid_code|expired|already used/i.test(msg)) {
-      // Dead code (expired, already used, or client mismatch) — clear everything
-      // so a fresh Connect starts clean instead of retrying the dead code forever.
-      clearMalOAuthState()
-      clearMalCodeVerifier()
-      url.searchParams.delete('code')
-      url.searchParams.delete('state')
-      const base = import.meta.env.BASE_URL as string
-      const clean = `${window.location.origin}${base}#/`
-      window.history.replaceState(null, '', clean)
+      // Dead code (expired, already used, or client mismatch) — a fresh
+      // Connect starts clean instead of retrying the dead code forever.
       throw new Error(`That login attempt expired (MAL said: ${msg}) — please Connect again, once, then approve. If it keeps failing, check the MAL client ID and registered redirect URL.`)
     }
     throw e

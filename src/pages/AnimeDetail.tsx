@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { useParams, Link, useNavigate } from 'react-router-dom'
+import { useParams, Link, useNavigate, Navigate } from 'react-router-dom'
 import { EpisodeList } from '../components/episodes/EpisodeList'
 import { useTracking } from '../contexts/TrackingContext'
 import { displayRating, formatRating } from '../lib/rating'
@@ -12,8 +12,12 @@ import { formatLabel, statusLabel } from '../lib/mediaLabels'
 export function AnimeDetail() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  const { combinedList, trackingProvider } = useTracking()
+  const { combinedList, trackingProvider, isAuthenticated } = useTracking()
   const animeList = combinedList
+
+  // Signed-out users go home: media pages are members-only (Play links here
+  // also bounce home, so a signed-out deep link never strands on a dead page).
+  // Rendered AFTER all hooks (Rules of Hooks) via early return below.
 
   // Try to resolve from the active tracker's list first (real, with progress)
   const fromList = id
@@ -85,27 +89,30 @@ export function AnimeDetail() {
   const displayKey = displayAnime ? (displayAnime.identity.anilistId ? `anilist:${displayAnime.identity.anilistId}` : displayAnime.identity.internalId) : 'none'
   const isMovie = displayAnime ? displayAnime.format?.toUpperCase() === 'MOVIE' : false
 
+  if (!isAuthenticated) {
+    return <Navigate to="/" replace />
+  }
   if (loading && !anime) {
     return (
       <div className="mx-auto max-w-[1200px] px-4 py-16">
-        <div className="h-[420px] animate-pulse rounded-xl bg-white/5" />
-        <div className="mt-6 h-20 animate-pulse rounded bg-white/5" />
+        <div className="h-[420px] animate-pulse rounded-xl bg-[color-mix(in_srgb,var(--text)_5%,transparent)]" />
+        <div className="mt-6 h-20 animate-pulse rounded bg-[color-mix(in_srgb,var(--text)_5%,transparent)]" />
       </div>
     )
   }
   if (error && !anime) {
     return (
       <div className="mx-auto max-w-[1200px] px-4 py-16 text-center">
-        <p className="text-amber-200/80">{error}</p>
-        <Link to="/" className="mt-4 inline-block text-sm text-white/60 underline">Back</Link>
+        <p className="text-[var(--warn)]">{error}</p>
+        <Link to="/" className="mt-4 inline-block text-sm text-[var(--text-muted)] underline">Back</Link>
       </div>
     )
   }
   if (!anime || !displayAnime) {
     return (
       <div className="mx-auto max-w-[1200px] px-4 py-16 text-center">
-        <p className="text-white">Anime not found.</p>
-        <Link to="/" className="mt-4 inline-block text-sm text-white/60 underline">Back</Link>
+        <p className="text-[var(--text)]">Anime not found.</p>
+        <Link to="/" className="mt-4 inline-block text-sm text-[var(--text-muted)] underline">Back</Link>
       </div>
     )
   }
@@ -122,29 +129,29 @@ export function AnimeDetail() {
             decoding="async"
             onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = 'none')}
           />
-          <div className="absolute inset-0" style={{ background: 'linear-gradient(0deg, #0e0e10 4%, rgba(14,14,16,0.85) 18%, rgba(14,14,16,0.35) 45%, transparent 80%)' }} />
-          <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(7,7,8,0.85) 0%, transparent 62%)' }} />
+          <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, color-mix(in srgb, var(--bg) 55%, transparent) 0%, transparent 24%, transparent 55%, color-mix(in srgb, var(--bg) 45%, transparent) 78%, var(--bg) 100%)' }} />
+          <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, color-mix(in srgb, var(--bg) 85%, transparent) 0%, transparent 62%)' }} />
           <div className="absolute bottom-0 left-0 p-6 sm:p-8">
-            <h1 className="text-2xl font-semibold text-white">{titles.primary}</h1>
+            <h1 className="text-2xl font-semibold text-[var(--text)]">{titles.primary}</h1>
             {titles.native && (
-              <p className="text-xs text-white/60">{titles.native}</p>
+              <p className="text-xs text-[var(--text-muted)]">{titles.native}</p>
             )}
             {titles.romaji && (
-              <p className="text-xs text-white/50">{titles.romaji}</p>
+              <p className="text-xs text-[var(--text-faint)]">{titles.romaji}</p>
             )}
-            <p className="mt-1 text-sm text-white/60">
+            <p className="mt-1 text-sm text-[var(--text-muted)]">
               {[displayAnime.year, formatLabel(displayAnime.format), !isMovie && displayAnime.episodes ? `${displayAnime.episodes} episodes` : null].filter(Boolean).join(' • ')}
               {(() => { const r = formatRating(displayRating(displayAnime, trackingProvider)); return r ? ` • ${r}` : '' })()}
             </p>
             <div className="mt-3 flex gap-2">
-              <Link to={`/watch/${displayAnime.identity.internalId}/1`} className="rounded-full bg-white px-5 py-2 text-sm font-semibold text-black">Play</Link>
-              <Link to="/" className="rounded-full bg-white/15 px-5 py-2 text-sm font-medium text-white backdrop-blur">Back to Home</Link>
+              <Link to={`/watch/${displayAnime.identity.internalId}/1`} className="rounded-full bg-[var(--text)] px-5 py-2 text-sm font-semibold text-[var(--on-text)]">Play</Link>
+              <Link to="/" className="rounded-full bg-[color-mix(in_srgb,var(--text)_15%,transparent)] px-5 py-2 text-sm font-medium text-[var(--text)] backdrop-blur">Back to Home</Link>
             </div>
           </div>
         </div>
         <div className="grid gap-6 p-6 sm:p-8 lg:grid-cols-[1.6fr_0.8fr]">
           <div>
-            <p className="text-sm leading-6 text-white/70">{displayAnime.description || 'No description available.'}</p>
+            <p className="text-sm leading-6 text-[var(--text-muted)]">{displayAnime.description || 'No description available.'}</p>
 
             {/* Netflix-like season selector — uses effectiveGroup to avoid stale franchise.
                 Renders a same-size placeholder until the season model settles,
@@ -163,15 +170,15 @@ export function AnimeDetail() {
                         if (nextId) navigate(`/anime/anilist-${nextId}`)
                       }}
                       aria-label="Select season"
-                      className="appearance-none rounded-full border border-white/10 bg-white/[0.06] px-3 py-1.5 pr-8 text-xs font-medium text-white focus:border-white/20 focus:outline-none"
+                      className="appearance-none rounded-full border border-[var(--border)] bg-[var(--text)]/[0.06] px-3 py-1.5 pr-8 text-xs font-medium text-[var(--text)] focus:border-[var(--border-strong)] focus:outline-none"
                     >
                       {effectiveGroup.seasons.map((s, idx) => (
-                        <option key={s.identity.anilistId ? `anilist:${s.identity.anilistId}` : s.identity.internalId} value={String(idx)} className="bg-[#141416]">
+                        <option key={s.identity.anilistId ? `anilist:${s.identity.anilistId}` : s.identity.internalId} value={String(idx)} className="bg-[var(--surface)]">
                           Season {idx + 1}
                         </option>
                       ))}
                     </select>
-                    <svg aria-hidden className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-white/50" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <svg aria-hidden className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--text-faint)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="m6 9 6 6 6-6" />
                     </svg>
                   </div>
@@ -181,7 +188,7 @@ export function AnimeDetail() {
 
             {!isMovie && !groupReady && anime && (
               <div className="mt-6" aria-label="Loading seasons">
-                <div className="h-[30px] w-32 animate-pulse rounded-full bg-white/5" />
+                <div className="h-[30px] w-32 animate-pulse rounded-full bg-[color-mix(in_srgb,var(--text)_5%,transparent)]" />
               </div>
             )}
 
@@ -192,13 +199,13 @@ export function AnimeDetail() {
             )}
           </div>
           <div className="space-y-3 text-xs leading-5">
-            <div><span className="text-white/50">Genres: </span><span className="text-white/80">{displayAnime.genres.join(', ') || '—'}</span></div>
-            <div><span className="text-white/50">Studios: </span><span className="text-white/80">{displayAnime.studios?.join(', ') || '—'}</span></div>
-            <div><span className="text-white/50">Status: </span><span className="text-white/80">{statusLabel(displayAnime.status) ?? '—'}</span></div>
-            <div><span className="text-white/50">Format: </span><span className="text-white/80">{formatLabel(displayAnime.format) ?? '—'}</span></div>
-            {displayAnime.identity.malId && <div><span className="text-white/50">MAL ID: </span><span className="text-white/80">{displayAnime.identity.malId}</span></div>}
-            {loading && <p className="text-white/40">Loading metadata…</p>}
-            {error && <p className="text-amber-200/70">{error}</p>}
+            <div><span className="text-[var(--text-faint)]">Genres: </span><span className="text-[var(--text)]">{displayAnime.genres.join(', ') || '—'}</span></div>
+            <div><span className="text-[var(--text-faint)]">Studios: </span><span className="text-[var(--text)]">{displayAnime.studios?.join(', ') || '—'}</span></div>
+            <div><span className="text-[var(--text-faint)]">Status: </span><span className="text-[var(--text)]">{statusLabel(displayAnime.status) ?? '—'}</span></div>
+            <div><span className="text-[var(--text-faint)]">Format: </span><span className="text-[var(--text)]">{formatLabel(displayAnime.format) ?? '—'}</span></div>
+            {displayAnime.identity.malId && <div><span className="text-[var(--text-faint)]">MAL ID: </span><span className="text-[var(--text)]">{displayAnime.identity.malId}</span></div>}
+            {loading && <p className="text-[var(--text-faint)]">Loading metadata…</p>}
+            {error && <p className="text-[var(--warn)]">{error}</p>}
           </div>
         </div>
       </div>

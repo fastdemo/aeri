@@ -78,17 +78,17 @@ export function EpisodeList({ anime, seasonNumber, group }: { anime: Anime; seas
     return (
       <div className="space-y-1">
         <div className="mb-2 flex items-center gap-2">
-          <span className="rounded bg-white px-2 py-1 text-[11px] font-semibold text-black">S{effectiveSeasonNumber}</span>
-          <span className="text-xs text-white/50">{anime.episodes && anime.episodes > 0 ? `${anime.episodes} episodes` : episodes.length ? `${episodes.length} episodes` : 'Loading episodes...'}</span>
+          <span className="rounded bg-[var(--text)] px-2 py-1 text-[11px] font-semibold text-[var(--on-text)]">S{effectiveSeasonNumber}</span>
+          <span className="text-xs text-[var(--text-faint)]">{anime.episodes && anime.episodes > 0 ? `${anime.episodes} episodes` : episodes.length ? `${episodes.length} episodes` : 'Loading episodes...'}</span>
         </div>
-        <div className="overflow-hidden rounded-lg border border-white/10">
+        <div className="overflow-hidden rounded-lg border border-[var(--border)]">
           {[1,2,3,4,5].map(i => (
-            <div key={i} className={`flex items-center gap-3 px-3 py-3 ${i!==5 ? 'border-b border-white/5' : ''} animate-pulse`}>
-              <span className="w-6 h-4 rounded bg-white/5" />
-              <div className="h-12 w-20 rounded bg-white/5" />
+            <div key={i} className={`flex items-center gap-3 px-3 py-3 ${i!==5 ? 'border-b border-[var(--border)]' : ''} animate-pulse`}>
+              <span className="w-6 h-4 rounded bg-[color-mix(in_srgb,var(--text)_5%,transparent)]" />
+              <div className="h-12 w-20 rounded bg-[color-mix(in_srgb,var(--text)_5%,transparent)]" />
               <div className="flex-1 space-y-2">
-                <div className="h-3 w-3/4 rounded bg-white/5" />
-                <div className="h-2 w-1/4 rounded bg-white/5" />
+                <div className="h-3 w-3/4 rounded bg-[color-mix(in_srgb,var(--text)_5%,transparent)]" />
+                <div className="h-2 w-1/4 rounded bg-[color-mix(in_srgb,var(--text)_5%,transparent)]" />
               </div>
             </div>
           ))}
@@ -116,7 +116,7 @@ export function EpisodeList({ anime, seasonNumber, group }: { anime: Anime; seas
 
   if (episodes.length === 0) {
     return (
-      <div className="rounded-lg border border-white/10 bg-white/[0.02] px-4 py-6 text-center text-xs text-white/40">
+      <div className="rounded-lg border border-[var(--border)] bg-[var(--text)]/[0.02] px-4 py-6 text-center text-xs text-[var(--text-faint)]">
         Episode information not available for this title.
       </div>
     )
@@ -127,11 +127,11 @@ export function EpisodeList({ anime, seasonNumber, group }: { anime: Anime; seas
   return (
     <div className="space-y-1">
       <div className="mb-2 flex items-center gap-2">
-        <span className="rounded bg-white px-2 py-1 text-[11px] font-semibold text-black">S{effectiveSeasonNumber}</span>
-        <span className="text-xs text-white/50">{anime.episodes && anime.episodes > 0 ? `${anime.episodes} episodes` : `${episodes.length} episodes`}</span>
+        <span className="rounded bg-[var(--text)] px-2 py-1 text-[11px] font-semibold text-[var(--on-text)]">S{effectiveSeasonNumber}</span>
+        <span className="text-xs text-[var(--text-faint)]">{anime.episodes && anime.episodes > 0 ? `${anime.episodes} episodes` : `${episodes.length} episodes`}</span>
       </div>
 
-      <div className="overflow-hidden rounded-lg border border-white/10">
+      <div className="overflow-hidden rounded-lg border border-[var(--border)]">
         {episodes.map((ep: any) => {
           const progressDisplay = progressEp > 0 ? getDisplayEpisodeNumber(anime, progressEp, effectiveGroup, effectiveSeasonNumber - 1) : 0
           // progress = episodes watched: everything up to and including it is Watched
@@ -148,12 +148,12 @@ export function EpisodeList({ anime, seasonNumber, group }: { anime: Anime; seas
               to={`/watch/${anime.identity.internalId}/${watchEp}`}
               onClick={() => handleSelect(ep.number)}
               className={`flex items-center gap-3 px-3 py-3 text-left transition ${
-                isCurrent ? 'bg-white/[0.06]' : 'bg-[#18181b] hover:bg-white/[0.04]'
-              } ${ep.number !== episodes.length ? 'border-b border-white/5' : ''}`}
+                isCurrent ? 'bg-[var(--text)]/[0.06]' : 'bg-[var(--surface)] hover:bg-[var(--text)]/[0.04]'
+              } ${ep.number !== episodes.length ? 'border-b border-[var(--border)]' : ''}`}
             >
-              <span className="w-9 text-center text-sm font-medium text-white/70">{epLabel}</span>
+              <span className="w-9 text-center text-sm font-medium text-[var(--text-muted)]">{epLabel}</span>
 
-              <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded bg-white/5">
+              <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded bg-[color-mix(in_srgb,var(--text)_5%,transparent)]">
                 {thumb ? (
                   <img
                     key={`${seasonKey}-${ep.number}-${thumb}`}
@@ -171,16 +171,16 @@ export function EpisodeList({ anime, seasonNumber, group }: { anime: Anime; seas
                   />
                 ) : null}
                 {!thumb && (
-                  <div className="grid h-full w-full place-items-center bg-white/[0.04] text-[10px] font-medium text-white/30">
+                  <div className="grid h-full w-full place-items-center bg-[var(--text)]/[0.04] text-[10px] font-medium text-[color-mix(in_srgb,var(--text)_30%,transparent)]">
                     {epLabel}
                   </div>
                 )}
                 {/* fallback placeholder when img fails */}
-                <div className="hidden h-full w-full place-items-center bg-white/[0.04] text-[10px] font-medium text-white/30" style={{display: thumb ? 'none' : 'grid'}}>
+                <div className="hidden h-full w-full place-items-center bg-[var(--text)]/[0.04] text-[10px] font-medium text-[color-mix(in_srgb,var(--text)_30%,transparent)]" style={{display: thumb ? 'none' : 'grid'}}>
                   {epLabel}
                 </div>
                 {isWatched && (
-                  <span className="absolute inset-0 grid place-items-center bg-black/40 text-white">
+                  <span className="absolute inset-0 grid place-items-center bg-[color-mix(in_srgb,var(--bg)_40%,transparent)] text-[var(--text)]">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M5 13 9 17 19 7" />
                     </svg>
@@ -190,18 +190,18 @@ export function EpisodeList({ anime, seasonNumber, group }: { anime: Anime; seas
 
               <div className="min-w-0 flex-1">
                 {ep.title ? (
-                  <p className={`truncate text-[13px] font-medium ${isCurrent ? 'text-white' : 'text-white/90'}`}>
+                  <p className={`truncate text-[13px] font-medium ${isCurrent ? 'text-[var(--text)]' : 'text-[var(--text)]'}`}>
                     {ep.title}
                   </p>
                 ) : (
-                  <p className={`text-[13px] font-medium ${isCurrent ? 'text-white' : 'text-white/60'}`}>
+                  <p className={`text-[13px] font-medium ${isCurrent ? 'text-[var(--text)]' : 'text-[var(--text-muted)]'}`}>
                     Episode {ep.displayNumber}
                   </p>
                 )}
-                <p className="text-[11px] text-white/50">S{effectiveSeasonNumber}:E{ep.displayNumber} • {ep.duration}m</p>
+                <p className="text-[11px] text-[var(--text-faint)]">S{effectiveSeasonNumber}:E{ep.displayNumber} • {ep.duration}m</p>
               </div>
 
-              <span className="hidden text-xs text-white/40 sm:block">{isWatched ? 'Watched' : ''}</span>
+              <span className="hidden text-xs text-[var(--text-faint)] sm:block">{isWatched ? 'Watched' : ''}</span>
             </Link>
           )
         })}

@@ -20,6 +20,8 @@ export interface Anime {
   year?: number
   season?: string
   episodes?: number
+  chapters?: number
+  volumes?: number
   duration?: number
   status?: string
   rating?: number

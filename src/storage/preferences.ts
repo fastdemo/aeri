@@ -6,7 +6,7 @@ export interface Preferences {
   autoplay: boolean
   subtitles: boolean
   volume: number
-  theme: 'dark'
+  theme: string
   preferredAudio: VideoLanguage
   preferredProvider: string | null
   enabledProviders?: Record<string, boolean> | null
@@ -32,7 +32,7 @@ const defaults: Preferences = {
   autoplay: true,
   subtitles: true,
   volume: 1,
-  theme: 'dark',
+  theme: 'aeri-dark',
   preferredAudio: 'sub',
   preferredProvider: null,
   enabledProviders: null,

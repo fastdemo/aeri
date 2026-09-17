@@ -18,6 +18,8 @@ export interface AniListMedia {
   season?: string | null
   seasonYear?: number | null
   episodes?: number | null
+  chapters?: number | null
+  volumes?: number | null
   duration?: number | null
   status?: string | null // FINISHED, RELEASING, NOT_YET_RELEASED etc
   averageScore?: number | null // 0-100
@@ -99,7 +101,8 @@ export function mapAniListMediaToAnime(media: AniListMedia): Anime {
   const year = media.seasonYear ?? media.startDate?.year ?? undefined
   const season = media.season ?? undefined
 
-  // averageScore is 0-100, convert to 0-10 (keep full precision; display formats)
+  // averageScore is 0-100 integer, convert to 0-10 (one decimal of real
+  // precision, e.g. 85 -> 8.5; display formats the decimals)
   const rating = media.averageScore != null ? media.averageScore / 10 : undefined
 
   // Only animation studios — not all studios (producers are not studios)
@@ -165,6 +168,8 @@ export function mapAniListMediaToAnime(media: AniListMedia): Anime {
     year,
     season,
     episodes: media.episodes ?? undefined,
+    chapters: media.chapters ?? undefined,
+    volumes: media.volumes ?? undefined,
     duration: media.duration ?? undefined,
     status: media.status ?? undefined,
     rating,

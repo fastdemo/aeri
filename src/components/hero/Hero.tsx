@@ -9,8 +9,8 @@ function ScoreBadge({ anime, trackingProvider }: { anime: Anime; trackingProvide
   const text = formatRating(displayRating(anime, trackingProvider))
   if (!text) return null
   return (
-    <span className="inline-flex items-center gap-1 rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-      <span className="text-white">★</span> {text}
+    <span className="inline-flex items-center gap-1 rounded bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--text)]">
+      <span className="text-[var(--text)]">★</span> {text}
     </span>
   )
 }
@@ -39,7 +39,7 @@ export function Hero({ anime, onMoreInfo, trackingProvider }: { anime: Anime; on
           className="absolute inset-0"
           style={{
             background:
-              'linear-gradient(90deg, rgba(7,7,8,0.96) 0%, rgba(7,7,8,0.78) 22%, rgba(7,7,8,0.45) 42%, rgba(7,7,8,0.14) 62%, transparent 78%)',
+              'linear-gradient(90deg, color-mix(in srgb, var(--bg) 96%, transparent) 0%, color-mix(in srgb, var(--bg) 78%, transparent) 22%, color-mix(in srgb, var(--bg) 45%, transparent) 42%, color-mix(in srgb, var(--bg) 14%, transparent) 62%, transparent 78%)',
           }}
         />
         {/* bottom */}
@@ -48,42 +48,42 @@ export function Hero({ anime, onMoreInfo, trackingProvider }: { anime: Anime; on
           className="absolute inset-0"
           style={{
             background:
-              'linear-gradient(0deg, var(--bg) 0%, rgba(7,7,8,0.85) 8%, rgba(7,7,8,0.45) 22%, transparent 46%)',
+              'linear-gradient(180deg, transparent 50%, color-mix(in srgb, var(--bg) 45%, transparent) 78%, var(--bg) 100%)',
           }}
         />
         {/* top subtle for nav */}
         <div
           aria-hidden
-          className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/40 to-transparent"
+          className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-[color-mix(in_srgb,var(--bg)_40%,transparent)] to-transparent"
         />
 
         {/* Content */}
         <div className="absolute inset-0 flex">
           <div className="flex w-full max-w-[560px] flex-col justify-end gap-3 px-5 pb-6 pt-16 sm:px-8 sm:pb-8 lg:justify-center lg:pb-0 lg:pl-12 lg:pr-0">
-            <h1 className="text-[22px] font-semibold leading-[1.05] tracking-[-0.03em] text-white sm:text-[30px] lg:text-[34px]">
+            <h1 className="text-[22px] font-semibold leading-[1.05] tracking-[-0.03em] text-[var(--text)] sm:text-[30px] lg:text-[34px]">
               {titles.primary}
             </h1>
 
             {titles.native && (
-              <p className="-mt-1 text-[12px] tracking-wide text-white/70">{titles.native}</p>
+              <p className="-mt-1 text-[12px] tracking-wide text-[var(--text-muted)]">{titles.native}</p>
             )}
             {titles.romaji && (
-              <p className="-mt-1 text-[11px] tracking-wide text-white/50">{titles.romaji}</p>
+              <p className="-mt-1 text-[11px] tracking-wide text-[var(--text-faint)]">{titles.romaji}</p>
             )}
 
-            <p className="text-[12px] font-medium tracking-wide text-white/70 flex items-center gap-2">
+            <p className="text-[12px] font-medium tracking-wide text-[var(--text-muted)] flex items-center gap-2">
               <span>{metaParts}</span>
               <ScoreBadge anime={anime} trackingProvider={trackingProvider} />
             </p>
 
-            <p className="line-clamp-2 max-w-[520px] text-[13px] leading-6 text-white/75 sm:line-clamp-3 sm:text-[14px]">
+            <p className="line-clamp-2 max-w-[520px] text-[13px] leading-6 text-[var(--text-muted)] sm:line-clamp-3 sm:text-[14px]">
               {anime.description}
             </p>
 
             <div className="mt-1 flex items-center gap-2">
               <Link
                 to={`/watch/${anime.identity.internalId}/1`}
-                className="inline-flex h-8 items-center gap-1.5 rounded-full bg-white px-5 text-[13px] font-semibold text-black transition hover:bg-white/90 active:scale-[0.98]"
+                className="inline-flex h-8 items-center gap-1.5 rounded-full bg-[var(--text)] px-5 text-[13px] font-semibold text-[var(--on-text)] transition hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)] active:scale-[0.98]"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
                   <path d="M8 5.14v13.72L19 12z" />
@@ -92,7 +92,7 @@ export function Hero({ anime, onMoreInfo, trackingProvider }: { anime: Anime; on
               </Link>
               <button
                 onClick={onMoreInfo}
-                className="inline-flex h-8 items-center rounded-full bg-white/14 px-4 text-[13px] font-medium text-white backdrop-blur transition hover:bg-white/20"
+                className="inline-flex h-8 items-center rounded-full bg-[color-mix(in_srgb,var(--text)_14%,transparent)] px-4 text-[13px] font-medium text-[var(--text)] backdrop-blur transition hover:bg-[color-mix(in_srgb,var(--text)_20%,transparent)]"
                 aria-label={`More info about ${titles.primary}`}
               >
                 More Info
@@ -235,7 +235,7 @@ export function HeroCarousel({
           className="absolute inset-0"
           style={{
             background:
-              'linear-gradient(90deg, rgba(7,7,8,0.96) 0%, rgba(7,7,8,0.78) 22%, rgba(7,7,8,0.45) 42%, rgba(7,7,8,0.14) 62%, transparent 78%)',
+              'linear-gradient(90deg, color-mix(in srgb, var(--bg) 96%, transparent) 0%, color-mix(in srgb, var(--bg) 78%, transparent) 22%, color-mix(in srgb, var(--bg) 45%, transparent) 42%, color-mix(in srgb, var(--bg) 14%, transparent) 62%, transparent 78%)',
           }}
         />
         <div
@@ -243,10 +243,10 @@ export function HeroCarousel({
           className="absolute inset-0"
           style={{
             background:
-              'linear-gradient(0deg, var(--bg) 0%, rgba(7,7,8,0.85) 8%, rgba(7,7,8,0.45) 22%, transparent 46%)',
+              'linear-gradient(180deg, transparent 50%, color-mix(in srgb, var(--bg) 45%, transparent) 78%, var(--bg) 100%)',
           }}
         />
-        <div aria-hidden className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/40 to-transparent" />
+        <div aria-hidden className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-[color-mix(in_srgb,var(--bg)_40%,transparent)] to-transparent" />
 
         {/* Content — keyed so text crossfades */}
         <div
@@ -270,22 +270,22 @@ export function HeroCarousel({
                 .join(' • ')
               return (
                 <>
-                  <h1 className="text-[22px] font-semibold leading-[1.05] tracking-[-0.03em] text-white sm:text-[30px] lg:text-[34px]">
+                  <h1 className="text-[22px] font-semibold leading-[1.05] tracking-[-0.03em] text-[var(--text)] sm:text-[30px] lg:text-[34px]">
                     {titles.primary}
                   </h1>
-                  {titles.native && <p className="-mt-1 text-[12px] tracking-wide text-white/70">{titles.native}</p>}
-                  {titles.romaji && <p className="-mt-1 text-[11px] tracking-wide text-white/50">{titles.romaji}</p>}
-                  <p className="text-[12px] font-medium tracking-wide text-white/70 flex items-center gap-2">
+                  {titles.native && <p className="-mt-1 text-[12px] tracking-wide text-[var(--text-muted)]">{titles.native}</p>}
+                  {titles.romaji && <p className="-mt-1 text-[11px] tracking-wide text-[var(--text-faint)]">{titles.romaji}</p>}
+                  <p className="text-[12px] font-medium tracking-wide text-[var(--text-muted)] flex items-center gap-2">
                     <span>{metaParts}</span>
                     <ScoreBadge anime={active} trackingProvider={trackingProvider} />
                   </p>
-                  <p className="line-clamp-2 max-w-[520px] text-[13px] leading-6 text-white/75 sm:line-clamp-3 sm:text-[14px]">
+                  <p className="line-clamp-2 max-w-[520px] text-[13px] leading-6 text-[var(--text-muted)] sm:line-clamp-3 sm:text-[14px]">
                     {active.description}
                   </p>
                   <div className="mt-1 flex items-center gap-2">
                     <Link
                       to={`/watch/${active.identity.internalId}/1`}
-                      className="inline-flex h-8 items-center gap-1.5 rounded-full bg-white px-5 text-[13px] font-semibold text-black transition hover:bg-white/90 active:scale-[0.98]"
+                      className="inline-flex h-8 items-center gap-1.5 rounded-full bg-[var(--text)] px-5 text-[13px] font-semibold text-[var(--on-text)] transition hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)] active:scale-[0.98]"
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
                         <path d="M8 5.14v13.72L19 12z" />
@@ -294,7 +294,7 @@ export function HeroCarousel({
                     </Link>
                     <button
                       onClick={() => onMoreInfo?.(active)}
-                      className="inline-flex h-8 items-center rounded-full bg-white/14 px-4 text-[13px] font-medium text-white backdrop-blur transition hover:bg-white/20"
+                      className="inline-flex h-8 items-center rounded-full bg-[color-mix(in_srgb,var(--text)_14%,transparent)] px-4 text-[13px] font-medium text-[var(--text)] backdrop-blur transition hover:bg-[color-mix(in_srgb,var(--text)_20%,transparent)]"
                       aria-label={`More info about ${titles.primary}`}
                     >
                       More Info
@@ -314,7 +314,7 @@ export function HeroCarousel({
             <button
               onClick={() => go(index - 1)}
               aria-label="Previous featured title"
-              className="absolute left-2 top-1/2 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur transition hover:bg-black/60 focus-visible:flex sm:flex sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100 sm:hover:opacity-100"
+              className="absolute left-2 top-1/2 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--bg)_45%,transparent)] text-[var(--text)] backdrop-blur transition hover:bg-[color-mix(in_srgb,var(--bg)_60%,transparent)] focus-visible:flex sm:flex sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100 sm:hover:opacity-100"
               style={{ opacity: paused ? 1 : undefined }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
@@ -324,7 +324,7 @@ export function HeroCarousel({
             <button
               onClick={() => go(index + 1)}
               aria-label="Next featured title"
-              className="absolute right-2 top-1/2 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-black/45 text-white backdrop-blur transition hover:bg-black/60 focus-visible:flex sm:flex sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100 sm:hover:opacity-100"
+              className="absolute right-2 top-1/2 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--bg)_45%,transparent)] text-[var(--text)] backdrop-blur transition hover:bg-[color-mix(in_srgb,var(--bg)_60%,transparent)] focus-visible:flex sm:flex sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100 sm:hover:opacity-100"
               style={{ opacity: paused ? 0.95 : undefined }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
@@ -333,7 +333,7 @@ export function HeroCarousel({
             </button>
 
             {/* Pill dots centered bottom */}
-            <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-black/45 px-2.5 py-1.5 backdrop-blur sm:bottom-4">
+            <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-[color-mix(in_srgb,var(--bg)_45%,transparent)] px-2.5 py-1.5 backdrop-blur sm:bottom-4">
               {animes.map((a, i) => {
                 const isActive = i === index
                 return (
@@ -345,7 +345,7 @@ export function HeroCarousel({
                     className="group/dot flex h-3 items-center justify-center"
                   >
                     <span
-                      className="block h-1.5 rounded-full bg-white transition-all"
+                      className="block h-1.5 rounded-full bg-[var(--text)] transition-all"
                       style={{
                         width: isActive ? 18 : 6,
                         opacity: isActive ? 1 : 0.45,

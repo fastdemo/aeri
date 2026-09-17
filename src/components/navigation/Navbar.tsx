@@ -199,7 +199,7 @@ export function Navbar() {
       className={`fixed inset-x-0 top-0 z-50 h-14 touch-manipulation transition-colors duration-300 ${
         scrolled
           ? 'bg-[var(--bg)]/95 backdrop-blur-md border-b border-[var(--border)]'
-          : 'bg-gradient-to-b from-black/70 via-black/20 to-transparent'
+          : 'bg-gradient-to-b from-[color-mix(in_srgb,var(--bg)_70%,transparent)] via-[var(--bg)] to-transparent'
       }`}
       style={{ touchAction: 'manipulation' } as any}
       aria-label="Primary"
@@ -212,7 +212,7 @@ export function Navbar() {
             to="/"
             onClick={() => dispatchNavigate('/')}
             aria-label="aeri home"
-            className="touch-manipulation text-[19px] font-semibold tracking-[-0.02em] text-white select-none"
+            className="touch-manipulation text-[19px] font-semibold tracking-[-0.02em] text-[var(--text)] select-none"
             style={{ fontFamily: '"Cal Sans", sans-serif', userSelect: 'none', touchAction: 'manipulation' } as any}
             draggable={false}
           >
@@ -228,7 +228,7 @@ export function Navbar() {
                 onClick={() => dispatchNavigate(l.to)}
                 className={({ isActive }) =>
                   `touch-manipulation whitespace-nowrap text-[13px] font-medium transition-colors px-2 py-1.5 rounded -mx-2 ${
-                    isActive ? 'text-white' : 'text-white/70 hover:text-white'
+                    isActive ? 'text-[var(--text)]' : 'text-[var(--text-muted)] hover:text-[var(--text)]'
                   }`
                 }
                 style={{ touchAction: 'manipulation' } as any}
@@ -242,7 +242,7 @@ export function Navbar() {
             aria-label="Menu"
             aria-expanded={mobileNavOpen}
             onClick={() => setMobileNavOpen((v) => !v)}
-            className="grid h-11 w-11 touch-manipulation place-items-center rounded-full text-white/80 hover:bg-white/10 hover:text-white"
+            className="grid h-11 w-11 touch-manipulation place-items-center rounded-full text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)] hover:text-[var(--text)]"
             style={{ touchAction: 'manipulation' } as any}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
@@ -264,11 +264,11 @@ export function Navbar() {
                 aria-label="Search anime"
                 aria-expanded={showSuggestions}
                 aria-controls="search-suggestions"
-                className="h-8 w-[180px] rounded-full border border-white/10 bg-white/[0.08] py-0 pl-8 pr-3 text-[13px] text-white placeholder:text-white/50 backdrop-blur focus:w-[240px] focus:border-white/20 focus:bg-white/[0.12] focus:outline-none lg:w-[200px] transition-all"
+                className="h-8 w-[180px] rounded-full border border-[var(--border)] bg-[var(--text)]/[0.08] py-0 pl-8 pr-3 text-[13px] text-[var(--text)] placeholder:text-[var(--text-faint)] backdrop-blur focus:w-[240px] focus:border-[var(--border-strong)] focus:bg-[var(--text)]/[0.12] focus:outline-none lg:w-[200px] transition-all"
               />
               <svg
                 aria-hidden
-                className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-white/60"
+                className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--text-muted)]"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -278,7 +278,7 @@ export function Navbar() {
                 <path d="m20 20-3.5-3.5" />
               </svg>
               {showSuggestions && query.trim().length >= 2 && (
-                <SearchSuggestions query={query} onClose={() => setShowSuggestions(false)} onPreview={setPreviewAnime} />
+                <SearchSuggestions query={query} onClose={() => setShowSuggestions(false)} onPreview={(a) => { if (!isAuthenticated) setSignInOpen(true); else setPreviewAnime(a) }} />
               )}
             </div>
           </form>
@@ -286,7 +286,7 @@ export function Navbar() {
           <button
             aria-label="Search"
             onClick={() => setMobileSearchOpen((v) => !v)}
-            className="grid h-11 w-11 touch-manipulation place-items-center rounded-full text-white/80 hover:bg-white/10 hover:text-white"
+            className="grid h-11 w-11 touch-manipulation place-items-center rounded-full text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)] hover:text-[var(--text)]"
             style={{ touchAction: 'manipulation' } as any}
           >
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -299,7 +299,7 @@ export function Navbar() {
           {isAuthenticated && navFits && (
             <button
               aria-label="Notifications"
-              className="grid h-8 w-8 place-items-center rounded-full text-white/70 hover:bg-white/10 hover:text-white"
+              className="grid h-8 w-8 place-items-center rounded-full text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)] hover:text-[var(--text)]"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                 <path d="M12 3a5 5 0 0 1 5 5v4a2 2 0 0 0 .45 1.26L18.5 15H5.5l1.05-1.74A2 2 0 0 0 7 12V8a5 5 0 0 1 5-5Z" />
@@ -308,12 +308,12 @@ export function Navbar() {
             </button>
           )}
 
-          {isAuthenticated && navFits && <div className="h-6 w-px bg-white/10" />}
+          {isAuthenticated && navFits && <div className="h-6 w-px bg-[color-mix(in_srgb,var(--text)_10%,transparent)]" />}
 
           {!isAuthenticated ? (
             <button
               onClick={() => setSignInOpen(true)}
-              className="inline-flex h-7 touch-manipulation items-center rounded-full bg-white px-4 text-[13px] font-semibold text-black transition hover:bg-white/90 active:scale-[0.98] lg:h-8 lg:px-5"
+              className="inline-flex h-7 touch-manipulation items-center rounded-full bg-[var(--text)] px-4 text-[13px] font-semibold text-[var(--on-text)] transition hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)] active:scale-[0.98] lg:h-8 lg:px-5"
               style={{ touchAction: 'manipulation' } as any}
               aria-label="Sign in"
             >
@@ -326,13 +326,13 @@ export function Navbar() {
                 aria-label="Profile"
                 aria-expanded={profileOpen}
                 aria-haspopup="menu"
-                className="relative grid h-7 w-7 touch-manipulation place-items-center overflow-hidden rounded bg-transparent focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+                className="relative grid h-7 w-7 touch-manipulation place-items-center overflow-hidden rounded bg-transparent focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)]"
                 style={{ touchAction: 'manipulation' } as any}
               >
                 {user?.avatar?.large ? (
                   <img src={user.avatar.large} alt={user.name} className="h-full w-full object-cover" loading="lazy" />
                 ) : (
-                  <span className="grid h-full w-full place-items-center text-[10px] font-bold text-white">{trackingProvider === 'mal' ? 'M' : 'A'}</span>
+                  <span className="grid h-full w-full place-items-center text-[10px] font-bold text-[var(--text)]">{trackingProvider === 'mal' ? 'M' : 'A'}</span>
                 )}
               </button>
               {profileOpen && (
@@ -340,38 +340,38 @@ export function Navbar() {
                   role="menu"
                   aria-label="Profile menu"
                   style={{ isolation: 'isolate' }}
-                  className="absolute right-0 top-[calc(100%+8px)] z-[70] w-[168px] overflow-hidden rounded-xl border border-white/10 bg-black/70 backdrop-blur-2xl shadow-[0_16px_48px_rgba(0,0,0,0.6)]"
+                  className="absolute right-0 top-[calc(100%+8px)] z-[70] w-[168px] overflow-hidden rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--bg)_70%,transparent)] backdrop-blur-2xl shadow-[0_16px_48px_var(--shadow)]"
                 >
                   <div className="p-1">
                     <Link
                       to="/profile"
                       role="menuitem"
                       onClick={() => { setProfileOpen(false); dispatchNavigate('/profile') }}
-                      className="flex w-full touch-manipulation items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-white/5"
+                      className="flex w-full touch-manipulation items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-[color-mix(in_srgb,var(--text)_5%,transparent)]"
                       style={{ touchAction: 'manipulation' } as any}
                     >
-                      <span className="grid h-6 w-6 shrink-0 place-items-center overflow-hidden rounded-full bg-white/10 text-[9px] font-bold text-white" aria-hidden>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white/80">
+                      <span className="grid h-6 w-6 shrink-0 place-items-center overflow-hidden rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)] text-[9px] font-bold text-[var(--text)]" aria-hidden>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--text)]">
                           <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
                           <circle cx="12" cy="7" r="4" />
                         </svg>
                       </span>
-                      <span className="text-xs font-medium text-white">Profile</span>
+                      <span className="text-xs font-medium text-[var(--text)]">Profile</span>
                     </Link>
                     <Link
                       to="/settings"
                       role="menuitem"
                       onClick={() => { setProfileOpen(false); dispatchNavigate('/settings') }}
-                      className="flex w-full touch-manipulation items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-white/5"
+                      className="flex w-full touch-manipulation items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-[color-mix(in_srgb,var(--text)_5%,transparent)]"
                       style={{ touchAction: 'manipulation' } as any}
                     >
-                      <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-white/10" aria-hidden>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-white/80">
+                      <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)]" aria-hidden>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--text)]">
                           <circle cx="12" cy="12" r="3" />
                           <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
                         </svg>
                       </span>
-                      <span className="text-xs font-medium text-white">Settings</span>
+                      <span className="text-xs font-medium text-[var(--text)]">Settings</span>
                     </Link>
                   </div>
                 </div>
@@ -382,7 +382,7 @@ export function Navbar() {
       </div>
 
       {mobileSearchOpen && !navFits && (
-        <div ref={mobileSearchRef} className="absolute left-0 right-0 top-14 border-t border-white/10 bg-[var(--bg)] px-4 py-3 shadow-lg shadow-black/20">
+        <div ref={mobileSearchRef} className="absolute left-0 right-0 top-14 border-t border-[var(--border)] bg-[var(--bg)] px-4 py-3 shadow-lg shadow-black/20">
           <form onSubmit={onSearch} className="flex gap-2">
             <input
               autoFocus
@@ -390,23 +390,23 @@ export function Navbar() {
               onChange={(e) => { setQuery(e.target.value); setShowSuggestions(true) }}
               onFocus={() => { if (query.trim().length >= 2) setShowSuggestions(true) }}
               placeholder="Search anime"
-              className="flex-1 rounded-full border border-white/10 bg-white/[0.08] px-4 py-2 text-sm text-white placeholder:text-white/50 focus:border-white/20 focus:outline-none"
+              className="flex-1 rounded-full border border-[var(--border)] bg-[var(--text)]/[0.08] px-4 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-faint)] focus:border-[var(--border-strong)] focus:outline-none"
             />
-            <button type="submit" className="rounded-full bg-white px-5 text-sm font-medium text-black">
+            <button type="submit" className="rounded-full bg-[var(--text)] px-5 text-sm font-medium text-[var(--on-text)]">
               Go
             </button>
           </form>
           {showSuggestions && query.trim().length >= 2 && (
             <div className="relative mt-2 isolate">
-              <SearchSuggestions query={query} onClose={() => { setShowSuggestions(false); setMobileSearchOpen(false) }} onPreview={(a) => { setPreviewAnime(a); setMobileSearchOpen(false) }} />
+              <SearchSuggestions query={query} onClose={() => { setShowSuggestions(false); setMobileSearchOpen(false) }} onPreview={(a) => { setMobileSearchOpen(false); if (!isAuthenticated) setSignInOpen(true); else setPreviewAnime(a) }} />
             </div>
           )}
         </div>
       )}
       {mobileNavOpen && !navFits && (
-        <nav className="absolute left-0 right-0 top-14 border-t border-white/10 bg-[var(--bg)] px-4 py-3 shadow-lg shadow-black/20 anim-slide-down" aria-label="Mobile sections">
+        <nav className="absolute left-0 right-0 top-14 border-t border-[var(--border)] bg-[var(--bg)] px-4 py-3 shadow-lg shadow-black/20 anim-slide-down" aria-label="Mobile sections">
           <div className="flex flex-col gap-1">
-            {mobileNav.map((l) => (
+            {mobileNav.filter(l => l.to !== '/search').map((l) => (
               <Link
                 key={l.to}
                 to={l.to}
@@ -414,7 +414,7 @@ export function Navbar() {
                   setMobileNavOpen(false)
                   dispatchNavigate(l.to)
                 }}
-                className="rounded px-3 py-3 text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white active:bg-white/5 touch-manipulation min-h-[44px] flex items-center"
+                className="rounded px-3 py-3 text-sm font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)] hover:text-[var(--text)] active:bg-[color-mix(in_srgb,var(--text)_5%,transparent)] touch-manipulation min-h-[44px] flex items-center"
                 style={{ touchAction: 'manipulation' } as any}
               >
                 {l.label}
@@ -426,7 +426,7 @@ export function Navbar() {
                   setMobileNavOpen(false)
                   setSignInOpen(true)
                 }}
-                className="mt-2 touch-manipulation rounded-full bg-white px-4 py-3 text-sm font-semibold text-black"
+                className="mt-2 touch-manipulation rounded-full bg-[var(--text)] px-4 py-3 text-sm font-semibold text-[var(--on-text)]"
                 style={{ touchAction: 'manipulation' } as any}
               >
                 Sign in
