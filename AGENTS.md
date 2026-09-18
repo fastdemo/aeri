@@ -2,6 +2,35 @@
 
 > This document is the authoritative instruction file for all agents (human or AI) working on Aeri. Read this before making substantial changes. Update when major architectural decisions change.
 
+## 0. Permanent Operating Rules (read first, always)
+
+### GitHub — OFF LIMITS unless explicitly asked
+
+- NEVER push, PR, touch Actions, touch `gh-pages`, or change GitHub config —
+  unless the user explicitly requests that exact GitHub operation.
+- Develop with local git only (commit locally if useful). The user pushes.
+
+### Cloudflare — the deployment target
+
+- Production is `https://aeri.fastdemo.workers.dev/` (Worker `aeri` serves
+  `dist/` + `/api/*`). Never deploy to `aeri-production`.
+- When a task changes the app: develop → test → `npm run build` →
+  `env -u XDG_CONFIG_HOME npx wrangler deploy --env production` → verify live
+  (bundle hash + `npm run verify:live` + Playwright on the live URL).
+- Local `vite preview` has no Worker — point `customVideoApiUrl` at
+  production for provider paths. Never invent a new deploy architecture.
+
+### Project knowledge
+
+- Read `context.md` first for one-go orientation, then `agents/` for depth.
+- Codebase is the ultimate source of truth; docs describe code, never reverse.
+- When a change affects architecture/behavior/UI/data/routing/design/settings/
+  themes/streaming/auth/caching/performance/security/deployment/testing,
+  update the relevant `agents/*.md` (+ `context.md`, `agents/changelog.md`,
+  `agents/current-state.md` as warranted) **in the same change, once proven**.
+- Record only verified behavior. Never document guesses, secrets, or
+  aspirational features as implemented.
+
 ## 1. What is Aeri
 
 Aeri is a minimal anime discovery, tracking, and watching web application. It feels like a **purpose-built anime streaming service** with Netflix-style cinematic browsing — not a database, not a dashboard, not a piracy site.

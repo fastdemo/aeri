@@ -88,6 +88,7 @@ export function AnimeDetail() {
   const backdrop = displayAnime ? (displayAnime.backdropImage || displayAnime.coverImage || '') : ''
   const displayKey = displayAnime ? (displayAnime.identity.anilistId ? `anilist:${displayAnime.identity.anilistId}` : displayAnime.identity.internalId) : 'none'
   const isMovie = displayAnime ? displayAnime.format?.toUpperCase() === 'MOVIE' : false
+  const isMangaKind = displayAnime ? ['MANGA', 'NOVEL', 'ONE_SHOT'].includes(displayAnime.format?.toUpperCase() ?? '') : false
 
   if (!isAuthenticated) {
     return <Navigate to="/" replace />
@@ -140,11 +141,19 @@ export function AnimeDetail() {
               <p className="text-xs text-[var(--text-faint)]">{titles.romaji}</p>
             )}
             <p className="mt-1 text-sm text-[var(--text-muted)]">
-              {[displayAnime.year, formatLabel(displayAnime.format), !isMovie && displayAnime.episodes ? `${displayAnime.episodes} episodes` : null].filter(Boolean).join(' • ')}
+              {[displayAnime.year, formatLabel(displayAnime.format), !isMovie && !isMangaKind && displayAnime.episodes ? `${displayAnime.episodes} episodes` : null, isMangaKind && displayAnime.chapters ? `${displayAnime.chapters} chapters` : null, isMangaKind && displayAnime.volumes ? `${displayAnime.volumes} volumes` : null].filter(Boolean).join(' • ')}
               {(() => { const r = formatRating(displayRating(displayAnime, trackingProvider)); return r ? ` • ${r}` : '' })()}
             </p>
             <div className="mt-3 flex gap-2">
-              <Link to={`/watch/${displayAnime.identity.internalId}/1`} className="rounded-full bg-[var(--text)] px-5 py-2 text-sm font-semibold text-[var(--on-text)]">Play</Link>
+              {isMangaKind ? (
+                (displayAnime.chapters || displayAnime.volumes) ? (
+                  <span className="rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-5 py-2 text-sm font-medium text-[var(--text-muted)]">
+                    {[displayAnime.chapters ? `${displayAnime.chapters} chapters` : null, displayAnime.volumes ? `${displayAnime.volumes} volumes` : null].filter(Boolean).join(' • ')}
+                  </span>
+                ) : null
+              ) : (
+                <Link to={`/watch/${displayAnime.identity.internalId}/1`} className="rounded-full bg-[var(--text)] px-5 py-2 text-sm font-semibold text-[var(--on-text)]">Play</Link>
+              )}
               <Link to="/" className="rounded-full bg-[color-mix(in_srgb,var(--text)_15%,transparent)] px-5 py-2 text-sm font-medium text-[var(--text)] backdrop-blur">Back to Home</Link>
             </div>
           </div>
@@ -156,7 +165,7 @@ export function AnimeDetail() {
             {/* Netflix-like season selector — uses effectiveGroup to avoid stale franchise.
                 Renders a same-size placeholder until the season model settles,
                 so the control never pops in late and shifts layout. */}
-            {!isMovie && groupReady && effectiveGroup && (
+            {!isMovie && !isMangaKind && groupReady && effectiveGroup && (
               <div className="mt-6">
                 <div className="flex items-center gap-2">
                   <div className="relative">
@@ -186,13 +195,13 @@ export function AnimeDetail() {
               </div>
             )}
 
-            {!isMovie && !groupReady && anime && (
+            {!isMovie && !isMangaKind && !groupReady && anime && (
               <div className="mt-6" aria-label="Loading seasons">
                 <div className="h-[30px] w-32 animate-pulse rounded-full bg-[color-mix(in_srgb,var(--text)_5%,transparent)]" />
               </div>
             )}
 
-            {!isMovie && (
+            {!isMovie && !isMangaKind && (
               <div className="mt-6">
                 <EpisodeList key={displayKey} anime={displayAnime} seasonNumber={selectedSeasonIdx + 1} group={groupReady ? effectiveGroup : null} />
               </div>

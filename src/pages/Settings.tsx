@@ -334,7 +334,7 @@ export function Settings() {
           <div>
             <p className="text-xs font-medium text-[var(--text)]">Preferred audio</p>
             <p className="text-[11px] text-[var(--text-faint)]">Sub: Japanese with subtitles. Dub: English where available. Falls back if missing.</p>
-            <div className="mt-2 inline-flex rounded-full border border-[var(--border)] bg-[var(--surface)] p-1" role="radiogroup" aria-label="Preferred audio">
+            <div className="mt-2 inline-flex rounded-full border border-[var(--border)] bg-[var(--bg-soft)] p-1" role="radiogroup" aria-label="Preferred audio">
               {(['sub','dub'] as const).map(lang => (
                 <button
                   key={lang}

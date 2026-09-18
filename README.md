@@ -45,8 +45,6 @@ No backend needed for browsing and tracking. Video and MAL auth use the same Clo
 
 ## Development phases
 
-This is what actually shipped. I am being honest here.
-
 **Completed**
 
 * [x] Phase 1 — Foundation, routing, design system, and hosting setup
@@ -76,6 +74,26 @@ What does not work reliably:
 * Resolving real anime episodes to playable sources in production. The architecture is there, but no provider consistently returns real episode sources for arbitrary anime. DemoProvider proves the player works, but it is not real anime streaming. Streaming is currently not fully working and should not be presented as completed.
 
 No other major phase was fully completed beyond what is listed above. The phase list here reflects what is actually live, not what was planned.
+
+## Project knowledge (for agents & developers)
+
+Read `context.md` first — one-go orientation (stack, architecture, systems,
+routing, constraints, current state). For depth, read the relevant files in
+`agents/` (per-area docs: architecture, frontend, backend, streaming,
+anilist, mal, data, ui, design-system, pages, components, settings,
+performance, deployment, testing, security, conventions, current-state,
+changelog).
+
+When making a change that affects architecture, behavior, UI, data flow,
+configuration, deployment, performance, security, or testing, update the
+relevant documentation before finishing — and keep `context.md` synchronized
+with meaningful changes. Do not allow documentation to become a second
+fictional implementation: **the codebase is the ultimate source of truth.**
+
+GitHub is not a deployment target and must not be modified unless explicitly
+requested. **Cloudflare is the normal deployment target** (Worker `aeri`
+serves the app at https://aeri.fastdemo.workers.dev/ — see
+`agents/deployment.md` for the actual workflow).
 
 ## Deployment
 

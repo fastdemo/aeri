@@ -133,17 +133,17 @@ export function Browse() {
       <h1 className="text-[18px] font-semibold tracking-tight text-[var(--text)]">Anime</h1>
       <p className="text-xs text-[var(--text-faint)]">Discover anime by category and filters • AniList</p>
 
-      {/* One row: categories scroll left, filters dock right. On very
-          narrow screens the two lanes share one horizontal scroll strip so
-          nothing clips or paints across a divider — swipe to reach Upcoming /
-          Finished and all filters. */}
-      <div className="mt-4 flex min-w-0 flex-nowrap items-stretch gap-2 overflow-x-auto no-scrollbar py-0.5">
-        <div className="flex shrink-0 items-center gap-2">
+      {/* One row: categories scroll left, filters dock right. The divider
+          marks the two lanes; each lane scrolls internally so category pills
+          and filter pills never overlap, wrap, or paint across each other at
+          any scale. */}
+      <div className="mt-4 flex min-w-0 flex-nowrap items-stretch gap-0 overflow-hidden">
+        <div className="flex min-w-0 flex-[1.15] items-center gap-2 overflow-x-auto no-scrollbar py-0.5 pr-2">
           {categories.map(c => (
             <button
               key={c.id}
               onClick={() => setCategory(c.id)}
-              className={`whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-medium transition ${
+              className={`shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-medium transition ${
                 category === c.id ? 'border-[var(--border-strong)] bg-[var(--text)] text-[var(--on-text)]' : 'border-transparent bg-[color-mix(in_srgb,var(--text)_10%,transparent)] text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)] hover:text-[var(--text)]'
               }`}
             >
@@ -152,9 +152,9 @@ export function Browse() {
           ))}
         </div>
 
-        <div className="mx-1 my-0.5 w-px shrink-0 self-stretch bg-[var(--border)]" aria-hidden />
+        <div className="mx-2 my-0.5 w-px shrink-0 bg-[var(--border)]" aria-hidden />
 
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto no-scrollbar py-0.5 pl-0.5">
           {[
             { value: genre, set: (v: string) => setGenre(v), label: 'Genre', options: [{ label: 'All Genres', value: 'All' }, ...genres.slice(1).map(g => ({ label: g, value: g }))] },
             { value: yearKey, set: (v: string) => setYearKey(v), label: 'Year', options: yearPresets.map(y => ({ label: y.label, value: y.label })) },

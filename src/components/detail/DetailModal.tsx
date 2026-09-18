@@ -76,6 +76,7 @@ export function DetailModal({
   const displayKey = displayAnime.identity.anilistId ? `anilist:${displayAnime.identity.anilistId}` : displayAnime.identity.internalId
   const titles = getTitleHierarchy(displayAnime, effectiveGroup)
   const isMovie = displayAnime.format?.toUpperCase() === 'MOVIE'
+  const isMangaKind = ['MANGA', 'NOVEL', 'ONE_SHOT'].includes(displayAnime.format?.toUpperCase() ?? '')
 
   // Tracking entry: the displayed season's own entry only (see below).
   // Tracking, per displayed season — never cross-season numbers. A season-2
@@ -149,7 +150,7 @@ export function DetailModal({
     }
   }, [])
 
-  const metaParts = [formatLabel(displayAnime.format), displayAnime.year ? String(displayAnime.year) : null, displayAnime.season ? displayAnime.season.charAt(0) + displayAnime.season.slice(1).toLowerCase() : null, !isMovie && displayAnime.episodes ? `${displayAnime.episodes} Episodes` : null, statusLabel(displayAnime.status)].filter(Boolean).join(' • ')
+  const metaParts = [formatLabel(displayAnime.format), displayAnime.year ? String(displayAnime.year) : null, displayAnime.season ? displayAnime.season.charAt(0) + displayAnime.season.slice(1).toLowerCase() : null, !isMovie && !isMangaKind && displayAnime.episodes ? `${displayAnime.episodes} Episodes` : null, isMangaKind && displayAnime.chapters ? `${displayAnime.chapters} Chapters` : null, isMangaKind && displayAnime.volumes ? `${displayAnime.volumes} Volumes` : null, statusLabel(displayAnime.status)].filter(Boolean).join(' • ')
 
   return (
     <div className="fixed inset-x-0 bottom-0 top-14 z-40 flex items-start justify-center overflow-y-auto bg-[color-mix(in_srgb,var(--bg)_75%,transparent)] p-2 backdrop-blur-[2px] anim-fade-in sm:p-6 lg:p-8">
@@ -200,12 +201,20 @@ export function DetailModal({
             <Link
               to={`/watch/${displayAnime.identity.internalId}/${hasWatched ? resumeEp : 1}`}
               className="inline-flex h-8 items-center gap-1.5 rounded bg-[var(--text)] px-4 text-[13px] font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]"
+              style={isMangaKind ? { display: 'none' } : undefined}
+              aria-hidden={isMangaKind || undefined}
+              tabIndex={isMangaKind ? -1 : undefined}
             >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M8 5.14v13.72L19 12z" />
               </svg>
               {hasWatched ? 'Resume' : 'Play'}
             </Link>
+            {isMangaKind && (displayAnime.chapters || displayAnime.volumes) ? (
+              <span className="inline-flex h-8 items-center rounded bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-4 text-[13px] font-medium text-[var(--text-muted)]">
+                {[displayAnime.chapters ? `${displayAnime.chapters} chapters` : null, displayAnime.volumes ? `${displayAnime.volumes} volumes` : null].filter(Boolean).join(' • ')}
+              </span>
+            ) : null}
             {hasWatched && (
               <span className="text-xs text-[var(--text-muted)]">
                 {resumeEp}{displayAnime.episodes && displayAnime.episodes > 0 ? ` of ${displayAnime.episodes}` : ''} • {barPercent}% watched
@@ -310,7 +319,7 @@ export function DetailModal({
               <ScoreBadge anime={displayAnime} trackingProvider={trackingProvider} />
             </div>
 
-            {!isMovie && (() => {
+            {!isMovie && !isMangaKind && (() => {
               // Use the normalized episode map (same source as EpisodeList) so
               // titles/numbers respect season offsets — never raw array index.
               const norm = getEpisodes(displayAnime).map(e => ({
@@ -333,12 +342,12 @@ export function DetailModal({
               {displayAnime.description || 'No description available.'}
             </p>
 
-            {!isMovie && !groupReady && (
+            {!isMovie && !isMangaKind && !groupReady && (
               <div className="mt-4" aria-label="Loading seasons">
                 <div className="h-[30px] w-32 animate-pulse rounded-full bg-[color-mix(in_srgb,var(--text)_5%,transparent)]" />
               </div>
             )}
-            {!isMovie && groupReady && effectiveGroup && (
+            {!isMovie && !isMangaKind && groupReady && effectiveGroup && (
               <div className="mt-4 flex items-center gap-2">
                 <div className="relative">
                   <select
@@ -360,7 +369,7 @@ export function DetailModal({
               </div>
             )}
 
-            {!isMovie && (
+            {!isMovie && !isMangaKind && (
               <>
                 <h3 className="mt-6 text-[14px] font-semibold text-[var(--text)]">Episodes</h3>
                 <div className="mt-3">
