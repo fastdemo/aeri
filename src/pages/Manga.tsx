@@ -119,29 +119,32 @@ export function Manga() {
       <h1 className="text-[18px] font-semibold tracking-tight text-[var(--text)]">Manga</h1>
       <p className="text-xs text-[var(--text-faint)]">Discover manga by category and filters • AniList</p>
 
-      {/* One strip: categories + filters share a single horizontal scroller,
-          right-aligned. Wide screens show everything at once; narrow screens
-          swipe through it as one unit — nothing clips, wraps, or overlaps. */}
-      <div className="mt-4 flex min-w-0 justify-end py-0.5">
-      <div className="flex min-w-0 max-w-full flex-nowrap items-center gap-2 overflow-x-auto no-scrollbar">
-        {categories.map(c => (
-          <button
-            key={c.id}
-            onClick={() => setCategory(c.id)}
-            className={`shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-medium transition ${
-              category === c.id ? 'border-[var(--border-strong)] bg-[var(--text)] text-[var(--on-text)]' : 'border-transparent bg-[color-mix(in_srgb,var(--text)_10%,transparent)] text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)] hover:text-[var(--text)]'
-            }`}
-          >
-            {c.label}
-          </button>
-        ))}
+      {/* Wide: categories left, filters right. Narrow: one joined horizontal
+          scroller (categories + filters as a single unit) — nothing clips,
+          wraps, or overlaps. Switch at the lg breakpoint; below it the lanes
+          merge into one swipeable strip. */}
+      <div className="mt-4 hidden min-w-0 flex-nowrap items-center justify-between gap-4 py-0.5 lg:flex">
+        <div className="flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto no-scrollbar">
+          {categories.map(c => (
+            <button
+              key={c.id}
+              onClick={() => setCategory(c.id)}
+              className={`shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-medium transition ${
+                category === c.id ? 'border-[var(--border-strong)] bg-[var(--text)] text-[var(--on-text)]' : 'border-transparent bg-[color-mix(in_srgb,var(--text)_10%,transparent)] text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)] hover:text-[var(--text)]'
+              }`}
+            >
+              {c.label}
+            </button>
+          ))}
+        </div>
 
-        {[
-          { value: genre, set: (v: string) => setGenre(v), label: 'Genre', options: [{ label: 'All Genres', value: 'All' }, ...genres.slice(1).map(g => ({ label: g, value: g }))] },
-          { value: yearKey, set: (v: string) => setYearKey(v), label: 'Year', options: yearPresets.map(y => ({ label: y.label, value: y.label })) },
-          { value: format, set: (v: string) => setFormat(v as any), label: 'Format', options: formats.map(f => ({ label: formatLabels[f] ?? f, value: f })) },
-        ].map(f => (
-          <div key={f.label} className="relative shrink-0">
+        <div className="flex shrink-0 flex-nowrap items-center gap-2">
+          {[
+            { value: genre, set: (v: string) => setGenre(v), label: 'Genre', options: [{ label: 'All Genres', value: 'All' }, ...genres.slice(1).map(g => ({ label: g, value: g }))] },
+            { value: yearKey, set: (v: string) => setYearKey(v), label: 'Year', options: yearPresets.map(y => ({ label: y.label, value: y.label })) },
+            { value: format, set: (v: string) => setFormat(v as any), label: 'Format', options: formats.map(f => ({ label: formatLabels[f] ?? f, value: f })) },
+          ].map(f => (
+            <div key={f.label} className="relative shrink-0">
               <select
                 value={f.value}
                 onChange={e => f.set(e.target.value)}
@@ -166,7 +169,52 @@ export function Manga() {
               Clear
             </button>
           )}
+        </div>
       </div>
+
+      <div className="mt-4 flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto no-scrollbar py-0.5 lg:hidden">
+        {categories.map(c => (
+          <button
+            key={c.id}
+            onClick={() => setCategory(c.id)}
+            className={`shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-medium transition ${
+              category === c.id ? 'border-[var(--border-strong)] bg-[var(--text)] text-[var(--on-text)]' : 'border-transparent bg-[color-mix(in_srgb,var(--text)_10%,transparent)] text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)] hover:text-[var(--text)]'
+            }`}
+          >
+            {c.label}
+          </button>
+        ))}
+
+        {[
+          { value: genre, set: (v: string) => setGenre(v), label: 'Genre', options: [{ label: 'All Genres', value: 'All' }, ...genres.slice(1).map(g => ({ label: g, value: g }))] },
+          { value: yearKey, set: (v: string) => setYearKey(v), label: 'Year', options: yearPresets.map(y => ({ label: y.label, value: y.label })) },
+          { value: format, set: (v: string) => setFormat(v as any), label: 'Format', options: formats.map(f => ({ label: formatLabels[f] ?? f, value: f })) },
+        ].map(f => (
+          <div key={f.label} className="relative shrink-0">
+            <select
+              value={f.value}
+              onChange={e => f.set(e.target.value)}
+              aria-label={`Filter by ${f.label}`}
+              className="max-w-[130px] appearance-none truncate rounded-full border border-[var(--border)] bg-[var(--bg-soft)] py-1.5 pl-3.5 pr-8 text-xs font-medium text-[var(--text)] focus:border-[var(--border-strong)] focus:outline-none"
+            >
+              {f.options.map(o => (
+                <option key={o.value} className="bg-[var(--surface)]" value={o.value}>{o.label}</option>
+              ))}
+            </select>
+            <svg aria-hidden className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--text-faint)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="m6 9 6 6 6-6" />
+            </svg>
+          </div>
+        ))}
+
+        {(genre !== 'All' || yearKey !== 'All Years' || format !== 'All') && (
+          <button
+            onClick={() => { setGenre('All'); setYearKey('All Years'); setFormat('All') }}
+            className="shrink-0 rounded-full border border-transparent bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-3.5 py-1.5 text-xs font-medium text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)] hover:text-[var(--text)]"
+          >
+            Clear
+          </button>
+        )}
       </div>
 
       {browse.loading && !browse.data ? (
