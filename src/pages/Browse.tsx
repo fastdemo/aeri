@@ -133,35 +133,30 @@ export function Browse() {
       <h1 className="text-[18px] font-semibold tracking-tight text-[var(--text)]">Anime</h1>
       <p className="text-xs text-[var(--text-faint)]">Discover anime by category and filters • AniList</p>
 
-      {/* One row: categories scroll left, filters dock right. The divider
-          marks the two lanes; each lane scrolls internally so category pills
-          and filter pills never overlap, wrap, or paint across each other at
-          any scale. */}
-      <div className="mt-4 flex min-w-0 flex-nowrap items-stretch gap-0 overflow-hidden">
-        <div className="flex min-w-0 flex-[1.15] items-center gap-2 overflow-x-auto no-scrollbar py-0.5 pr-2">
-          {categories.map(c => (
-            <button
-              key={c.id}
-              onClick={() => setCategory(c.id)}
-              className={`shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-medium transition ${
-                category === c.id ? 'border-[var(--border-strong)] bg-[var(--text)] text-[var(--on-text)]' : 'border-transparent bg-[color-mix(in_srgb,var(--text)_10%,transparent)] text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)] hover:text-[var(--text)]'
-              }`}
-            >
-              {c.label}
-            </button>
-          ))}
-        </div>
+      {/* One strip: categories + filters share a single horizontal scroller,
+          right-aligned. Wide screens show everything at once; narrow screens
+          swipe through it as one unit — nothing clips, wraps, or overlaps. */}
+      <div className="mt-4 flex min-w-0 justify-end py-0.5">
+      <div className="flex min-w-0 max-w-full flex-nowrap items-center gap-2 overflow-x-auto no-scrollbar">
+        {categories.map(c => (
+          <button
+            key={c.id}
+            onClick={() => setCategory(c.id)}
+            className={`shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-medium transition ${
+              category === c.id ? 'border-[var(--border-strong)] bg-[var(--text)] text-[var(--on-text)]' : 'border-transparent bg-[color-mix(in_srgb,var(--text)_10%,transparent)] text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)] hover:text-[var(--text)]'
+            }`}
+          >
+            {c.label}
+          </button>
+        ))}
 
-        <div className="mx-2 my-0.5 w-px shrink-0 bg-[var(--border)]" aria-hidden />
-
-        <div className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto no-scrollbar py-0.5 pl-0.5">
-          {[
-            { value: genre, set: (v: string) => setGenre(v), label: 'Genre', options: [{ label: 'All Genres', value: 'All' }, ...genres.slice(1).map(g => ({ label: g, value: g }))] },
-            { value: yearKey, set: (v: string) => setYearKey(v), label: 'Year', options: yearPresets.map(y => ({ label: y.label, value: y.label })) },
-            { value: season, set: (v: string) => setSeason(v as any), label: 'Season', options: [{ label: 'All Seasons', value: 'All' }, ...seasons.slice(1).map(s => ({ label: s.charAt(0) + s.slice(1).toLowerCase(), value: s }))] },
-            { value: format, set: (v: string) => setFormat(v as any), label: 'Format', options: formats.map(f => ({ label: formatLabels[f] ?? f, value: f })) },
-          ].map(f => (
-            <div key={f.label} className="relative shrink-0">
+        {[
+          { value: genre, set: (v: string) => setGenre(v), label: 'Genre', options: [{ label: 'All Genres', value: 'All' }, ...genres.slice(1).map(g => ({ label: g, value: g }))] },
+          { value: yearKey, set: (v: string) => setYearKey(v), label: 'Year', options: yearPresets.map(y => ({ label: y.label, value: y.label })) },
+          { value: season, set: (v: string) => setSeason(v as any), label: 'Season', options: [{ label: 'All Seasons', value: 'All' }, ...seasons.slice(1).map(s => ({ label: s.charAt(0) + s.slice(1).toLowerCase(), value: s }))] },
+          { value: format, set: (v: string) => setFormat(v as any), label: 'Format', options: formats.map(f => ({ label: formatLabels[f] ?? f, value: f })) },
+        ].map(f => (
+          <div key={f.label} className="relative shrink-0">
               <select
                 value={f.value}
                 onChange={e => f.set(e.target.value)}
@@ -178,15 +173,15 @@ export function Browse() {
             </div>
           ))}
 
-          {(genre !== 'All' || yearKey !== 'All Years' || season !== 'All' || format !== 'All') && (
-            <button
-              onClick={() => { setGenre('All'); setYearKey('All Years'); setSeason('All'); setFormat('All') }}
-              className="shrink-0 rounded-full border border-transparent bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-3.5 py-1.5 text-xs font-medium text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)] hover:text-[var(--text)]"
-            >
-              Clear
-            </button>
-          )}
-        </div>
+        {(genre !== 'All' || yearKey !== 'All Years' || season !== 'All' || format !== 'All') && (
+          <button
+            onClick={() => { setGenre('All'); setYearKey('All Years'); setSeason('All'); setFormat('All') }}
+            className="shrink-0 rounded-full border border-transparent bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-3.5 py-1.5 text-xs font-medium text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)] hover:text-[var(--text)]"
+          >
+            Clear
+          </button>
+        )}
+      </div>
       </div>
 
       {/* Results */}
