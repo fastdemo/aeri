@@ -28,15 +28,12 @@ function isMangaFormat(format?: string | null): boolean {
 function RelatedGrid({
   entries,
   onSelect,
-  wide,
 }: {
   entries: RelatedEntry[]
   onSelect?: (anilistId: number) => void
-  /** Wide mode (beside the episode list): 1 large card per row on desktop. */
-  wide?: boolean
 }) {
   return (
-    <div className={wide ? 'grid grid-cols-1 gap-3' : 'grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4'}>
+    <div className="grid grid-cols-2 gap-3">
       {entries.map(({ anime, relationType }) => {
         const id = anime.identity.anilistId
         if (!id) return null
@@ -137,7 +134,7 @@ export function RelatedEntries({
               ))}
             </div>
           ) : shows.length ? (
-            <RelatedGrid entries={shows} onSelect={onSelect} wide />
+            <RelatedGrid entries={shows} onSelect={onSelect} />
           ) : null}
         </section>
       ))}

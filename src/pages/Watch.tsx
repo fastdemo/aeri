@@ -564,6 +564,6 @@ export function Watch() {
 }
 
 function WatchRelatedEntries({ anilistId, relations }: { anilistId: number; relations: import('../types/anime').Anime['relations'] }) {
-  const { entries, loading } = useRelatedEntries(anilistId, relations)
+  const { entries, loading } = useRelatedEntries(`page-${anilistId}:${anilistId}`, relations)
   return <RelatedEntries entries={entries} loading={loading} />
 }

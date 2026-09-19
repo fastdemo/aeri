@@ -92,12 +92,8 @@ export function DetailModal({
     return 0
   })()
 
-  // E-line (E1 • title) presence shifts the Episodes header down one line
-  // vs entries without it — but Related Shows must sit on the Episodes
-  // line in BOTH cases. The sidebar column therefore gets a top offset
-  // that compensates per case (E-line ≈ 28px: mt-2 8px + 20px text).
-  // No offset on mobile (stacked layout) or manga (no E-line, no sidebar
-  // related on the episodes line).
+  // E-line (E1 • title) renders only when there is progress/aired content
+  // to show — NEVER a placeholder.
   const epline = (() => {
     if (isMovie || isMangaKind) return null
     const norm = getEpisodes(displayAnime)
@@ -326,6 +322,7 @@ export function DetailModal({
               <ScoreBadge anime={displayAnime} trackingProvider={trackingProvider} />
             </div>
 
+            {/* E-line renders only with real content — never a spacer. */}
             {!isMovie && !isMangaKind && hasEpline && (
               <p className="mt-2 text-[12px] font-semibold text-[var(--text)]">
                 E{eplineNumber} {eplineTitle ? `• ${eplineTitle}` : ''}
@@ -349,31 +346,39 @@ export function DetailModal({
             )}
           </div>
 
-          {/* Desktop sidebar: metadata, then Related Shows + Manga with
-              the same mt-6 rhythm as the Episodes block — so Related
-              Shows lands exactly on the Episodes line. space-y-2 gap
-              (8px) between metadata rows matches the description gap. */}
-          <div className="hidden min-w-0 space-y-2 text-xs leading-5 lg:block lg:mt-6">
-            <SidebarMeta anime={displayAnime} />
+          {/* Desktop sidebar: metadata, then Related Shows + Manga.
+              The metadata block is fixed-height (5 rows × 20px +
+              4 × 8px gaps = 132px) so the mt-6 below it always lands
+              Related Shows in the same place. Desktop-only: the mobile
+              stack below owns small screens. */}
+          <div className="hidden min-w-0 text-xs leading-5 lg:block">
+            <div className="h-[132px] space-y-2 overflow-hidden">
+              <SidebarMeta anime={displayAnime} />
+            </div>
             {!isMangaKind && displayAnime.identity.anilistId && (
-              <div className="lg:mt-4">
+              <div className="mt-6">
                 <RelatedEntriesBlock
+                  key={`d-${displayKey}`}
                   anilistId={displayAnime.identity.anilistId}
                   relations={displayAnime.relations}
                   onSelectAnime={onSelectRelated}
+                scope="modal-desktop"
                 />
               </div>
             )}
           </div>
-          {/* Mobile stack: metadata, then related in normal flow. */}
+          {/* Mobile stack: metadata, then related in normal flow.
+              Separate mobile-only instance (no shared state). */}
           <div className="min-w-0 space-y-2 border-t border-[var(--border)] pt-4 text-xs leading-5 lg:hidden">
             <SidebarMeta anime={displayAnime} />
             {!isMangaKind && displayAnime.identity.anilistId && (
               <div>
                 <RelatedEntriesBlock
+                  key={`m-${displayKey}`}
                   anilistId={displayAnime.identity.anilistId}
                   relations={displayAnime.relations}
                   onSelectAnime={onSelectRelated}
+                scope="modal-mobile"
                 />
               </div>
             )}
@@ -422,8 +427,8 @@ function SidebarMeta({ anime }: { anime: Anime }) {
   )
 }
 
-function RelatedEntriesBlock({ anilistId, relations, onSelectAnime, showsOnly, mangaOnly, hideHeader }: { anilistId: number; relations: Anime['relations']; onSelectAnime?: (anime: Anime) => void; showsOnly?: boolean; mangaOnly?: boolean; hideHeader?: boolean }) {
-  const { entries, loading } = useRelatedEntries(anilistId, relations)
+function RelatedEntriesBlock({ anilistId, relations, onSelectAnime, showsOnly, mangaOnly, hideHeader, scope }: { anilistId: number; relations: Anime['relations']; onSelectAnime?: (anime: Anime) => void; showsOnly?: boolean; mangaOnly?: boolean; hideHeader?: boolean; scope?: string }) {
+  const { entries, loading } = useRelatedEntries(scope ? `${scope}:${anilistId}` : anilistId, relations)
   // In-place swap needs the full Anime object, not just the id.
   const byId = new Map((entries ?? []).map(e => [e.anime.identity.anilistId!, e.anime]))
   return <RelatedEntries entries={entries} loading={loading} showsOnly={showsOnly} mangaOnly={mangaOnly} hideHeader={hideHeader} onSelect={onSelectAnime ? (id) => {
