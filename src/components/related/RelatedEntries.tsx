@@ -28,12 +28,15 @@ function isMangaFormat(format?: string | null): boolean {
 function RelatedGrid({
   entries,
   onSelect,
+  wide,
 }: {
   entries: RelatedEntry[]
   onSelect?: (anilistId: number) => void
+  /** Wide mode (beside the episode list): 1 large card per row on desktop. */
+  wide?: boolean
 }) {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+    <div className={wide ? 'grid grid-cols-1 gap-3' : 'grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4'}>
       {entries.map(({ anime, relationType }) => {
         const id = anime.identity.anilistId
         if (!id) return null
@@ -89,48 +92,113 @@ export function RelatedEntries({
   entries,
   loading,
   onSelect,
+  showsOnly,
+  mangaOnly,
+  hideHeader,
 }: {
   entries: RelatedEntry[] | null
   loading: boolean
   onSelect?: (anilistId: number) => void
+  showsOnly?: boolean
+  mangaOnly?: boolean
+  /** Hide the section header (parent renders a shared header row). */
+  hideHeader?: boolean
 }) {
   if (!loading && (!entries || !entries.length)) return null
   const shows = (entries ?? []).filter(e => !isMangaFormat(e.anime.format))
   const manga = (entries ?? []).filter(e => isMangaFormat(e.anime.format))
+  if (showsOnly && !loading && !shows.length) return null
+  if (mangaOnly && !loading && !manga.length) return null
+  // Empty sections render nothing (not even headers): a show with only
+  // manga relations shows no "Related Shows" header, and vice versa.
+  // The sidebar below stays clean instead of showing a dead header.
+  // Related Manga is capped at 2 per row everywhere (sidebar slot is
+  // narrow; 4-across portrait cards would be unreadable).
+  // Alignment: the Related Shows header uses the exact same type + rhythm
+  // as the Episodes header (14px/22.4px, mb-2) so the two sit on one line.
+  // Only the sidebar instance needs the offset reset (mobile keeps mt-6).
   return (
     <>
-      {(!loading && !shows.length && manga.length) ? null : (
-        <section aria-label="Related Shows" className="mt-4">
-          <div className="mb-2 flex items-baseline justify-between gap-2">
-            <h2 className="min-w-0 flex-1 truncate text-[14px] font-semibold tracking-[-0.01em] text-[var(--text)]">
-              Related Shows
-            </h2>
-            {shows.length > 0 && (
-              <span className="shrink-0 text-[14px] text-[var(--text-faint)]">{shows.length}</span>
-            )}
-          </div>
+      {(!mangaOnly) && ((!loading && !shows.length && manga.length) ? null : (
+        <section aria-label="Related Shows" className="mt-6 lg:mt-0 lg:-translate-y-[12px]">
+          {!hideHeader && shows.length > 0 && (
+            <div className="mb-2 flex items-baseline justify-between gap-2">
+              <h3 className="min-w-0 flex-1 truncate text-[14px] font-semibold leading-[22.4px] text-[var(--text)]">
+                Related Shows
+              </h3>
+            </div>
+          )}
           {loading && !entries ? (
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4" aria-label="Loading related shows">
-              {[1, 2, 3, 4].map(i => (
+            <div className="grid grid-cols-2 gap-3" aria-label="Loading related shows">
+              {[1, 2].map(i => (
                 <div key={i} className="aspect-[16/9] w-full animate-pulse rounded-[6px] bg-[var(--surface)]" />
               ))}
             </div>
           ) : shows.length ? (
-            <RelatedGrid entries={shows} onSelect={onSelect} />
+            <RelatedGrid entries={shows} onSelect={onSelect} wide />
           ) : null}
         </section>
-      )}
-      {manga.length > 0 && (
+      ))}
+      {(!showsOnly) && manga.length > 0 && (
         <section aria-label="Related Manga" className="mt-4">
           <div className="mb-2 flex items-baseline justify-between gap-2">
-            <h2 className="min-w-0 flex-1 truncate text-[14px] font-semibold tracking-[-0.01em] text-[var(--text)]">
+            <h3 className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--text)]">
               Related Manga
-            </h2>
-            <span className="shrink-0 text-[14px] text-[var(--text-faint)]">{manga.length}</span>
+            </h3>
           </div>
-          <RelatedGrid entries={manga} onSelect={onSelect} />
+          <div className="grid grid-cols-2 gap-3">
+            <RelatedGridContents entries={manga} onSelect={onSelect} />
+          </div>
         </section>
       )}
+    </>
+  )
+}
+
+function RelatedGridContents({
+  entries,
+  onSelect,
+}: {
+  entries: RelatedEntry[]
+  onSelect?: (anilistId: number) => void
+}) {
+  return (
+    <>
+      {entries.map(({ anime, relationType }) => {
+        const id = anime.identity.anilistId
+        if (!id) return null
+        const meta = [
+          relationLabel(relationType),
+          formatLabel(anime.format) ?? anime.format,
+          anime.episodes ? `${anime.episodes} Episodes` : null,
+        ].filter(Boolean).join(' • ')
+        const inner = (
+          <>
+            <AnimeCard
+              anime={anime}
+              onSelect={onSelect ? () => onSelect(id) : undefined}
+              mediaKind={isMangaFormat(anime.format) ? 'manga' : 'anime'}
+              fullWidth
+            />
+            {meta && <p className="mt-1 truncate px-0.5 text-[11px] text-[var(--text-faint)]">{meta}</p>}
+          </>
+        )
+        return (
+          <div key={`related-${id}`} className="min-w-0">
+            {onSelect ? (
+              inner
+            ) : (
+              <a
+                href={`#/anime/anilist-${id}`}
+                aria-label={`Open related entry ${anime.title.english ?? anime.title.romaji}`}
+                className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)]"
+              >
+                {inner}
+              </a>
+            )}
+          </div>
+        )
+      })}
     </>
   )
 }

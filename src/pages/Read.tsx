@@ -5,6 +5,7 @@ import { useMangaDetail } from '../hooks/useAnimeMetadata'
 import { getReadPos, putReadPos } from '../storage/db'
 import { getPreferences } from '../storage/preferences'
 import { getTitleHierarchy } from '../lib/titles'
+import { Icon } from '../components/ui/Icon'
 import { weebCentralProvider } from '../providers/manga/weebcentral'
 import type { MangaChapter, MangaPage } from '../providers/manga/types'
 
@@ -234,7 +235,7 @@ export function Read() {
       {/* Header */}
       <div className="flex items-center gap-3 py-4">
         <Link to="/manga" aria-label="Back to Manga" className="grid h-8 w-8 shrink-0 place-items-center rounded-full text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)] hover:text-[var(--text)]">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6" /></svg>
+          <Icon name="chevron-left" size={16} />
         </Link>
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-[15px] font-semibold text-[var(--text)]">{titles.primary}</h1>
@@ -253,7 +254,7 @@ export function Read() {
                 <option key={c.id} value={c.providerChapterId} className="bg-[var(--surface)]">{c.label}</option>
               ))}
             </select>
-            <svg aria-hidden className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--text-faint)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6" /></svg>
+            <Icon name="chevron-down" size={12} className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--text-faint)]" />
           </div>
         )}
       </div>

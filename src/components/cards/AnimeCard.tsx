@@ -4,6 +4,7 @@ import type { Anime } from '../../types/anime'
 import { getPrimaryTitle } from '../../lib/titles'
 import { getDisplayEpisodeNumber, getStreamingEpisodeTitle } from '../../lib/episodes'
 import { formatLabel } from '../../lib/mediaLabels'
+import { Icon } from '../ui/Icon'
 import { useTracking } from '../../contexts/TrackingContext'
 
 type Variant = 'default' | 'continue' | 'compact'
@@ -58,11 +59,7 @@ function QuickMenu({ anime }: { anime: Anime }) {
         }}
         className="absolute right-1 top-1 z-20 grid h-6 w-6 place-items-center text-[var(--text)] drop-shadow-[0_1px_2px_var(--shadow)] transition hover:text-[var(--text)] focus-visible:opacity-100 md:opacity-0 md:group-hover/card:opacity-100 md:focus-within:opacity-100"
       >
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-          <circle cx="12" cy="5" r="2" />
-          <circle cx="12" cy="12" r="2" />
-          <circle cx="12" cy="19" r="2" />
-        </svg>
+        <Icon name="three-dots-vertical" size={12} />
       </button>
       {open && (
         <>
@@ -178,21 +175,12 @@ export function AnimeCard({
         {/* subtle inner gradient for text legibility if needed */}
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[color-mix(in_srgb,var(--bg)_55%,transparent)] via-transparent to-transparent opacity-60 group-hover:opacity-70 transition-opacity" />
 
-        {/* Hover affordance — play triangle for anime, book glyph for manga.
+        {/* Hover affordance — play for anime, book for manga.
             Small, quiet, desktop only (no touch equivalent, and :hover
             sticks on tap which looks broken) */}
         <div className="absolute inset-0 hidden place-items-center opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100 md:grid">
           <div className="grid h-6 w-6 place-items-center rounded-full bg-[color-mix(in_srgb,var(--bg)_55%,transparent)] text-[var(--text)] shadow-[0_2px_10px_var(--shadow)]">
-            {isManga ? (
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V4a2 2 0 0 0-2-2H6.5A2.5 2.5 0 0 0 4 4.5v15z" />
-                <path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5" />
-              </svg>
-            ) : (
-              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M8 5.14v13.72L19 12z" />
-              </svg>
-            )}
+            <Icon name={isManga ? 'book' : 'play-fill'} size={10} />
           </div>
         </div>
 
@@ -226,8 +214,8 @@ export function AnimeCard({
           </div>
           <p className="truncate text-[11px] text-[var(--text-muted)]">
             {isManga
-              ? (epTitle ? epTitle : `Ch ${displayEp || progressEp}`)
-              : (<>E{displayEp}{epTitle ? ` • ${epTitle}` : ''}</>)}
+              ? (epTitle ? epTitle : `Chapter ${displayEp || progressEp}`)
+              : (<>Episode {displayEp}{epTitle ? ` • ${epTitle}` : ''}</>)}
           </p>
         </div>
       )}

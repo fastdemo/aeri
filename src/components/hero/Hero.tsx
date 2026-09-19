@@ -4,6 +4,7 @@ import type { Anime } from '../../types/anime'
 import { getTitleHierarchy } from '../../lib/titles'
 import { formatLabel } from '../../lib/mediaLabels'
 import { displayRating, formatRating } from '../../lib/rating'
+import { Icon } from '../ui/Icon'
 
 function ScoreBadge({ anime, trackingProvider }: { anime: Anime; trackingProvider?: 'anilist' | 'mal' | null }) {
   const text = formatRating(displayRating(anime, trackingProvider))
@@ -85,9 +86,7 @@ export function Hero({ anime, onMoreInfo, trackingProvider }: { anime: Anime; on
                 to={`/watch/${anime.identity.internalId}/1`}
                 className="inline-flex h-8 items-center gap-1.5 rounded-full bg-[var(--text)] px-5 text-[13px] font-semibold text-[var(--on-text)] transition hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)] active:scale-[0.98]"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-                  <path d="M8 5.14v13.72L19 12z" />
-                </svg>
+                <Icon name="play-fill" size={14} />
                 Play
               </Link>
               <button
@@ -287,9 +286,7 @@ export function HeroCarousel({
                       to={`/watch/${active.identity.internalId}/1`}
                       className="inline-flex h-8 items-center gap-1.5 rounded-full bg-[var(--text)] px-5 text-[13px] font-semibold text-[var(--on-text)] transition hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)] active:scale-[0.98]"
                     >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-                        <path d="M8 5.14v13.72L19 12z" />
-                      </svg>
+                      <Icon name="play-fill" size={14} />
                       Play
                     </Link>
                     <button
@@ -317,9 +314,7 @@ export function HeroCarousel({
               className="absolute left-2 top-1/2 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--bg)_45%,transparent)] text-[var(--text)] backdrop-blur transition hover:bg-[color-mix(in_srgb,var(--bg)_60%,transparent)] focus-visible:flex sm:flex sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100 sm:hover:opacity-100"
               style={{ opacity: paused ? 1 : undefined }}
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                <path d="m15 18-6-6 6-6" />
-              </svg>
+              <Icon name="chevron-left" size={16} />
             </button>
             <button
               onClick={() => go(index + 1)}
@@ -327,9 +322,7 @@ export function HeroCarousel({
               className="absolute right-2 top-1/2 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--bg)_45%,transparent)] text-[var(--text)] backdrop-blur transition hover:bg-[color-mix(in_srgb,var(--bg)_60%,transparent)] focus-visible:flex sm:flex sm:opacity-0 sm:group-hover:opacity-100 sm:focus-visible:opacity-100 sm:hover:opacity-100"
               style={{ opacity: paused ? 0.95 : undefined }}
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-                <path d="m9 18 6-6-6-6" />
-              </svg>
+              <Icon name="chevron-right" size={16} />
             </button>
 
             {/* Pill dots centered bottom */}

@@ -105,10 +105,12 @@ query ($search: String, $perPage: Int) {
 
 function mapPage(res: { Page: { media: AniListMedia[] } }): ReturnType<typeof mapAniListMediaToAnime>[] {
   const out = (res.Page.media ?? []).map(mapAniListMediaToAnime)
-  // Page results are full media records: publish each to the shared cache so
-  // later detail visits for the same id cost zero network.
+  // Page results are full media records (relations included): publish each
+  // to the shared cache so later detail visits cost zero network AND still
+  // get Related Shows/Manga. Records without relation edges are NOT
+  // published — a stale relations-less entry would hide related sections.
   for (const a of out) {
-    if (a.identity.anilistId) putCachedAnime(a.identity.anilistId, a)
+    if (a.identity.anilistId && (a.relations?.edges?.length ?? 0) > 0) putCachedAnime(a.identity.anilistId, a)
   }
   return out
 }
@@ -259,10 +261,12 @@ export class AniListMetadataProvider implements AnimeMetadataProvider {
     }
     const anilistId = id.startsWith('anilist-') ? Number(id.replace('anilist-', '')) : Number(id)
     if (Number.isNaN(anilistId)) throw new ProviderError('NOT_FOUND', 'We couldn’t find that anime.', false)
-    // Shared media record first: the series spine walk writes the same entry,
-    // so the page Media query usually costs zero network (and vice versa).
+    // Shared media record first — but ONLY when it carries relations.
+    // Older cached entries (written before relations rode on Media queries)
+    // lack them; using one would permanently hide Related Shows/Manga.
+    // Fall through to network so the fresh record includes relations.
     const shared = await getCachedAnime(anilistId)
-    if (shared) return shared
+    if (shared && (shared.relations?.edges?.length ?? 0) > 0) return shared
     if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError')
     type Res = { Media: AniListMedia }
     const data = await anilistGraphQL<Res>(MEDIA_QUERY, { id: anilistId }, { cacheKey: `anilist:anime:${anilistId}`, useCache: true, signal })

@@ -10,6 +10,7 @@ import { getPreferences } from '../storage/preferences'
 import { getTitleHierarchy } from '../lib/titles'
 import { normalizeEpisodes, sanitizeAnimeForDisplay } from '../lib/episodes'
 import { formatLabel } from '../lib/mediaLabels'
+import { Icon } from '../components/ui/Icon'
 import { useRelatedEntries } from '../hooks/useRelatedEntries'
 import { RelatedEntries } from '../components/related/RelatedEntries'
 
@@ -314,10 +315,7 @@ export function Watch() {
             <div className="pointer-events-none absolute inset-0 grid place-items-center bg-[color-mix(in_srgb,var(--bg)_60%,transparent)] p-6 text-center">
               <div className="pointer-events-auto max-w-md">
                 <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-[var(--text)] text-[var(--on-text)]">
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                    <path d="M10 16l6-4-6-4v8z" />
-                    <circle cx="12" cy="12" r="10" />
-                  </svg>
+                  <Icon name="play-circle" size={22} />
                 </div>
                 <p className="mt-3 text-sm font-medium text-[var(--text)]">No playable source is currently available for this {isMovie ? 'title' : 'episode'}.</p>
                 <p className="mx-auto mt-1 text-xs leading-5 text-[var(--text-muted)]">
@@ -440,9 +438,7 @@ export function Watch() {
                         </option>
                       ))}
                     </select>
-                    <svg aria-hidden className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--text-faint)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="m6 9 6 6 6-6" />
-                    </svg>
+                    <Icon name="chevron-down" size={12} className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--text-faint)]" />
                   </div>
                   <span className="text-[10px] text-[color-mix(in_srgb,var(--text)_30%,transparent)]">{preferredProvider ? `Preferred: ${preferredProvider}` : 'Auto'}</span>
                 </div>

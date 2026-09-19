@@ -8,6 +8,7 @@ import { clearAnilistMemoryCache, getAnilistStats } from '../services/anilist/cl
 import { clearMalMemoryCache } from '../services/mal/client'
 import { getProviderCapabilities, checkProviderHealth } from '../providers/video/registry'
 import { THEMES, applyTheme } from '../lib/themes'
+import { Icon } from '../components/ui/Icon'
 
 // Counters only — no tokens, no user data. Refreshes while visible.
 function AnilistDiagnostics() {
@@ -135,6 +136,23 @@ export function Settings() {
           <p className="text-xs text-[var(--text-muted)]">Sign in with AniList or connect MyAnimeList to sync your list and enable tracking. Playback preferences work without an account.</p>
         </div>
       )}
+
+      {/* About — first: identity before configuration. */}
+      <section className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--text)]/[0.02] p-4 sm:p-5">
+        <h2 className="text-sm font-semibold text-[var(--text)]">About</h2>
+        <p className="mt-1 text-xs text-[var(--text-faint)]">Aeri is a quiet anime discovery, tracking, and watching app. No tracking, no ads — your data stays in this browser.</p>
+        <div className="mt-3 space-y-2 text-xs leading-5">
+          <p><span className="text-[var(--text-faint)]">Metadata:</span> <span className="text-[var(--text)]">AniList</span><span className="mx-2 text-[color-mix(in_srgb,var(--text)_20%,transparent)]">•</span><span className="text-[var(--text-faint)]">Tracking:</span> <span className="text-[var(--text)]">{trackingProvider === 'mal' ? 'MyAnimeList' : trackingProvider === 'anilist' ? 'AniList' : 'Not connected'}</span></p>
+          <p><span className="text-[var(--text-faint)]">Video:</span> <span className="text-[var(--text)]">{prefs.preferredProvider ? prefs.preferredProvider : 'Auto'} {health ? (Object.values(health).includes('available') ? '' : '(checking…)') : ''}</span><span className="mx-2 text-[color-mix(in_srgb,var(--text)_20%,transparent)]">•</span><span className="text-[var(--text-faint)]">Storage:</span> <span className="text-[var(--text)]">This browser only</span></p>
+          <p className="pt-2">
+            <a href="https://github.com/fastdemo/aeri" className="underline hover:text-[var(--text)] text-[var(--text-faint)]">GitHub</a>
+            <span className="mx-2 text-[color-mix(in_srgb,var(--text)_20%,transparent)]">•</span>
+            <a href="https://aeri.fastdemo.workers.dev/api/health" className="underline hover:text-[var(--text)] text-[var(--text-faint)]">Service status</a>
+            <span className="mx-2 text-[color-mix(in_srgb,var(--text)_20%,transparent)]">•</span>
+            <Link to="/manga" className="underline hover:text-[var(--text)] text-[var(--text-faint)]">Manga (soon)</Link>
+          </p>
+        </div>
+      </section>
 
       {/* Account / Connections */}
       <section className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--text)]/[0.02] p-4 sm:p-5">
@@ -372,8 +390,8 @@ export function Settings() {
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <button onClick={()=>moveProvider(c.id,-1)} disabled={idx===0} className="h-6 w-6 grid place-items-center rounded text-[var(--text-faint)] hover:text-[var(--text)] disabled:opacity-20" aria-label={`Move ${c.displayName} up`}>↑</button>
-                      <button onClick={()=>moveProvider(c.id,1)} disabled={idx===orderedCaps.length-1} className="h-6 w-6 grid place-items-center rounded text-[var(--text-faint)] hover:text-[var(--text)] disabled:opacity-20" aria-label={`Move ${c.displayName} down`}>↓</button>
+                      <button onClick={()=>moveProvider(c.id,-1)} disabled={idx===0} className="h-6 w-6 grid place-items-center rounded text-[var(--text-faint)] hover:text-[var(--text)] disabled:opacity-20" aria-label={`Move ${c.displayName} up`}><Icon name="arrow-up-short" size={14} /></button>
+                      <button onClick={()=>moveProvider(c.id,1)} disabled={idx===orderedCaps.length-1} className="h-6 w-6 grid place-items-center rounded text-[var(--text-faint)] hover:text-[var(--text)] disabled:opacity-20" aria-label={`Move ${c.displayName} down`}><Icon name="arrow-down-short" size={14} /></button>
                       <label className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
                         <input type="checkbox" checked={enabled} onChange={e=>toggleProvider(c.id, e.target.checked)} className="h-3.5 w-3.5 rounded border-[var(--border-strong)] bg-[color-mix(in_srgb,var(--text)_10%,transparent)]" aria-label={`Enable ${c.displayName}`} />
                         <span className="hidden sm:inline">Enable</span>
@@ -480,22 +498,6 @@ export function Settings() {
         <AnilistDiagnostics />
       </section>
 
-      {/* About */}
-      <section className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--text)]/[0.02] p-4 sm:p-5">
-        <h2 className="text-sm font-semibold text-[var(--text)]">About</h2>
-        <p className="mt-1 text-xs text-[var(--text-faint)]">Aeri is a quiet anime discovery, tracking, and watching app. No tracking, no ads — your data stays in this browser.</p>
-        <div className="mt-3 space-y-2 text-xs leading-5">
-          <p><span className="text-[var(--text-faint)]">Metadata:</span> <span className="text-[var(--text)]">AniList</span><span className="mx-2 text-[color-mix(in_srgb,var(--text)_20%,transparent)]">•</span><span className="text-[var(--text-faint)]">Tracking:</span> <span className="text-[var(--text)]">{trackingProvider === 'mal' ? 'MyAnimeList' : trackingProvider === 'anilist' ? 'AniList' : 'Not connected'}</span></p>
-          <p><span className="text-[var(--text-faint)]">Video:</span> <span className="text-[var(--text)]">{prefs.preferredProvider ? prefs.preferredProvider : 'Auto'} {health ? (Object.values(health).includes('available') ? '' : '(checking…)') : ''}</span><span className="mx-2 text-[color-mix(in_srgb,var(--text)_20%,transparent)]">•</span><span className="text-[var(--text-faint)]">Storage:</span> <span className="text-[var(--text)]">This browser only</span></p>
-          <p className="pt-2">
-            <a href="https://github.com/fastdemo/aeri" className="underline hover:text-[var(--text)] text-[var(--text-faint)]">GitHub</a>
-            <span className="mx-2 text-[color-mix(in_srgb,var(--text)_20%,transparent)]">•</span>
-            <a href="https://aeri.fastdemo.workers.dev/api/health" className="underline hover:text-[var(--text)] text-[var(--text-faint)]">Service status</a>
-            <span className="mx-2 text-[color-mix(in_srgb,var(--text)_20%,transparent)]">•</span>
-            <Link to="/manga" className="underline hover:text-[var(--text)] text-[var(--text-faint)]">Manga (soon)</Link>
-          </p>
-        </div>
-      </section>
     </div>
   )
 }

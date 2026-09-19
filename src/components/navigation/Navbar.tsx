@@ -6,6 +6,7 @@ import { useTracking } from '../../contexts/TrackingContext'
 import { SearchSuggestions } from '../search/SearchSuggestions'
 import { DetailModal } from '../detail/DetailModal'
 import { SignInModal } from '../auth/SignInModal'
+import { Icon } from '../ui/Icon'
 import type { Anime } from '../../types/anime'
 
 export function Navbar() {
@@ -245,9 +246,7 @@ export function Navbar() {
             className="grid h-11 w-11 touch-manipulation place-items-center rounded-full text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)] hover:text-[var(--text)]"
             style={{ touchAction: 'manipulation' } as any}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-              <path d="M4 7h16M4 12h16M4 17h16" />
-            </svg>
+            <Icon name="list" size={16} />
           </button>
           )}
         </div>
@@ -301,10 +300,7 @@ export function Navbar() {
               aria-label="Notifications"
               className="grid h-8 w-8 place-items-center rounded-full text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)] hover:text-[var(--text)]"
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                <path d="M12 3a5 5 0 0 1 5 5v4a2 2 0 0 0 .45 1.26L18.5 15H5.5l1.05-1.74A2 2 0 0 0 7 12V8a5 5 0 0 1 5-5Z" />
-                <path d="M9 17a3 3 0 0 0 6 0" />
-              </svg>
+              <Icon name="bell" size={16} />
             </button>
           )}
 
@@ -351,10 +347,7 @@ export function Navbar() {
                       style={{ touchAction: 'manipulation' } as any}
                     >
                       <span className="grid h-6 w-6 shrink-0 place-items-center overflow-hidden rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)] text-[9px] font-bold text-[var(--text)]" aria-hidden>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--text)]">
-                          <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
-                          <circle cx="12" cy="7" r="4" />
-                        </svg>
+                        <Icon name="person" size={12} className="text-[var(--text)]" />
                       </span>
                       <span className="text-xs font-medium text-[var(--text)]">Profile</span>
                     </Link>
@@ -366,10 +359,7 @@ export function Navbar() {
                       style={{ touchAction: 'manipulation' } as any}
                     >
                       <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)]" aria-hidden>
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-[var(--text)]">
-                          <circle cx="12" cy="12" r="3" />
-                          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
-                        </svg>
+                        <Icon name="gear" size={12} className="text-[var(--text)]" />
                       </span>
                       <span className="text-xs font-medium text-[var(--text)]">Settings</span>
                     </Link>

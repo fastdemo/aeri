@@ -8,6 +8,7 @@ import { useRelatedEntries } from '../../hooks/useRelatedEntries'
 import { RelatedEntries } from '../related/RelatedEntries'
 import { displayRating, formatRating } from '../../lib/rating'
 import { getTitleHierarchy } from '../../lib/titles'
+import { Icon } from '../ui/Icon'
 import { sanitizeAnimeForDisplay } from '../../lib/episodes'
 import { formatLabel, statusLabel } from '../../lib/mediaLabels'
 
@@ -158,9 +159,7 @@ export function DetailModal({
           aria-label="Close"
           className="absolute right-3 top-3 z-20 grid h-8 w-8 place-items-center rounded-full bg-[color-mix(in_srgb,var(--bg)_60%,transparent)] text-[var(--text)] backdrop-blur hover:bg-[color-mix(in_srgb,var(--bg)_80%,transparent)]"
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M18 6 6 18M6 6l12 12" />
-          </svg>
+          <Icon name="x" size={14} />
         </button>
 
         <div className="relative h-[360px] w-full overflow-hidden rounded-t-xl sm:h-[420px]">
@@ -191,30 +190,20 @@ export function DetailModal({
             {isMangaKind ? (
               <Link
                 to={`/read/${displayAnime.identity.internalId}/${hasWatched ? `ch-${resumeEp}` : 'first'}`}
-                className="inline-flex h-8 items-center gap-1.5 rounded bg-[var(--text)] px-4 text-[13px] font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]"
+                className="inline-flex h-8 items-center gap-1.5 rounded-full bg-[var(--text)] px-4 text-[13px] font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]"
               >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V4a2 2 0 0 0-2-2H6.5A2.5 2.5 0 0 0 4 4.5v15z" />
-                  <path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5" />
-                </svg>
+                <Icon name="book" size={14} />
                 {hasWatched ? 'Continue' : 'Read'}
               </Link>
             ) : (
               <Link
                 to={`/watch/${displayAnime.identity.internalId}/${hasWatched ? resumeEp : 1}`}
-                className="inline-flex h-8 items-center gap-1.5 rounded bg-[var(--text)] px-4 text-[13px] font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]"
+                className="inline-flex h-8 items-center gap-1.5 rounded-full bg-[var(--text)] px-4 text-[13px] font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]"
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M8 5.14v13.72L19 12z" />
-                </svg>
+                <Icon name="play-fill" size={14} />
                 {hasWatched ? 'Resume' : 'Play'}
               </Link>
             )}
-            {isMangaKind && (displayAnime.chapters || displayAnime.volumes) ? (
-              <span className="inline-flex h-8 items-center rounded bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-4 text-[13px] font-medium text-[var(--text-muted)]">
-                {[displayAnime.chapters ? `${displayAnime.chapters} chapters` : null, displayAnime.volumes ? `${displayAnime.volumes} volumes` : null].filter(Boolean).join(' • ')}
-              </span>
-            ) : null}
             {hasWatched && (
               <span className="text-xs text-[var(--text-muted)]">
                 {resumeEp}{displayAnime.episodes && displayAnime.episodes > 0 ? ` of ${displayAnime.episodes}` : ''} • {barPercent}% watched
@@ -251,9 +240,7 @@ export function DetailModal({
                   ) : currentStatus ? (
                     <span className="text-[10px] font-bold">{currentStatus === 'watching' ? '●' : currentStatus === 'completed' ? '✓' : '+'}</span>
                   ) : (
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M12 5v14M5 12h14" />
-                    </svg>
+                    <Icon name="plus-lg" size={14} />
                   )}
                 </button>
                 {showStatusPicker && (
@@ -336,6 +323,7 @@ export function DetailModal({
               {displayAnime.description || 'No description available.'}
             </p>
 
+            {/* Episodes keep full width with their own header. */}
             {isMangaKind ? (
               <div className="mt-6">
                 <ChapterList key={displayKey} manga={displayAnime} />
@@ -349,41 +337,9 @@ export function DetailModal({
             )}
           </div>
 
-          <div className="space-y-3 border-t border-[var(--border)] pt-4 lg:border-t-0 lg:pt-0">
-            {displayAnime.genres.length > 0 && (
-              <div className="text-xs leading-5">
-                <span className="text-[var(--text-faint)]">Genres: </span>
-                <span className="text-[var(--text)]">{displayAnime.genres.join(', ')}</span>
-              </div>
-            )}
-            {displayAnime.studios && displayAnime.studios.length > 0 && (
-              <div className="text-xs leading-5">
-                <span className="text-[var(--text-faint)]">Studios: </span>
-                <span className="text-[var(--text)]">{displayAnime.studios.join(', ')}</span>
-              </div>
-            )}
-            {formatLabel(displayAnime.format) && (
-              <div className="text-xs leading-5">
-                <span className="text-[var(--text-faint)]">Format: </span>
-                <span className="text-[var(--text)]">{formatLabel(displayAnime.format)}</span>
-              </div>
-            )}
-            {statusLabel(displayAnime.status) && (
-              <div className="text-xs leading-5">
-                <span className="text-[var(--text-faint)]">Status: </span>
-                <span className="text-[var(--text)]">{statusLabel(displayAnime.status)}</span>
-              </div>
-            )}
-            {displayAnime.year && (
-              <div className="text-xs leading-5">
-                <span className="text-[var(--text-faint)]">Year: </span>
-                <span className="text-[var(--text)]">{displayAnime.year}{displayAnime.season ? ` • ${displayAnime.season.charAt(0) + displayAnime.season.slice(1).toLowerCase()}` : ''}</span>
-              </div>
-            )}
-            {/* Related Shows / Manga live inside the sidebar column so no
-                dead space sits between the metadata and the related rows.
-                In modal hosts the related entry swaps in place; on detail
-                pages they're plain links. */}
+          <div className="min-w-0 space-y-2 border-t border-[var(--border)] pt-4 text-xs leading-5 lg:border-t-0 lg:pt-0">
+            <SidebarMeta anime={displayAnime} />
+            {/* Related Shows + Manga follow the metadata in the sidebar. */}
             {!isMangaKind && displayAnime.identity.anilistId && (
               <RelatedEntriesBlock
                 anilistId={displayAnime.identity.anilistId}
@@ -398,11 +354,49 @@ export function DetailModal({
   )
 }
 
-function RelatedEntriesBlock({ anilistId, relations, onSelectAnime }: { anilistId: number; relations: Anime['relations']; onSelectAnime?: (anime: Anime) => void }) {
+function SidebarMeta({ anime }: { anime: Anime }) {
+  const displayAnime = anime
+  return (
+    <>
+      {displayAnime.genres.length > 0 && (
+        <div className="flex items-baseline gap-1.5">
+          <span className="shrink-0 text-[var(--text-faint)]">Genres: </span>
+          <span className="no-scrollbar min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-[var(--text)] [scrollbar-width:none]">{displayAnime.genres.join(', ')}</span>
+        </div>
+      )}
+      {displayAnime.studios && displayAnime.studios.length > 0 && (
+        <div className="flex items-baseline gap-1.5">
+          <span className="shrink-0 text-[var(--text-faint)]">Studios: </span>
+          <span className="no-scrollbar min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-[var(--text)] [scrollbar-width:none]">{displayAnime.studios.join(', ')}</span>
+        </div>
+      )}
+      {formatLabel(displayAnime.format) && (
+        <div className="flex items-baseline gap-1.5">
+          <span className="shrink-0 text-[var(--text-faint)]">Format: </span>
+          <span className="no-scrollbar min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-[var(--text)] [scrollbar-width:none]">{formatLabel(displayAnime.format)}</span>
+        </div>
+      )}
+      {statusLabel(displayAnime.status) && (
+        <div className="flex items-baseline gap-1.5">
+          <span className="shrink-0 text-[var(--text-faint)]">Status: </span>
+          <span className="no-scrollbar min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-[var(--text)] [scrollbar-width:none]">{statusLabel(displayAnime.status)}</span>
+        </div>
+      )}
+      {displayAnime.year && (
+        <div className="flex items-baseline gap-1.5">
+          <span className="shrink-0 text-[var(--text-faint)]">Year: </span>
+          <span className="no-scrollbar min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-[var(--text)] [scrollbar-width:none]">{displayAnime.year}{displayAnime.season ? ` • ${displayAnime.season.charAt(0) + displayAnime.season.slice(1).toLowerCase()}` : ''}</span>
+        </div>
+      )}
+    </>
+  )
+}
+
+function RelatedEntriesBlock({ anilistId, relations, onSelectAnime, showsOnly, mangaOnly, hideHeader }: { anilistId: number; relations: Anime['relations']; onSelectAnime?: (anime: Anime) => void; showsOnly?: boolean; mangaOnly?: boolean; hideHeader?: boolean }) {
   const { entries, loading } = useRelatedEntries(anilistId, relations)
   // In-place swap needs the full Anime object, not just the id.
   const byId = new Map((entries ?? []).map(e => [e.anime.identity.anilistId!, e.anime]))
-  return <RelatedEntries entries={entries} loading={loading} onSelect={onSelectAnime ? (id) => {
+  return <RelatedEntries entries={entries} loading={loading} showsOnly={showsOnly} mangaOnly={mangaOnly} hideHeader={hideHeader} onSelect={onSelectAnime ? (id) => {
     const found = byId.get(id)
     if (found) onSelectAnime(found)
   } : undefined} />

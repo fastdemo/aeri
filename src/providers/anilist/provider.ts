@@ -71,6 +71,20 @@ query ($userId: Int!, $type: MediaType) {
           studios { edges { isMain } nodes { name isAnimationStudio } }
           format
           popularity
+          relations {
+            edges {
+              relationType
+              node {
+                id
+                title { romaji english native }
+                format
+                status
+                episodes
+                coverImage { extraLarge large medium }
+                bannerImage
+              }
+            }
+          }
         }
       }
     }
@@ -98,6 +112,20 @@ query ($id: Int) {
     studios { edges { isMain } nodes { name isAnimationStudio } }
     format
     popularity
+    relations {
+      edges {
+        relationType
+        node {
+          id
+          title { romaji english native }
+          format
+          status
+          episodes
+          coverImage { extraLarge large medium }
+          bannerImage
+        }
+      }
+    }
   }
 }
 `
@@ -123,6 +151,20 @@ query ($search: String, $perPage: Int) {
       studios { edges { isMain } nodes { name isAnimationStudio } }
       format
       popularity
+      relations {
+        edges {
+          relationType
+          node {
+            id
+            title { romaji english native }
+            format
+            status
+            episodes
+            coverImage { extraLarge large medium }
+            bannerImage
+          }
+        }
+      }
     }
   }
 }

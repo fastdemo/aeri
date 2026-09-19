@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { AnimeCard } from '../components/cards/AnimeCard'
 import { DetailModal } from '../components/detail/DetailModal'
+import { Icon } from '../components/ui/Icon'
 import type { Anime } from '../types/anime'
 import { useMangaBrowse } from '../hooks/useAnimeMetadata'
 import { useLocation } from 'react-router-dom'
@@ -155,9 +156,7 @@ export function Manga() {
                   <option key={o.value} className="bg-[var(--surface)]" value={o.value}>{o.label}</option>
                 ))}
               </select>
-              <svg aria-hidden className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--text-faint)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="m6 9 6 6 6-6" />
-              </svg>
+              <Icon name="chevron-down" size={12} className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--text-faint)]" />
             </div>
           ))}
 
@@ -201,9 +200,7 @@ export function Manga() {
                 <option key={o.value} className="bg-[var(--surface)]" value={o.value}>{o.label}</option>
               ))}
             </select>
-            <svg aria-hidden className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--text-faint)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="m6 9 6 6 6-6" />
-            </svg>
+            <Icon name="chevron-down" size={12} className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--text-faint)]" />
           </div>
         ))}
 

@@ -5,6 +5,7 @@ import type { VideoEpisode } from '../../providers/video/types'
 import { useTracking } from '../../contexts/TrackingContext'
 import { normalizeEpisodes } from '../../lib/episodes'
 import { resolveEpisodesWithFallback } from '../../providers/video/registry'
+import { Icon } from '../ui/Icon'
 
 export function getEpisodes(anime: Anime) {
   const eps = normalizeEpisodes(anime)
@@ -17,7 +18,7 @@ export function getEpisodes(anime: Anime) {
   }))
 }
 
-export function EpisodeList({ anime }: { anime: Anime }) {
+export function EpisodeList({ anime, hideHeader }: { anime: Anime; hideHeader?: boolean }) {
   const [providerEpisodes, setProviderEpisodes] = useState<VideoEpisode[] | null>(null)
   const [providerDone, setProviderDone] = useState(false)
   const prevIdRef = useRef<string>('')
@@ -71,10 +72,12 @@ export function EpisodeList({ anime }: { anime: Anime }) {
   if (!providerDone && episodes.length === 0) {
     return (
       <div className="space-y-1">
-        <div className="mb-2 flex items-baseline justify-between gap-2">
-          <h3 className="text-[14px] font-semibold text-[var(--text)]">Episodes</h3>
-          <span className="shrink-0 text-[14px] text-[var(--text-faint)]">{anime.episodes && anime.episodes > 0 ? `${anime.episodes} episodes` : 'Loading episodes...'}</span>
-        </div>
+        {!hideHeader && (
+          <div className="mb-2 flex items-baseline justify-between gap-2">
+            <h3 className="text-[14px] font-semibold text-[var(--text)]">Episodes</h3>
+            <span className="shrink-0 text-[14px] text-[var(--text-faint)]">{anime.episodes && anime.episodes > 0 ? `${anime.episodes} episodes` : 'Loading episodes...'}</span>
+          </div>
+        )}
         <div className="overflow-hidden rounded-lg border border-[var(--border)]">
           {[1,2,3,4,5].map(i => (
             <div key={i} className={`flex items-center gap-3 bg-[var(--surface)] px-3 py-3 ${i!==5 ? 'border-b border-[var(--border)]' : ''} animate-pulse`}>
@@ -120,10 +123,12 @@ export function EpisodeList({ anime }: { anime: Anime }) {
 
   return (
     <div className="space-y-1">
-      <div className="mb-2 flex items-baseline justify-between gap-2">
-        <h3 className="text-[14px] font-semibold text-[var(--text)]">Episodes</h3>
-        <span className="shrink-0 text-[14px] text-[var(--text-faint)]">{anime.episodes && anime.episodes > 0 ? `${anime.episodes} episodes` : `${episodes.length} episodes`}</span>
-      </div>
+      {!hideHeader && (
+        <div className="mb-2 flex items-baseline justify-between gap-2">
+          <h3 className="text-[14px] font-semibold text-[var(--text)]">Episodes</h3>
+          <span className="shrink-0 text-[14px] text-[var(--text-faint)]">{anime.episodes && anime.episodes > 0 ? `${anime.episodes} episodes` : `${episodes.length} episodes`}</span>
+        </div>
+      )}
 
       <div className="overflow-hidden rounded-lg border border-[var(--border)]">
         {episodes.map((ep: any) => {
@@ -174,9 +179,7 @@ export function EpisodeList({ anime }: { anime: Anime }) {
                 </div>
                 {isWatched && (
                   <span className="absolute inset-0 grid place-items-center bg-[color-mix(in_srgb,var(--bg)_40%,transparent)] text-[var(--text)]">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M5 13 9 17 19 7" />
-                    </svg>
+                    <Icon name="check-lg" size={14} />
                   </span>
                 )}
               </div>
