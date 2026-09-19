@@ -351,12 +351,10 @@ export function DetailModal({
 
           <div className="min-w-0 space-y-2 border-t border-[var(--border)] pt-4 text-xs leading-5 lg:border-t-0 lg:pt-0">
             <SidebarMeta anime={displayAnime} />
-            {/* Related Shows + Manga follow the metadata in the sidebar.
-                Sidebar top offset mirrors the left column's content above
-                the Episodes header (E-line? 28px : 0) so Related Shows
-                lands exactly on the Episodes line in both cases. */}
+            {/* Related Shows + Manga follow the metadata in the sidebar
+                with breathing room below it (never touching). */}
             {!isMangaKind && displayAnime.identity.anilistId && (
-              <div className={hasEpline ? 'lg:mt-[28px]' : undefined}>
+              <div className="lg:mt-6">
                 <RelatedEntriesBlock
                   anilistId={displayAnime.identity.anilistId}
                   relations={displayAnime.relations}
