@@ -349,12 +349,27 @@ export function DetailModal({
             )}
           </div>
 
-          <div className="min-w-0 space-y-2 border-t border-[var(--border)] pt-4 text-xs leading-5 lg:border-t-0 lg:pt-0">
+          {/* Desktop sidebar: metadata, then Related Shows + Manga with
+              the same mt-6 rhythm as the Episodes block — so Related
+              Shows lands exactly on the Episodes line. space-y-2 gap
+              (8px) between metadata rows matches the description gap. */}
+          <div className="hidden min-w-0 space-y-2 text-xs leading-5 lg:block lg:mt-6">
             <SidebarMeta anime={displayAnime} />
-            {/* Related Shows + Manga follow the metadata in the sidebar
-                with breathing room below it (never touching). */}
             {!isMangaKind && displayAnime.identity.anilistId && (
-              <div className="lg:mt-6">
+              <div className="lg:mt-4">
+                <RelatedEntriesBlock
+                  anilistId={displayAnime.identity.anilistId}
+                  relations={displayAnime.relations}
+                  onSelectAnime={onSelectRelated}
+                />
+              </div>
+            )}
+          </div>
+          {/* Mobile stack: metadata, then related in normal flow. */}
+          <div className="min-w-0 space-y-2 border-t border-[var(--border)] pt-4 text-xs leading-5 lg:hidden">
+            <SidebarMeta anime={displayAnime} />
+            {!isMangaKind && displayAnime.identity.anilistId && (
+              <div>
                 <RelatedEntriesBlock
                   anilistId={displayAnime.identity.anilistId}
                   relations={displayAnime.relations}
