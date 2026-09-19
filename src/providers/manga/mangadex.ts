@@ -42,7 +42,7 @@ async function workerJson(path: string, signal?: AbortSignal): Promise<any> {
   }
   if (!base) throw new Error('no worker')
   const ctrl = new AbortController()
-  const t = setTimeout(() => ctrl.abort(), 15000)
+  const t = setTimeout(() => ctrl.abort(), 20000)
   const onAbort = () => ctrl.abort()
   if (signal) {
     if (signal.aborted) { clearTimeout(t); throw signal.reason ?? new DOMException('Aborted', 'AbortError') }
@@ -50,7 +50,16 @@ async function workerJson(path: string, signal?: AbortSignal): Promise<any> {
   }
   try {
     const res = await fetch(`${base}${path}`, { signal: ctrl.signal })
-    if (!res.ok) throw new Error(`worker ${res.status}`)
+    if (!res.ok) {
+      let msg = `worker ${res.status}`
+      try {
+        const j = await res.json()
+        if (j?.error) msg = String(j.error)
+      } catch {}
+      const err = new Error(msg) as any
+      err.status = res.status
+      throw err
+    }
     return await res.json()
   } finally {
     clearTimeout(t)
@@ -59,13 +68,18 @@ async function workerJson(path: string, signal?: AbortSignal): Promise<any> {
 }
 
 /**
- * WeebCentral manga provider. All WeebCentral access runs through the Worker
- * (`/api/manga/*`), never browser-direct: the site is an htmx app whose HTML
- * the Worker parses into structured chapter/page data.
+ * MangaDex manga provider. All MangaDex access runs through the Worker
+ * (`/api/manga/mdx-*`), never browser-direct: the API needs no key but the
+ * Worker centralizes rate-limiting (≤4 req/s), caching, and fail-closed
+ * matching via attributes.links.al (AniList id).
+ *
+ * Units are opaque provider units with the provider's own label preserved
+ * ("Chapter 386", "Oneshot: ..."). External (off-site licensed) chapters
+ * never enter the reader — surfaced separately as external links.
  */
-class WeebCentralProvider implements MangaProvider {
-  id = 'weebcentral'
-  name = 'Weeb Central'
+class MangaDexProvider implements MangaProvider {
+  id = 'mangadex'
+  name = 'MangaDex'
 
   private hintsOf(manga: Anime, options?: MangaSourceOptions) {
     const p = new URLSearchParams()
@@ -75,12 +89,6 @@ class WeebCentralProvider implements MangaProvider {
     if (e) p.set('english', e)
     const n = options?.mangaNative ?? manga.title.native
     if (n) p.set('native', n)
-    const c = options?.mangaChapters ?? manga.chapters
-    if (typeof c === 'number') p.set('chapters', String(c))
-    const v = options?.mangaVolumes ?? manga.volumes
-    if (typeof v === 'number') p.set('volumes', String(v))
-    const y = options?.mangaYear ?? manga.year
-    if (typeof y === 'number') p.set('year', String(y))
     const q = p.toString()
     return q ? `?${q}` : ''
   }
@@ -88,13 +96,13 @@ class WeebCentralProvider implements MangaProvider {
   async resolveManga(manga: Anime, options?: MangaSourceOptions): Promise<MangaProviderMatch | null> {
     const anilistId = manga.identity.anilistId
     if (!anilistId) return null
-    const key = `manga:weebcentral:match:${anilistId}`
-    const hit = memGet<MangaProviderMatch>(key, 10 * 60 * 1000)
+    const key = `manga:mangadex:match:${anilistId}`
+    const hit = memGet<MangaProviderMatch>(key, 60 * 60 * 1000)
     if (hit) return hit
     try {
-      const j = await workerJson(`/api/manga/match/${anilistId}${this.hintsOf(manga, options)}`, options?.signal)
+      const j = await workerJson(`/api/manga/mdx-match/${anilistId}${this.hintsOf(manga, options)}`, options?.signal)
       if (!j?.providerMangaId) return null
-      const m: MangaProviderMatch = { providerId: 'weebcentral', providerMangaId: j.providerMangaId, title: j.providerTitle ?? undefined }
+      const m: MangaProviderMatch = { providerId: 'mangadex', providerMangaId: j.providerMangaId, title: j.providerTitle ?? undefined }
       memSet(key, m)
       return m
     } catch { return null }
@@ -103,17 +111,17 @@ class WeebCentralProvider implements MangaProvider {
   async getChapters(manga: Anime, options?: MangaSourceOptions): Promise<MangaChapter[]> {
     const m = await this.resolveManga(manga, options)
     if (!m) return []
-    const key = `manga:weebcentral:chapters:${m.providerMangaId}`
-    const hit = memGet<MangaChapter[]>(key, 5 * 60 * 1000)
+    const key = `manga:mangadex:chapters:${m.providerMangaId}`
+    const hit = memGet<MangaChapter[]>(key, 10 * 60 * 1000)
     if (hit) return hit
     try {
-      const j = await workerJson(`/api/manga/chapters/${m.providerMangaId}`, options?.signal)
+      const j = await workerJson(`/api/manga/mdx-chapters/${m.providerMangaId}`, options?.signal)
       const list = Array.isArray(j?.chapters) ? j.chapters : []
       const out: MangaChapter[] = list.map((c: any) => ({
-        id: `weebcentral-${String(c.providerChapterId ?? c.id)}`,
+        id: `mangadex-${String(c.providerChapterId)}`,
         mangaId: manga.identity.internalId,
-        providerChapterId: String(c.providerChapterId ?? c.id),
-        label: String(c.label ?? c.title ?? 'Chapter'),
+        providerChapterId: String(c.providerChapterId),
+        label: String(c.label ?? 'Chapter'),
         number: typeof c.number === 'number' ? c.number : null,
         kind: c.kind,
         unitType: c.unitType === 'volume' ? 'volume' : 'chapter',
@@ -125,32 +133,53 @@ class WeebCentralProvider implements MangaProvider {
   }
 
   async getChapterPages(chapter: MangaChapter, options?: MangaSourceOptions): Promise<MangaPage[]> {
-    const key = `manga:weebcentral:pages:${chapter.providerChapterId}`
-    const hit = memGet<MangaPage[]>(key, 5 * 60 * 1000)
+    const key = `manga:mangadex:pages:${chapter.providerChapterId}`
+    const hit = memGet<MangaPage[]>(key, 10 * 60 * 1000)
     if (hit) return hit
     try {
-      const j = await workerJson(`/api/manga/pages/${chapter.providerChapterId}`, options?.signal)
+      const j = await workerJson(`/api/manga/mdx-pages/${chapter.providerChapterId}`, options?.signal)
       const list = Array.isArray(j?.pages) ? j.pages : []
       const out: MangaPage[] = list.map((u: any, i: number) => ({ index: i, url: String(typeof u === 'string' ? u : u.url) }))
       memSet(key, out)
       return out
     } catch { return [] }
   }
+
+  /**
+   * External (off-site licensed) units for a manga — never reader content.
+   * Match succeeds even when all chapters are external (the series itself
+   * matched fine), so re-resolve is cheap (cached) and one chapters call
+   * serves the external list.
+   */
+  async getExternalUnits(manga: Anime, options?: MangaSourceOptions): Promise<{ label: string; url: string }[]> {
+    const m = await this.resolveManga(manga, options)
+    if (!m) return []
+    try {
+      const j = await workerJson(`/api/manga/mdx-chapters/${m.providerMangaId}`, options?.signal)
+      const ext = Array.isArray(j?.external) ? j.external : []
+      return ext
+        .filter((c: any) => c?.externalUrl)
+        .map((c: any) => ({ label: String(c.label ?? 'Chapter'), url: String(c.externalUrl) }))
+    } catch { return [] }
+  }
 }
 
-export const weebCentralProvider = new WeebCentralProvider()
+export const mangaDexProvider = new MangaDexProvider()
 
-export const mangaProviders: MangaProvider[] = [weebCentralProvider]
+export const mangaProviders: MangaProvider[] = [mangaDexProvider]
 
-export async function resolveChaptersWithFallback(manga: Anime, signal?: AbortSignal, options?: MangaSourceOptions): Promise<{ chapters: MangaChapter[]; providerId: string | null }> {
+export async function resolveChaptersWithFallback(manga: Anime, signal?: AbortSignal, options?: MangaSourceOptions): Promise<{ chapters: MangaChapter[]; providerId: string | null; error?: string }> {
   if (signal?.aborted) return { chapters: [], providerId: null }
   const opts = { ...options, signal }
+  let lastError: string | undefined
   for (const p of mangaProviders) {
     try {
       const chapters = await p.getChapters(manga, opts)
       if (chapters.length) return { chapters, providerId: p.id }
-    } catch { /* next provider */ }
+    } catch (e) {
+      lastError = e instanceof Error ? e.message : String(e)
+    }
     if (signal?.aborted) break
   }
-  return { chapters: [], providerId: null }
+  return { chapters: [], providerId: null, error: lastError }
 }

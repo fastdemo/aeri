@@ -69,10 +69,11 @@ next resolve — Retry/episode-change, no live subscription).
   `anilist:viewer`, `anilist:list:<viewerId>`,
   `anilist:media:<id>` (shared per-entry record — one id, one record).
 - Video: `video:*` (mem 5m/empty 2m, IDB 1h/empty 5m); resolver 5–10m.
-- Manga: `manga:weebcentral:match:<anilistId>` (mem 10m) /
-  `:chapters:<wid>` / `:pages:<chid>` (mem 5m); Worker match 10m, chapters
-  + pages 5m. `manga:*` namespace — anime entries can never satisfy manga
-  requests. Request races: AbortController per nav + `cancelled` flag +
+- Manga: `manga:mangadex:match:<anilistId>` (mem 1h) /
+  `manga:mangadex:chapters:<uuid>` + `:pages:<chUuid>` (mem 10m); Worker
+  mdx-match 1h, mdx-chapters 10m, mdx-pages resolved fresh per chapter
+  (rotating host). Legacy `manga:weebcentral:*` paths retained (fallback).
+  `manga:*` namespace — anime entries can never satisfy manga requests. Request races: AbortController per nav + `cancelled` flag +
   stale-result rejection (rapid A→B→C settles on C, no delays).
 - Tokens: `aeri:anilist:*`, `aeri:mal:*` (+ `last_code` dedup,
   `oauth_state`, `code_verifier`).

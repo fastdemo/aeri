@@ -1,5 +1,47 @@
 # Changelog — Aeri (architectural changes only)
 
+## 2026-09-20 — MangaDex primary; shared-header alignment; manga progress+ordering (D091)
+
+### Changed
+- Manga provider MangaDex-first (WeebCentral search outage 2026-09-19: both
+  `/search/simple` and `/search/data` 500/empty for ALL queries incl. the
+  site's own htmx quick-search — curl + browser verified). New Worker
+  `mangadex.ts` + routes `mdx-match/mdx-chapters/mdx-pages`; match prefers
+  `links.al` (verified AniList mapping), else scored titles (threshold 40,
+  ties fail closed). WeebCentral paths retained as fallback.
+- Provider units opaque (`providerUnitId/providerLabel/number/kind/unitType`,
+  `sortProviderUnits` at presentation): "Volume 3" never renamed; oneshot
+  `chapter:null` → "Oneshot: <title>"; unnumbered keep provider order.
+- Licensed/external-only titles (Solo Leveling): EN feed empty BUT
+  `/aggregate` lists chapters → worker resolves external URLs, frontend
+  shows "Licensed — read officially" links, never the reader. External+pages
+  edge (Goodbye Eri) stays readable. Dead at-home 404s → per-image Retry.
+- Manga progress = unit+page in IDB `read:<internalId>` (+provider+label);
+  mount-clobber guard (never persist page 0 over nonzero), unmount/pagehide
+  flush, observer-map clear() bug fixed (refs attach before effects —
+  clear wiped all tracking), resume scroll with layout-aware retries.
+  `body{overflow-x:clip}` (hidden made body the scroll container, breaking
+  window scroll APIs). Continue captions use stored provider label.
+- `chapterOrder` pref (`oldest|latest`, default oldest, Settings → Manga,
+  `aeri:prefs-changed` broadcast): chapter lists, reader selector, prev/next.
+- DetailModal content grid: row 1 = description|metadata, row 2 =
+  episodes|related (ONE shared grid row — Episodes/Related Shows headers
+  same-y by construction, E-line or not; no offsets). Related grid fixed
+  2-col; related caches scoped `<scope>:<id>`; `leading-[22.4px]` hack gone.
+
+### Why
+- Single manga outage took down ALL manga; per-show offset hacks could never
+  cover both E-line states; scroll tracking silently dead (clear-before-
+  observe); resume clobbered by mount flushes.
+
+### Verification
+- Alignment delta 0: 5 anime titles × E-line on/off @1440 (mobile stacks,
+  768/375 checked, overflow 0). Manga: Berserk 425u/94pp, Vagabond 114u,
+  Chainsaw 99u, Eri oneshot, Uzumaki 1u/28pp, SL external 16 links; images
+  naturalWidth-verified. Tracking: page 5 persisted, resume scrollY 7442,
+  per-title isolation. Ordering: oldest default, latest flip, Settings
+  section (auth-gated page — verified in bundle, UI click needs account).
+
 ## 2026-09-19 — Season system removed; Related Entries; episode/chapter unification
 
 ### Changed

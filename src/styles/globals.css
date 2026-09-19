@@ -52,7 +52,11 @@ body {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden;
+  /* overflow-x: clip keeps horizontal overflow contained WITHOUT creating a
+     scroll container. (overflow-x: hidden on body makes body the scroll
+     container in some browsers, which breaks window scrolling APIs such as
+     scrollIntoView/scrollTo used by the manga reader resume.) */
+  overflow-x: clip;
 }
 
 ::selection {

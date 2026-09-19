@@ -27,6 +27,8 @@ export interface WcChapter {
   label: string
   number: number | null
   kind?: string
+  /** Provider's own unit type: 'volume' for Volume/Vol labels, else 'chapter'. Never renamed. */
+  unitType?: 'volume' | 'chapter'
   publishedAt?: string
 }
 
@@ -138,21 +140,37 @@ export async function wcSearchAndMatch(hint: ProviderHint | undefined, signal?: 
   const native = (hint?.native || '').trim()
   const variants = [romaji, english, native].filter(Boolean) as string[]
   if (!variants.length) throw new Error('no title hints for manga match')
-  const queries = [english, romaji].filter(Boolean) as string[]
+  const queries = [english, romaji, native].filter(Boolean) as string[]
   let candidates: WcCandidate[] = []
-  for (const q of queries.slice(0, 2)) {
+  // Replica of the browser htmx quick-search request (verified 2026-09-19:
+  // the page fires POST /search/simple?location=main with HX-Request/HX-*
+  // headers; without them the endpoint returns "No results found" for every
+  // query). All queries are attempted and their candidates pooled — the best
+  // title score across every query wins, not just the first query with hits.
+  const htmxHeaders = {
+    'Content-Type': 'application/x-www-form-urlencoded',
+    'HX-Request': 'true',
+    'HX-Trigger': 'quick-search-input',
+    'HX-Trigger-Name': 'text',
+    'HX-Target': 'quick-search-result',
+    'HX-Current-URL': `${WC_BASE}/`,
+  }
+  const pooled = new Map<string, WcCandidate>()
+  for (const q of queries.slice(0, 3)) {
     try {
       const res = await wcFetch('/search/simple?location=main', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        headers: htmxHeaders,
         body: `text=${encodeURIComponent(q)}`,
-      }, 10000, signal)
+      }, 12000, signal)
       if (!res.ok) continue
       const html = await res.text()
-      candidates = parseSearchResults(html)
-      if (candidates.length) break
+      for (const c of parseSearchResults(html)) {
+        if (!pooled.has(c.id)) pooled.set(c.id, c)
+      }
     } catch { /* try next query */ }
   }
+  candidates = [...pooled.values()]
   if (!candidates.length) throw new Error('no search results')
   const ranked = candidates
     .map((c) => ({ c, s: candidateTitleScore(c, variants) }))
@@ -181,17 +199,25 @@ function parseChapterList(html: string): WcChapter[] {
       .map((s) => s[1].replace(/\s+/g, ' ').trim())
       .filter(Boolean)
     const raw = spanTexts[0] ?? inner.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60)
-    const lm = /(Chapter\s+\d+(?:\.\d+)?|Prologue\s+\d+(?:\.\d+)?|Epilogue\s+\d+(?:\.\d+)?|Volume\s+\d+|Oneshot|One-shot|#\s*\d+(?:\.\d+)?)/i.exec(raw)
+    // Provider units are opaque readable units — chapters, prologues,
+    // epilogues, oneshots, OR volumes. Never rename a volume to a chapter:
+    // kind captures the provider's own prefix, unitType drives display
+    // wording ("Volume 3" vs "Chapter 12").
+    const lm = /(Chapter\s+\d+(?:\.\d+)?|Prologue\s+\d+(?:\.\d+)?|Epilogue\s+\d+(?:\.\d+)?|Volume\s+\d+(?:\.\d+)?|Vol\.?\s+\d+(?:\.\d+)?|Oneshot|One-shot|One shot|#\s*\d+(?:\.\d+)?)/i.exec(raw)
     const label = lm ? lm[1].replace(/\s+/g, ' ').trim() : raw.slice(0, 40)
     const numM = /(\d+(?:\.\d+)?)\s*$/.exec(label)
-    const kindM = /^(Chapter|Prologue|Epilogue|Volume|Oneshot|One-?shot|#)/i.exec(label)
+    const kindM = /^(Chapter|Prologue|Epilogue|Volume|Vol\.?|Oneshot|One-?shot|One shot|#)/i.exec(label)
+    const kind = kindM ? kindM[1] : undefined
+    const kk = (kind ?? '').toLowerCase().replace(/\.$/, '')
+    const unitType: 'volume' | 'chapter' = (kk === 'volume' || kk === 'vol') ? 'volume' : 'chapter'
     const tm = /datetime="([^"]+)"/.exec(inner)
     seen.add(id)
     out.push({
       providerChapterId: id,
       label,
       number: numM ? Number(numM[1]) : null,
-      kind: kindM ? kindM[1] : undefined,
+      kind,
+      unitType,
       publishedAt: tm ? tm[1] : undefined,
     })
   }

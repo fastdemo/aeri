@@ -122,7 +122,7 @@ export function RelatedEntries({
         <section aria-label="Related Shows" className="mt-6 lg:mt-0">
           {!hideHeader && shows.length > 0 && (
             <div className="mb-2 flex items-baseline justify-between gap-2">
-              <h3 className="min-w-0 flex-1 truncate text-[14px] font-semibold leading-[22.4px] text-[var(--text)]">
+              <h3 className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--text)]">
                 Related Shows
               </h3>
             </div>

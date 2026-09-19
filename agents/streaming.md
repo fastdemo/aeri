@@ -13,39 +13,47 @@ flowchart LR
     V --> P[progress → IDB + tracker]
 ```
 
-## Manga chain (WeebCentral → planeptune)
+## Manga chain (MangaDex → at-home CDN)
 
-WeebCentral is the authority for series identity, chapters, chapter
-navigation, page membership. Observed (2026-09-18, no JSON API — htmx HTML):
-`POST /search/simple?location=main` (`text=<q>`) → `/series/<ULID>/<slug>` →
-`/series/<ULID>/full-chapter-list` (`<a href="/chapters/<ULID>">` + own
-`<span class="">` label + `<time datetime>`) →
-`/chapters/<ULID>/images?is_prev=False&reading_style=long_strip&current_page=1`
-(static image URLs). Chapter HTML itself contains NO images — the adapter
-must make the `/images` request. Labels: `# N` for SBR-style series (number
-= N), `Chapter/Prologue/Epilogue N` elsewhere; label parsing reads only the
-chapter's own span (sibling Last-Read/new spans ignored). Matching reuses
-the anime philosophy (variants + exact/prefix/substring/token scoring,
-threshold 40, ambiguous→fail closed). `hot.`/`scans-hot.` rotation handled.
+MangaDex is the authority for series identity, chapters, page membership
+(switched 2026-09-20: WeebCentral's `/search/simple` + `/search/data`
+endpoints return 500/empty for ALL queries including the site's own htmx
+quick-search — provider-side outage, curl + browser verified; WeebCentral
+code paths retained as fallback but MangaDex is primary). JSON API,
+no key: search `/manga?title=&includes[]=cover_art` →
+`/manga/<uuid>/feed?translatedLanguage[]=en&contentRating[]=safe,suggestive,erotica&order[chapter]=asc`
+→ `/at-home/server/<chapterUuid>` → `{baseUrl}/data-saver|data/<hash>/<file>`.
+Matching: `attributes.links.al` (AniList id string — verified mapping, score
+floor 100) preferred; else title variants + exact/prefix/substring/token
+scoring, threshold 40, ties fail closed. Worker serializes ≤4 req/s, one
+429 backoff retry. Data-saver default (~38% smaller); filenames opaque, never
+derived; per-chapter rotating host — resolved fresh, never cached across
+chapters. Covers: `uploads.mangadex.org/covers/<uuid>/<file>.512.jpg`.
 
-`hot.planeptune.us` = page-image CDN (dumb file host; verified real JPEG
-bytes, no referer needed). `temp.compsci88.com` = cover/static CDN only.
-Browser-direct `<img>` is BLOCKED by Chromium ORB (upstream serves
-`image/png` headers on JPEG bytes — opaque mismatch), so pages go through
-signed same-origin `/api/manga/img` (HMAC+expiry like `/api/stream`,
-planeptune/compsci88 suffix allowlist, DoH private-IP reject, magic-byte
-content-type sniff, 24h cache). Not an open proxy. Upstream challenge/5xx =
-honest error state, never bypassed.
+Licensed titles (e.g. Solo Leveling — all EN chapters external/off-site):
+feed `total=0` BUT `/aggregate?translatedLanguage[]=en` lists chapters →
+worker resolves external URLs via batched `/chapter?ids[]=` and returns them
+as `external[]`; frontend shows "Licensed — read officially" link buttons,
+never the reader. `aggregate` empty too = genuinely no EN content ("No
+readable English chapters"). External+pages>0 edge (mirrored oneshots, e.g.
+Goodbye Eri) stays readable. Dead at-home image 404s (purged CDN files)
+surface per-image Retry, never fabricated pages.
 
-Routes: `/api/manga/match/:anilistId` (10m) → `/api/manga/chapters/:wid`
-(5m, provider chapters never volumes) → `/api/manga/pages/:chid` (5m,
-re-signed URLs). Frontend: `src/providers/manga/` (`MangaProvider`
-search/getManga/getChapters/getChapterPages over Worker; `manga:*`
-namespaced mem cache; AbortController per nav). Reader: `src/pages/Read.tsx`
-(`#/read/:id/:chapter`: first/latest/ch-N/raw id; vertical continuous,
-lazy imgs, per-image retry, chapter selector + prev/next + `[`/`]` keys,
-chapter+page → IDB `read:<id>` 5s-throttle via IntersectionObserver +
-tracker at last page).
+Routes: `/api/manga/mdx-match/:anilistId` (1h) → `/api/manga/mdx-chapters/:uuid`
+(10m, `{readable, external}`) → `/api/manga/mdx-pages/:chUuid?quality=saver|data`.
+No image relay needed (real JPEG bytes, correct content-type — direct `<img>`).
+Frontend: `src/providers/manga/mangadex.ts` (`manga:*` namespaced mem cache;
+AbortController per nav). Reader: `src/pages/Read.tsx`
+(`#/read/:id/:chapter`: first/latest/ch-N/raw id; vertical continuous, lazy
+imgs, per-image retry, selector + prev/next + `[`/`]` keys, chapter+page →
+IDB `read:<internalId>` via IntersectionObserver with mount-clobber guard
+(never persist page 0 over nonzero) + unmount/pagehide flush; tracker at
+last page). Chapter order pref (`chapterOrder: oldest|latest`, default
+oldest, Settings → Manga section, `aeri:prefs-changed` broadcast) sorts at
+presentation (`sortProviderUnits`, numeric, volumes own run) — provider data
+untouched. Provider units opaque: `providerChapterId/providerLabel(number,
+kind,unitType)`; "Volume 3" never renamed to chapter; continue captions use
+the stored provider label.
 
 ## Watch route
 

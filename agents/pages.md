@@ -29,7 +29,7 @@ when signed out (manga is open content; anime cards still gate). Cards pass
 ## `/read/:id/:chapter` Read (`src/pages/Read.tsx`)
 
 Purpose: manga reader (Watch's architectural sibling). Data: `useMangaDetail`
-+ WeebCentral chapters + chapter pages. Chapter param: `first` (oldest),
++ MangaDex provider units + at-home pages. Chapter param: `first` (oldest),
 `latest` (newest), `ch-N` (chapter number), or raw provider chapter id.
 Vertical continuous scroll (default; `readerMode` pref reserves
 single/double). Lazy page `<img>` (first 3 eager), per-image retry, 400px

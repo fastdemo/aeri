@@ -25,9 +25,14 @@ No caption block on default rows (clean thumbnails by design).
 
 Props: anime, onClose. Single dark panel showing EXACTLY the opened entry
 (no group, no selector). This entry's progress truth only (related entries
-never share). Tracking actions; episode list (anime) / chapter list (manga);
-Related Entries row at the bottom (anime only); hashchange/popstate/
-`aeri:navigate` auto-close; opens scrolled to top.
+never share). Tracking actions; episode list (anime) / chapter list (manga).
+Content grid: row 1 = description | metadata, row 2 = episodes/chapters |
+Related Shows+Manga (anime only) — row 2 is ONE shared grid row so the
+Episodes and Related Shows headers start at exactly the same y by
+construction (the conditional E-line lives in row 1 and shifts row 2 down
+for both columns equally; no offsets, no spacers). DOM order is the mobile
+stacking order; lg placement puts D|M on row 1, E|R on row 2.
+Hashchange/popstate/`aeri:navigate` auto-close; opens scrolled to top.
 
 ## ContentRow (`components/rows/ContentRow.tsx`)
 

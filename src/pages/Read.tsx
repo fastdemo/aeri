@@ -4,9 +4,10 @@ import { useTracking } from '../contexts/TrackingContext'
 import { useMangaDetail } from '../hooks/useAnimeMetadata'
 import { getReadPos, putReadPos } from '../storage/db'
 import { getPreferences } from '../storage/preferences'
+import { sortProviderUnits, unitDisplayLabel } from '../providers/manga/types'
 import { getTitleHierarchy } from '../lib/titles'
 import { Icon } from '../components/ui/Icon'
-import { weebCentralProvider } from '../providers/manga/weebcentral'
+import { mangaDexProvider } from '../providers/manga/mangadex'
 import type { MangaChapter, MangaPage } from '../providers/manga/types'
 
 /**
@@ -38,16 +39,18 @@ export function Read() {
 
   const chapterParam = decodeURIComponent(chapter ?? 'first')
 
-  // Chapter list (provider chapters). Abortable; stale results rejected.
+  // Chapter list (MangaDex provider units). Abortable; stale rejected.
   const [chapters, setChapters] = useState<MangaChapter[] | null>(null)
   const [chaptersError, setChaptersError] = useState<string | null>(null)
+  const [externalUnits, setExternalUnits] = useState<{ label: string; url: string }[] | null>(null)
   useEffect(() => {
     if (!manga) return
     const controller = new AbortController()
     let cancelled = false
     setChapters(null)
     setChaptersError(null)
-    weebCentralProvider.getChapters(manga, {
+    setExternalUnits(null)
+    mangaDexProvider.getChapters(manga, {
       signal: controller.signal,
       mangaTitle: manga.title.romaji,
       mangaEnglish: manga.title.english,
@@ -57,7 +60,18 @@ export function Read() {
       mangaFormat: manga.format,
       mangaYear: manga.year,
     })
-      .then(list => { if (!cancelled && !controller.signal.aborted) setChapters(list) })
+      .then(list => {
+        if (cancelled || controller.signal.aborted) return
+        setChapters(list)
+        // Licensed titles (e.g. Solo Leveling) have zero hosted pages but
+        // real off-site chapters — offer those as external links instead of
+        // a dead "no chapters" wall.
+        if (!list.length) {
+          mangaDexProvider.getExternalUnits(manga, { signal: controller.signal })
+            .then(ext => { if (!cancelled) setExternalUnits(ext) })
+            .catch(() => {})
+        }
+      })
       .catch(e => {
         if (cancelled || controller.signal.aborted || (e as any)?.name === 'AbortError') return
         setChaptersError(e instanceof Error ? e.message : 'Couldn’t load chapters')
@@ -65,41 +79,74 @@ export function Read() {
     return () => { cancelled = true; controller.abort() }
   }, [manga?.identity.internalId])
 
-  // Resolve the URL chapter param to a concrete provider chapter.
-  // 'first' = oldest chapter (index 0 of provider list, which is newest-first
-  // from WeebCentral — so last element); 'latest' = newest; 'ch-N' = chapter
-  // number N; otherwise a raw provider chapter id.
+  // Resolve the URL chapter param to a concrete provider unit.
+  // 'first' = oldest unit, 'latest' = newest (per chapterOrder pref);
+  // 'ch-N' = unit number N; otherwise a raw provider unit id.
+  // Selector/prev/next all follow the same display ordering.
+  const [orderTick, setOrderTick] = useState(0)
+  useEffect(() => {
+    const onChange = () => setOrderTick(t => t + 1)
+    window.addEventListener('aeri:prefs-changed', onChange)
+    window.addEventListener('storage', onChange)
+    return () => {
+      window.removeEventListener('aeri:prefs-changed', onChange)
+      window.removeEventListener('storage', onChange)
+    }
+  }, [])
+  const orderedChapters: MangaChapter[] | null = useMemo(() => {
+    if (!chapters) return null
+    void orderTick
+    const dir = (getPreferences().chapterOrder ?? 'oldest') === 'latest' ? 'desc' : 'asc'
+    return sortProviderUnits(chapters, dir)
+  }, [chapters, orderTick])
   const currentChapter: MangaChapter | null = useMemo(() => {
-    if (!chapters?.length) return null
-    if (chapterParam === 'first') return chapters[chapters.length - 1]
-    if (chapterParam === 'latest') return chapters[0]
+    if (!orderedChapters?.length) return null
+    if (chapterParam === 'first') return orderedChapters[0]
+    if (chapterParam === 'latest') return orderedChapters[orderedChapters.length - 1]
     const chNum = /^ch-(\d+(?:\.\d+)?)$/.exec(chapterParam)
     if (chNum) {
       const n = Number(chNum[1])
-      return chapters.find(c => c.number === n) ?? null
+      return orderedChapters.find(c => c.number === n) ?? null
     }
-    return chapters.find(c => c.providerChapterId === chapterParam) ?? null
-  }, [chapters, chapterParam])
+    return orderedChapters.find(c => c.providerChapterId === chapterParam) ?? null
+  }, [orderedChapters, chapterParam])
 
-  const chapterIdx = currentChapter ? chapters!.findIndex(c => c.id === currentChapter.id) : -1
-  // Provider list is newest-first: prev = newer (idx-1), next = older (idx+1)
-  const newerChapter = chapterIdx > 0 ? chapters![chapterIdx - 1] : null
-  const olderChapter = chapterIdx >= 0 && chapterIdx < chapters!.length - 1 ? chapters![chapterIdx + 1] : null
+  const chapterIdx = currentChapter ? orderedChapters!.findIndex(c => c.id === currentChapter.id) : -1
+  // Display order: prev = earlier in reading order (idx-1), next = later (idx+1).
+  // With oldest-first default, next walks toward the newest unit.
+  const prevChapter = chapterIdx > 0 ? orderedChapters![chapterIdx - 1] : null
+  const nextChapter = chapterIdx >= 0 && chapterIdx < orderedChapters!.length - 1 ? orderedChapters![chapterIdx + 1] : null
+  // Legacy names used below: older = next in reading order, newer = previous.
+  const olderChapter = nextChapter
+  const newerChapter = prevChapter
 
-  // Pages for the current chapter.
+  // Pages for the current unit (MangaDex data-saver by default).
+  // NOTE: pages are keyed per chapter — do NOT clear on chapter change
+  // (clearing causes a pages=null render that resets effects keyed on
+  // pages.length and drops in-flight resume state).
   const [pages, setPages] = useState<MangaPage[] | null>(null)
   const [pagesError, setPagesError] = useState<string | null>(null)
   const [pagesLoading, setPagesLoading] = useState(false)
+  const pagesByChapterRef = useRef<Map<string, MangaPage[]>>(new Map())
   useEffect(() => {
     if (!currentChapter) return
+    const cached = pagesByChapterRef.current.get(currentChapter.providerChapterId)
+    // Served from cache when revisiting: no loading flash, no pages=null
+    // reset, resume state intact.
+    if (cached) {
+      setPages(cached)
+      setPagesError(null)
+      setPagesLoading(false)
+      return
+    }
     const controller = new AbortController()
     let cancelled = false
-    setPages(null)
     setPagesError(null)
     setPagesLoading(true)
-    weebCentralProvider.getChapterPages(currentChapter, { signal: controller.signal })
+    mangaDexProvider.getChapterPages(currentChapter, { signal: controller.signal })
       .then(list => {
         if (cancelled || controller.signal.aborted) return
+        pagesByChapterRef.current.set(currentChapter.providerChapterId, list)
         setPages(list)
         setPagesLoading(false)
       })
@@ -111,38 +158,59 @@ export function Read() {
     return () => { cancelled = true; controller.abort() }
   }, [currentChapter?.providerChapterId])
 
-  // Resume: stored read position for this manga (chapter + page).
+  // Resume: stored read position. Identity = AniList Manga ID + provider +
+  // provider unit ID — never a bare chapter number, never shared across
+  // titles. Key: `read:<internalId>` (internalId is anilist-<id>).
+  // NOTE: getReadPos takes the BARE internalId (it prepends `read:`).
+  // NOTE 2: must depend on the resolved chapter param, not just manga —
+  // when navigating manga→reader the manga object arrives before chapters
+  // resolve; reading too early is fine (resume applies when pages land via
+  // resumeRef), but a STALE resume from a previous title must never apply.
   const [resume, setResume] = useState<{ chapterId: string; page: number } | null>(null)
   useEffect(() => {
+    setResume(null)
     if (!manga) return
     let cancelled = false
-    getReadPos(manga.identity.internalId).then(pos => {
+    getReadPos(manga.identity.internalId.replace(/^read:/, '')).then(pos => {
       if (cancelled || !pos) return
       setResume({ chapterId: pos.chapterId, page: pos.page })
     }).catch(() => {})
     return () => { cancelled = true }
-  }, [manga?.identity.internalId])
+  }, [manga?.identity.internalId, chapterParam])
 
   // Tracker progress sync (chapter-based): mark chapter read once the user
   // reaches the last page. Fires once per chapter.
   const completedRef = useRef(false)
   useEffect(() => { completedRef.current = false }, [currentChapter?.providerChapterId])
 
-  // Throttled read-position persist. Scroll position lives in refs, never in
-  // global React state; a single IntersectionObserver updates the current
-  // page ref, and a 5s-throttled writer persists to IDB.
+  // Throttled read-position persist. Key = `read:<internalId>` (AniList
+  // Manga ID + mangadex provider + provider unit ID). Scroll position lives
+  // in refs, never in global React state; a single IntersectionObserver
+  // updates the current page ref, and a 5s-throttled writer persists to IDB.
+  // Never persist page 0 over a nonzero saved page on mount: the observer
+  // fires for page 0 on first paint (before the user scrolls), and without
+  // this guard a reopen would clobber the saved position with 0.
+  // Also persists on unmount/chapter change (flush) so short visits
+  // and rapid navigation never lose position.
   const pageRef = useRef(0)
   const maxPageRef = useRef(0)
   const lastSaveRef = useRef(0)
-  const persistPos = useCallback(() => {
+  const flushRef = useRef<() => void>(() => {})
+  const persistPos = useCallback((force = false) => {
     if (!manga || !currentChapter || !pages?.length) return
+    // Guard: never overwrite a nonzero saved page with page 0. On mount the
+    // observer fires for page 0 on first paint; pageRef is also 0 until the
+    // user actually scrolls. Without this, reopening a chapter would erase
+    // the resume position before resume scroll even runs.
+    if (pageRef.current <= 0 && !force) return
     const now = Date.now()
-    if (now - lastSaveRef.current < 5000) return
+    if (!force && now - lastSaveRef.current < 5000) return
     lastSaveRef.current = now
     putReadPos({
       id: `read:${manga.identity.internalId}`,
       chapterId: currentChapter.providerChapterId,
-      chapterLabel: currentChapter.label,
+      chapterLabel: unitDisplayLabel(currentChapter),
+      provider: 'mangadex',
       page: pageRef.current,
       maxPage: pages.length,
       updatedAt: now,
@@ -153,27 +221,78 @@ export function Read() {
       updateProgress(manga, currentChapter.number).catch(() => {})
     }
   }, [manga, currentChapter, pages?.length, isAuthenticated, updateProgress])
+  useEffect(() => { flushRef.current = () => persistPos(true) }, [persistPos])
+  // Flush on unmount / chapter change so position survives short visits.
+  // Skip when the user never scrolled (pageRef 0): flushing 0 would erase
+  // a valid saved position (e.g. reopen → close before scrolling).
+  useEffect(() => () => { if (pageRef.current > 0) flushRef.current() }, [currentChapter?.providerChapterId])
+  // Also flush on page hide (tab close / navigation) — beacon-style.
+  useEffect(() => {
+    const onHide = () => { try { if (pageRef.current > 0) flushRef.current() } catch {} }
+    document.addEventListener('visibilitychange', onHide)
+    window.addEventListener('pagehide', onHide)
+    return () => {
+      document.removeEventListener('visibilitychange', onHide)
+      window.removeEventListener('pagehide', onHide)
+    }
+  }, [])
 
   const observerRef = useRef<IntersectionObserver | null>(null)
   const pageElsRef = useRef<Map<number, HTMLElement>>(new Map())
+  // Resume scroll: after pages render, jump to the saved page. Retried
+  // because images load lazily and layout shifts as they resolve.
+  // NOTE: Layout scrolls to top on every pathname change — the resume
+  // effect below compensates by scrolling to the saved page after layout
+  // settles. Longer retry window (images load lazily and shift layout).
+  const resumeDoneRef = useRef(false)
+  const resumeRef = useRef<{ chapterId: string; page: number } | null>(null)
+  useEffect(() => { resumeRef.current = resume }, [resume])
+  useEffect(() => { resumeDoneRef.current = false }, [currentChapter?.providerChapterId])
+  useEffect(() => {
+    if (resumeDoneRef.current || !pages?.length) return
+    const saved = resumeRef.current
+    if (!saved || saved.chapterId !== currentChapter?.providerChapterId || saved.page <= 0) return
+    const target = Math.min(saved.page, pages.length - 1)
+    let tries = 0
+    const t = setInterval(() => {
+      tries++
+      const el = pageElsRef.current.get(target)
+      // Scroll once the target exists in layout — even at minHeight. Lazy
+      // images below keep resolving, but scrollIntoView on the real element
+      // lands within one viewport; later images shift it minimally since
+      // widths are fixed and only heights grow downward.
+      if (el) {
+        el.scrollIntoView({ block: 'start' })
+        pageRef.current = target
+        maxPageRef.current = Math.max(maxPageRef.current, target)
+        if (tries >= 4) { resumeDoneRef.current = true; clearInterval(t) }
+      }
+      if (tries >= 16) { resumeDoneRef.current = true; clearInterval(t) }
+    }, 800)
+    return () => clearInterval(t)
+  }, [pages?.length, currentChapter?.providerChapterId])
   useEffect(() => {
     observerRef.current?.disconnect()
-    pageElsRef.current.clear()
+    // NOTE: do NOT clear pageElsRef here — ref callbacks attach before
+    // passive effects run, so clear() would wipe the just-populated map and
+    // the observer would watch zero elements (broke all scroll tracking and
+    // resume). Stale entries self-clean: register deletes on unmount.
     pageRef.current = resume && resume.chapterId === currentChapter?.providerChapterId ? Math.min(resume.page, Math.max(0, (pages?.length ?? 1) - 1)) : 0
     maxPageRef.current = pageRef.current
+    lastSaveRef.current = 0
     if (!pages?.length) return
     const obs = new IntersectionObserver((entries) => {
-      let advanced = false
       for (const en of entries) {
         if (!en.isIntersecting) continue
         const idx = Number((en.target as HTMLElement).dataset.pageIndex ?? -1)
-        if (idx >= 0 && idx > maxPageRef.current) {
-          maxPageRef.current = idx
+        if (idx < 0) continue
+        // Track the topmost visible page (scroll-up aware), not just max.
+        if (idx > maxPageRef.current) maxPageRef.current = idx
+        if (idx !== pageRef.current) {
           pageRef.current = idx
-          advanced = true
+          persistPos()
         }
       }
-      if (advanced) persistPos()
     }, { rootMargin: '0px 0px -40% 0px' })
     observerRef.current = obs
     // Observe after paint — elements register via ref callback below.
@@ -239,10 +358,10 @@ export function Read() {
         </Link>
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-[15px] font-semibold text-[var(--text)]">{titles.primary}</h1>
-          <p className="truncate text-xs text-[var(--text-faint)]">{currentChapter ? currentChapter.label : 'Loading chapters…'}</p>
+          <p className="truncate text-xs text-[var(--text-faint)]">{currentChapter ? unitDisplayLabel(currentChapter) : 'Loading chapters…'}</p>
         </div>
-        {/* Chapter selector */}
-        {chapters && chapters.length > 0 && (
+        {/* Chapter selector (follows chapterOrder pref) */}
+        {orderedChapters && orderedChapters.length > 0 && (
           <div className="relative shrink-0">
             <select
               value={currentChapter?.providerChapterId ?? ''}
@@ -250,8 +369,8 @@ export function Read() {
               aria-label="Select chapter"
               className="max-w-[150px] appearance-none truncate rounded-full border border-[var(--border)] bg-[var(--bg-soft)] py-1.5 pl-3.5 pr-8 text-xs font-medium text-[var(--text)] focus:border-[var(--border-strong)] focus:outline-none"
             >
-              {chapters.map(c => (
-                <option key={c.id} value={c.providerChapterId} className="bg-[var(--surface)]">{c.label}</option>
+              {orderedChapters.map(c => (
+                <option key={c.id} value={c.providerChapterId} className="bg-[var(--surface)]">{unitDisplayLabel(c)}</option>
               ))}
             </select>
             <Icon name="chevron-down" size={12} className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--text-faint)]" />
@@ -268,7 +387,19 @@ export function Read() {
 
       {chapters && chapters.length === 0 && !chaptersError && (
         <div className="rounded-lg border border-[var(--border)] bg-[var(--text)]/[0.03] px-4 py-6 text-center">
-          <p className="text-sm text-[var(--text-muted)]">No readable chapters found for this title.</p>
+          <p className="text-sm text-[var(--text-muted)]">No readable English chapters available for this title.</p>
+          {externalUnits && externalUnits.length > 0 ? (
+            <div className="mt-3">
+              <p className="text-xs text-[var(--text-faint)]">Licensed — read officially:</p>
+              <div className="mt-2 flex flex-wrap justify-center gap-2">
+                {externalUnits.slice(0, 6).map((u, i) => (
+                  <a key={i} href={u.url} target="_blank" rel="noopener noreferrer" className="rounded-full border border-[var(--border)] bg-[var(--bg-soft)] px-4 py-1.5 text-xs font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)]">{u.label}</a>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="mt-1 text-xs text-[var(--text-faint)]">The publisher hosts these chapters off-site (licensed).</p>
+          )}
         </div>
       )}
 
@@ -276,10 +407,10 @@ export function Read() {
       {currentChapter && (
         <div className="mb-4 flex items-center justify-between gap-2">
           {olderChapter ? (
-            <Link to={`/read/${id}/${encodeURIComponent(olderChapter.providerChapterId)}`} className="rounded-full border border-[var(--border)] bg-[var(--bg-soft)] px-4 py-1.5 text-xs font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)]">← {olderChapter.label}</Link>
+            <Link to={`/read/${id}/${encodeURIComponent(olderChapter.providerChapterId)}`} className="rounded-full border border-[var(--border)] bg-[var(--bg-soft)] px-4 py-1.5 text-xs font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)]">← {unitDisplayLabel(olderChapter)}</Link>
           ) : <span />}
           {newerChapter ? (
-            <Link to={`/read/${id}/${encodeURIComponent(newerChapter.providerChapterId)}`} className="rounded-full border border-[var(--border)] bg-[var(--bg-soft)] px-4 py-1.5 text-xs font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)]">{newerChapter.label} →</Link>
+            <Link to={`/read/${id}/${encodeURIComponent(newerChapter.providerChapterId)}`} className="rounded-full border border-[var(--border)] bg-[var(--bg-soft)] px-4 py-1.5 text-xs font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)]">{unitDisplayLabel(newerChapter)} →</Link>
           ) : <span />}
         </div>
       )}
@@ -315,7 +446,7 @@ export function Read() {
       {pages && pages.length > 0 && (
         <div className="mt-8 flex items-center justify-between gap-2">
           {olderChapter ? (
-            <Link to={`/read/${id}/${encodeURIComponent(olderChapter.providerChapterId)}`} className="rounded-full bg-[var(--text)] px-5 py-2 text-sm font-semibold text-[var(--on-text)]">Next: {olderChapter.label}</Link>
+            <Link to={`/read/${id}/${encodeURIComponent(olderChapter.providerChapterId)}`} className="rounded-full bg-[var(--text)] px-5 py-2 text-sm font-semibold text-[var(--on-text)]">Next: {unitDisplayLabel(olderChapter)}</Link>
           ) : <span className="text-xs text-[var(--text-faint)]">You’re all caught up</span>}
           {newerChapter ? (
             <Link to={`/read/${id}/${encodeURIComponent(newerChapter.providerChapterId)}`} className="rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-5 py-2 text-sm font-medium text-[var(--text)]">← {newerChapter.label}</Link>

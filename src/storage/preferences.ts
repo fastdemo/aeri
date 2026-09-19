@@ -20,6 +20,12 @@ export interface Preferences {
   readerDirection?: 'ltr' | 'rtl'
   readerFit?: 'width' | 'height'
   readerShowControls?: boolean
+  /**
+   * Manga chapter/unit display order. Default 'oldest' (Chapter 1 first).
+   * Sorted at the presentation layer (sortProviderUnits) — never mutates
+   * provider data. Applies to chapter lists, reader selector, prev/next.
+   */
+  chapterOrder?: 'oldest' | 'latest'
   // Standalone AniList OAuth token-exchange base (non-Cloudflare host, since
   // AniList blocks Cloudflare Worker IPs). Same /api/anilist/token contract.
   customAuthApiUrl?: string | null
@@ -51,6 +57,7 @@ const defaults: Preferences = {
   readerDirection: 'ltr',
   readerFit: 'width',
   readerShowControls: true,
+  chapterOrder: 'oldest',
   sync: {
     anilist: { status: true, progress: true, rating: true },
     mal: { status: true, progress: true, rating: true },
@@ -155,7 +162,13 @@ export function getEffectiveAuthApiUrl(): string | null {
 export function getPreferences(): Preferences {
   try {
     const raw = localStorage.getItem(KEY)
-    return raw ? { ...defaults, ...JSON.parse(raw) } : defaults
+    const parsed = raw ? { ...defaults, ...JSON.parse(raw) } : defaults
+    // chapterOrder default: 'oldest'. Stored prefs predate the key (undefined
+    // → default), and any invalid value falls back rather than breaking sort.
+    if (parsed.chapterOrder !== 'latest' && parsed.chapterOrder !== 'oldest') {
+      parsed.chapterOrder = 'oldest'
+    }
+    return parsed
   } catch {
     return defaults
   }

@@ -36,6 +36,9 @@ export function Settings() {
   const updatePref = (patch: Partial<Preferences>) => {
     const next = setPreferences(patch)
     setPrefs(next)
+    // Broadcast so live surfaces (chapter lists, reader selectors) re-read
+    // prefs without reload. Storage event covers other tabs.
+    try { window.dispatchEvent(new CustomEvent('aeri:prefs-changed')) } catch {}
   }
 
   const ALL_SYNC_ON = { anilist: { status: true, progress: true, rating: true }, mal: { status: true, progress: true, rating: true } } as const
@@ -327,6 +330,34 @@ export function Settings() {
               aria-label="Default volume"
               className="w-24 accent-[var(--accent)]"
             />
+          </div>
+        </div>
+      </section>
+
+      {/* Manga */}
+      <section className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--text)]/[0.02] p-4 sm:p-5">
+        <h2 className="text-sm font-semibold text-[var(--text)]">Manga</h2>
+        <p className="mt-1 text-xs text-[var(--text-faint)]">Chapter list and reader preferences.</p>
+        <div className="mt-4 space-y-4">
+          <div>
+            <p className="text-xs font-medium text-[var(--text)]">Chapter order</p>
+            <p className="text-[11px] text-[var(--text-faint)]">Oldest first starts at Chapter 1. Applies to chapter lists, the reader selector, and prev/next.</p>
+            <div className="mt-2 inline-flex rounded-full border border-[var(--border)] bg-[var(--bg-soft)] p-1" role="radiogroup" aria-label="Chapter order">
+              {([
+                ['oldest', 'Oldest → Latest'],
+                ['latest', 'Latest → Oldest'],
+              ] as const).map(([value, label]) => (
+                <button
+                  key={value}
+                  role="radio"
+                  aria-checked={(prefs.chapterOrder ?? 'oldest') === value}
+                  onClick={() => updatePref({ chapterOrder: value })}
+                  className={`rounded-full px-4 py-1 text-xs font-medium ${(prefs.chapterOrder ?? 'oldest') === value ? 'bg-[var(--text)] text-[var(--on-text)]' : 'text-[var(--text-muted)] hover:text-[var(--text)]'}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </section>

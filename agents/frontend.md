@@ -18,7 +18,7 @@
 | `/search` | `Search` | URL-driven `useAnimeSearch` (300ms debounce, stale-ignore) |
 | `/anime/:id` | `AnimeDetail` | `useAnimeDetail` + `useSeriesGroup`; selector navigates to canonical season |
 | `/watch/:id/:episode` | `Watch` | metadata + series group + provider episodes/sources + player |
-| `/read/:id/:chapter` | `Read` | `useMangaDetail` (type: MANGA) + WeebCentral chapters/pages + vertical continuous reader |
+| `/read/:id/:chapter` | `Read` | `useMangaDetail` (type: MANGA) + MangaDex units/pages + vertical continuous reader |
 | `/list` | `MyList` | active tracker's list (empty CTA when signed out) |
 | `/settings` | `Settings` | gated: redirects `/` when signed out |
 | `/profile` | `ProfilePlaceholder` | placeholder; gated like Settings |

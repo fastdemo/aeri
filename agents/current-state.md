@@ -12,7 +12,7 @@
 - Streaming: aniwave→echovideo default, Re:Zero S1/S2 + Bebop/AoT/Frieren/
   Naruto verified with advancing playback; fail-closed per-entry matching
   (S2 aniwave resolves 12 eps, never S1's); Retry/fallback.
-- Manga reading (WeebCentral primary): browse → DetailModal (Read/Continue
+- Manga reading (MangaDex primary): browse → DetailModal (Read/Continue
   always present, chapters+volumes metadata) → chapter list (provider
   chapters, own-span labels) → `#/read/:id/:chapter` vertical-continuous
   reader (signed `/api/manga/img` pages, selector + prev/next + keys,
@@ -63,6 +63,7 @@
 - Episodes/Chapters visual unification (D083): transparent wrappers,
   per-row surface cards, `01` numbers, right-side counts, no provider names.
 - Manga reader (D083): WeebCentral provider + signed image relay + Read page
+- Manga provider (D091): MangaDex primary (WeebCentral search outage 2026-09-19) — mdx-match/chapters/pages routes, opaque provider units, chapterOrder pref (default oldest), external-link surfacing for licensed titles, IDB unit+page progress with resume
   + ChapterList + shared AnimeCard manga treatment + open manga (no sign-in
   gate) + loopback CORS for local preview + `useMangaDetail` type fix.
 - DetailModal manga path bypasses `sanitizeAnimeForDisplay` (episode-number

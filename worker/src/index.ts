@@ -10,6 +10,7 @@ export interface Env {
 
 import { setResolveContext, handleStream, handleDiag, handleMangaImage, signMangaImageUrl } from './resolver'
 import { wcSearchAndMatch, wcGetChapters, wcGetPages, wcMatchCached, wcMatchStore } from './manga'
+import { mdxSearchAndMatch, mdxGetChapters, mdxGetPages, mdxMatchCached, mdxMatchStore, mdxChaptersCached, mdxChaptersStore } from './mangadex'
 
 import {
   OfficialTrailerProvider,
@@ -270,6 +271,53 @@ export default {
     // GET /api/manga/match/:anilistId?title=&english=&native=&chapters=&volumes=&year=
     // GET /api/manga/chapters/:providerMangaId
     // GET /api/manga/pages/:providerChapterId
+    // MangaDex equivalents (provider=mangadex, UUID ids):
+    // GET /api/manga/mdx-match/:anilistId?title=&english=&native=
+    // GET /api/manga/mdx-chapters/:providerMangaId
+    // GET /api/manga/mdx-pages/:providerChapterId?quality=saver|data
+    const mdxMatch = url.pathname.match(/^\/(?:api\/)?manga\/mdx-match\/(\d+)$/)
+    if (mdxMatch) {
+      const anilistId = Number(mdxMatch[1])
+      if (!Number.isFinite(anilistId) || anilistId <= 0) return json({ error: 'Invalid anilistId' }, 400, env, origin)
+      const cached = mdxMatchCached(`mdx:${anilistId}`)
+      if (cached) return json({ providerMangaId: cached.providerMangaId, providerTitle: cached.providerTitle, coverUrl: cached.coverUrl, provider: 'mangadex', cached: true }, 200, env, origin, { 'Cache-Control': 'public, max-age=600' })
+      try {
+        const h = buildHint()
+        const m = await withTimeout(mdxSearchAndMatch(anilistId, { title: h.title, english: h.english, native: h.native }, request.signal), 20000, request.signal)
+        mdxMatchStore(`mdx:${anilistId}`, m)
+        return json({ providerMangaId: m.providerMangaId, providerTitle: m.providerTitle, coverUrl: m.coverUrl, provider: 'mangadex' }, 200, env, origin, { 'Cache-Control': 'public, max-age=600' })
+      } catch (e) {
+        if ((e as any)?.name === 'AbortError') return json({ error: 'Aborted' }, 499, env, origin)
+        return json({ error: String((e as Error)?.message ?? e), provider: 'mangadex' }, 502, env, origin)
+      }
+    }
+
+    const mdxChapters = url.pathname.match(/^\/(?:api\/)?manga\/mdx-chapters\/([0-9a-f-]{30,40})$/)
+    if (mdxChapters) {
+      try {
+        const cached = await mdxChaptersCached(`mdx-ch:${mdxChapters[1]}`)
+        if (cached) return json({ chapters: cached.readable, external: cached.external, count: cached.readable.length, provider: 'mangadex', cached: true }, 200, env, origin, { 'Cache-Control': 'public, max-age=300' })
+        const v = await withTimeout(mdxGetChapters(mdxChapters[1], request.signal), 25000, request.signal)
+        mdxChaptersStore(`mdx-ch:${mdxChapters[1]}`, v)
+        return json({ chapters: v.readable, external: v.external, count: v.readable.length, provider: 'mangadex' }, 200, env, origin, { 'Cache-Control': 'public, max-age=300' })
+      } catch (e) {
+        if ((e as any)?.name === 'AbortError') return json({ error: 'Aborted' }, 499, env, origin)
+        return json({ error: String((e as Error)?.message ?? e), chapters: [] }, 502, env, origin)
+      }
+    }
+
+    const mdxPages = url.pathname.match(/^\/(?:api\/)?manga\/mdx-pages\/([0-9a-f-]{30,40})$/)
+    if (mdxPages) {
+      try {
+        const quality = url.searchParams.get('quality') === 'data' ? 'data' : 'saver'
+        const pages = await withTimeout(mdxGetPages(mdxPages[1], quality, request.signal), 20000, request.signal)
+        return json({ pages, count: pages.length, provider: 'mangadex', quality }, 200, env, origin, { 'Cache-Control': 'public, max-age=300' })
+      } catch (e) {
+        if ((e as any)?.name === 'AbortError') return json({ error: 'Aborted' }, 499, env, origin)
+        return json({ error: String((e as Error)?.message ?? e), pages: [] }, 502, env, origin)
+      }
+    }
+
     const mangaMatch = url.pathname.match(/^\/(?:api\/)?manga\/match\/(\d+)$/)
     if (mangaMatch) {
       const anilistId = Number(mangaMatch[1])

@@ -6,6 +6,7 @@ import { getDisplayEpisodeNumber, getStreamingEpisodeTitle } from '../../lib/epi
 import { formatLabel } from '../../lib/mediaLabels'
 import { Icon } from '../ui/Icon'
 import { useTracking } from '../../contexts/TrackingContext'
+import { getReadPos } from '../../storage/db'
 
 type Variant = 'default' | 'continue' | 'compact'
 
@@ -143,6 +144,18 @@ export function AnimeCard({
   const progressEp = anime.progress?.episode ?? 0
   const displayEp = progressEp > 0 ? getDisplayEpisodeNumber(anime, progressEp) : 0
   const epTitle = progressEp > 0 ? getStreamingEpisodeTitle(anime, progressEp) : null
+  // Manga continue caption: provider's own unit label from the IDB read
+  // position (e.g. "Volume 3", "Chapter 12"). Never "E12" for manga, never
+  // a volume renamed to a chapter. Falls back to tracker progress text.
+  const [mangaUnitLabel, setMangaUnitLabel] = useState<string | null>(null)
+  useEffect(() => {
+    if (variant !== 'continue' || !isManga) return
+    let cancelled = false
+    getReadPos(anime.identity.internalId.replace(/^read:/, ''))
+      .then(pos => { if (!cancelled && pos?.chapterLabel) setMangaUnitLabel(pos.chapterLabel) })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [variant, isManga, anime.identity.internalId])
 
   // Captions exist ONLY on Continue Watching cards (below). All other
   // rows are clean thumbnails; name/year/category appear in the hover
@@ -206,7 +219,7 @@ export function AnimeCard({
       </div>
 
       {/* Captions ONLY on Continue Watching (clean rows everywhere else).
-          Manga continue cards show chapter progress; anime shows E number. */}
+          Manga continue cards show the provider unit label; anime shows E number. */}
       {variant === 'continue' && anime.progress && (
         <div className="space-y-1 bg-[var(--surface)] px-2.5 py-2">
           <div className="flex items-center justify-between">
@@ -214,7 +227,7 @@ export function AnimeCard({
           </div>
           <p className="truncate text-[11px] text-[var(--text-muted)]">
             {isManga
-              ? (epTitle ? epTitle : `Chapter ${displayEp || progressEp}`)
+              ? (mangaUnitLabel ?? `Chapter ${displayEp || progressEp}`)
               : (<>Episode {displayEp}{epTitle ? ` • ${epTitle}` : ''}</>)}
           </p>
         </div>

@@ -28,10 +28,13 @@ provider falls back to production Worker automatically on localhost).
 | `GET/PUT /mal/api/*`, `/api/mal/*` | MAL REST proxy (forwards auth/body) |
 | `GET /proxy`, `/api/proxy` | allowlisted generic proxy (subtitles etc.), 1h cache |
 | `GET /api/stream`, `/stream?u&e&s` | **signed delivery** (see streaming.md) |
-| `GET /api/manga/match/:anilistId?title=&english=&native=&chapters=&volumes=&year=` | WeebCentral series match (fail-closed scoring, threshold 40, ambiguous→error), cached 10m |
-| `GET /api/manga/chapters/:providerMangaId` | chapter list (provider chapters, never volumes), cached 5m |
-| `GET /api/manga/pages/:providerChapterId` | page URLs re-signed to same-origin `/api/manga/img`, cached 5m |
-| `GET /api/manga/img?u&e&s` | **signed manga image relay** (HMAC+expiry, planeptune/compsci88 only, byte-sniffed content-type) |
+| `GET /api/manga/mdx-match/:anilistId?title=&english=&native=` | MangaDex match (links.al verified mapping preferred, else scored titles threshold 40, ties fail closed), cached 1h |
+| `GET /api/manga/mdx-chapters/:uuid` | `{readable, external}` provider units (EN, safe ratings, asc; aggregate fallback for licensed titles), cached 10m |
+| `GET /api/manga/mdx-pages/:chUuid?quality=saver\|data` | at-home direct CDN URLs (data-saver default) — no relay needed |
+| `GET /api/manga/match/:anilistId?...` | WeebCentral series match (fallback; provider outage since 2026-09-19), cached 10m |
+| `GET /api/manga/chapters/:providerMangaId` | WeebCentral chapter list (fallback), cached 5m |
+| `GET /api/manga/pages/:providerChapterId` | WeebCentral page URLs re-signed to same-origin `/api/manga/img`, cached 5m |
+| `GET /api/manga/img?u&e&s` | **signed manga image relay** (WeebCentral planeptune/compsci88 only, HMAC+expiry, byte-sniffed content-type) |
 | `GET /api/diag` | bearer-`RESOLVER_SECRET` self-test (resolve + allowlist + CDN) |
 | `GET /api/debug/provider-test?url=` | unauthenticated egress probe (used for provider research) |
 | others | SPA fallback via `ASSETS`; 404 lists available endpoints |

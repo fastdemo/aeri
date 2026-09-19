@@ -309,8 +309,17 @@ export function DetailModal({
           </div>
         )}
 
+        {/* Content grid: row 1 = description | metadata, row 2 =
+            episodes/chapters | related. Row 2 is a SINGLE shared grid row,
+            so the Episodes header and the Related Shows header start at
+            exactly the same y by construction — the conditional E-line lives
+            in row 1 and shifts row 2 down for BOTH columns equally.
+            DOM order (D,M,E,R,mobile) is the mobile stacking order;
+            lg placement puts D|M on row 1 and E|R on row 2.
+            No offsets, no spacers, no per-state tuning. */}
         <div className="grid gap-6 px-4 py-5 sm:px-6 lg:grid-cols-[1.7fr_0.9fr]">
-          <div className="min-w-0">
+          {/* Row 1, col 1: title/meta/E-line/description. */}
+          <div className="min-w-0 lg:col-start-1 lg:row-start-1">
             {/* Mobile title hierarchy — visible only when desktop overlay hidden */}
             <div className="mb-3 sm:hidden">
               <h2 className="text-[20px] font-semibold leading-none tracking-tighter text-[var(--text)]">{titles.primary}</h2>
@@ -331,42 +340,41 @@ export function DetailModal({
             <p className="mt-1 line-clamp-3 text-[13px] leading-6 text-[var(--text-muted)]">
               {displayAnime.description || 'No description available.'}
             </p>
+          </div>
 
-            {/* Episodes keep full width with their own header. */}
+          {/* Row 1, col 2: metadata (desktop only). Row 1's height is
+              shared by both columns, so metadata length can never shift
+              the row-2 headers relative to each other. */}
+          <div className="hidden min-w-0 text-xs leading-5 lg:col-start-2 lg:row-start-1 lg:block">
+            <div className="space-y-2">
+              <SidebarMeta anime={displayAnime} />
+            </div>
+          </div>
+
+          {/* Row 2, col 1: episodes/chapters — THE shared header row. */}
+          <div className="min-w-0 lg:col-start-1 lg:row-start-2">
             {isMangaKind ? (
-              <div className="mt-6">
-                <ChapterList key={displayKey} manga={displayAnime} />
-              </div>
+              <ChapterList key={displayKey} manga={displayAnime} />
             ) : (
               !isMovie && (
-                <div className="mt-6">
-                  <EpisodeList key={displayKey} anime={displayAnime} />
-                </div>
+                <EpisodeList key={displayKey} anime={displayAnime} />
               )
             )}
           </div>
 
-          {/* Desktop sidebar: metadata, then Related Shows + Manga.
-              The metadata block is fixed-height (5 rows × 20px +
-              4 × 8px gaps = 132px) so the mt-6 below it always lands
-              Related Shows in the same place. Desktop-only: the mobile
-              stack below owns small screens. */}
-          <div className="hidden min-w-0 text-xs leading-5 lg:block">
-            <div className="h-[132px] space-y-2 overflow-hidden">
-              <SidebarMeta anime={displayAnime} />
-            </div>
-            {!isMangaKind && displayAnime.identity.anilistId && (
-              <div className="mt-6">
-                <RelatedEntriesBlock
-                  key={`d-${displayKey}`}
-                  anilistId={displayAnime.identity.anilistId}
-                  relations={displayAnime.relations}
-                  onSelectAnime={onSelectRelated}
+          {/* Row 2, col 2: Related Shows + Manga — same grid row as
+              episodes, so headers start at exactly the same y. */}
+          {!isMangaKind && displayAnime.identity.anilistId && (
+            <div className="hidden min-w-0 text-xs leading-5 lg:col-start-2 lg:row-start-2 lg:block">
+              <RelatedEntriesBlock
+                key={`d-${displayKey}`}
+                anilistId={displayAnime.identity.anilistId}
+                relations={displayAnime.relations}
+                onSelectAnime={onSelectRelated}
                 scope="modal-desktop"
-                />
-              </div>
-            )}
-          </div>
+              />
+            </div>
+          )}
           {/* Mobile stack: metadata, then related in normal flow.
               Separate mobile-only instance (no shared state). */}
           <div className="min-w-0 space-y-2 border-t border-[var(--border)] pt-4 text-xs leading-5 lg:hidden">
