@@ -16,7 +16,7 @@ function ScoreBadge({ anime, trackingProvider }: { anime: Anime; trackingProvide
 }
 
 export function Hero({ anime, onMoreInfo, trackingProvider }: { anime: Anime; onMoreInfo?: () => void; trackingProvider?: 'anilist' | 'mal' | null }) {
-  const titles = getTitleHierarchy(anime, null)
+  const titles = getTitleHierarchy(anime)
   const metaParts = [formatLabel(anime.format) ?? 'TV', anime.year, anime.episodes ? `${anime.episodes} Episodes` : null].filter(Boolean).join(' • ')
 
   return (
@@ -260,7 +260,7 @@ export function HeroCarousel({
         >
           <div className="flex w-full max-w-[560px] flex-col justify-end gap-3 px-5 pb-10 pt-16 sm:px-8 sm:pb-12 lg:justify-center lg:pb-0 lg:pl-12 lg:pr-0">
             {(() => {
-              const titles = getTitleHierarchy(active, null)
+              const titles = getTitleHierarchy(active)
               const metaParts = [
                 active.format ?? 'TV',
                 active.year,
@@ -340,7 +340,7 @@ export function HeroCarousel({
                   <button
                     key={a.identity.internalId}
                     onClick={() => go(i)}
-                    aria-label={`Go to ${getTitleHierarchy(a, null).primary}`}
+                    aria-label={`Go to ${getTitleHierarchy(a).primary}`}
                     aria-current={isActive ? 'true' : undefined}
                     className="group/dot flex h-3 items-center justify-center"
                   >

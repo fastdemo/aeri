@@ -1,5 +1,35 @@
 # Changelog — Aeri (architectural changes only)
 
+## 2026-09-19 — Season system removed; Related Entries; episode/chapter unification
+
+### Changed
+- Season selector, group model, spine walk, stem dedup, franchise merging
+  all removed. Entries independent by AniList id (route/tracking/progress/
+  matching/caches). `series.ts` stubbed, `useSeriesGroup` deleted.
+- New Related Entries (ranked AniList relations, direct-id links) at the
+  bottom of modal + detail page + watch. Ranking: sequel→prequel→parent→
+  character→summary→alternative→spinoff→side-story→adaptation→OVA/ONA→
+  special→movie→other, TV-boosted. Relations ride on Media queries.
+- Episodes/Chapters unified: transparent wrappers, per-row surface cards,
+  `01` numbers, right-side counts (`Episodes | 25 episodes`), no provider
+  names, no `S1:` anywhere. Continue captions `E<number>`.
+- DetailModal shows exactly the opened entry; opens scrolled to top.
+  Continue Watching per-entry, recency order. Titles: display-strip only.
+
+### Why
+- Season-as-identity merged distinct entries (wrong progress, wrong
+  streams, hidden S2/S3). Relations are navigation context, not identity.
+
+### Impact
+- Old `anilist:seriesgroup:*` / `:spine:` cache keys go unused (no
+  migration — progress was always per-id). Related-links use plain anchors
+  (modal closes on any hashchange).
+
+### Verification
+- Local Playwright: AoT modal 11 related (S2 first), no selector; `01`
+  numbering; Mocha borders visible; live: related present, manga reader
+  24/10 pages, browse 90 cards, `verify:live` 8/8.
+
 ## 2026-09-18 — Auth gates + sign-in UX + browse shuffle key
 
 ### Changed

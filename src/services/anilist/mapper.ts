@@ -32,6 +32,27 @@ export interface AniListMedia {
   nextAiringEpisode?: { airingAt: number; timeUntilAiring: number; episode: number } | null
   airingSchedule?: { nodes: { airingAt: number; episode: number }[] } | null
   isAdult?: boolean | null
+  /** AniList relation edges (informational only — powers Related Entries, never identity). */
+  relations?: AniListMediaRelations | null
+}
+
+export interface AniListRelationEdge {
+  relationType?: string | null
+  node?: {
+    id?: number | null
+    title?: AniListTitle | null
+    format?: string | null
+    status?: string | null
+    episodes?: number | null
+    chapters?: number | null
+    volumes?: number | null
+    coverImage?: { large?: string | null; extraLarge?: string | null; medium?: string | null } | null
+    bannerImage?: string | null
+  } | null
+}
+
+export interface AniListMediaRelations {
+  edges?: AniListRelationEdge[] | null
 }
 
 export interface AniListMediaListEntryRaw {
@@ -183,6 +204,7 @@ export function mapAniListMediaToAnime(media: AniListMedia): Anime {
     nextAiringEpisode,
     airingSchedule,
     isAdult: media.isAdult ?? undefined,
+    relations: media.relations ?? undefined,
   }
 }
 

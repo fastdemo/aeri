@@ -7,6 +7,11 @@
 | `playback-matrix.spec.ts` | byte classification (TS/fMP4 vs PNG/JPEG/HTML), playlist/nested handling, worker-era aniwave smoke (Bebop E1/E2, Frieren E1), official-vs-demo controls, fallback/source-switch, 1440+375 viewports, cache/abort behavior |
 | `series-grouping.spec.ts` | AoT S1/S2/S3 → same 6-season group + selector nav; Naruto multi vs Bebop standalone |
 | `streaming-production.spec.ts` | **live** playback per show: `<video>` exists, `currentTime` advances, rs≥2, no fatal error (runs against production) |
+| `related-entries.spec.ts` (to add) | S1/S2/S3 independent ids + modal/page/watch show Related Entries, no season selector, ranked order, direct-id navigation, tracking/progress isolation |
+
+Ad-hoc `zz-*.spec.ts` probes are scratch — delete before finishing.
+(`series-grouping.spec.ts` REMOVED with the season system — superseded by
+related-entries.)
 
 Ad-hoc `zz-*.spec.ts` probes are scratch — delete before finishing.
 
@@ -39,4 +44,4 @@ Ad-hoc `zz-*.spec.ts` probes are scratch — delete before finishing.
 
 After deploy: root 200 → bundle hash → bake grep → endpoint probes →
 Playwright live specs → themed/role-specific spot checks (signed-out gates,
-season selector, settings persistence).
+Related Entries presence/order, settings persistence).

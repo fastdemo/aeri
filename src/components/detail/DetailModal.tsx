@@ -2,11 +2,13 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { Anime, AnimeStatus } from '../../types/anime'
 import { EpisodeList, getEpisodes } from '../episodes/EpisodeList'
+import { ChapterList } from '../manga/ChapterList'
 import { useTracking } from '../../contexts/TrackingContext'
-import { useSeriesGroup } from '../../hooks/useSeriesGroup'
+import { useRelatedEntries } from '../../hooks/useRelatedEntries'
+import { RelatedEntries } from '../related/RelatedEntries'
 import { displayRating, formatRating } from '../../lib/rating'
 import { getTitleHierarchy } from '../../lib/titles'
-import { sanitizeAnimeForDisplay, sanitizeGroup, getDisplayEpisodeNumber } from '../../lib/episodes'
+import { sanitizeAnimeForDisplay } from '../../lib/episodes'
 import { formatLabel, statusLabel } from '../../lib/mediaLabels'
 
 function ScoreBadge({ anime, trackingProvider }: { anime: Anime; trackingProvider?: 'anilist' | 'mal' | null }) {
@@ -22,9 +24,13 @@ function ScoreBadge({ anime, trackingProvider }: { anime: Anime; trackingProvide
 export function DetailModal({
   anime,
   onClose,
+  onSelectRelated,
 }: {
   anime: Anime
   onClose: () => void
+  /** When provided (card-grid hosts), related clicks swap the modal content
+      in place instead of navigating. Detail-page hosts omit it (links). */
+  onSelectRelated?: (anime: Anime) => void
 }) {
   const dialogRef = useRef<HTMLDivElement>(null)
   const { isAuthenticated, combinedList, updateStatus, error: trackingError, trackingProvider } = useTracking()
@@ -48,41 +54,20 @@ export function DetailModal({
   const currentScore = baseEntry?.score ?? null
   const baseAnime = baseEntry?.anime ?? anime
 
-  // Series grouping — starts at mount from the card's id (parallel with the
-  // modal's own open), not after any other fetch. Season UI stays in a stable
-  // placeholder until the model is ready, so nothing pops in mid-animation.
-  const routeAnilistId = baseAnime.identity.anilistId ?? null
-  const { group: seriesGroup, ready: groupReady } = useSeriesGroup(routeAnilistId)
-
-  // Modal opens on Season 1; picking another season swaps the displayed
-  // season in place (same group, no route change inside the modal).
-  const [selectedSeasonIdx, setSelectedSeasonIdx] = useState(0)
-  const effectiveGroupRaw = useMemo(() => {
-    if (!seriesGroup || seriesGroup.seasons.length <= 1) return null
-    if (!baseAnime.identity.anilistId) return seriesGroup
-    const contains = seriesGroup.seasons.some(s => s.identity.anilistId === baseAnime.identity.anilistId)
-    return contains ? seriesGroup : null
-  }, [seriesGroup, baseAnime.identity.anilistId])
-  const effectiveGroup = useMemo(() => {
-    if (!effectiveGroupRaw) return null
-    return sanitizeGroup(effectiveGroupRaw)
-  }, [effectiveGroupRaw])
+  // No season grouping: the modal shows exactly the entry it was opened
+  // with. Manga bypasses sanitize (episode validation throws on manga data).
   const displayAnime = useMemo(() => {
-    if (effectiveGroup) {
-      return effectiveGroup.seasons[selectedSeasonIdx] ?? baseAnime
+    if (['MANGA', 'NOVEL', 'ONE_SHOT'].includes(baseAnime.format?.toUpperCase() ?? '')) {
+      return baseAnime
     }
-    return sanitizeAnimeForDisplay(baseAnime, null, null)
-  }, [effectiveGroup, selectedSeasonIdx, baseAnime])
+    return sanitizeAnimeForDisplay(baseAnime)
+  }, [baseAnime])
   const displayKey = displayAnime.identity.anilistId ? `anilist:${displayAnime.identity.anilistId}` : displayAnime.identity.internalId
-  const titles = getTitleHierarchy(displayAnime, effectiveGroup)
+  const titles = getTitleHierarchy(displayAnime)
   const isMovie = displayAnime.format?.toUpperCase() === 'MOVIE'
   const isMangaKind = ['MANGA', 'NOVEL', 'ONE_SHOT'].includes(displayAnime.format?.toUpperCase() ?? '')
 
-  // Tracking entry: the displayed season's own entry only (see below).
-  // Tracking, per displayed season — never cross-season numbers. A season-2
-  // view must not show season-1's "26 of 7": progress/resume/bar come ONLY
-  // from the displayed season's own entry. Status falls back across the
-  // franchise so the badge still informs when this season is untouched.
+  // Tracking: this entry's own progress only. Related entries never share.
   const entry = useMemo(() => {
     if (!isAuthenticated || !combinedList) return null
     const id = displayAnime.identity
@@ -129,8 +114,13 @@ export function DetailModal({
     }
   }, [])
 
+  // New modal always opens at the very top: reset the overlay scroller on
+  // mount (it persists across opens) and focus the dialog without scrolling
+  // the page underneath (preventScroll — the background is body-locked).
+  const scrollerRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
-    dialogRef.current?.focus()
+    scrollerRef.current?.scrollTo({ top: 0 })
+    dialogRef.current?.focus({ preventScroll: true })
   }, [])
 
   // Close on any navigation — must not prevent HashRouter's hashchange.
@@ -153,7 +143,7 @@ export function DetailModal({
   const metaParts = [formatLabel(displayAnime.format), displayAnime.year ? String(displayAnime.year) : null, displayAnime.season ? displayAnime.season.charAt(0) + displayAnime.season.slice(1).toLowerCase() : null, !isMovie && !isMangaKind && displayAnime.episodes ? `${displayAnime.episodes} Episodes` : null, isMangaKind && displayAnime.chapters ? `${displayAnime.chapters} Chapters` : null, isMangaKind && displayAnime.volumes ? `${displayAnime.volumes} Volumes` : null, statusLabel(displayAnime.status)].filter(Boolean).join(' • ')
 
   return (
-    <div className="fixed inset-x-0 bottom-0 top-14 z-40 flex items-start justify-center overflow-y-auto bg-[color-mix(in_srgb,var(--bg)_75%,transparent)] p-2 backdrop-blur-[2px] anim-fade-in sm:p-6 lg:p-8">
+    <div ref={scrollerRef} className="fixed inset-x-0 bottom-0 top-14 z-40 flex items-start justify-center overflow-y-auto bg-[color-mix(in_srgb,var(--bg)_75%,transparent)] p-2 backdrop-blur-[2px] anim-fade-in sm:p-6 lg:p-8">
       <button aria-label="Close" onClick={onClose} className="fixed inset-0 top-14 cursor-default" tabIndex={-1} />
       <div
         ref={dialogRef}
@@ -198,18 +188,28 @@ export function DetailModal({
               </div>
             )}
 
-            <Link
-              to={`/watch/${displayAnime.identity.internalId}/${hasWatched ? resumeEp : 1}`}
-              className="inline-flex h-8 items-center gap-1.5 rounded bg-[var(--text)] px-4 text-[13px] font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]"
-              style={isMangaKind ? { display: 'none' } : undefined}
-              aria-hidden={isMangaKind || undefined}
-              tabIndex={isMangaKind ? -1 : undefined}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                <path d="M8 5.14v13.72L19 12z" />
-              </svg>
-              {hasWatched ? 'Resume' : 'Play'}
-            </Link>
+            {isMangaKind ? (
+              <Link
+                to={`/read/${displayAnime.identity.internalId}/${hasWatched ? `ch-${resumeEp}` : 'first'}`}
+                className="inline-flex h-8 items-center gap-1.5 rounded bg-[var(--text)] px-4 text-[13px] font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V4a2 2 0 0 0-2-2H6.5A2.5 2.5 0 0 0 4 4.5v15z" />
+                  <path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5" />
+                </svg>
+                {hasWatched ? 'Continue' : 'Read'}
+              </Link>
+            ) : (
+              <Link
+                to={`/watch/${displayAnime.identity.internalId}/${hasWatched ? resumeEp : 1}`}
+                className="inline-flex h-8 items-center gap-1.5 rounded bg-[var(--text)] px-4 text-[13px] font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M8 5.14v13.72L19 12z" />
+                </svg>
+                {hasWatched ? 'Resume' : 'Play'}
+              </Link>
+            )}
             {isMangaKind && (displayAnime.chapters || displayAnime.volumes) ? (
               <span className="inline-flex h-8 items-center rounded bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-4 text-[13px] font-medium text-[var(--text-muted)]">
                 {[displayAnime.chapters ? `${displayAnime.chapters} chapters` : null, displayAnime.volumes ? `${displayAnime.volumes} volumes` : null].filter(Boolean).join(' • ')}
@@ -320,21 +320,15 @@ export function DetailModal({
             </div>
 
             {!isMovie && !isMangaKind && (() => {
-              // Use the normalized episode map (same source as EpisodeList) so
-              // titles/numbers respect season offsets — never raw array index.
-              const norm = getEpisodes(displayAnime).map(e => ({
-                ...e,
-                displayNumber: getDisplayEpisodeNumber(displayAnime, e.number, effectiveGroup, selectedSeasonIdx),
-              }))
+              const norm = getEpisodes(displayAnime)
               const epNum = numEp > 0 ? numEp : (displayAnime.progress?.episode ?? 1)
               const target = norm.find(e => e.number === epNum) ?? norm[0]
               if (!target) return null
               const epTitle = target.title
               if (!epTitle && !hasWatched && !displayAnime.progress) return null
-              const sNum = selectedSeasonIdx + 1
               return (
                 <p className="mt-2 text-[12px] font-semibold text-[var(--text)]">
-                  S{sNum}:E{target.displayNumber} {epTitle ? `• ${epTitle}` : ''}
+                  E{target.displayNumber} {epTitle ? `• ${epTitle}` : ''}
                 </p>
               )
             })()}
@@ -342,40 +336,16 @@ export function DetailModal({
               {displayAnime.description || 'No description available.'}
             </p>
 
-            {!isMovie && !isMangaKind && !groupReady && (
-              <div className="mt-4" aria-label="Loading seasons">
-                <div className="h-[30px] w-32 animate-pulse rounded-full bg-[color-mix(in_srgb,var(--text)_5%,transparent)]" />
+            {isMangaKind ? (
+              <div className="mt-6">
+                <ChapterList key={displayKey} manga={displayAnime} />
               </div>
-            )}
-            {!isMovie && !isMangaKind && groupReady && effectiveGroup && (
-              <div className="mt-4 flex items-center gap-2">
-                <div className="relative">
-                  <select
-                    value={String(selectedSeasonIdx)}
-                    onChange={e => setSelectedSeasonIdx(Number(e.target.value))}
-                    aria-label="Select season"
-                    className="appearance-none rounded-full border border-[var(--border)] bg-[var(--text)]/[0.06] px-3 py-1.5 pr-8 text-xs font-medium text-[var(--text)] focus:border-[var(--border-strong)] focus:outline-none"
-                  >
-                    {effectiveGroup.seasons.map((s, idx) => (
-                      <option key={s.identity.anilistId ? `anilist:${s.identity.anilistId}` : s.identity.internalId} value={String(idx)} className="bg-[var(--surface)]">
-                        Season {idx + 1}
-                      </option>
-                    ))}
-                  </select>
-                  <svg aria-hidden className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--text-faint)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="m6 9 6 6 6-6" />
-                  </svg>
+            ) : (
+              !isMovie && (
+                <div className="mt-6">
+                  <EpisodeList key={displayKey} anime={displayAnime} />
                 </div>
-              </div>
-            )}
-
-            {!isMovie && !isMangaKind && (
-              <>
-                <h3 className="mt-6 text-[14px] font-semibold text-[var(--text)]">Episodes</h3>
-                <div className="mt-3">
-                  <EpisodeList key={displayKey} anime={displayAnime} seasonNumber={selectedSeasonIdx + 1} />
-                </div>
-              </>
+              )
             )}
           </div>
 
@@ -410,9 +380,30 @@ export function DetailModal({
                 <span className="text-[var(--text)]">{displayAnime.year}{displayAnime.season ? ` • ${displayAnime.season.charAt(0) + displayAnime.season.slice(1).toLowerCase()}` : ''}</span>
               </div>
             )}
+            {/* Related Shows / Manga live inside the sidebar column so no
+                dead space sits between the metadata and the related rows.
+                In modal hosts the related entry swaps in place; on detail
+                pages they're plain links. */}
+            {!isMangaKind && displayAnime.identity.anilistId && (
+              <RelatedEntriesBlock
+                anilistId={displayAnime.identity.anilistId}
+                relations={displayAnime.relations}
+                onSelectAnime={onSelectRelated}
+              />
+            )}
           </div>
         </div>
       </div>
     </div>
   )
+}
+
+function RelatedEntriesBlock({ anilistId, relations, onSelectAnime }: { anilistId: number; relations: Anime['relations']; onSelectAnime?: (anime: Anime) => void }) {
+  const { entries, loading } = useRelatedEntries(anilistId, relations)
+  // In-place swap needs the full Anime object, not just the id.
+  const byId = new Map((entries ?? []).map(e => [e.anime.identity.anilistId!, e.anime]))
+  return <RelatedEntries entries={entries} loading={loading} onSelect={onSelectAnime ? (id) => {
+    const found = byId.get(id)
+    if (found) onSelectAnime(found)
+  } : undefined} />
 }

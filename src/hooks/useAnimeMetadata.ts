@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 import type { Anime } from '../types/anime'
 import { anilistMetadataProvider } from '../providers/metadata/anilistMetadata'
 import { ProviderError } from '../services/anilist/errors'
-import { deduplicateBySeries } from '../services/anilist/series'
 
 type State<T> = { data: T | null; loading: boolean; error: string | null }
 
@@ -18,7 +17,7 @@ function friendlyError(e: unknown, fallback: string): string {
   return fallback
 }
 
-function useData<T>(fetcher: (signal: AbortSignal) => Promise<T>, deps: any[], options?: { dedupe?: boolean }): State<T> {
+function useData<T>(fetcher: (signal: AbortSignal) => Promise<T>, deps: any[]): State<T> {
   const [state, setState] = useState<State<T>>({ data: null, loading: true, error: null })
   useEffect(() => {
     const controller = new AbortController()
@@ -28,9 +27,7 @@ function useData<T>(fetcher: (signal: AbortSignal) => Promise<T>, deps: any[], o
     fetcher(controller.signal)
       .then(d => {
         if (cancelled || controller.signal.aborted) return
-        // Optionally dedupe for series
-        const data = options?.dedupe && Array.isArray(d) ? deduplicateBySeries(d as any) as any : d
-        setState({ data, loading: false, error: null })
+        setState({ data: d, loading: false, error: null })
       })
       .catch(e => {
         if (cancelled || controller.signal.aborted || (e as any)?.name === 'AbortError') return
@@ -172,8 +169,8 @@ export function useAnimeSearch(query: string, perPage = 12): State<Anime[]> {
       anilistMetadataProvider.search(query.trim(), perPage, controller.signal)
         .then(d => {
           if (cancelled || controller.signal.aborted) return
-          const deduped = deduplicateBySeries(d)
-          setState({ data: deduped, loading: false, error: null })
+          // No collapsing: distinct AniList ids stay distinct even when related.
+          setState({ data: d, loading: false, error: null })
         })
         .catch(e => {
           if (cancelled || controller.signal.aborted || (e as any)?.name === 'AbortError') return
@@ -205,6 +202,26 @@ export function useAnimeDetail(id: string | undefined): State<Anime> {
           if (!cancelled) setState(s => (s.data ? { data: s.data, loading: false, error: null } : { data: s.data, loading: false, error: friendlyError(e, 'Not found') }))
           return
         }
+        const msg = friendlyError(e, 'Not found')
+        if (!cancelled) setState(s => ({ data: s.data, loading: false, error: msg }))
+      })
+    return () => { cancelled = true; controller.abort() }
+  }, [id])
+  return state
+}
+
+/** Manga detail — same lifecycle as useAnimeDetail but queries type: MANGA. */
+export function useMangaDetail(id: string | undefined): State<Anime> {
+  const [state, setState] = useState<State<Anime>>({ data: null, loading: !!id, error: null })
+  useEffect(() => {
+    if (!id) { setState({ data: null, loading: false, error: null }); return }
+    const controller = new AbortController()
+    let cancelled = false
+    setState(s => ({ data: s.data, loading: true, error: null }))
+    anilistMetadataProvider.getManga(id, controller.signal)
+      .then(d => { if (!cancelled && !controller.signal.aborted) setState({ data: d, loading: false, error: null }) })
+      .catch(e => {
+        if (cancelled || controller.signal.aborted || (e as any)?.name === 'AbortError') return
         const msg = friendlyError(e, 'Not found')
         if (!cancelled) setState(s => ({ data: s.data, loading: false, error: msg }))
       })

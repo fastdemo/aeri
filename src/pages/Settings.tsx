@@ -31,19 +31,6 @@ export function Settings() {
   const mal = useMAL()
   const { trackingProvider, setTrackingProvider } = useTracking()
   const [clearing, setClearing] = useState<string | null>(null)
-  const [reducedMotion, setReducedMotion] = useState(() => {
-    try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches } catch { return false }
-  })
-
-  // Watch for system reduced motion
-  useEffect(() => {
-    try {
-      const m = window.matchMedia('(prefers-reduced-motion: reduce)')
-      const onChange = (e: MediaQueryListEvent) => setReducedMotion(e.matches)
-      m.addEventListener('change', onChange)
-      return () => m.removeEventListener('change', onChange)
-    } catch {}
-  }, [])
 
   const updatePref = (patch: Partial<Preferences>) => {
     const next = setPreferences(patch)
@@ -155,7 +142,7 @@ export function Settings() {
         <p className="mt-1 text-xs text-[var(--text-faint)]">Connect either or both. Select one to track your list.</p>
 
         <div className="mt-4 space-y-3">
-          <div className={`rounded-lg border bg-[var(--bg-soft)] p-3 ${trackingProvider === 'anilist' ? 'border-[var(--border-strong)]' : 'border-[var(--border)]'}`}>
+          <div className={`rounded-lg border bg-[var(--text)]/[0.02] p-3 ${trackingProvider === 'anilist' ? 'border-[var(--border-strong)]' : 'border-[var(--border)]'}`}>
             <div className="flex items-center gap-3">
               {ani.isAuthenticated && (
                 <button
@@ -212,7 +199,7 @@ export function Settings() {
             {ani.error && !ani.isAuthenticated && <p className="mt-2 text-xs text-[var(--warn)]">{ani.error}</p>}
           </div>
 
-          <div className={`rounded-lg border bg-[var(--bg-soft)] p-3 ${trackingProvider === 'mal' ? 'border-[var(--border-strong)]' : 'border-[var(--border)]'}`}>
+          <div className={`rounded-lg border bg-[var(--text)]/[0.02] p-3 ${trackingProvider === 'mal' ? 'border-[var(--border-strong)]' : 'border-[var(--border)]'}`}>
             <div className="flex items-center gap-3">
               {mal.isAuthenticated && (
                 <button
@@ -459,13 +446,6 @@ export function Settings() {
               )
             })}
           </div>
-        </div>
-        <div className="mt-3 flex items-center justify-between gap-4 border-t border-[var(--border)] pt-3">
-          <div>
-            <p className="text-xs font-medium text-[var(--text)]">Reduced motion</p>
-            <p className="text-[11px] text-[var(--text-faint)]">Follows your system setting {reducedMotion ? '(currently on)' : '(currently off)'}.</p>
-          </div>
-          <span className="text-xs text-[color-mix(in_srgb,var(--text)_30%,transparent)]">{reducedMotion ? 'On' : 'Off'}</span>
         </div>
       </section>
 

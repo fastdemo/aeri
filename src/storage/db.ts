@@ -145,6 +145,73 @@ export async function putWatchPos(pos: WatchPos): Promise<void> {
   } catch {}
 }
 
+export interface ReadPos {
+  id: string // `read:<manga internalId>` — namespaced so manga never collides with anime watchPos
+  chapterId: string // provider chapter id
+  chapterLabel?: string
+  page: number
+  maxPage?: number
+  updatedAt: number
+}
+
+export async function putReadPos(pos: ReadPos): Promise<void> {
+  try {
+    const db = await withTimeout(openDB(), 1200, null as any)
+    if (!db) return
+    await withTimeout(
+      new Promise<void>((res, rej) => {
+        try {
+          const tx = db.transaction('watchPos', 'readwrite')
+          tx.objectStore('watchPos').put(pos)
+          tx.oncomplete = () => res()
+          tx.onerror = () => rej(tx.error)
+        } catch (e) { rej(e) }
+      }),
+      1200,
+      undefined as any,
+    )
+  } catch {}
+}
+
+export async function getReadPos(mangaId: string): Promise<ReadPos | null> {
+  try {
+    const db = await withTimeout(openDB(), 1200, null as any)
+    if (!db) return null
+    const result = await withTimeout(
+      new Promise<ReadPos | null>((res, rej) => {
+        try {
+          const req = db.transaction('watchPos', 'readonly').objectStore('watchPos').get(`read:${mangaId}`)
+          req.onsuccess = () => res((req.result as ReadPos) ?? null)
+          req.onerror = () => rej(req.error)
+        } catch (e) { rej(e) }
+      }),
+      1200,
+      null as any,
+    )
+    return result
+  } catch {
+    return null
+  }
+}
+
+export async function clearReadPos(mangaId: string): Promise<void> {
+  try {
+    const db = await withTimeout(openDB(), 1200, null as any)
+    if (!db) return
+    await withTimeout(
+      new Promise<void>((res, rej) => {
+        try {
+          const tx = db.transaction('watchPos', 'readwrite')
+          tx.objectStore('watchPos').delete(`read:${mangaId}`)
+          tx.oncomplete = () => res()
+          tx.onerror = () => rej(tx.error)
+        } catch (e) { rej(e) }
+      }),
+      1200,
+      undefined as any,
+    )
+  } catch {}
+}
 export async function getWatchPos(id: string): Promise<WatchPos | null> {
   try {
     const db = await withTimeout(openDB(), 1200, null as any)

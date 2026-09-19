@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { anilistMetadataProvider } from '../../providers/metadata/anilistMetadata'
 import type { Anime } from '../../types/anime'
-import { deduplicateBySeries } from '../../services/anilist/series'
 import { getTitleHierarchy } from '../../lib/titles'
 import { formatLabel } from '../../lib/mediaLabels'
 
@@ -40,8 +39,7 @@ export function SearchSuggestions({ query, onClose, onPreview }: Props) {
       anilistMetadataProvider.search(q, 12, controller.signal)
         .then(data => {
           if (cancelled || controller.signal.aborted) return
-          const deduped = deduplicateBySeries(data).slice(0, 6)
-          setResults(deduped)
+          setResults(data.slice(0, 6))
           setLoading(false)
           setActiveIdx(-1)
         })
@@ -113,7 +111,7 @@ export function SearchSuggestions({ query, onClose, onPreview }: Props) {
       className="absolute left-0 right-0 top-[calc(100%+8px)] z-[70] max-h-[min(68vh,420px)] overflow-x-hidden overflow-y-auto rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--bg)_70%,transparent)] backdrop-blur-2xl shadow-[0_16px_48px_var(--shadow)]"
     >
       {results.map((anime, idx) => {
-        const titles = getTitleHierarchy(anime, null)
+        const titles = getTitleHierarchy(anime)
         return (
         <button
           key={anime.identity.internalId}

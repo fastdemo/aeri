@@ -9,7 +9,6 @@ import { useTracking } from '../contexts/TrackingContext'
 import { RowSkeleton } from '../components/ui/Skeleton'
 import { useTrending, usePopular, useAiring, useNewReleases } from '../hooks/useAnimeMetadata'
 import { useLocation } from 'react-router-dom'
-import { getFranchiseTitle } from '../lib/titles'
 import { getRecommendations } from '../recommendations/engine'
 
 function Section({
@@ -164,58 +163,16 @@ export function Home() {
   const continueWatching: Anime[] = useMemo(() => {
     if (!isAuthenticated || !combinedList) return []
     // Strict: only status=watching (works for both trackers — statuses are
-    // normalized at the provider boundary). No title cap: show everything.
+    // normalized at the provider boundary). Every entry stands alone: no
+    // franchise merging, no season collapsing. No title cap: show everything.
     const filtered = combinedList
       .map((e, idx) => ({ e, idx }))
       .filter(({ e }) => e.status === 'watching')
     if (!filtered.length) return []
 
-    // Netflix-style: merge same franchise, keep only the later season the user is watching
-    const groups = new Map<string, { entries: typeof filtered; firstIdx: number }>()
-    for (const item of filtered) {
-      const anime = item.e.anime
-      const isTv = anime.format === 'TV' || anime.format === 'TV_SHORT' || !anime.format
-      let key: string
-      if (isTv) {
-        const raw = anime.title.english?.trim() || anime.title.romaji?.trim() || ''
-        const franchise = raw ? getFranchiseTitle(raw) : ''
-        // normalize: lower + single spaces
-        key = franchise
-          ? franchise.toLowerCase().replace(/\s+/g, ' ').trim()
-          : `id:${anime.identity.internalId}`
-      } else {
-        key = `id:${anime.identity.internalId}`
-      }
-      const g = groups.get(key)
-      if (!g) groups.set(key, { entries: [item], firstIdx: item.idx })
-      else {
-        g.entries.push(item)
-        if (item.idx < g.firstIdx) g.firstIdx = item.idx
-      }
-    }
-
-    const winners: { anime: Anime; sortIdx: number }[] = []
-    for (const [, g] of groups) {
-      if (g.entries.length === 1) {
-        winners.push({ anime: g.entries[0]!.e.anime, sortIdx: g.firstIdx })
-      } else {
-        // pick later season: higher year wins, then higher absolute progress, then watching status
-        const sorted = [...g.entries].sort((a, b) => {
-          const yearA = a.e.anime.year ?? 0
-          const yearB = b.e.anime.year ?? 0
-          if (yearB !== yearA) return yearB - yearA
-          if (b.e.progress !== a.e.progress) return b.e.progress - a.e.progress
-          const score = (x: (typeof filtered)[number]) => (x.e.status === 'watching' ? 2 : x.e.status === 'completed' ? 0 : 1)
-          return score(b) - score(a)
-        })
-        const winner = sorted[0]!
-        // order by winner's original position to keep recency (most recently updated seasons first)
-        winners.push({ anime: winner.e.anime, sortIdx: winner.idx })
-      }
-    }
-
-    winners.sort((a, b) => a.sortIdx - b.sortIdx)
-    return winners.map((w) => w.anime)
+    // Most-recently-updated first (updatedAt desc, stable by list order).
+    const sorted = [...filtered].sort((a, b) => (b.e.updatedAt ?? 0) - (a.e.updatedAt ?? 0) || a.idx - b.idx)
+    return sorted.map(({ e }) => e.anime)
   }, [isAuthenticated, combinedList])
 
   const myList: Anime[] = useMemo(() => {
@@ -256,15 +213,14 @@ export function Home() {
     ])
   }, [trending.data, popular.data, airing.data, news.data])
 
-  // --- Personalized: "Because you watched X" — ONE row, mixed 50/50.
-  // Pool A = highest-weighted entry's first-genre matches (rating ordered).
-  // Pool B = most-recent entry's first-genre matches (rating ordered).
-  // Row = A,B,A,B... interleaved, deduped. No forced ratio when a pool is
-  // short; row needs >= 2 total. Deterministic: same list+pool, same row.
+  // --- Personalized: "Because you watched X" — ONE row, ONE show.
+  // 50/50 per page load (mount-stable): heads = most-recently-updated entry,
+  // tails = random pick from top 10 by score (fallback: rating). Row = that
+  // show's first-genre matches, rating ordered. Title names ONLY that show.
+  const becauseCoinFlip = useRef(Math.random() < 0.5)
   const becauseRecommendations = useMemo(() => {
     if (!isAuthenticated || !combinedList || !combinedList.length || !allPool.length) return null
     const listIds = new Set(combinedList.map(e => e.anime.identity.internalId))
-    const poolIds = new Set(allPool.map(a => a.identity.internalId))
     const matchCount = (genres: string[] | undefined) => {
       const first = genres?.[0]?.toLowerCase()
       if (!first) return 0
@@ -272,46 +228,24 @@ export function Home() {
     }
     const eligible = combinedList.filter(e => e.anime.genres?.length && matchCount(e.anime.genres) >= 2)
     if (!eligible.length) return null
-    const weightOf = (e: (typeof eligible)[number]) => {
-      const statusWeight = e.status === 'watching' ? 4 : e.status === 'completed' ? 3 : e.status === 'planned' ? 0.5 : 1
-      const scoreWeight = ((e.score ?? 5) / 10) + 0.6
-      const ratingWeight = ((e.anime.rating ?? 7) / 10) + 0.6
-      const popularityWeight = e.anime.popularity ? Math.min(1.2, Math.log10(e.anime.popularity + 10) / 5) + 0.5 : 0.8
-      const recencyWeight = e.status === 'watching' ? 1.1 + Math.min(0.4, e.progress / 24) : 1
-      const avail = matchCount(e.anime.genres)
-      const availabilityWeight = avail >= 8 ? 1.3 : avail >= 4 ? 1.0 : avail >= 2 ? 0.6 : 0.3
-      const poolBoost = poolIds.has(e.anime.identity.internalId) ? 1.1 : 1
-      return statusWeight * scoreWeight * ratingWeight * popularityWeight * recencyWeight * availabilityWeight * poolBoost
+    let ref: (typeof eligible)[number]
+    if (becauseCoinFlip.current) {
+      ref = [...eligible].sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))[0]!
+    } else {
+      const byScore = [...eligible].sort((a, b) =>
+        ((b.score ?? 0) - (a.score ?? 0)) || ((b.anime.rating ?? 0) - (a.anime.rating ?? 0)))
+      const top10 = byScore.slice(0, 10)
+      ref = top10[Math.floor(Math.random() * top10.length)]!
     }
-    const byWeight = [...eligible].sort((a, b) => weightOf(b) - weightOf(a))[0]!
-    const byRecent = [...eligible].sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))[0]!
-    const matchesFor = (ref: (typeof eligible)[number]) => {
-      const first = ref.anime.genres[0]?.toLowerCase()
-      if (!first) return [] as Anime[]
-      return allPool
-        .filter(a => !listIds.has(a.identity.internalId) && a.identity.internalId !== ref.anime.identity.internalId && a.genres[0]?.toLowerCase() === first)
-        .sort((a, b) => ((b.rating ?? 0) - (a.rating ?? 0)) || ((b.popularity ?? 0) - (a.popularity ?? 0)))
-        .slice(0, 5)
-    }
-    const poolA = matchesFor(byWeight)
-    const poolB = matchesFor(byRecent)
-    const items: Anime[] = []
-    const seen = new Set<string>()
-    for (let i = 0; i < 5; i++) {
-      for (const cand of [poolA[i], poolB[i]]) {
-        if (cand && !seen.has(cand.identity.internalId)) {
-          seen.add(cand.identity.internalId)
-          items.push(cand)
-        }
-      }
-    }
+    const first = ref.anime.genres[0]?.toLowerCase()
+    if (!first) return null
+    const items = allPool
+      .filter(a => !listIds.has(a.identity.internalId) && a.identity.internalId !== ref.anime.identity.internalId && a.genres[0]?.toLowerCase() === first)
+      .sort((a, b) => ((b.rating ?? 0) - (a.rating ?? 0)) || ((b.popularity ?? 0) - (a.popularity ?? 0)))
+      .slice(0, 10)
     if (items.length < 2) return null
-    const titleOf = (e: (typeof eligible)[number]) => e.anime.title.english?.trim() || e.anime.title.romaji
-    const sameRef = byWeight.anime.identity.internalId === byRecent.anime.identity.internalId
-    const refTitle = sameRef ? titleOf(byWeight) : `${titleOf(byWeight)} + ${titleOf(byRecent)}`
-    const subA = byWeight.anime.genres[0]
-    const subB = byRecent.anime.genres[0]
-    const subtitle = subA && subB && subA !== subB ? `${subA} / ${subB}` : (subA || subB)
+    const refTitle = ref.anime.title.english?.trim() || ref.anime.title.romaji
+    const subtitle = ref.anime.genres.slice(0, 2).join(' • ')
     return { refTitle, subtitle, items }
   }, [isAuthenticated, combinedList, allPool])
 
@@ -512,7 +446,7 @@ export function Home() {
         ) : null}
       </div>
 
-      {selected && <DetailModal key={selected.identity.internalId} anime={selected} onClose={() => setSelected(null)} />}
+      {selected && <DetailModal key={selected.identity.internalId} anime={selected} onClose={() => setSelected(null)} onSelectRelated={setSelected} />}
       {signInOpen && <SignInModal onClose={() => setSignInOpen(false)} />}
     </div>
   )

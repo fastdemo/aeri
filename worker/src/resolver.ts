@@ -941,6 +941,120 @@ export async function handleStream(request: Request, cors: Record<string, string
 
 // ---------- authenticated self-test (proves egress + pipeline) ----------
 
+// ---------- signed manga image relay ----------
+
+// Hosts allowed through /api/manga/img. Page images (planeptune) + covers
+// (compsci88) only — never an open proxy. Suffix match covers rotation
+// subdomains (hot./scans-hot.).
+const MANGA_IMG_SUFFIXES = ['planeptune.us', 'compsci88.com']
+
+function mangaHostAllowed(hostname: string): boolean {
+  const h = String(hostname || '').toLowerCase()
+  if (!h) return false
+  return MANGA_IMG_SUFFIXES.some((sfx) => h === sfx || h.endsWith('.' + sfx))
+}
+
+function sniffImageType(head: Uint8Array): string {
+  if (head.length >= 3 && head[0] === 0xff && head[1] === 0xd8 && head[2] === 0xff) return 'image/jpeg'
+  if (head.length >= 8 && head[0] === 0x89 && head[1] === 0x50 && head[2] === 0x4e && head[3] === 0x47) return 'image/png'
+  if (head.length >= 12 && head[0] === 0x52 && head[1] === 0x49 && head[2] === 0x46 && head[3] === 0x46 &&
+    head[8] === 0x57 && head[9] === 0x45 && head[10] === 0x42 && head[11] === 0x50) return 'image/webp'
+  if (head.length >= 6 && head[0] === 0x47 && head[1] === 0x49 && head[2] === 0x46) return 'image/gif'
+  return 'image/jpeg'
+}
+
+export async function signMangaImageUrl(url: string): Promise<string | null> {
+  const ctx = getResolveContext()
+  if (!ctx) return null
+  const exp = Math.floor(Date.now() / 1000) + TOKEN_TTL_S
+  const t = await signToken(ctx.secret, url, exp)
+  return `${ctx.publicOrigin}/api/manga/img?u=${t.u}&e=${t.e}&s=${t.s}`
+}
+
+export async function handleMangaImage(request: Request, cors: Record<string, string>): Promise<Response> {
+  const ctx = getResolveContext()
+  if (!ctx) return plainTextResponse(cors, 500, 'Resolver not configured')
+  const url = new URL(request.url)
+  const target = await verifyToken(ctx.secret, url.searchParams.get('u'), url.searchParams.get('e'), url.searchParams.get('s'))
+  if (!target) return plainTextResponse(cors, 403, 'Forbidden')
+  let host: string
+  try { host = new URL(target).hostname } catch {
+    return plainTextResponse(cors, 400, 'Bad URL')
+  }
+  if (!mangaHostAllowed(host)) {
+    log({ ev: 'mangaimg-reject-host', host })
+    return plainTextResponse(cors, 403, 'Host not allowed')
+  }
+  if (await isPrivateHost(host)) return plainTextResponse(cors, 403, 'Forbidden')
+  try {
+    const up = await fetchUpstream(target, {
+      headers: { Accept: 'image/*', Referer: 'https://weebcentral.com/' },
+      timeoutMs: 30000,
+      signal: request.signal,
+    })
+    if (!up.ok) {
+      log({ ev: 'mangaimg-upstream', host, status: up.status })
+      return plainTextResponse(cors, 502, 'Upstream failed')
+    }
+    const ct = (up.headers.get('content-type') || '').split(';')[0].trim().toLowerCase()
+    if (ct.includes('text/html')) {
+      try { await up.body?.cancel() } catch {}
+      return plainTextResponse(cors, 502, 'Upstream blocked')
+    }
+    // Sniff magic bytes (not the upstream header): planeptune serves
+    // image/png headers on JPEG bytes, which trips Chromium ORB on <img>.
+    const reader = up.body?.getReader()
+    if (!reader) throw new Error('no body')
+    const headChunks: Uint8Array[] = []
+    let headLen = 0
+    let upstreamDone = false
+    try {
+      while (headLen < 16384) {
+        const { done, value } = await reader.read()
+        if (done) { upstreamDone = true; break }
+        if (value) { headChunks.push(value); headLen += value.length }
+      }
+    } catch (e) {
+      try { reader.releaseLock() } catch {}
+      throw e
+    }
+    const cat = new Uint8Array(headLen)
+    let off = 0
+    for (const c of headChunks) { cat.set(c, off); off += c.length }
+    const sniffed = sniffImageType(cat)
+    const headers = new Headers(cors)
+    headers.set('Content-Type', sniffed)
+    headers.set('Cache-Control', 'public, max-age=86400')
+    headers.set('X-Content-Type-Options', 'nosniff')
+    const stream = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        try {
+          for (const c of headChunks) controller.enqueue(c)
+          if (!upstreamDone) {
+            for (;;) {
+              const { done, value } = await reader.read()
+              if (done) break
+              if (value) controller.enqueue(value)
+            }
+          }
+          controller.close()
+        } catch (e) {
+          controller.error(e)
+        } finally {
+          try { reader.releaseLock() } catch {}
+        }
+      },
+      async cancel() {
+        try { await reader.cancel() } catch {}
+      },
+    })
+    return new Response(stream, { status: 200, headers })
+  } catch (e) {
+    if ((e as any)?.name === 'AbortError') return plainTextResponse(cors, 499, 'Aborted')
+    return plainTextResponse(cors, 502, 'Upstream failed')
+  }
+}
+
 export async function handleDiag(request: Request, cors: Record<string, string>): Promise<Response> {
   const ctx = getResolveContext()
   const h = request.headers.get('Authorization') || ''

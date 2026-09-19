@@ -1,6 +1,5 @@
 import type { Anime } from '../types/anime'
 import type { VideoEpisode } from '../providers/video/types'
-import type { AnimeSeriesGroup } from '../services/anilist/series'
 
 /**
  * Authoritative normalized episode.
@@ -83,13 +82,6 @@ function isValidHttpUrl(url: string): boolean {
   }
 }
 
-function getStreamingHash(anime: Anime): string {
-  const arr = anime.streamingEpisodes ?? []
-  if (!arr.length) return `empty-${anime.identity.anilistId ?? anime.identity.internalId}`
-  const titles = arr.map(e => (e.title ?? '') + '|' + (e.thumbnail ?? '')).join('##')
-  return `${arr.length}::${titles.slice(0, 2000)}`
-}
-
 export function filterAndSortStreamingEpisodes(
   streaming: { title?: string; thumbnail?: string; url?: string; site?: string }[] | undefined
 ): { title?: string; thumbnail?: string; url?: string; site?: string }[] | undefined {
@@ -124,86 +116,28 @@ export function filterAndSortStreamingEpisodes(
 }
 
 /**
- * Sanitize anime streaming for display, optionally with group context.
+ * Sanitize anime streaming for display (standalone entry — no group model).
  * - filters trailers
  * - sorts ascending
- * - if group provided, detects duplicate streaming across seasons and keeps only for best-fit season
- * - validates against expected offset range if group provided
+ * - local range validation: if majority of parsed numbers exceed the
+ *   episode count, discard (likely another entry's global numbering).
  */
-export function sanitizeAnimeForDisplay(
-  anime: Anime,
-  group: AnimeSeriesGroup | null,
-  seasonIdx: number | null
-): Anime {
+export function sanitizeAnimeForDisplay(anime: Anime): Anime {
   const sorted = filterAndSortStreamingEpisodes(anime.streamingEpisodes)
   if (!sorted) {
     return { ...anime, streamingEpisodes: undefined }
   }
-  // If no group context, apply local range validation: if majority of parsed numbers > episodes count, discard
-  if (!group || seasonIdx === null || seasonIdx === undefined) {
-    const count = anime.episodes
-    if (typeof count === 'number' && count > 0) {
-      const parsed = sorted.map(e => parseEpisodeNumber(typeof e.title === 'string' ? e.title : '')).filter(n => n !== null) as number[]
-      if (parsed.length >= 2) {
-        const outOfRange = parsed.filter(n => n > count + 0.6 || n < 0.5).length
-        if (outOfRange / parsed.length > 0.7) {
-          // Most numbers out of local range -> likely global numbering for another season, discard to avoid wrong titles
-          return { ...anime, streamingEpisodes: undefined }
-        }
-      }
-    }
-    return { ...anime, streamingEpisodes: sorted }
-  }
-  // Group-aware deduplication + offset validation
-  // Build hash map for group
-  const hashCounts = new Map<string, number>()
-  const hashOwner = new Map<string, { idx: number; diff: number }>()
-  for (let i = 0; i < group.seasons.length; i++) {
-    const s = group.seasons[i]
-    const h = getStreamingHash(s)
-    hashCounts.set(h, (hashCounts.get(h) ?? 0) + 1)
-    const diff = Math.abs((s.streamingEpisodes?.length ?? 0) - (s.episodes ?? 0))
-    const existing = hashOwner.get(h)
-    if (!existing || diff < existing.diff) {
-      hashOwner.set(h, { idx: i, diff })
-    }
-  }
-  const thisHash = getStreamingHash(anime)
-  const countDup = hashCounts.get(thisHash) ?? 0
-  if (countDup > 1) {
-    const owner = hashOwner.get(thisHash)!
-    if (owner.idx !== seasonIdx) {
-      return { ...anime, streamingEpisodes: undefined }
-    }
-  }
-  // Offset validation
-  const count = anime.episodes ?? 0
-  if (count > 0) {
-    let offset = 0
-    for (let i = 0; i < seasonIdx; i++) {
-      offset += group.seasons[i].episodes ?? 0
-    }
+  const count = anime.episodes
+  if (typeof count === 'number' && count > 0) {
     const parsed = sorted.map(e => parseEpisodeNumber(typeof e.title === 'string' ? e.title : '')).filter(n => n !== null) as number[]
     if (parsed.length >= 2) {
-      const inRange = parsed.filter(n => n >= offset + 0.4 && n <= offset + count + 0.6).length
-      if (inRange / parsed.length < 0.3) {
-        // Check if maybe all numbers in local range instead (fallback global vs local)
-        const inLocal = parsed.filter(n => n >= 0.5 && n <= count + 0.6).length
-        if (inLocal / parsed.length < 0.3) {
-          return { ...anime, streamingEpisodes: undefined }
-        }
-        // If inLocal is good but offset mismatch, keep local (means global numbers not matching offset, but local matches)
-        // So keep sorted
+      const outOfRange = parsed.filter(n => n > count + 0.6 || n < 0.5).length
+      if (outOfRange / parsed.length > 0.7) {
+        return { ...anime, streamingEpisodes: undefined }
       }
     }
   }
   return { ...anime, streamingEpisodes: sorted }
-}
-
-export function sanitizeGroup(group: AnimeSeriesGroup): AnimeSeriesGroup {
-  // Returns new group with each season sanitized
-  const sanitizedSeasons = group.seasons.map((s, idx) => sanitizeAnimeForDisplay(s, group, idx))
-  return { ...group, seasons: sanitizedSeasons }
 }
 
 /**
@@ -495,10 +429,11 @@ export function parseSeasonNumberFromTitle(raw: string): number | null {
   return null
 }
 
-export function getSmartSeasonNumber(anime: Anime, group?: AnimeSeriesGroup | null, seasonIdx?: number | null): number {
-  if (group && typeof seasonIdx === 'number' && seasonIdx >= 0 && seasonIdx < group.seasons.length) {
-    return seasonIdx + 1
-  }
+/**
+ * Season number parsed from the title when present ("Season 2", "2nd
+ * Season"), else 1. Informational display only — never identity.
+ */
+export function getSmartSeasonNumber(anime: Anime): number {
   const candidates = [anime.title.english, anime.title.romaji].filter(Boolean) as string[]
   for (const raw of candidates) {
     const n = parseSeasonNumberFromTitle(raw as string)
@@ -508,17 +443,14 @@ export function getSmartSeasonNumber(anime: Anime, group?: AnimeSeriesGroup | nu
 }
 
 /**
- * Detect whether this season's episode numbering continues globally.
- * Returns offset to add to local numbers to get global display numbers.
- * Uses streamingEpisodes parsed numbers as ground truth, and optionally
- * validates against group cumulative offset when available.
+ * Detect whether this entry's episode numbering continues globally
+ * (streaming titles carry global numbers). Returns offset to add to local
+ * numbers to get display numbers. Purely per-entry — no group model.
  */
 export function getNumberingOffsetAndMode(
   anime: Anime,
-  group?: AnimeSeriesGroup | null,
-  seasonIdx?: number | null
 ): { mode: 'restart' | 'continue'; offset: number; seasonNumber: number } {
-  const seasonNumber = getSmartSeasonNumber(anime, group ?? null, seasonIdx ?? null)
+  const seasonNumber = getSmartSeasonNumber(anime)
   const epCount = anime.episodes ?? 0
 
   // streaming-based offset detection (same heuristic as normalizeEpisodes)
@@ -542,39 +474,27 @@ export function getNumberingOffsetAndMode(
     }
   }
 
-  // group-based offset for validation / fallback
-  let groupOffset = 0
-  if (group && typeof seasonIdx === 'number' && seasonIdx > 0) {
-    for (let i = 0; i < seasonIdx; i++) groupOffset += group.seasons[i].episodes ?? 0
-  }
-
   // Decide mode: if streaming offset exists, it's authoritative for "continue"
   if (streamingOffset > 0) {
-    // Validate against groupOffset when both exist — allow small discrepancy but prefer streaming
     return { mode: 'continue', offset: streamingOffset, seasonNumber }
   }
   // No streaming evidence -> default restart (most seasonal anime restart at 1)
-  // Even if groupOffset >0, without evidence we don't assume continuing globally
   return { mode: 'restart', offset: 0, seasonNumber }
 }
 
 export function getDisplayEpisodeNumber(
   anime: Anime,
   localNumber: number,
-  group?: AnimeSeriesGroup | null,
-  seasonIdx?: number | null
 ): number {
-  const { mode, offset } = getNumberingOffsetAndMode(anime, group ?? null, seasonIdx ?? null)
+  const { mode, offset } = getNumberingOffsetAndMode(anime)
   return mode === 'continue' ? localNumber + offset : localNumber
 }
 
 export function getLocalEpisodeNumber(
   anime: Anime,
   displayNumber: number,
-  group?: AnimeSeriesGroup | null,
-  seasonIdx?: number | null
 ): number {
-  const { mode, offset } = getNumberingOffsetAndMode(anime, group ?? null, seasonIdx ?? null)
+  const { mode, offset } = getNumberingOffsetAndMode(anime)
   if (mode === 'continue') {
     const local = displayNumber - offset
     // clamp to valid range
@@ -588,11 +508,8 @@ export function getLocalEpisodeNumber(
 export function formatEpisodeLabel(
   anime: Anime,
   localEp: number,
-  group?: AnimeSeriesGroup | null,
-  seasonIdx?: number | null
 ): string {
-  const { seasonNumber } = getNumberingOffsetAndMode(anime, group ?? null, seasonIdx ?? null)
-  const displayEp = getDisplayEpisodeNumber(anime, localEp, group ?? null, seasonIdx ?? null)
-  return `S${seasonNumber}:E${displayEp}`
+  const displayEp = getDisplayEpisodeNumber(anime, localEp)
+  return `E${displayEp}`
 }
 // trigger rebuild Tue Sep  1 15:41:15 +07 2026

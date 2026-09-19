@@ -435,7 +435,7 @@ export function Navbar() {
           </div>
         </nav>
       )}
-      {previewAnime && <DetailModal key={previewAnime.identity.internalId} anime={previewAnime} onClose={() => setPreviewAnime(null)} />}
+      {previewAnime && <DetailModal key={previewAnime.identity.internalId} anime={previewAnime} onClose={() => setPreviewAnime(null)} onSelectRelated={setPreviewAnime} />}
       {signInOpen && <SignInModal onClose={() => setSignInOpen(false)} />}
     </header>
     </>

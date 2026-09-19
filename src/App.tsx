@@ -6,6 +6,7 @@ import { Browse } from './pages/Browse'
 import { Search } from './pages/Search'
 import { MyList } from './pages/MyList'
 import { Watch } from './pages/Watch'
+import { Read } from './pages/Read'
 import { AnimeDetail } from './pages/AnimeDetail'
 import { Settings } from './pages/Settings'
 import { NotFound, ProfilePlaceholder } from './pages/NotFound'
@@ -59,6 +60,7 @@ function Layout() {
           <Route path="/list" element={<MyList />} />
           <Route path="/anime/:id" element={<AnimeDetail />} />
           <Route path="/watch/:id/:episode" element={<Watch />} />
+          <Route path="/read/:id/:chapter" element={<Read />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/manga" element={<Manga />} />
           <Route path="/profile" element={<ProfilePlaceholder />} />

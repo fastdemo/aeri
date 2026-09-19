@@ -8,7 +8,8 @@ export interface Env {
   ASSETS?: Fetcher
 }
 
-import { setResolveContext, handleStream, handleDiag } from './resolver'
+import { setResolveContext, handleStream, handleDiag, handleMangaImage, signMangaImageUrl } from './resolver'
+import { wcSearchAndMatch, wcGetChapters, wcGetPages, wcMatchCached, wcMatchStore } from './manga'
 
 import {
   OfficialTrailerProvider,
@@ -31,6 +32,11 @@ function corsHeaders(origin: string | null, env: Env) {
   let allowOrigin = '*'
   if (!allowAll) {
     if (origin && list.includes(origin)) allowOrigin = origin
+    // Localhost preview against production (same dev flow as
+    // customVideoApiUrl): allow http(s) localhost/127.0.0.1 explicitly.
+    // Never a wildcard — the requesting origin is echoed only when it is a
+    // loopback dev origin.
+    else if (origin && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) allowOrigin = origin
     else allowOrigin = list[0] || '*'
   }
   return {
@@ -258,6 +264,68 @@ export default {
       const y = numParam(url.searchParams.get('year'))
       if (y !== undefined && y < 3000) h.year = y
       return Object.keys(h).length ? h : undefined
+    }
+
+    // --- Manga (WeebCentral) ---
+    // GET /api/manga/match/:anilistId?title=&english=&native=&chapters=&volumes=&year=
+    // GET /api/manga/chapters/:providerMangaId
+    // GET /api/manga/pages/:providerChapterId
+    const mangaMatch = url.pathname.match(/^\/(?:api\/)?manga\/match\/(\d+)$/)
+    if (mangaMatch) {
+      const anilistId = Number(mangaMatch[1])
+      if (!Number.isFinite(anilistId) || anilistId <= 0) return json({ error: 'Invalid anilistId' }, 400, env, origin)
+      const cached = wcMatchCached(`m:${anilistId}`)
+      if (cached) return json({ providerMangaId: cached.providerMangaId, providerTitle: cached.providerTitle, provider: 'weebcentral', cached: true }, 200, env, origin, { 'Cache-Control': 'public, max-age=600' })
+      try {
+        const m = await withTimeout(wcSearchAndMatch(buildHint(), request.signal), 15000, request.signal)
+        wcMatchStore(`m:${anilistId}`, m)
+        return json({ providerMangaId: m.providerMangaId, providerTitle: m.providerTitle, provider: 'weebcentral' }, 200, env, origin, { 'Cache-Control': 'public, max-age=600' })
+      } catch (e) {
+        if ((e as any)?.name === 'AbortError') return json({ error: 'Aborted' }, 499, env, origin)
+        return json({ error: String((e as Error)?.message ?? e), provider: 'weebcentral' }, 502, env, origin)
+      }
+    }
+
+    const mangaChapters = url.pathname.match(/^\/(?:api\/)?manga\/chapters\/([A-Z0-9]{20,40})$/)
+    if (mangaChapters) {
+      try {
+        const list = await withTimeout(wcGetChapters(mangaChapters[1], request.signal), 15000, request.signal)
+        return json({ chapters: list, count: list.length, provider: 'weebcentral' }, 200, env, origin, { 'Cache-Control': 'public, max-age=300' })
+      } catch (e) {
+        if ((e as any)?.name === 'AbortError') return json({ error: 'Aborted' }, 499, env, origin)
+        return json({ error: String((e as Error)?.message ?? e), chapters: [] }, 502, env, origin)
+      }
+    }
+
+    const mangaPages = url.pathname.match(/^\/(?:api\/)?manga\/pages\/([A-Z0-9]{20,40})$/)
+    if (mangaPages) {
+      try {
+        const pages = await withTimeout(wcGetPages(mangaPages[1], request.signal), 15000, request.signal)
+        // Re-sign page URLs through same-origin /api/manga/img so Chromium's
+        // ORB (opaque image/png served as JPEG bytes) cannot block <img>.
+        // Signed exactly like /api/stream: HMAC + expiry, allowlisted hosts.
+        const signed: string[] = []
+        for (const u of pages) {
+          try {
+            const s = await signMangaImageUrl(u)
+            signed.push(s ?? u)
+          } catch { signed.push(u) }
+        }
+        return json({ pages: signed, count: signed.length, provider: 'weebcentral', proxied: true }, 200, env, origin, { 'Cache-Control': 'public, max-age=300' })
+      } catch (e) {
+        if ((e as any)?.name === 'AbortError') return json({ error: 'Aborted' }, 499, env, origin)
+        return json({ error: String((e as Error)?.message ?? e), pages: [] }, 502, env, origin)
+      }
+    }
+
+    // Signed manga image relay: /api/manga/img?u=<b64url>&e=<exp>&s=<hmac>.
+    // Same token scheme as /api/stream (HMAC over u.e, const-time compare).
+    // Only planeptune/compsci88 image hosts; content-type sniffed from bytes
+    // (upstream lies: image/png header on JPEG bytes trips Chromium ORB).
+    if ((url.pathname === '/api/manga/img' || url.pathname === '/manga/img') && request.method === 'GET') {
+      const h: Record<string, string> = { ...cors }
+      if (!h['Vary']) delete h['Vary']
+      return handleMangaImage(request, h)
     }
 
     const epMatch = url.pathname.match(/^\/(?:api\/)?(?:video\/)?episodes\/(\d+)$/)

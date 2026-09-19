@@ -30,9 +30,12 @@ Shared `MEDIA_FIELDS` (+`trailer{id site}` on single queries). Page rails
 (`TRENDING/POPULARITY_DESC`, airing, new, upcoming, finished), `browse()`
 (sort/status/genre/year/season/format/page, `anilist:browse:…` keys),
 `browseManga()` (`type: MANGA`), `getAnime`/`getAnimeByMalId` (shared
-`anilist:media:<id>` record — spine walk writes the same entry, so detail
-costs ~1 request cold, 0 warm), `search()` (+ parallel genre-browse when the
-query names a genre, ranked by `lib/searchRank`).
+`anilist:media:<id>` record — detail costs ~1 request cold, 0 warm),
+`getManga` (type: MANGA), `search()` (no collapsing — distinct ids stay
+distinct; + parallel genre-browse when the query names a genre, ranked by
+`lib/searchRank`). Detail `MEDIA_FIELDS` include `relations { edges {
+relationType, node { ...lightweight } } }` — Related Entries rank in memory
+with zero extra requests in the common case.
 
 ## Auth (`src/services/anilist/auth.ts`, `storage/anilist.ts`)
 
@@ -54,16 +57,21 @@ black-page incident).
 - Measured: home 4 → browse 7 → home 7 (cached); 5-anime burst 21 reqs, max
   3 parallel, 0× 429.
 
-## Seasons (`services/anilist/series.ts`, `hooks/useSeriesGroup.ts`)
+## Relations → Related Entries (season system REMOVED 2026-09-19)
 
-One `SPINE_QUERY` per hop carries full display fields + nested back-link
-edges: `findRootSpine` (single-TV-prequel + mutual SEQUEL back-link) →
-`collectSpine` (single sequel or branching by back-link + title-stem +
-earliest year; confidence high/medium/low). TV/TV_SHORT only; movies/OVAs/
-specials never seasons; ambiguous → fail closed (null). Cached memory
-30m/100 + IDB 24h + per-id inflight; completed models also publish every hop
-to the shared media record. `useSeriesGroup` starts at mount from route id,
-8s bounded fallback, UI gates on `ready`. Card hover prewarms.
+`services/anilist/series.ts` is a stub; `hooks/useSeriesGroup.ts` deleted.
+No spine walk, no group model, no selector, no dedup-by-stem, no franchise
+merging anywhere (discovery, Continue Watching, search, cards).
+
+`useRelatedEntries(anilistId, relations?)` (`src/hooks/useRelatedEntries.ts`)
++ `RelatedEntries` row (`src/components/related/RelatedEntries.tsx`):
+detail `relations` edges ranked in memory (zero requests); else one cached
+relations-only query. Deterministic strongest → weakest: SEQUEL 0, PREQUEL 1,
+PARENT 2, CHARACTER 3, SUMMARY 4, ALTERNATIVE 5, SPIN_OFF 6, SIDE_STORY 7,
+ADAPTATION 8, OVA/ONA 9, SPECIAL 10, MOVIE 11, OTHER 12, unknown 99 —
+×10 + TV(0)/ONA/OVA(1)/SPECIAL(2)/MOVIE(3) format boost, ties by media id.
+Current entry excluded, deduped by id. Mem 30m/100 + IDB 24h + per-id
+inflight (`anilist:related:<id>`).
 
 ## Mapping (`services/anilist/mapper.ts`)
 

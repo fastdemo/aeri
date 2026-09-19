@@ -7,7 +7,8 @@
 
 Minimal anime discovery/tracking/watching web app that feels like a
 purpose-built streaming service. Loop: open → discover → watch → progress
-remembered → MAL/AniList synced. Plus a real Manga browse tab (no reader).
+remembered → MAL/AniList synced. Plus manga discovery + real reading
+(WeebCentral primary, vertical-continuous reader, open to signed-out users).
 
 ## Stack
 
@@ -46,11 +47,15 @@ native HLS (Safari).
 - **Streaming**: aniwave-first registry → worker `resolveSource` (filter →
   threshold-40 match → servers → embed extract) → signed relay → player;
   progress via throttled IDB + tracker. Upstream lottery is the ceiling.
-- **Manga**: `useMangaBrowse` (`type: MANGA`), chapters/volumes, same UI.
+- **Manga**: WeebCentral chain (match→chapters→signed pages) + `#/read`
+  reader + chapter+page progress; shared AnimeCard/DetailModal treatment.
+  Chain: WeebCentral htmx (authority) → planeptune page CDN → signed
+  `/api/manga/img` relay (upstream lies about content-type; ORB blocks
+  direct `<img>`).
 - **Recommendations**: deterministic genre-overlap scoring; Because row =
   single mixed A/B interleave; Top Picks from list genres.
-- **Seasons**: route id = selected season; selector navigates to canonical
-  entries; idempotent groups; movies/OVAs excluded.
+- **Seasons**: REMOVED. Route id = the entry. No selector, no group model,
+  no collapsing, no shared progress. Relations → Related Entries only.
 - **Settings**: ~20 controls, all real except Reduced-motion readout;
   toggles/order/URL apply on next resolve; theme grid (17 palettes).
 - **Themes**: 17 CSS vars via `applyTheme` (no rerender), persisted,
@@ -61,8 +66,10 @@ native HLS (Safari).
 ## Routing
 
 `#/` Home · `#/browse` Anime · `#/manga` · `#/search?q=` · `#/anime/<id>` ·
-`#/watch/<id>/<ep>` · `#/list` · `#/settings` · `#/profile` · `*` 404.
-Signed-out: cards/hero/search → sign-in; media/list/settings/profile → home.
+`#/watch/<id>/<ep>` · `#/read/<id>/<chapter>` · `#/list` · `#/settings` ·
+`#/profile` · `*` 404.
+Signed-out: anime cards/hero/search → sign-in; anime media/list/settings/
+profile → home. Manga is open: cards → detail, Read → reader, no sign-in.
 
 ## Data flow
 
@@ -86,6 +93,8 @@ and MAL-CORS realities respected.
 ## Current state
 
 Working: discovery, tracking, seasons, aniwave streaming (incl. Re:Zero),
-manga browse, themes, gates, resilience. Partial: next-resolve prefs,
-enrichment tail, unwired keys. Broken: none known. Limits: upstream
+manga reading (Berserk/Solo Leveling verified with rendered pages), themes,
+gates (anime), resilience. Partial: next-resolve prefs,
+enrichment tail, unwired keys, reader single/double modes (contract only).
+Broken: none known. Limits: upstream
 throughput, single-rendition HLS, no Safari hardware tests.

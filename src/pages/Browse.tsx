@@ -283,7 +283,7 @@ export function Browse() {
         </>
       )}
 
-      {selected && <DetailModal key={selected.identity.internalId} anime={selected} onClose={() => setSelected(null)} />}
+      {selected && <DetailModal key={selected.identity.internalId} anime={selected} onClose={() => setSelected(null)} onSelectRelated={setSelected} />}
       {signInOpen && <SignInModal onClose={() => setSignInOpen(false)} />}
     </div>
   )

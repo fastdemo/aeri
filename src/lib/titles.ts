@@ -1,14 +1,12 @@
 import type { Anime } from '../types/anime'
-import type { AnimeSeriesGroup } from '../services/anilist/series'
 
 export function isTvFormat(format?: string | null): boolean {
   return format === 'TV' || format === 'TV_SHORT'
 }
 
-// Franchise title: strip known season/part suffixes for display, keep root title clean
-// e.g. "Shingeki no Kyojin Season 3" -> "Shingeki no Kyojin"
-// "Youkoso Jitsuryoku Shijou Shugi no Kyoushitsu e 2nd Season" -> "Youkoso Jitsuryoku Shijou Shugi no Kyoushitsu e"
-// Robust: handles "The Final Season", "Final Season Part 2", "Season 3 Part 2", colon variants.
+// Display-title helper: strip known season/part suffixes so TV H1s read
+// cleanly (e.g. "Shingeki no Kyojin Season 3" -> "Shingeki no Kyojin").
+// Display-only — never identity, grouping, or matching.
 export function getFranchiseTitle(raw: string): string {
   if (!raw) return raw
   let t = raw.trim()
@@ -33,35 +31,16 @@ export interface TitleHierarchy {
 }
 
 /**
- * Global title hierarchy for Aeri.
- * - TV (TV/TV_SHORT): H1 is franchise-stripped (group if present else strip suffix from anime). Native then romaji lines, deduped.
- * - MOVIE and others: normal hierarchy — H1 = english ?? romaji, then native, then romaji, deduped, no stripping.
+ * Global title hierarchy for Aeri. Each entry stands alone — no franchise
+ * grouping: H1 is the entry's own title (TV strips season suffix for
+ * display), then native, then romaji, deduped.
  * Use AniList fields title.english, title.native, title.romaji.
  */
-export function getTitleHierarchy(anime: Anime, group?: AnimeSeriesGroup | null): TitleHierarchy {
+export function getTitleHierarchy(anime: Anime): TitleHierarchy {
   const format = anime.format
   const isTv = isTvFormat(format)
 
-  // For grouped TV, franchise titles come from group (root). Strip season suffix from english as well.
-  if (group && isTv) {
-    const groupEnglish = group.title.english?.trim() ? getFranchiseTitle(group.title.english.trim()) : undefined
-    const groupRomaji = group.title.romaji?.trim() ? getFranchiseTitle(group.title.romaji.trim()) : undefined
-    const fallbackPrimary = anime.title.english?.trim() ? getFranchiseTitle(anime.title.english.trim()) : anime.title.romaji ? getFranchiseTitle(anime.title.romaji) : ''
-    const primary = (groupEnglish || groupRomaji || fallbackPrimary) ?? ''
-    const nativeRaw = group.title.native?.trim()
-    const romajiRaw = groupRomaji
-
-    let native: string | undefined
-    if (nativeRaw && nativeRaw !== primary) native = nativeRaw
-    let romaji: string | undefined
-    if (romajiRaw && romajiRaw !== primary && romajiRaw !== native) romaji = romajiRaw
-
-    // Fallback: if primary was romaji and romaji line would duplicate, omit it (already primary)
-    // If no english, primary may be romaji franchise — don't repeat
-    return { primary, ...(native ? { native } : {}), ...(romaji ? { romaji } : {}) }
-  }
-
-  // Non-grouped
+  // Non-TV: no stripping
   if (!isTv) {
     // Movies etc: no stripping
     const primary = (anime.title.english?.trim() || anime.title.romaji?.trim()) ?? ''
@@ -75,7 +54,7 @@ export function getTitleHierarchy(anime: Anime, group?: AnimeSeriesGroup | null)
     return { primary, ...(native ? { native } : {}), ...(romaji ? { romaji } : {}) }
   }
 
-  // TV without group — strip season suffix from display titles
+  // TV — strip season suffix from display titles
   // H1: prefer english stripped, else stripped romaji
   const englishRaw = anime.title.english?.trim()
   const romajiRaw = anime.title.romaji?.trim()
@@ -83,7 +62,7 @@ export function getTitleHierarchy(anime: Anime, group?: AnimeSeriesGroup | null)
 
   const primary = englishRaw ? getFranchiseTitle(englishRaw) : romajiRaw ? getFranchiseTitle(romajiRaw) : ''
 
-  // For TV without group, secondary lines should use stripped romaji to avoid "Season 4" bleed
+  // secondary lines use stripped romaji to avoid "Season 4" bleed
   const strippedRomaji = romajiRaw ? getFranchiseTitle(romajiRaw) : undefined
   // native rarely has season suffix, keep as is
 
@@ -97,6 +76,6 @@ export function getTitleHierarchy(anime: Anime, group?: AnimeSeriesGroup | null)
 }
 
 /** Primary title only (for cards, search results compact). TV-aware stripping. */
-export function getPrimaryTitle(anime: Anime, group?: AnimeSeriesGroup | null): string {
-  return getTitleHierarchy(anime, group).primary
+export function getPrimaryTitle(anime: Anime): string {
+  return getTitleHierarchy(anime).primary
 }

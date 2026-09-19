@@ -1,4 +1,4 @@
-# Streaming — Aeri
+# Streaming — Aeri (video + manga delivery)
 
 ```mermaid
 flowchart LR
@@ -13,13 +13,47 @@ flowchart LR
     V --> P[progress → IDB + tracker]
 ```
 
+## Manga chain (WeebCentral → planeptune)
+
+WeebCentral is the authority for series identity, chapters, chapter
+navigation, page membership. Observed (2026-09-18, no JSON API — htmx HTML):
+`POST /search/simple?location=main` (`text=<q>`) → `/series/<ULID>/<slug>` →
+`/series/<ULID>/full-chapter-list` (`<a href="/chapters/<ULID>">` + own
+`<span class="">` label + `<time datetime>`) →
+`/chapters/<ULID>/images?is_prev=False&reading_style=long_strip&current_page=1`
+(static image URLs). Chapter HTML itself contains NO images — the adapter
+must make the `/images` request. Labels: `# N` for SBR-style series (number
+= N), `Chapter/Prologue/Epilogue N` elsewhere; label parsing reads only the
+chapter's own span (sibling Last-Read/new spans ignored). Matching reuses
+the anime philosophy (variants + exact/prefix/substring/token scoring,
+threshold 40, ambiguous→fail closed). `hot.`/`scans-hot.` rotation handled.
+
+`hot.planeptune.us` = page-image CDN (dumb file host; verified real JPEG
+bytes, no referer needed). `temp.compsci88.com` = cover/static CDN only.
+Browser-direct `<img>` is BLOCKED by Chromium ORB (upstream serves
+`image/png` headers on JPEG bytes — opaque mismatch), so pages go through
+signed same-origin `/api/manga/img` (HMAC+expiry like `/api/stream`,
+planeptune/compsci88 suffix allowlist, DoH private-IP reject, magic-byte
+content-type sniff, 24h cache). Not an open proxy. Upstream challenge/5xx =
+honest error state, never bypassed.
+
+Routes: `/api/manga/match/:anilistId` (10m) → `/api/manga/chapters/:wid`
+(5m, provider chapters never volumes) → `/api/manga/pages/:chid` (5m,
+re-signed URLs). Frontend: `src/providers/manga/` (`MangaProvider`
+search/getManga/getChapters/getChapterPages over Worker; `manga:*`
+namespaced mem cache; AbortController per nav). Reader: `src/pages/Read.tsx`
+(`#/read/:id/:chapter`: first/latest/ch-N/raw id; vertical continuous,
+lazy imgs, per-image retry, chapter selector + prev/next + `[`/`]` keys,
+chapter+page → IDB `read:<id>` 5s-throttle via IntersectionObserver +
+tracker at last page).
+
 ## Watch route
 
-`/watch/:id/:episode` (`src/pages/Watch.tsx`): `useAnimeDetail` + `useSeriesGroup`
-in parallel → `resolveEpisodesWithFallback` (4s/provider, first non-empty) →
+`/watch/:id/:episode` (`src/pages/Watch.tsx`): `useAnimeDetail` →
+`resolveEpisodesWithFallback` (4s/provider, first non-empty) →
 `resolveSourcesWithFallback` (preferred first 9s, then parallel rest; language
-filter; `bypassCache` on Retry) → `VideoPlayer`. Episode list renders
-immediately from AniList metadata, never blocked on providers.
+filter; `bypassCache` on Retry) → `VideoPlayer`. Episode list is this
+entry's own episodes (1..N, no offsets). Below the player: Related Entries.
 
 ## Provider registry
 
@@ -34,15 +68,17 @@ immediately from AniList metadata, never blocked on providers.
   (`ani_id` verify + megaplay HLS/VTT), resolver-only `AniwaveProvider`,
   `MiruroAliasProvider` (trailer relabeled), `GenericStubProvider` empties.
 
-## Matching (fail closed — never first-result)
+## Matching (fail closed — never first-result, always the exact entry)
 
-`worker/src/resolver.ts`: variants = romaji + english + native; provider
-`name` + `data-jp` scored (exact 100 / prefix 60 / substring 40 /
-token-Jaccard×50); `MATCH_THRESHOLD = 40`; hard pre-filters (episode count,
-movie↔TV veto); count-proximity tiebreak; exact ties → `ambiguous match`
-throw. AniKoto adds `ani_id == anilistId` verify + ±1 year check. Winner gets
-a liveness check (episode list must exist and cover the request). Every miss
-throws a named error → empty sources, never a wrong show.
+`worker/src/resolver.ts`: variants = romaji + english + native OF THE ROUTED
+ENTRY; provider `name` + `data-jp` scored (exact 100 / prefix 60 / substring
+40 / token-Jaccard×50); `MATCH_THRESHOLD = 40`; hard pre-filters (episode
+count of this entry, movie↔TV veto); count-proximity tiebreak; exact ties →
+`ambiguous match` throw. AniKoto adds `ani_id == anilistId` verify + ±1 year
+check. No season graph anywhere: S3's hints (title + 22 eps + 2018) can never
+resolve to S1. Winner gets a liveness check (episode list must exist and
+cover the request). Every miss throws a named error → empty sources, never a
+wrong show.
 
 ## Source / server resolution
 

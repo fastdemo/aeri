@@ -2,7 +2,8 @@
 
 Production: `https://aeri.fastdemo.workers.dev/` — serves `dist/` + same-origin
 `/api/*`. Never deploy production to `aeri-production`. Local preview has no
-Worker (use `customVideoApiUrl` → production for provider paths).
+Worker (use `customVideoApiUrl` → production for provider paths; manga
+provider falls back to production Worker automatically on localhost).
 
 ## Entry / config
 
@@ -27,6 +28,10 @@ Worker (use `customVideoApiUrl` → production for provider paths).
 | `GET/PUT /mal/api/*`, `/api/mal/*` | MAL REST proxy (forwards auth/body) |
 | `GET /proxy`, `/api/proxy` | allowlisted generic proxy (subtitles etc.), 1h cache |
 | `GET /api/stream`, `/stream?u&e&s` | **signed delivery** (see streaming.md) |
+| `GET /api/manga/match/:anilistId?title=&english=&native=&chapters=&volumes=&year=` | WeebCentral series match (fail-closed scoring, threshold 40, ambiguous→error), cached 10m |
+| `GET /api/manga/chapters/:providerMangaId` | chapter list (provider chapters, never volumes), cached 5m |
+| `GET /api/manga/pages/:providerChapterId` | page URLs re-signed to same-origin `/api/manga/img`, cached 5m |
+| `GET /api/manga/img?u&e&s` | **signed manga image relay** (HMAC+expiry, planeptune/compsci88 only, byte-sniffed content-type) |
 | `GET /api/diag` | bearer-`RESOLVER_SECRET` self-test (resolve + allowlist + CDN) |
 | `GET /api/debug/provider-test?url=` | unauthenticated egress probe (used for provider research) |
 | others | SPA fallback via `ASSETS`; 404 lists available endpoints |
@@ -48,7 +53,9 @@ Worker (use `customVideoApiUrl` → production for provider paths).
 ## CORS
 
 `ALLOWED_ORIGIN` allowlist or `*`; allows Content-Type, Authorization,
-Range, `X-MAL-CLIENT-ID`; exposes Content-Length/Range. Worker→AniList
+Range, `X-MAL-CLIENT-ID`; exposes Content-Length/Range. Loopback dev origins
+(`http://localhost:*`, `http://127.0.0.1:*`) are echoed explicitly (never `*`)
+so local preview can call production APIs. Worker→AniList
 GraphQL is expected to 403 (documented; browser does metadata instead).
 
 ## Errors

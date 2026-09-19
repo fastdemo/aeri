@@ -41,6 +41,8 @@ episode-switch clean).
   direct; parallel segments don't scale (aggregate throttle).
 - Single-rendition HLS masters everywhere (no ABR to tune).
 - AniList ~30/min + burst limiter: enrichment tail converges slowly on huge
-  lists by design; cold season walks cost ~1 req/step (~0.4–0.6s each).
+  lists by design; detail `relations` ride free on Media queries (no extra
+  requests in the common case).
 - Previous fixes: shared inflight (D073), slim-spine walk + batch (D075),
-  shared media record (D077), card-blur removal, caption revert.
+  shared media record (D077), card-blur removal, caption revert. Season
+  system removed (D084) — no walks at all.

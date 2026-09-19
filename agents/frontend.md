@@ -18,13 +18,16 @@
 | `/search` | `Search` | URL-driven `useAnimeSearch` (300ms debounce, stale-ignore) |
 | `/anime/:id` | `AnimeDetail` | `useAnimeDetail` + `useSeriesGroup`; selector navigates to canonical season |
 | `/watch/:id/:episode` | `Watch` | metadata + series group + provider episodes/sources + player |
+| `/read/:id/:chapter` | `Read` | `useMangaDetail` (type: MANGA) + WeebCentral chapters/pages + vertical continuous reader |
 | `/list` | `MyList` | active tracker's list (empty CTA when signed out) |
 | `/settings` | `Settings` | gated: redirects `/` when signed out |
 | `/profile` | `ProfilePlaceholder` | placeholder; gated like Settings |
 | `*` | `NotFound` | real in-app 404 (replaced history `*`→home redirect) |
 
-Signed-out gates: card/hero/search picks open `SignInModal` instead of the
-preview; `/watch`, `/anime`, `/list`, `/settings`, `/profile` redirect home.
+Signed-out gates: anime card/hero/search picks open `SignInModal` instead of
+the preview; `/watch`, `/anime`, `/list`, `/settings`, `/profile` redirect
+home. **Manga is open**: `/manga` cards open `DetailModal` directly and
+`/read/:id/:chapter` renders without sign-in (tracking actions still gate).
 
 ## Components (`src/components/`)
 
@@ -34,15 +37,30 @@ preview; `/watch`, `/anime`, `/list`, `/settings`, `/profile` redirect home.
   dropdown (Profile/Settings), sign-in modal incl. OAuth-return reopen.
 - `hero/Hero`: `Hero` + auto-cycling `HeroCarousel` (5.5s, pauses on
   hover/focus/hidden tab), crossfade + ken-burns, arrows/dots.
-- `cards/AnimeCard`: single card, variants `default|continue|compact`;
-  hover overlay (desktop) / always-visible caption (touch); continue shows
-  S:E + progress bar + ⋮ menu; hover prewarms series group.
+- `cards/AnimeCard`: single card, variants `default|continue|compact` +
+  `mediaKind` (`anime|manga`, auto-detected from format): manga uses portrait
+  `aspect-[3/4]` cover art vs anime 16/9 backdrop, book-glyph hover vs play
+  triangle, `Ch N` continue captions vs `E<number>`. One component, both kinds —
+  shared fixes apply to both. Card hover warms the shared media cache
+  (no season walk).
 - `rows/ContentRow`: horizontal snap scroll, scroll-aware arrows (one card
   per click), right-aligned subtitle.
-- `detail/DetailModal`: single-panel dark modal, per-season progress truth,
-  season selector (in-place swap), episode list, tracking actions.
-- `episodes/EpisodeList`: real titles/thumbnails or `Episode N` + EP fallback;
-  manga renders Chapters.
+- `detail/DetailModal`: single-entry dark modal (exactly the opened entry —
+  no group, no selector). Manga: always-present Read/Continue
+  (`/read/:id/first` or `ch-N` resume), `Chapters` via `manga/ChapterList`.
+  Anime bottom: Related Entries row (ranked, direct links).
+- `related/RelatedEntries`: shared row reusing AnimeCard; caption
+  `Relation • Format • N Episodes`; title via card hover overlay; plain
+  `<a href="#/anime/anilist-<id>">` (NOT react-router Link — the modal
+  closes on any hashchange, which would kill it before the new modal opens).
+- `manga/ChapterList`: provider chapters (never episodes) with per-row Read
+  state, newest-first, `N chapters • V volumes • provider` header. Volumes
+  are AniList metadata only — rows are the provider's readable chapters.
+- `episodes/EpisodeList`: header `Episodes` + right-side `N episodes`
+  (ContentRow convention); transparent wrapper, each row its own
+  `bg-[var(--surface)]` card (visible borders in all themes); numbers `01`
+  (no `E` prefix, no `S1:`); sub-line duration only. Anime only (manga uses
+  `ChapterList`, same pattern: `Chapters` + `N chapters • V volumes`).
 - `player/VideoPlayer`: see `streaming.md`.
 - `search/SearchSuggestions`: debounced `anilistMetadataProvider.search`,
   frosted panel, keyboard nav, opens `DetailModal` (never navigates).
@@ -52,10 +70,14 @@ preview; `/watch`, `/anime`, `/list`, `/settings`, `/profile` redirect home.
 
 - `useAnimeMetadata`: `useTrending/usePopular/useAiring/useNewReleases/
   useUpcoming/useFinished`, `useBrowse`/`useMangaBrowse` (pagination +
-  `loadMore`), `useAnimeSearch`, `useAnimeDetail`. All stale-while-revalidate;
-  THROTTLED keeps cached data silently.
-- `useSeriesGroup(anilistId) → {group, ready}`: starts walk at mount from
-  route id, shared cache, 8s bounded fallback, UI gates season UI on `ready`.
+  `loadMore`), `useAnimeSearch` (no collapsing — distinct ids stay
+  distinct), `useAnimeDetail`, `useMangaDetail`
+  (type: MANGA query — the ANIME query returns null for manga ids).
+  All stale-while-revalidate; THROTTLED keeps cached data silently.
+- `useRelatedEntries(anilistId, relations?) → {entries, loading}`: ranks the
+  entry's own edges in memory (zero requests); else one cached
+  relations-only query (mem 30m/100 + IDB 24h + inflight). Current entry
+  excluded, deduped by id, ranked strongest → weakest.
 
 ## State management
 

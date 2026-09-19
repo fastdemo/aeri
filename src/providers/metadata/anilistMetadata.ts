@@ -30,6 +30,22 @@ const MEDIA_FIELDS = `
   nextAiringEpisode { airingAt timeUntilAiring episode }
   airingSchedule { nodes { airingAt episode } }
   isAdult
+  relations {
+    edges {
+      relationType
+      node {
+        id
+        title { romaji english native }
+        format
+        status
+        episodes
+        chapters
+        volumes
+        coverImage { extraLarge large medium }
+        bannerImage
+      }
+    }
+  }
 `
 
 function buildPageQuery(sort: string, extra?: string): string {
@@ -56,6 +72,14 @@ query ($id: Int) {
   Media(id: $id, type: ANIME) {
     ${MEDIA_FIELDS}
     trailer { id site }
+  }
+}
+`
+
+const MEDIA_MANGA_QUERY = `
+query ($id: Int) {
+  Media(id: $id, type: MANGA) {
+    ${MEDIA_FIELDS}
   }
 }
 `
@@ -246,6 +270,22 @@ export class AniListMetadataProvider implements AnimeMetadataProvider {
     const anime = mapAniListMediaToAnime(data.Media)
     putCachedAnime(anilistId, anime)
     return anime
+  }
+
+  async getManga(id: string, signal?: AbortSignal): Promise<import('../../types/anime').Anime> {
+    const anilistId = id.startsWith('anilist-') ? Number(id.replace('anilist-', '')) : Number(id)
+    if (Number.isNaN(anilistId)) throw new ProviderError('NOT_FOUND', 'We couldn’t find that manga.', false)
+    const shared = await getCachedAnime(anilistId)
+    if (shared) return shared
+    if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError')
+    type Res = { Media: AniListMedia }
+    // Manga detail must query type: MANGA — the ANIME query returns null for
+    // manga ids (that's why the reader showed "not found").
+    const data = await anilistGraphQL<Res>(MEDIA_MANGA_QUERY, { id: anilistId }, { cacheKey: `anilist:manga:${anilistId}`, useCache: true, signal })
+    if (!data.Media) throw new ProviderError('NOT_FOUND', 'We couldn’t find that manga.', false)
+    const manga = mapAniListMediaToAnime(data.Media)
+    putCachedAnime(anilistId, manga)
+    return manga
   }
 
   async getAnimeByMalId(malId: number, signal?: AbortSignal): Promise<import('../../types/anime').Anime> {

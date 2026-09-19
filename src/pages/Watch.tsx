@@ -8,15 +8,18 @@ import type { VideoEpisode, VideoSourceEnhanced } from '../providers/video/types
 import { getWatchPos, putWatchPos, clearWatchPos } from '../storage/db'
 import { getPreferences } from '../storage/preferences'
 import { getTitleHierarchy } from '../lib/titles'
-import { normalizeEpisodes, sanitizeAnimeForDisplay, sanitizeGroup, getDisplayEpisodeNumber, getLocalEpisodeNumber, getNumberingOffsetAndMode, getSmartSeasonNumber } from '../lib/episodes'
+import { normalizeEpisodes, sanitizeAnimeForDisplay } from '../lib/episodes'
 import { formatLabel } from '../lib/mediaLabels'
-import { useSeriesGroup } from '../hooks/useSeriesGroup'
+import { useRelatedEntries } from '../hooks/useRelatedEntries'
+import { RelatedEntries } from '../components/related/RelatedEntries'
 
 export function Watch() {
   const { id, episode } = useParams<{ id: string; episode: string }>()
   const navigate = useNavigate()
   const { isAuthenticated, combinedList, updateProgress } = useTracking()
-  const rawDisplayEp = Number(episode ?? 1) // URL is display number (S-aware, global when continuing)
+  // URL is the episode number of THIS entry. No season offsets, no global
+  // numbering: entry owns its episodes 1..N.
+  const epNum = Number(episode ?? 1)
 
   const trackingEntry = isAuthenticated && id ? combinedList?.find((e) => e.anime.identity.internalId === id || e.anime.identity.anilistId?.toString() === id || e.anime.identity.malId?.toString() === id || e.anime.identity.internalId.startsWith(`anilist-${id}`) || e.anime.identity.internalId.startsWith(`mal-${id}`)) : null
   const realId = (() => {
@@ -43,74 +46,31 @@ export function Watch() {
   const episodesLoading = false // episode list is immediate from AniList, not blocked by video provider
   const [providerId, setProviderId] = useState<string | null>(null)
 
-  // Group-aware sanitization — ensures S2 doesn't get S1's streamingEpisodes duplicates.
-  // Season resolution starts from the ROUTE id at mount (parallel with page
-  // metadata), not after `anime` arrives — the id is all the walk needs.
-  const routeAnilistId = (() => {
-    if (!id) return null
-    if (id.startsWith('anilist-')) return Number(id.replace('anilist-', '')) || null
-    if (/^\d+$/.test(id)) return Number(id)
-    return trackingEntry?.anime.identity.anilistId ?? null
-  })()
-  const { group: seriesGroup, ready: groupReady } = useSeriesGroup(routeAnilistId)
-
+  // This entry only: sanitize standalone (sort/filter/fix), no group model.
   const sanitizedAnimeForWatch = useMemo(() => {
     if (!anime) return null
-    if (seriesGroup) {
-      const sanitizedGroup = sanitizeGroup(seriesGroup)
-      const idx = sanitizedGroup.seasons.findIndex(s => s.identity.anilistId === anime.identity.anilistId)
-      if (idx >= 0) return sanitizedGroup.seasons[idx]
-      // Stale group (anime switched before fetch) — fallback to standalone
-      if (seriesGroup.seasons.some(s => s.identity.anilistId === anime.identity.anilistId)) {
-        // Should not happen due to sanitized check, but keep
-        return sanitizeAnimeForDisplay(anime, seriesGroup, idx)
-      }
-    }
-    return sanitizeAnimeForDisplay(anime, null, null)
-  }, [anime, seriesGroup])
-  const seasonIdxForWatch = useMemo(() => {
-    if (!sanitizedAnimeForWatch || !seriesGroup) return null
-    const idx = seriesGroup.seasons.findIndex(s => s.identity.anilistId === sanitizedAnimeForWatch.identity.anilistId)
-    return idx >= 0 ? idx : null
-  }, [sanitizedAnimeForWatch, seriesGroup])
-
-  const numberingCtx = useMemo(() => {
-    if (!sanitizedAnimeForWatch) return { mode: 'restart' as const, offset: 0, seasonNumber: 1 }
-    return getNumberingOffsetAndMode(sanitizedAnimeForWatch, seriesGroup ?? null, seasonIdxForWatch)
-  }, [sanitizedAnimeForWatch, seriesGroup, seasonIdxForWatch])
-
-  const effectiveSeasonNumber = numberingCtx.seasonNumber || getSmartSeasonNumber(sanitizedAnimeForWatch ?? anime as any, seriesGroup ?? null, seasonIdxForWatch)
-
-  // displayEp is what's in URL; localEp is what AniList/mocks expect
-  const displayEpNum = rawDisplayEp
-  const localEpNum = useMemo(() => {
-    if (!sanitizedAnimeForWatch) return rawDisplayEp
-    return getLocalEpisodeNumber(sanitizedAnimeForWatch, rawDisplayEp, seriesGroup ?? null, seasonIdxForWatch)
-  }, [sanitizedAnimeForWatch, rawDisplayEp, seriesGroup, seasonIdxForWatch])
-
-  // for progress sync we store local, but UI shows display
-  const epNum = localEpNum // keep old name for provider logic (local)
-  const epDisplayForTitle = displayEpNum
+    return sanitizeAnimeForDisplay(anime)
+  }, [anime])
 
   const immediateEpisodes = useMemo(() => {
     if (!sanitizedAnimeForWatch) return []
     const eps = normalizeEpisodes(sanitizedAnimeForWatch)
     return eps.map(e => ({
       number: e.number,
-      displayNumber: getDisplayEpisodeNumber(sanitizedAnimeForWatch, e.number, seriesGroup ?? null, seasonIdxForWatch),
+      displayNumber: e.number,
       title: e.title,
       thumbnail: e.thumbnail,
     }))
-  }, [sanitizedAnimeForWatch, seriesGroup, seasonIdxForWatch])
+  }, [sanitizedAnimeForWatch])
 
-  // AniList progress sync (throttled) — uses local number
+  // AniList progress sync — this entry's episode number, nothing else.
   useEffect(() => {
     if (!isAuthenticated || !anime) return
-    updateProgress(anime, localEpNum).catch(() => {})
+    updateProgress(anime, epNum).catch(() => {})
     try {
-      localStorage.setItem(`aeri:progress:${anime.identity.internalId}`, String(localEpNum))
+      localStorage.setItem(`aeri:progress:${anime.identity.internalId}`, String(epNum))
     } catch {}
-  }, [isAuthenticated, anime, localEpNum, updateProgress])
+  }, [isAuthenticated, anime, epNum, updateProgress])
 
   // Background: resolve provider episodes for source mapping (does not block UI) — abortable
   useEffect(() => {
@@ -224,27 +184,26 @@ export function Watch() {
     const now = Date.now()
     if (now - lastSaveRef.current < 5000) return
     lastSaveRef.current = now
-    putWatchPos({ id: anime.identity.internalId, episode: localEpNum, currentTime, duration, updatedAt: Date.now() }).catch(() => {})
+    putWatchPos({ id: anime.identity.internalId, episode: epNum, currentTime, duration, updatedAt: Date.now() }).catch(() => {})
     // An episode counts as complete once watched through (>= 80%)
     if (currentTime / duration >= 0.8 && isAuthenticated && !hasCompletedRef.current) {
       hasCompletedRef.current = true
-      updateProgress(anime, localEpNum).catch(() => {})
+      updateProgress(anime, epNum).catch(() => {})
     }
-  }, [anime, localEpNum, isAuthenticated, updateProgress])
+  }, [anime, epNum, isAuthenticated, updateProgress])
 
   const handleEnded = useCallback(() => {
     if (!anime) return
     clearWatchPos(anime.identity.internalId).catch(() => {})
-    if (isAuthenticated) updateProgress(anime, localEpNum).catch(() => {})
+    if (isAuthenticated) updateProgress(anime, epNum).catch(() => {})
     try {
       const prefs = getPreferences()
       const isMovieNow = anime.format?.toUpperCase() === 'MOVIE'
-      if (prefs.autoplay && id && !isMovieNow && immediateEpisodes.length > 0 && localEpNum < immediateEpisodes.length) {
-        const nextDisplay = getDisplayEpisodeNumber(sanitizedAnimeForWatch ?? anime, localEpNum + 1, seriesGroup ?? null, seasonIdxForWatch)
-        navigate(`/watch/${id}/${nextDisplay}`)
+      if (prefs.autoplay && id && !isMovieNow && immediateEpisodes.length > 0 && epNum < immediateEpisodes.length) {
+        navigate(`/watch/${id}/${epNum + 1}`)
       }
     } catch {}
-  }, [anime, localEpNum, isAuthenticated, updateProgress, id, navigate, immediateEpisodes.length, sanitizedAnimeForWatch, seriesGroup, seasonIdxForWatch])
+  }, [anime, epNum, isAuthenticated, updateProgress, id, navigate, immediateEpisodes.length])
 
   const handleResume = () => {
     setShowResume(false)
@@ -282,14 +241,10 @@ export function Watch() {
   const isMovie = anime.format?.toUpperCase() === 'MOVIE'
   const prevLocal = !isMovie && epNum > 1 ? epNum - 1 : null
   const nextLocal = !isMovie && immediateEpisodes.length > 0 && epNum < immediateEpisodes.length ? epNum + 1 : null
-  const prev = prevLocal ? getDisplayEpisodeNumber(anime, prevLocal, seriesGroup ?? null, seasonIdxForWatch) : null
-  const next = nextLocal ? getDisplayEpisodeNumber(anime, nextLocal, seriesGroup ?? null, seasonIdxForWatch) : null
-  // Keep local prev/next for internal checks if needed, but URLs use display numbers
-  const _prevLocal = prevLocal
-  const _nextLocal = nextLocal
-  void _prevLocal; void _nextLocal
+  const prev = prevLocal
+  const next = nextLocal
   const backdrop = anime.backdropImage || anime.coverImage || ''
-  const titles = getTitleHierarchy(anime, null)
+  const titles = getTitleHierarchy(anime)
   const hasVideo = sources && sources.length > 0 && selectedSource && selectedSource.url
   const isLoadingVideo = episodesLoading || sourcesLoading
   const showNoSource = !isLoadingVideo && (!sources || sources.length === 0) && !sourcesError
@@ -334,7 +289,7 @@ export function Watch() {
               onEnded={handleEnded}
               initialTime={showResume ? undefined : (watchPos && watchPos.episode === epNum ? watchPos.currentTime : 0)}
               animeTitle={titles.primary}
-              episodeNumber={epDisplayForTitle}
+              episodeNumber={epNum}
               volume={getPreferences().volume}
               autoplay={getPreferences().autoplay}
               subtitles={getPreferences().subtitles ? selectedSource?.subtitles : undefined}
@@ -454,7 +409,7 @@ export function Watch() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h1 className="text-[15px] font-semibold text-[var(--text)]">
-                {isMovie ? titles.primary : `${titles.primary} — S${effectiveSeasonNumber}:E${epDisplayForTitle}`}
+                {isMovie ? titles.primary : `${titles.primary} — E${epNum}`}
               </h1>
               {titles.native && <p className="text-xs text-[var(--text-muted)]">{titles.native}</p>}
               {titles.romaji && <p className="text-xs text-[var(--text-faint)]">{titles.romaji}</p>}
@@ -561,19 +516,11 @@ export function Watch() {
             </Link>
           )}
 
-          {/* Episode list — revealed only once the season model is settled,
-              so numbering never shifts underneath the user. Player, title and
-              source resolution run independently above. */}
+          {/* Episode list — this entry's own episodes, no season model. */}
           {!isMovie && (
             <div className="mt-6">
               <h2 className="mb-2 text-sm font-semibold text-[var(--text)]">Episodes</h2>
-              {!groupReady && anime ? (
-                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5" aria-label="Loading episodes">
-                  {Array.from({ length: 10 }).map((_, i) => (
-                    <div key={i} className="aspect-video animate-pulse rounded bg-[color-mix(in_srgb,var(--text)_5%,transparent)]" />
-                  ))}
-                </div>
-              ) : immediateEpisodes.length > 0 ? (
+              {immediateEpisodes.length > 0 ? (
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                   {immediateEpisodes.map(ep => {
                     const isCurrent = ep.number === epNum
@@ -584,9 +531,9 @@ export function Watch() {
                         key={epKey}
                         to={`/watch/${id}/${ep.displayNumber}`}
                         className={`relative flex aspect-video flex-col items-center justify-center overflow-hidden rounded bg-[color-mix(in_srgb,var(--text)_5%,transparent)] p-2 text-center transition ${isCurrent ? 'ring-1 ring-[var(--border-strong)] bg-[color-mix(in_srgb,var(--text)_10%,transparent)]' : 'hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)]'}`}
-                        aria-label={`Watch S${effectiveSeasonNumber}:E${ep.displayNumber}${realTitle ? ` - ${realTitle}` : ''}`}
+                        aria-label={`Watch E${ep.displayNumber}${realTitle ? ` - ${realTitle}` : ''}`}
                       >
-                        <span className={`text-xs font-medium ${isCurrent ? 'text-[var(--text)]' : 'text-[var(--text-muted)]'}`}>S{effectiveSeasonNumber}:E{ep.displayNumber}</span>
+                        <span className={`text-xs font-medium ${isCurrent ? 'text-[var(--text)]' : 'text-[var(--text-muted)]'}`}>E{ep.displayNumber}</span>
                         {realTitle && <span className="mt-1 line-clamp-1 text-[10px] text-[var(--text-faint)]">{realTitle}</span>}
                         {isCurrent && <span className="absolute bottom-1 left-1/2 h-0.5 w-8 -translate-x-1/2 bg-[var(--accent)]" />}
                       </Link>
@@ -601,6 +548,11 @@ export function Watch() {
 
           <p className="mt-6 max-w-[720px] text-sm leading-6 text-[var(--text-muted)]">{anime.description || 'No description available.'}</p>
 
+          {/* Related Entries: navigation only, below the main content. */}
+          {anime.identity.anilistId && (
+            <WatchRelatedEntries anilistId={anime.identity.anilistId} relations={anime.relations} />
+          )}
+
           {/* Provider capabilities footer (quiet) */}
           <div className="mt-6 flex flex-wrap gap-1.5">
             {getProviderCapabilities().filter(c => c.id !== 'mock').map(c => (
@@ -613,4 +565,9 @@ export function Watch() {
       </div>
     </div>
   )
+}
+
+function WatchRelatedEntries({ anilistId, relations }: { anilistId: number; relations: import('../types/anime').Anime['relations'] }) {
+  const { entries, loading } = useRelatedEntries(anilistId, relations)
+  return <RelatedEntries entries={entries} loading={loading} />
 }

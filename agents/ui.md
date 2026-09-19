@@ -15,10 +15,11 @@ Docs / Legal (hover-whiten).
 ## Home (`/`)
 
 Hero carousel (7, auto 5.5s, pause on hover/focus/hidden, arrows/dots,
-crossfade+ken-burns) → Continue Watching (strict `watching`, franchise-merged)
-→ mount-stable shuffled sections (Trending first) → Top Picks + Because You
-Watched (single mixed row: pool A highest + pool B recent, A,B,A,B…,
-first-genre matches, deterministic) → My List bottom. Skeletons mirror rows.
+crossfade+ken-burns) → Continue Watching (strict `watching`, per-entry,
+recency order — no merging) → mount-stable shuffled sections (Trending
+first) → Top Picks + Because You Watched (ONE show: 50/50 most-recent vs
+top-10-by-score pick per load, first-genre matches) → My List bottom.
+Skeletons mirror rows.
 
 ## Anime (`/browse`) / Manga (`/manga`)
 
@@ -37,17 +38,17 @@ touch viewports).
 
 ## Detail (modal + page)
 
-`DetailModal` (single panel, backdrop blur, per-season progress truth) and
-`AnimeDetail` (route = selected season id; selector navigates to canonical
-season entry; selection follows route id — idempotent group). Season selector
-gated on `group.ready` with same-footprint skeletons; movies show no selector.
+`DetailModal` (single panel, backdrop blur, this-entry progress truth;
+opens at top) and `AnimeDetail` (route id = THE entry, no resolution).
+No season selector anywhere. Bottom: Related Entries (ranked relation row,
+direct-id links). Movies show no episode list; manga shows chapters.
 
 ## Watch (`/watch/:id/:episode`)
 
-Video-first: backdrop → player → title/meta → source+sub/dub controls →
-prev/next → gated episode grid (skeleton until season model settles) →
-description → provider chips. Resume pill top-center; no-source vs transient
-error states + Retry.
+Video-first: backdrop → player → title/meta (`Title — E<N>`) → source+sub/dub
+controls → prev/next (N±1) → episode grid (this entry's 1..N) → Related
+Entries → description → provider chips. Resume pill top-center; no-source vs
+transient error states + Retry.
 
 ## Settings (signed-in only, else → home)
 
@@ -59,8 +60,9 @@ diagnostics) → About (live tracker/source/storage + links).
 
 ## Cards / rows
 
-`AnimeCard` (default/continue/compact; hover overlay desktop, caption touch;
-continue has S:E + glowing 2px bar + ⋮ menu; hover prewarms series group).
+`AnimeCard` (default/continue/compact + anime/manga kinds; hover overlay
+desktop, caption touch; continue has `E<number>` / `Ch N` + glowing 2px bar +
+⋮ menu; hover warms media cache).
 `ContentRow` (snap scroll, one-card arrows, right subtitle).
 
 ## States

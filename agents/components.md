@@ -13,17 +13,21 @@ playback). Perf: small pills only for blur; spinner overlays transient.
 
 ## AnimeCard (`components/cards/AnimeCard.tsx`)
 
-Props: anime, variant `default|continue|compact`, onSelect, fullWidth.
-Desktop hover overlay (name/year/format/genre) + play chip; touch caption;
-continue adds S:E + 2px glowing bar + ⋮ menu (Mark watched / Remove).
-Hover prewarms `getSeriesGroup`. Widths 168/200/236 (compact 148/180).
+Props: anime, variant `default|continue|compact`, onSelect, fullWidth,
+mediaKind `anime|manga` (auto from format). Manga = portrait 3/4 cover +
+book glyph; anime = 16/9 backdrop + play triangle. Desktop hover overlay
+(name/year/format/genre) + caption; continue adds `E<number>` (anime) /
+`Ch N` (manga) + 2px glowing bar + ⋮ menu (Mark watched / Remove). Hover
+warms the shared media cache. Widths 168/200/236 (compact 148/180).
 No caption block on default rows (clean thumbnails by design).
 
 ## DetailModal (`components/detail/DetailModal.tsx`)
 
-Props: anime, onClose. Single dark panel; per-season progress truth
-(displayed season's entry only); season selector swaps in place; tracking
-actions; episode list; hashchange/popstate/`aeri:navigate` auto-close.
+Props: anime, onClose. Single dark panel showing EXACTLY the opened entry
+(no group, no selector). This entry's progress truth only (related entries
+never share). Tracking actions; episode list (anime) / chapter list (manga);
+Related Entries row at the bottom (anime only); hashchange/popstate/
+`aeri:navigate` auto-close; opens scrolled to top.
 
 ## ContentRow (`components/rows/ContentRow.tsx`)
 
@@ -40,15 +44,23 @@ reopen, scroll-lock); route-change transient reset. Gaps fixed `gap-6`
 
 ## SearchSuggestions (`components/search/SearchSuggestions.tsx`)
 
-Props: query, onClose, onPreview. 250ms debounce, `deduplicateBySeries`,
-top 6, frosted `isolation: isolate` panel, keyboard nav, picks open modal
-(or sign-in gate when signed out).
+Props: query, onClose, onPreview. 250ms debounce, top 6 (no collapsing —
+distinct ids stay distinct), frosted `isolation: isolate` panel, keyboard
+nav, picks open modal (or sign-in gate when signed out).
 
 ## EpisodeList (`components/episodes/EpisodeList.tsx`)
 
-Props: anime, seasonNumber?, group?. Real titles/thumbs or fallbacks;
-`getEpisodes()` helper; provider enrichment with 1.8s cap; movie → null;
-manga → Chapters labels; themed rows (no hardcoded fills).
+Props: anime (only — no seasonNumber/group). Header `Episodes` + right-side
+`N episodes`; transparent wrapper, per-row `bg-[var(--surface)]` cards
+(visible borders in every theme); numbers `01` (no E prefix, no S:);
+sub-line duration only. `getEpisodes()` helper; provider enrichment with
+1.8s cap; movie → null.
+
+## RelatedEntries (`components/related/RelatedEntries.tsx`)
+
+Ranked relation row reusing AnimeCard; caption `Relation • Format •
+N Episodes`; plain `<a href="#/anime/anilist-<id>">` links (NOT router Link
+— the modal closes on any hashchange). Manga excluded (no relation system).
 
 ## Hero (`components/hero/Hero.tsx`)
 

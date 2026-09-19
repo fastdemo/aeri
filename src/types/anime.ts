@@ -36,6 +36,27 @@ export interface Anime {
   nextAiringEpisode?: { airingAt: number; timeUntilAiring: number; episode: number } | null
   airingSchedule?: { airingAt: number; episode: number }[]
   isAdult?: boolean
+  /**
+   * AniList relation edges attached to this entry (informational only —
+   * powers the Related Entries section, never identity/tracking/streaming).
+   * Shape mirrors AniList: `{ edges: [{ relationType, node }] }`.
+   */
+  relations?: {
+    edges?: {
+      relationType?: string | null
+      node?: {
+        id?: number | null
+        title?: { romaji?: string | null; english?: string | null; native?: string | null } | null
+        format?: string | null
+        status?: string | null
+        episodes?: number | null
+        chapters?: number | null
+        volumes?: number | null
+        coverImage?: { large?: string | null; extraLarge?: string | null; medium?: string | null } | string | null
+        bannerImage?: string | null
+      } | null
+    }[] | null
+  } | null
   progress?: {
     episode: number
     percent: number // 0-100

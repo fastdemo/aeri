@@ -1,17 +1,17 @@
 import { useMemo } from 'react'
-import { useParams, Link, useNavigate, Navigate } from 'react-router-dom'
+import { useParams, Link, Navigate } from 'react-router-dom'
 import { EpisodeList } from '../components/episodes/EpisodeList'
 import { useTracking } from '../contexts/TrackingContext'
 import { displayRating, formatRating } from '../lib/rating'
 import { useAnimeDetail } from '../hooks/useAnimeMetadata'
-import { useSeriesGroup } from '../hooks/useSeriesGroup'
+import { useRelatedEntries } from '../hooks/useRelatedEntries'
+import { RelatedEntries } from '../components/related/RelatedEntries'
 import { getTitleHierarchy } from '../lib/titles'
-import { sanitizeAnimeForDisplay, sanitizeGroup } from '../lib/episodes'
+import { sanitizeAnimeForDisplay } from '../lib/episodes'
 import { formatLabel, statusLabel } from '../lib/mediaLabels'
 
 export function AnimeDetail() {
   const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
   const { combinedList, trackingProvider, isAuthenticated } = useTracking()
   const animeList = combinedList
 
@@ -44,47 +44,17 @@ export function AnimeDetail() {
   // Prefer real remote data when available, else fromList (no mock fallback in production)
   const anime = remote ?? fromList
 
-  // Series grouping — starts from the route/list id at mount (parallel with
-  // page metadata), not after `anime` arrives. Season 1 is always presented
-  // on open; the user picks other seasons.
-  const routeAnilistId = (() => {
-    if (realId?.startsWith('anilist-')) return Number(realId.replace('anilist-', '')) || null
-    if (realId && /^\d+$/.test(realId)) return Number(realId)
-    return fromList?.identity.anilistId ?? null
-  })()
-  const { group: seriesGroup, ready: groupReady } = useSeriesGroup(routeAnilistId)
-  // Effective group: the canonical model. Deep-linking a later season keeps
-  // the SAME group — selection follows the route id instead of resetting.
-  const effectiveGroupRaw = useMemo(() => {
-    if (!seriesGroup || seriesGroup.seasons.length <= 1) return null
-    if (!anime?.identity.anilistId) return seriesGroup
-    const contains = seriesGroup.seasons.some(s => s.identity.anilistId === anime.identity.anilistId)
-    return contains ? seriesGroup : null
-  }, [seriesGroup, anime?.identity.anilistId])
-  const effectiveGroup = useMemo(() => {
-    if (!effectiveGroupRaw) return null
-    return sanitizeGroup(effectiveGroupRaw)
-  }, [effectiveGroupRaw])
-  // Selection follows the route id: S3 deep-link opens on S3, and navigating
-  // the selector updates the route so resolveGroup stays idempotent
-  // (resolveGroup(S1) === resolveGroup(S2) === resolveGroup(S3)).
-  const selectedSeasonIdx = useMemo(() => {
-    if (!effectiveGroup || !anime?.identity.anilistId) return 0
-    const idx = effectiveGroup.seasons.findIndex(s => s.identity.anilistId === anime.identity.anilistId)
-    return idx >= 0 ? idx : 0
-  }, [effectiveGroup, anime?.identity.anilistId])
+  // Each route id IS one AniList entry — no group resolution, no season
+  // selection. The displayed anime is exactly the routed entry.
   const displayAnime = useMemo(() => {
     if (!anime) return null as any
-    if (effectiveGroup) {
-      return effectiveGroup.seasons[selectedSeasonIdx] ?? anime
-    }
     // sanitize standalone anime (sort, filter trailers, fix reverse, discard out-of-range)
-    return sanitizeAnimeForDisplay(anime, null, null)
-  }, [effectiveGroup, selectedSeasonIdx, anime])
+    return sanitizeAnimeForDisplay(anime)
+  }, [anime])
   const titles = useMemo(() => {
     if (!displayAnime) return { primary: '' } as any
-    return getTitleHierarchy(displayAnime, effectiveGroup)
-  }, [displayAnime, effectiveGroup])
+    return getTitleHierarchy(displayAnime)
+  }, [displayAnime])
   const backdrop = displayAnime ? (displayAnime.backdropImage || displayAnime.coverImage || '') : ''
   const displayKey = displayAnime ? (displayAnime.identity.anilistId ? `anilist:${displayAnime.identity.anilistId}` : displayAnime.identity.internalId) : 'none'
   const isMovie = displayAnime ? displayAnime.format?.toUpperCase() === 'MOVIE' : false
@@ -162,48 +132,9 @@ export function AnimeDetail() {
           <div>
             <p className="text-sm leading-6 text-[var(--text-muted)]">{displayAnime.description || 'No description available.'}</p>
 
-            {/* Netflix-like season selector — uses effectiveGroup to avoid stale franchise.
-                Renders a same-size placeholder until the season model settles,
-                so the control never pops in late and shifts layout. */}
-            {!isMovie && !isMangaKind && groupReady && effectiveGroup && (
-              <div className="mt-6">
-                <div className="flex items-center gap-2">
-                  <div className="relative">
-                    <select
-                      value={String(selectedSeasonIdx)}
-                      onChange={e => {
-                        const next = effectiveGroup.seasons[Number(e.target.value)]
-                        const nextId = next?.identity.anilistId ?? null
-                        // Navigate to the season's canonical entry so the URL,
-                        // metadata, episodes and Watch links all follow it.
-                        if (nextId) navigate(`/anime/anilist-${nextId}`)
-                      }}
-                      aria-label="Select season"
-                      className="appearance-none rounded-full border border-[var(--border)] bg-[var(--text)]/[0.06] px-3 py-1.5 pr-8 text-xs font-medium text-[var(--text)] focus:border-[var(--border-strong)] focus:outline-none"
-                    >
-                      {effectiveGroup.seasons.map((s, idx) => (
-                        <option key={s.identity.anilistId ? `anilist:${s.identity.anilistId}` : s.identity.internalId} value={String(idx)} className="bg-[var(--surface)]">
-                          Season {idx + 1}
-                        </option>
-                      ))}
-                    </select>
-                    <svg aria-hidden className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--text-faint)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="m6 9 6 6 6-6" />
-                    </svg>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {!isMovie && !isMangaKind && !groupReady && anime && (
-              <div className="mt-6" aria-label="Loading seasons">
-                <div className="h-[30px] w-32 animate-pulse rounded-full bg-[color-mix(in_srgb,var(--text)_5%,transparent)]" />
-              </div>
-            )}
-
             {!isMovie && !isMangaKind && (
               <div className="mt-6">
-                <EpisodeList key={displayKey} anime={displayAnime} seasonNumber={selectedSeasonIdx + 1} group={groupReady ? effectiveGroup : null} />
+                <EpisodeList key={displayKey} anime={displayAnime} />
               </div>
             )}
           </div>
@@ -215,9 +146,19 @@ export function AnimeDetail() {
             {displayAnime.identity.malId && <div><span className="text-[var(--text-faint)]">MAL ID: </span><span className="text-[var(--text)]">{displayAnime.identity.malId}</span></div>}
             {loading && <p className="text-[var(--text-faint)]">Loading metadata…</p>}
             {error && <p className="text-[var(--warn)]">{error}</p>}
+            {/* Related Shows / Manga live inside the sidebar column so no
+                dead space sits between the metadata and the related rows. */}
+            {!isMangaKind && displayAnime.identity.anilistId && (
+              <AnimeRelatedEntries anilistId={displayAnime.identity.anilistId} relations={displayAnime.relations} />
+            )}
           </div>
         </div>
       </div>
     </div>
   )
+}
+
+function AnimeRelatedEntries({ anilistId, relations }: { anilistId: number; relations: import('../types/anime').Anime['relations'] }) {
+  const { entries, loading } = useRelatedEntries(anilistId, relations)
+  return <RelatedEntries entries={entries} loading={loading} />
 }

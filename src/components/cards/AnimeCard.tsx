@@ -2,11 +2,19 @@ import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { Anime } from '../../types/anime'
 import { getPrimaryTitle } from '../../lib/titles'
-import { getSmartSeasonNumber, getDisplayEpisodeNumber, getStreamingEpisodeTitle } from '../../lib/episodes'
+import { getDisplayEpisodeNumber, getStreamingEpisodeTitle } from '../../lib/episodes'
 import { formatLabel } from '../../lib/mediaLabels'
 import { useTracking } from '../../contexts/TrackingContext'
 
 type Variant = 'default' | 'continue' | 'compact'
+
+export type MediaKind = 'anime' | 'manga'
+
+function kindOf(anime: Anime, override?: MediaKind): MediaKind {
+  if (override) return override
+  const f = anime.format?.toUpperCase() ?? ''
+  return f === 'MANGA' || f === 'NOVEL' || f === 'ONE_SHOT' ? 'manga' : 'anime'
+}
 
 function QuickMenu({ anime }: { anime: Anime }) {
   const [open, setOpen] = useState(false)
@@ -110,22 +118,32 @@ export function AnimeCard({
   variant = 'default',
   onSelect,
   fullWidth,
+  mediaKind,
 }: {
   anime: Anime
   variant?: Variant
   onSelect?: (a: Anime) => void
   fullWidth?: boolean
+  /** Overrides auto-detection from format. Manga cards pass 'manga'. */
+  mediaKind?: MediaKind
 }) {
+  const kind = kindOf(anime, mediaKind)
+  const isManga = kind === 'manga'
   const width = fullWidth
     ? 'w-full'
     : variant === 'compact'
       ? 'w-[148px] sm:w-[180px]'
       : 'w-[168px] sm:w-[200px] lg:w-[236px]'
 
-  const fallbackSrc = anime.backdropImage || anime.coverImage || ""
+  // Manga uses portrait cover art; anime uses landscape backdrop art.
+  // All other card language (ring, hover, caption, progress) is shared.
+  const fallbackSrc = isManga
+    ? (anime.coverImage || anime.backdropImage || '')
+    : (anime.backdropImage || anime.coverImage || '')
+  const artAspect = isManga ? 'aspect-[3/4]' : 'aspect-[16/9]'
+  const artDims = isManga ? { width: 300, height: 400 } : { width: 400, height: 225 }
   const primaryTitle = getPrimaryTitle(anime)
   const progressEp = anime.progress?.episode ?? 0
-  const seasonNum = getSmartSeasonNumber(anime)
   const displayEp = progressEp > 0 ? getDisplayEpisodeNumber(anime, progressEp) : 0
   const epTitle = progressEp > 0 ? getStreamingEpisodeTitle(anime, progressEp) : null
 
@@ -139,14 +157,14 @@ export function AnimeCard({
       <div
         className={`relative flex-shrink-0 overflow-hidden rounded-[6px] bg-[var(--surface)] ring-1 ring-[var(--border-strong)] transition-[ring-color] duration-200 hover:z-10 hover:ring-[var(--border-strong)] ${width}`}
       >
-      <div className="relative aspect-[16/9] w-full overflow-hidden bg-[var(--surface-elevated)]">
+      <div className={`relative ${artAspect} w-full overflow-hidden bg-[var(--surface-elevated)]`}>
         <img
           src={fallbackSrc}
           alt={primaryTitle}
           loading="lazy"
           decoding="async"
-          width={400}
-          height={225}
+          width={artDims.width}
+          height={artDims.height}
           onError={(e) => {
             const t = e.currentTarget
             t.style.display = 'none'
@@ -160,13 +178,21 @@ export function AnimeCard({
         {/* subtle inner gradient for text legibility if needed */}
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[color-mix(in_srgb,var(--bg)_55%,transparent)] via-transparent to-transparent opacity-60 group-hover:opacity-70 transition-opacity" />
 
-        {/* Hover play affordance — small, quiet (desktop only: no touch
-            equivalent, and :hover sticks on tap which looks broken) */}
+        {/* Hover affordance — play triangle for anime, book glyph for manga.
+            Small, quiet, desktop only (no touch equivalent, and :hover
+            sticks on tap which looks broken) */}
         <div className="absolute inset-0 hidden place-items-center opacity-0 transition-opacity duration-200 group-hover:opacity-100 group-focus-within:opacity-100 md:grid">
           <div className="grid h-6 w-6 place-items-center rounded-full bg-[color-mix(in_srgb,var(--bg)_55%,transparent)] text-[var(--text)] shadow-[0_2px_10px_var(--shadow)]">
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M8 5.14v13.72L19 12z" />
-            </svg>
+            {isManga ? (
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V4a2 2 0 0 0-2-2H6.5A2.5 2.5 0 0 0 4 4.5v15z" />
+                <path d="M4 19.5A2.5 2.5 0 0 0 6.5 22H20v-5" />
+              </svg>
+            ) : (
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M8 5.14v13.72L19 12z" />
+              </svg>
+            )}
           </div>
         </div>
 
@@ -191,14 +217,17 @@ export function AnimeCard({
         )}
       </div>
 
-      {/* Captions ONLY on Continue Watching (clean rows everywhere else). */}
+      {/* Captions ONLY on Continue Watching (clean rows everywhere else).
+          Manga continue cards show chapter progress; anime shows E number. */}
       {variant === 'continue' && anime.progress && (
         <div className="space-y-1 bg-[var(--surface)] px-2.5 py-2">
           <div className="flex items-center justify-between">
             <p className="line-clamp-1 text-[11px] font-medium text-[var(--text)]">{primaryTitle}</p>
           </div>
           <p className="truncate text-[11px] text-[var(--text-muted)]">
-            S{seasonNum}:E{displayEp}{epTitle ? ` • ${epTitle}` : ''}
+            {isManga
+              ? (epTitle ? epTitle : `Ch ${displayEp || progressEp}`)
+              : (<>E{displayEp}{epTitle ? ` • ${epTitle}` : ''}</>)}
           </p>
         </div>
       )}
@@ -208,15 +237,15 @@ export function AnimeCard({
   )
 
   // Hover/focus prewarm: the user is demonstrably navigating toward this
-  // anime (card interaction precedes route change by ~100-500ms). Starts the
-  // series-group spine walk early so the destination reveals with seasons
-  // ready. No-op without an id; shared cache + inflight make repeats free.
+  // title (card interaction precedes route change by ~100-500ms). Warms the
+  // shared media cache so the destination reveals with metadata ready.
+  // No-op without an id; shared cache + inflight make repeats free.
   const prewarmId = anime.identity.anilistId ?? null
   const prewarm = () => {
     if (!prewarmId || Number.isNaN(prewarmId)) return
     try {
-      void import('../../services/anilist/series').then((m) => {
-        m.getSeriesGroup(prewarmId).catch(() => {})
+      void import('../../providers/metadata/anilistMetadata').then((m) => {
+        m.anilistMetadataProvider.getAnime(`anilist-${prewarmId}`).catch(() => {})
       })
     } catch {}
   }

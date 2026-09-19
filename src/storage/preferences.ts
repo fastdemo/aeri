@@ -13,6 +13,13 @@ export interface Preferences {
   providerOrder?: string[] | null
   customVideoApiUrl?: string | null
   preferredQuality?: string | null
+  // Manga reader prefs. Mode architecture supports vertical continuous
+  // (default), single-page, and double-page spread; only the default is
+  // implemented in the reader today — the setting reserves the contract.
+  readerMode?: 'continuous' | 'single' | 'double'
+  readerDirection?: 'ltr' | 'rtl'
+  readerFit?: 'width' | 'height'
+  readerShowControls?: boolean
   // Standalone AniList OAuth token-exchange base (non-Cloudflare host, since
   // AniList blocks Cloudflare Worker IPs). Same /api/anilist/token contract.
   customAuthApiUrl?: string | null
@@ -40,6 +47,10 @@ const defaults: Preferences = {
   customVideoApiUrl: null,
   preferredQuality: null,
   customAuthApiUrl: null,
+  readerMode: 'continuous',
+  readerDirection: 'ltr',
+  readerFit: 'width',
+  readerShowControls: true,
   sync: {
     anilist: { status: true, progress: true, rating: true },
     mal: { status: true, progress: true, rating: true },

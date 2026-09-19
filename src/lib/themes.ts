@@ -55,7 +55,7 @@ export const THEMES: ThemeDef[] = [
     '#c6a0f6', '#b484f0', '#e5c890', '#a6da95',
     'rgba(24,25,38,0.7)', 'rgba(0,0,0,0.5)') },
   { id: 'catppuccin-mocha', name: 'Catppuccin Mocha', vars: t(
-    '#1e1e2e', '#181825', '#313244', '#45475a', '#585b70',
+    '#1e1e2e', '#181825', '#1e1e2e', '#313244', '#45475a',
     'rgba(205,214,244,0.14)', 'rgba(205,214,244,0.28)',
     '#cdd6f4', '#a6adc8', '#7f849c', '#1e1e2e',
     '#cba6f7', '#b784f5', '#f9e2af', '#a6e3a1',
