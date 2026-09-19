@@ -92,6 +92,26 @@ export function DetailModal({
     return 0
   })()
 
+  // E-line (E1 • title) presence shifts the Episodes header down one line
+  // vs entries without it — but Related Shows must sit on the Episodes
+  // line in BOTH cases. The sidebar column therefore gets a top offset
+  // that compensates per case (E-line ≈ 28px: mt-2 8px + 20px text).
+  // No offset on mobile (stacked layout) or manga (no E-line, no sidebar
+  // related on the episodes line).
+  const epline = (() => {
+    if (isMovie || isMangaKind) return null
+    const norm = getEpisodes(displayAnime)
+    const epNum = numEp > 0 ? numEp : (displayAnime.progress?.episode ?? 1)
+    const target = norm.find(e => e.number === epNum) ?? norm[0]
+    if (!target) return null
+    const epTitle = target.title
+    if (!epTitle && !hasWatched && !displayAnime.progress) return null
+    return { number: target.displayNumber, title: epTitle }
+  })()
+  const hasEpline = !!epline
+  const eplineNumber = epline?.number ?? 0
+  const eplineTitle = epline?.title ?? null
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose()
@@ -306,19 +326,11 @@ export function DetailModal({
               <ScoreBadge anime={displayAnime} trackingProvider={trackingProvider} />
             </div>
 
-            {!isMovie && !isMangaKind && (() => {
-              const norm = getEpisodes(displayAnime)
-              const epNum = numEp > 0 ? numEp : (displayAnime.progress?.episode ?? 1)
-              const target = norm.find(e => e.number === epNum) ?? norm[0]
-              if (!target) return null
-              const epTitle = target.title
-              if (!epTitle && !hasWatched && !displayAnime.progress) return null
-              return (
-                <p className="mt-2 text-[12px] font-semibold text-[var(--text)]">
-                  E{target.displayNumber} {epTitle ? `• ${epTitle}` : ''}
-                </p>
-              )
-            })()}
+            {!isMovie && !isMangaKind && hasEpline && (
+              <p className="mt-2 text-[12px] font-semibold text-[var(--text)]">
+                E{eplineNumber} {eplineTitle ? `• ${eplineTitle}` : ''}
+              </p>
+            )}
             <p className="mt-1 line-clamp-3 text-[13px] leading-6 text-[var(--text-muted)]">
               {displayAnime.description || 'No description available.'}
             </p>
@@ -339,13 +351,18 @@ export function DetailModal({
 
           <div className="min-w-0 space-y-2 border-t border-[var(--border)] pt-4 text-xs leading-5 lg:border-t-0 lg:pt-0">
             <SidebarMeta anime={displayAnime} />
-            {/* Related Shows + Manga follow the metadata in the sidebar. */}
+            {/* Related Shows + Manga follow the metadata in the sidebar.
+                Sidebar top offset mirrors the left column's content above
+                the Episodes header (E-line? 28px : 0) so Related Shows
+                lands exactly on the Episodes line in both cases. */}
             {!isMangaKind && displayAnime.identity.anilistId && (
-              <RelatedEntriesBlock
-                anilistId={displayAnime.identity.anilistId}
-                relations={displayAnime.relations}
-                onSelectAnime={onSelectRelated}
-              />
+              <div className={hasEpline ? 'lg:mt-[28px]' : undefined}>
+                <RelatedEntriesBlock
+                  anilistId={displayAnime.identity.anilistId}
+                  relations={displayAnime.relations}
+                  onSelectAnime={onSelectRelated}
+                />
+              </div>
             )}
           </div>
         </div>
