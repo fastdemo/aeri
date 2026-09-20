@@ -943,10 +943,10 @@ export async function handleStream(request: Request, cors: Record<string, string
 
 // ---------- signed manga image relay ----------
 
-// Hosts allowed through /api/manga/img. Page images (planeptune) + covers
-// (compsci88) only — never an open proxy. Suffix match covers rotation
-// subdomains (hot./scans-hot.).
-const MANGA_IMG_SUFFIXES = ['planeptune.us', 'compsci88.com']
+// Hosts allowed through /api/manga/img. Page images (planeptune, lowee) +
+// covers (compsci88) only — never an open proxy. Suffix match covers
+// rotation subdomains (hot./scans-hot./official.).
+const MANGA_IMG_SUFFIXES = ['planeptune.us', 'compsci88.com', 'lowee.us']
 
 function mangaHostAllowed(hostname: string): boolean {
   const h = String(hostname || '').toLowerCase()

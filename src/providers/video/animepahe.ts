@@ -6,6 +6,8 @@ import { getEffectiveVideoApiUrl } from '../../storage/preferences'
 export class AnimePaheProvider implements VideoProvider {
   id = 'animepahe'
   name = 'AnimePahe'
+  // Verified 2026-09-20: worker returns zero episodes AND zero sources (stub/dead upstream).
+  status = 'broken' as const
   capabilities: ProviderCapabilities = {
     id: 'animepahe',
     name: 'animepahe',

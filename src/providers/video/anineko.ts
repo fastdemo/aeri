@@ -5,6 +5,8 @@ import { cachedFetch, isCorsError, fetchWithTimeout } from './base'
 export class AniNekoProvider implements VideoProvider {
   id = 'anineko'
   name = 'AniNeko'
+  // Verified 2026-09-20: worker returns zero episodes AND zero sources (stub/dead upstream).
+  status = 'broken' as const
   capabilities: ProviderCapabilities = {
     id: 'anineko',
     name: 'anineko',

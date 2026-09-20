@@ -11,6 +11,12 @@ export interface Preferences {
   preferredProvider: string | null
   enabledProviders?: Record<string, boolean> | null
   providerOrder?: string[] | null
+  /**
+   * Manga provider toggles, keyed by manga provider id. Separate from
+   * `enabledProviders` (anime/video) — the two registries are independent.
+   * null/undefined = all verified manga providers enabled (defaults).
+   */
+  enabledMangaProviders?: Record<string, boolean> | null
   customVideoApiUrl?: string | null
   preferredQuality?: string | null
   // Manga reader prefs. Mode architecture supports vertical continuous
@@ -50,6 +56,7 @@ const defaults: Preferences = {
   preferredProvider: null,
   enabledProviders: null,
   providerOrder: null,
+  enabledMangaProviders: null,
   customVideoApiUrl: null,
   preferredQuality: null,
   customAuthApiUrl: null,

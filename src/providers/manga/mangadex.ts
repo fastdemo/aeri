@@ -1,6 +1,6 @@
 import type { Anime } from '../../types/anime'
 import type { MangaChapter, MangaPage, MangaProvider, MangaProviderMatch, MangaSourceOptions } from './types'
-import { getEffectiveVideoApiUrl } from '../../storage/preferences'
+import { getEffectiveVideoApiUrl, getPreferences } from '../../storage/preferences'
 
 function getWorkerBase(): string | null {
   // Same-origin /api on Cloudflare (or custom URL in Settings, or baked
@@ -80,6 +80,12 @@ async function workerJson(path: string, signal?: AbortSignal): Promise<any> {
 class MangaDexProvider implements MangaProvider {
   id = 'mangadex'
   name = 'MangaDex'
+  kind = 'manga' as const
+  // Verified 2026-09-20: 425 readable units + 94 at-home pages (Berserk),
+  // external-link surfacing for licensed titles (Solo Leveling 16).
+  status = 'verified' as const
+  enabledByDefault = true
+  blurb = 'Primary — high-quality scanlations, direct CDN'
 
   private hintsOf(manga: Anime, options?: MangaSourceOptions) {
     const p = new URLSearchParams()
@@ -164,22 +170,56 @@ class MangaDexProvider implements MangaProvider {
   }
 }
 
+import { weebCentralProvider } from './weebcentral'
+
 export const mangaDexProvider = new MangaDexProvider()
 
-export const mangaProviders: MangaProvider[] = [mangaDexProvider]
+export const mangaProviders: MangaProvider[] = [mangaDexProvider, weebCentralProvider]
+
+/**
+ * Registry of ALL manga provider instances (verified or not). Settings
+ * derives its Manga section from this via verifiedMangaProviders() —
+ * never a hardcoded list. Deterministic order = resolution priority
+ * (MangaDex first, WeebCentral fallback).
+ */
+export function allMangaProviders(): MangaProvider[] {
+  return [...mangaProviders]
+}
+
+/** Only verified providers — the sole source for the Settings UI list. */
+export function verifiedMangaProviders(): MangaProvider[] {
+  return allMangaProviders().filter(p => p.status === 'verified')
+}
+
+function mangaEnabled(id: string): boolean {
+  try {
+    const v = getPreferences().enabledMangaProviders?.[id]
+    // Default: provider's own enabledByDefault (both ship true).
+    if (v !== undefined) return v !== false
+    return allMangaProviders().find(p => p.id === id)?.enabledByDefault !== false
+  } catch { return true }
+}
+
+export function getMangaProviderById(id: string): MangaProvider | undefined {
+  return allMangaProviders().find(p => p.id === id)
+}
 
 export async function resolveChaptersWithFallback(manga: Anime, signal?: AbortSignal, options?: MangaSourceOptions): Promise<{ chapters: MangaChapter[]; providerId: string | null; error?: string }> {
   if (signal?.aborted) return { chapters: [], providerId: null }
   const opts = { ...options, signal }
   let lastError: string | undefined
-  for (const p of mangaProviders) {
+  // Deterministic: verified + enabled only, registry order (MangaDex first,
+  // WeebCentral fallback). Disabled providers are never requested.
+  const enabled = allMangaProviders().filter(p => p.status === 'verified' && mangaEnabled(p.id))
+  for (const p of enabled) {
     try {
       const chapters = await p.getChapters(manga, opts)
       if (chapters.length) return { chapters, providerId: p.id }
+      lastError = `no readable units via ${p.id}`
     } catch (e) {
       lastError = e instanceof Error ? e.message : String(e)
     }
     if (signal?.aborted) break
   }
-  return { chapters: [], providerId: null, error: lastError }
+  return { chapters: [], providerId: null, error: enabled.length ? lastError : 'No Manga providers are enabled.' }
 }

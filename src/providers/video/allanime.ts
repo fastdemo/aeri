@@ -5,6 +5,8 @@ import { cachedFetch, isCorsError, fetchWithTimeout } from './base'
 export class AllAnimeProvider implements VideoProvider {
   id = 'allanime'
   name = 'AllAnime'
+  // Verified 2026-09-20: worker returns zero episodes AND zero sources (stub/dead upstream).
+  status = 'broken' as const
   capabilities: ProviderCapabilities = {
     id: 'allanime',
     name: 'allanime',

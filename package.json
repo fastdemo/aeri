@@ -10,7 +10,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "verify:build": "node scripts/verify-build.mjs",
-    "verify:live": "node scripts/verify-live.mjs"
+    "verify:live": "node scripts/verify-live.mjs",
+    "verify:providers": "node scripts/verify-providers.mjs"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",

@@ -66,6 +66,13 @@ async function workerJson(path: string, signal?: AbortSignal): Promise<any> {
 class WeebCentralProvider implements MangaProvider {
   id = 'weebcentral'
   name = 'Weeb Central'
+  kind = 'manga' as const
+  // Verified 2026-09-20: search→match→403 units→24 signed pages→rendered
+  // JPEGs (Berserk/Vagabond/Solo Leveling). Was 500-down on 2026-09-19;
+  // provider-side outage, now recovered.
+  status = 'verified' as const
+  enabledByDefault = true
+  blurb = 'Fast scans + licensed titles via signed relay'
 
   private hintsOf(manga: Anime, options?: MangaSourceOptions) {
     const p = new URLSearchParams()
@@ -140,10 +147,18 @@ class WeebCentralProvider implements MangaProvider {
 
 export const weebCentralProvider = new WeebCentralProvider()
 
+// Legacy single-provider exports (kept for existing imports; the canonical
+// registry lives in mangadex.ts: allMangaProviders/verifiedMangaProviders).
 export const mangaProviders: MangaProvider[] = [weebCentralProvider]
 
 export async function resolveChaptersWithFallback(manga: Anime, signal?: AbortSignal, options?: MangaSourceOptions): Promise<{ chapters: MangaChapter[]; providerId: string | null }> {
   if (signal?.aborted) return { chapters: [], providerId: null }
+  try {
+    const { getPreferences: prefs } = await import('../../storage/preferences')
+    if (prefs().enabledMangaProviders?.['weebcentral'] === false) {
+      return { chapters: [], providerId: null }
+    }
+  } catch {}
   const opts = { ...options, signal }
   for (const p of mangaProviders) {
     try {

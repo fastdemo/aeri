@@ -131,3 +131,38 @@ transient + Retry; `tried` provider list shown.
   sources; animepahe kwik needs JS-unpack; animekai/hianime/gogo unreachable
   from CF edge (530/1016). Aniwave/echovideo is the ceiling.
 - Title-less requests (no `?title=`) fail matching — Watch always sends hints.
+
+## Provider registry (D092) — verified-only, data-driven
+
+Settings → Providers derives BOTH sections from registries (never hardcoded):
+anime `verifiedVideoProviders()`, manga `verifiedMangaProviders()`.
+`unverified`/`broken` providers exist in code but never appear in Settings
+and are never requested (anime pool filters `status === 'verified'`;
+manga fallback iterates verified + enabled only; capabilities advertise
+verified only; health map has verified keys only).
+
+Verified 2026-09-20 (`npm run verify:providers` — match→units/episodes→
+pages/stream bytes→rendered images in a real browser):
+
+| Provider | Media | Units/Episodes | Pages/Stream | Status |
+|---|---|---|---|---|
+| MangaDex | Manga | 425u Berserk | 94pp JPEG direct | Verified |
+| WeebCentral | Manga | 403u Berserk | 24pp signed-relay JPEG | Verified |
+| AniWave | Anime | 1178ep One Piece | HLS TS sync markers | Verified |
+| Official Trailer | Anime | trailer only | embed | Verified (fallback) |
+| Miruro / Custom | Anime | — | trailer-alias / user endpoint | Unverified |
+| AllAnime/Pahe/Koto/Mega/Paradise/Neko | Anime | 0 | 0 | Broken (stubs) |
+
+Rejected with reason (never exposed): ComicK (api DNS dead), MangaFire
+(API needs account token — bypass would defeat access control), Jikan
+(metadata only, no chapters), Consumet (self-host required, no public
+endpoint). WeebCentral was 500-down 2026-09-19 (provider-side, verified via
+the site's own htmx request failing), recovered 2026-09-20; page hosts
+rotate planeptune + lowee (parser + relay allowlist accept both). Licensed
+titles (Solo Leveling) readable via WeebCentral (201u/49pp) while MangaDex
+hosts zero pages (16 external links) — the pair complement each other.
+
+Fallback: enabled + verified only, registry order (mangadex → weebcentral;
+preferred anime source first when enabled), first non-empty wins. All manga
+providers disabled → "No Manga providers are enabled." (no silent fallback,
+no disabled-provider requests). Anime mirrors with 4s/9s timeouts.

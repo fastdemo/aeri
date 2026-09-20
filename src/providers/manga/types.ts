@@ -87,9 +87,30 @@ export interface MangaSourceOptions {
   mangaYear?: number | null
 }
 
-export interface MangaProvider {
+export type MediaKind = 'anime' | 'manga'
+
+/**
+ * Verification status of a provider. Only `verified` providers appear in
+ * Settings — `unverified`/`broken` exist in code but are never user-facing.
+ * Verified = full end-to-end flow confirmed in the CURRENT architecture
+ * (manga: search→match→units→pages→rendered images; anime: match→episodes→
+ * sources→advancing playback), with date recorded in agents/changelog.md.
+ */
+export type ProviderStatus = 'verified' | 'unverified' | 'broken'
+
+export interface MediaProviderMeta {
   id: string
   name: string
+  kind: MediaKind
+  status: ProviderStatus
+  /** Shown in Settings; false for user-configured endpoints (custom). */
+  enabledByDefault: boolean
+  /** One-line capability note for the Settings row subtitle. */
+  blurb: string
+}
+
+export interface MangaProvider extends MediaProviderMeta {
+  kind: 'manga'
   resolveManga(manga: Anime, options?: MangaSourceOptions): Promise<MangaProviderMatch | null>
   getChapters(manga: Anime, options?: MangaSourceOptions): Promise<MangaChapter[]>
   getChapterPages(chapter: MangaChapter, options?: MangaSourceOptions): Promise<MangaPage[]>

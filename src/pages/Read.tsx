@@ -7,8 +7,13 @@ import { getPreferences } from '../storage/preferences'
 import { sortProviderUnits, unitDisplayLabel } from '../providers/manga/types'
 import { getTitleHierarchy } from '../lib/titles'
 import { Icon } from '../components/ui/Icon'
-import { mangaDexProvider } from '../providers/manga/mangadex'
-import type { MangaChapter, MangaPage } from '../providers/manga/types'
+import type { MangaChapter, MangaPage, MangaProvider, MangaSourceOptions } from '../providers/manga/types'
+import { getMangaProviderById, resolveChaptersWithFallback } from '../providers/manga/mangadex'
+
+/** Structural subset: providers that expose off-site licensed units. */
+type MangaDexProviderLike = MangaProvider & {
+  getExternalUnits(manga: import('../types/anime').Anime, options?: MangaSourceOptions): Promise<{ label: string; url: string }[]>
+}
 
 /**
  * Manga reader (`#/read/:id/:chapter`). Architectural sibling of Watch:
@@ -39,9 +44,12 @@ export function Read() {
 
   const chapterParam = decodeURIComponent(chapter ?? 'first')
 
-  // Chapter list (MangaDex provider units). Abortable; stale rejected.
+  // Chapter list (verified+enabled providers, registry order). Records
+  // which provider won so pages + external links use the SAME provider
+  // (unit IDs are provider-scoped — never mix providers within a title).
   const [chapters, setChapters] = useState<MangaChapter[] | null>(null)
   const [chaptersError, setChaptersError] = useState<string | null>(null)
+  const [activeMangaProvider, setActiveMangaProvider] = useState<MangaProvider | null>(null)
   const [externalUnits, setExternalUnits] = useState<{ label: string; url: string }[] | null>(null)
   useEffect(() => {
     if (!manga) return
@@ -49,9 +57,9 @@ export function Read() {
     let cancelled = false
     setChapters(null)
     setChaptersError(null)
+    setActiveMangaProvider(null)
     setExternalUnits(null)
-    mangaDexProvider.getChapters(manga, {
-      signal: controller.signal,
+    resolveChaptersWithFallback(manga, controller.signal, {
       mangaTitle: manga.title.romaji,
       mangaEnglish: manga.title.english,
       mangaNative: manga.title.native,
@@ -60,14 +68,21 @@ export function Read() {
       mangaFormat: manga.format,
       mangaYear: manga.year,
     })
-      .then(list => {
+      .then(res => {
         if (cancelled || controller.signal.aborted) return
-        setChapters(list)
+        setChapters(res.chapters)
+        const won = res.providerId ? getMangaProviderById(res.providerId) ?? null : null
+        setActiveMangaProvider(won)
+        if (!res.chapters.length && !res.error) {
+          setChaptersError('Couldn’t load chapters')
+        } else if (!res.chapters.length && res.error) {
+          setChaptersError(res.error === 'No Manga providers are enabled.' ? res.error : 'Couldn’t load chapters')
+        }
         // Licensed titles (e.g. Solo Leveling) have zero hosted pages but
         // real off-site chapters — offer those as external links instead of
-        // a dead "no chapters" wall.
-        if (!list.length) {
-          mangaDexProvider.getExternalUnits(manga, { signal: controller.signal })
+        // a dead "no chapters" wall. Only the winning provider's externals.
+        if (!res.chapters.length && won && 'getExternalUnits' in won) {
+          ;(won as MangaDexProviderLike).getExternalUnits(manga, { signal: controller.signal })
             .then(ext => { if (!cancelled) setExternalUnits(ext) })
             .catch(() => {})
         }
@@ -130,7 +145,12 @@ export function Read() {
   const pagesByChapterRef = useRef<Map<string, MangaPage[]>>(new Map())
   useEffect(() => {
     if (!currentChapter) return
-    const cached = pagesByChapterRef.current.get(currentChapter.providerChapterId)
+    // Page cache is namespaced per provider+chapter: unit IDs are
+    // provider-scoped, so the same raw id from two providers must never
+    // share entries. Tracking identity already includes the provider.
+    const provId = currentChapter.id.split('-')[0] ?? 'unknown'
+    const cacheKey = `${provId}:${currentChapter.providerChapterId}`
+    const cached = pagesByChapterRef.current.get(cacheKey)
     // Served from cache when revisiting: no loading flash, no pages=null
     // reset, resume state intact.
     if (cached) {
@@ -143,10 +163,16 @@ export function Read() {
     let cancelled = false
     setPagesError(null)
     setPagesLoading(true)
-    mangaDexProvider.getChapterPages(currentChapter, { signal: controller.signal })
+    const provider = getMangaProviderById(provId) ?? activeMangaProvider
+    if (!provider) {
+      setPagesError('No Manga providers are enabled.')
+      setPagesLoading(false)
+      return
+    }
+    provider.getChapterPages(currentChapter, { signal: controller.signal })
       .then(list => {
         if (cancelled || controller.signal.aborted) return
-        pagesByChapterRef.current.set(currentChapter.providerChapterId, list)
+        pagesByChapterRef.current.set(cacheKey, list)
         setPages(list)
         setPagesLoading(false)
       })
@@ -156,7 +182,7 @@ export function Read() {
         setPagesLoading(false)
       })
     return () => { cancelled = true; controller.abort() }
-  }, [currentChapter?.providerChapterId])
+  }, [currentChapter?.providerChapterId, activeMangaProvider])
 
   // Resume: stored read position. Identity = AniList Manga ID + provider +
   // provider unit ID — never a bare chapter number, never shared across

@@ -36,13 +36,25 @@ export const videoProviders: VideoProvider[] = [
 
 export const primaryVideoProviders = videoProviders.filter(p => p.id !== 'mock')
 
+/**
+ * Verified video providers ONLY — the sole source for the Settings UI
+ * list. Stubs, dead upstreams, trailer-aliases, and user-configured
+ * endpoints never appear in Settings.
+ */
+export function verifiedVideoProviders(): VideoProvider[] {
+  return videoProviders.filter(p => p.status === 'verified')
+}
+
 function getEnabledProviders(): VideoProvider[] {
+  // Verified-only pool: broken/dead/stub providers are never requested,
+  // even if a stale pref entry enables them. Unknown pref ids ignored.
+  const pool = videoProviders.filter(p => p.status === 'verified')
   try {
     const prefs = getPreferences()
     const enabled = prefs.enabledProviders
-    if (!enabled) return primaryVideoProviders
-    return primaryVideoProviders.filter(p => enabled[p.id] !== false)
-  } catch { return primaryVideoProviders }
+    if (!enabled) return pool
+    return pool.filter(p => enabled[p.id] !== false)
+  } catch { return pool }
 }
 
 function getOrderedProviders(list: VideoProvider[]): VideoProvider[] {
@@ -71,13 +83,16 @@ export async function checkProviderHealth(signal?: AbortSignal): Promise<Record<
     try {
       const res = await fetchWithTimeout(`${baseToCheck}/api/health`, {}, 4000, signal)
       if (res.ok) {
-        const baseMap: Record<string, 'available' | 'unavailable'> = { official: 'available', custom: effective ? 'available' : 'unavailable', miruro: 'available', demo: 'available', allanime: 'unavailable', animepahe: 'unavailable', anikoto: 'available', aniwave: 'available', megaplay: 'unavailable', animeparadise: 'unavailable', anineko: 'unavailable' }
+        // Health = worker reachable; per-provider truth comes from the
+        // verified registry (Settings only lists verified providers, so
+        // the map only needs those two keys).
+        const baseMap: Record<string, 'available' | 'unavailable'> = { official: 'available', aniwave: 'available' }
         return baseMap
       }
     } catch {}
-    return { official: 'available', custom: effective ? 'unavailable' : 'unavailable', miruro: hasWorker ? 'available' : 'unavailable' } as any
+    return { official: 'available', aniwave: 'unavailable' } as any
   }
-  return { official: 'available', custom: 'unavailable', miruro: 'unavailable', allanime: 'unavailable', animepahe: 'unavailable', anikoto: 'unavailable', aniwave: 'unavailable', megaplay: 'unavailable', animeparadise: 'unavailable', anineko: 'unavailable', demo: 'available' }
+  return { official: 'available', aniwave: 'unavailable' }
 }
 
 export function getProviderById(id: string): VideoProvider | undefined {
@@ -228,5 +243,7 @@ export async function resolveSourcesWithFallback(
 }
 
 export function getProviderCapabilities() {
-  return videoProviders.map(p => p.capabilities)
+  // Verified-only: Settings derives its list from capabilities, so stubs
+  // and dead providers must not be advertised here.
+  return videoProviders.filter(p => p.status === 'verified').map(p => p.capabilities)
 }

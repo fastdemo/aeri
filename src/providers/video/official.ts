@@ -25,6 +25,8 @@ function getWorkerBase(): string | null {
 export class OfficialProvider implements VideoProvider {
   id = 'official'
   name = 'OfficialTrailer'
+  // Verified: official trailer fallback by design (no full episodes).
+  status = 'verified' as const
   capabilities: ProviderCapabilities = {
     id: 'official',
     name: 'official',

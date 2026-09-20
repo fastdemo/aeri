@@ -5,6 +5,8 @@ import { cachedFetch, isCorsError, fetchWithTimeout } from './base'
 export class MegaPlayProvider implements VideoProvider {
   id = 'megaplay'
   name = 'MegaPlay'
+  // Verified 2026-09-20: worker returns zero episodes AND zero sources (stub/dead upstream).
+  status = 'broken' as const
   capabilities: ProviderCapabilities = {
     id: 'megaplay',
     name: 'megaplay',

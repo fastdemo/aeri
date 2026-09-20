@@ -8,6 +8,8 @@ import { getEffectiveVideoApiUrl } from '../../storage/preferences'
 export class MiruroProvider implements VideoProvider {
   id = 'miruro'
   name = 'Miruro'
+  // Episode list works but sources resolve to trailers only — not a full-episode provider.
+  status = 'unverified' as const
   capabilities: ProviderCapabilities = {
     id: 'miruro',
     name: 'miruro',

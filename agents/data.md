@@ -72,6 +72,9 @@ next resolve — Retry/episode-change, no live subscription).
 - Manga: `manga:mangadex:match:<anilistId>` (mem 1h) /
   `manga:mangadex:chapters:<uuid>` + `:pages:<chUuid>` (mem 10m); Worker
   mdx-match 1h, mdx-chapters 10m, mdx-pages resolved fresh per chapter
+  (rotating host). Anime: resolver pool = verified-only; stale pref ids for
+  dead providers ignored. Manga toggles: `enabledMangaProviders` (independent
+  from anime `enabledProviders`).
   (rotating host). Legacy `manga:weebcentral:*` paths retained (fallback).
   `manga:*` namespace — anime entries can never satisfy manga requests. Request races: AbortController per nav + `cancelled` flag +
   stale-result rejection (rapid A→B→C settles on C, no delays).

@@ -6,7 +6,8 @@ import { useMAL } from '../contexts/MALContext'
 import { useTracking } from '../contexts/TrackingContext'
 import { clearAnilistMemoryCache, getAnilistStats } from '../services/anilist/client'
 import { clearMalMemoryCache } from '../services/mal/client'
-import { getProviderCapabilities, checkProviderHealth } from '../providers/video/registry'
+import { getProviderCapabilities, checkProviderHealth, verifiedVideoProviders } from '../providers/video/registry'
+import { verifiedMangaProviders } from '../providers/manga/mangadex'
 import { THEMES, applyTheme } from '../lib/themes'
 import { Icon } from '../components/ui/Icon'
 
@@ -88,7 +89,11 @@ export function Settings() {
     setClearing(null)
   }
 
+// Video providers shown in Settings = verified ONLY (registry is the
+  // single source of truth — no hardcoded list, no stubs, no dead entries).
   const videoCaps = getProviderCapabilities().filter(c => c.id !== 'mock')
+  const verifiedVideoIds = new Set(verifiedVideoProviders().map(p => p.id))
+  const shownVideoCaps = videoCaps.filter(c => verifiedVideoIds.has(c.id))
   const [health, setHealth] = useState<Record<string, 'available'|'unavailable'>|null>(null)
   useEffect(() => {
     const ctrl = new AbortController()
@@ -105,8 +110,20 @@ export function Settings() {
       updatePref({ enabledProviders: next })
     }
   }
+  // Manga providers shown in Settings = verified ONLY, derived from the
+  // manga registry (never hardcoded). Toggle state persists in
+  // prefs.enabledMangaProviders (independent from anime toggles).
+  const mangaProviders = verifiedMangaProviders()
+  const isMangaEnabled = (id: string) => {
+    const v = prefs.enabledMangaProviders?.[id]
+    if (v !== undefined) return v !== false
+    return mangaProviders.find(p => p.id === id)?.enabledByDefault !== false
+  }
+  const toggleMangaProvider = (id: string, enabled: boolean) => {
+    updatePref({ enabledMangaProviders: { ...(prefs.enabledMangaProviders ?? {}), [id]: enabled } })
+  }
   const moveProvider = (id: string, dir: -1|1) => {
-    const currentOrder = prefs.providerOrder ?? videoCaps.map(c=>c.id)
+    const currentOrder = prefs.providerOrder ?? shownVideoCaps.map(c=>c.id)
     const idx = currentOrder.indexOf(id)
     if (idx < 0) return
     const nIdx = idx + dir
@@ -117,8 +134,8 @@ export function Settings() {
   }
   const orderedCaps = (() => {
     const order = prefs.providerOrder
-    if (!order) return videoCaps
-    const map = new Map(videoCaps.map(c=>[c.id,c] as const))
+    if (!order) return shownVideoCaps
+    const map = new Map(shownVideoCaps.map(c=>[c.id,c] as const))
     const out: typeof videoCaps = []
     for (const id of order) { const c = map.get(id); if (c) { out.push(c); map.delete(id) } }
     for (const c of map.values()) out.push(c)
@@ -403,7 +420,8 @@ export function Settings() {
             </p>
           </div>
           <div className="space-y-2 pt-2">
-            <p className="text-xs font-medium text-[var(--text)]">Providers</p>
+            <p className="text-xs font-medium text-[var(--text)]">Anime providers</p>
+            <p className="text-[11px] text-[var(--text-faint)]">Only verified working providers are listed.</p>
             <div className="overflow-hidden rounded-lg border border-[var(--border)]">
               {orderedCaps.map((c, idx) => {
                 const enabled = isEnabled(c.id)
@@ -433,6 +451,29 @@ export function Settings() {
               })}
             </div>
             <p className="text-[11px] text-[color-mix(in_srgb,var(--text)_30%,transparent)]">Disable providers you don’t want to try. Reorder with ↑/↓ — preferred source still tried first.</p>
+          </div>
+          <div className="space-y-2 pt-4 border-t border-[var(--border)]">
+            <p className="text-xs font-medium text-[var(--text)]">Manga providers</p>
+            <p className="text-[11px] text-[var(--text-faint)]">Only verified working providers are listed. Disabled providers are never requested.</p>
+            <div className="overflow-hidden rounded-lg border border-[var(--border)]">
+              {mangaProviders.map((p, idx) => {
+                const enabled = isMangaEnabled(p.id)
+                return (
+                  <div key={p.id} className={`flex items-center justify-between gap-3 px-3 py-2.5 ${idx !== mangaProviders.length-1 ? 'border-b border-[var(--border)]' : ''} ${enabled ? 'bg-[var(--text)]/[0.02]' : 'bg-[color-mix(in_srgb,var(--bg)_20%,transparent)] opacity-60'}`}>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <div className="min-w-0">
+                        <p className="text-xs font-medium text-[var(--text)] truncate">{p.name}</p>
+                        <p className="text-[10px] text-[var(--text-faint)]">{p.blurb} • <span className="text-[var(--ok)]">Verified</span></p>
+                      </div>
+                    </div>
+                    <label className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
+                      <input type="checkbox" checked={enabled} onChange={e=>toggleMangaProvider(p.id, e.target.checked)} className="h-3.5 w-3.5 rounded border-[var(--border-strong)] bg-[color-mix(in_srgb,var(--text)_10%,transparent)]" aria-label={`Enable ${p.name}`} />
+                      <span className="hidden sm:inline">Enable</span>
+                    </label>
+                  </div>
+                )
+              })}
+            </div>
           </div>
           <div className="space-y-2 pt-4 border-t border-[var(--border)]">
             <p className="text-xs font-medium text-[var(--text)]">Custom video server (optional)</p>

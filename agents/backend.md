@@ -29,6 +29,7 @@ provider falls back to production Worker automatically on localhost).
 | `GET /proxy`, `/api/proxy` | allowlisted generic proxy (subtitles etc.), 1h cache |
 | `GET /api/stream`, `/stream?u&e&s` | **signed delivery** (see streaming.md) |
 | `GET /api/manga/mdx-match/:anilistId?title=&english=&native=` | MangaDex match (links.al verified mapping preferred, else scored titles threshold 40, ties fail closed), cached 1h |
+| `scripts/verify-providers.mjs` (`npm run verify:providers`) | end-to-end manga+anime provider probes (units→pages→image bytes, episodes→sources→TS sync bytes); fails CI on regression |
 | `GET /api/manga/mdx-chapters/:uuid` | `{readable, external}` provider units (EN, safe ratings, asc; aggregate fallback for licensed titles), cached 10m |
 | `GET /api/manga/mdx-pages/:chUuid?quality=saver\|data` | at-home direct CDN URLs (data-saver default) — no relay needed |
 | `GET /api/manga/match/:anilistId?...` | WeebCentral series match (fallback; provider outage since 2026-09-19), cached 10m |

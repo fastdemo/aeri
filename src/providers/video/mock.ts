@@ -5,6 +5,8 @@ import { cachedFetch } from './base'
 export class MockVideoProvider implements VideoProvider {
   id = 'mock'
   name = 'Mock'
+  // No video by design.
+  status = 'broken' as const
   capabilities: ProviderCapabilities = {
     id: 'mock',
     name: 'mock',

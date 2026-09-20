@@ -6,6 +6,8 @@ import { getEffectiveVideoApiUrl } from '../../storage/preferences'
 export class AniKotoProvider implements VideoProvider {
   id = 'anikoto'
   name = 'AniKoto'
+  // Verified 2026-09-20: worker returns zero episodes AND zero sources (stub/dead upstream).
+  status = 'broken' as const
   capabilities: ProviderCapabilities = {
     id: 'anikoto',
     name: 'anikoto',

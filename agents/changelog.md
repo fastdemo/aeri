@@ -42,6 +42,32 @@
   per-title isolation. Ordering: oldest default, latest flip, Settings
   section (auth-gated page — verified in bundle, UI click needs account).
 
+## 2026-09-20 — Verified provider registry + Settings (D092)
+
+### Changed
+- `status: verified|unverified|broken` on every anime + manga provider.
+  Settings derives both sections from `verifiedVideoProviders()` /
+  `verifiedMangaProviders()` — no hardcoded lists. Anime shows AniWave +
+  Official Trailer only (6 stubs/dead hidden); manga shows MangaDex +
+  WeebCentral (both re-verified end-to-end today).
+- Anime resolver pool + capabilities + health map = verified-only; stale
+  prefs for dead providers ignored. New `enabledMangaProviders` pref
+  (independent from anime toggles); manga fallback iterates verified +
+  enabled in registry order; all-disabled → "No Manga providers are
+  enabled." (no silent fallback, no disabled requests).
+- Reader records winning provider; pages/external links use the same
+  provider (unit IDs are provider-scoped). Page cache namespaced per
+  provider+chapter.
+- WeebCentral recovered from 2026-09-19 outage; new `official.lowee.us`
+  page host supported (parser + relay allowlist). Solo Leveling fully
+  readable via WeebCentral (201u/49pp) — complements MangaDex externals.
+- `npm run verify:providers`: 30-check matrix (5 manga × 2 providers +
+  SL externals + 3 anime × episodes/sources/TS bytes).
+
+### Verification
+- `verify:providers` 30/30; disabled-provider request interception clean;
+  all-off state shows the enabled-message; typecheck/lint/build clean.
+
 ## 2026-09-19 — Season system removed; Related Entries; episode/chapter unification
 
 ### Changed

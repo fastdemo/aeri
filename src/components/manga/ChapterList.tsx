@@ -18,6 +18,7 @@ import { getPreferences } from '../../storage/preferences'
 export function ChapterList({ manga }: { manga: Anime }) {
   const [chapters, setChapters] = useState<MangaChapter[] | null>(null)
   const [providerId, setProviderId] = useState<string | null>(null)
+  const [resolveError, setResolveError] = useState<string | null>(null)
   const [done, setDone] = useState(false)
   const [orderTick, setOrderTick] = useState(0)
   const { combinedList, isAuthenticated, updateProgress } = useTracking()
@@ -45,6 +46,7 @@ export function ChapterList({ manga }: { manga: Anime }) {
   useEffect(() => {
     setChapters(null)
     setProviderId(null)
+    setResolveError(null)
     setDone(false)
     const controller = new AbortController()
     let cancelled = false
@@ -62,6 +64,7 @@ export function ChapterList({ manga }: { manga: Anime }) {
         if (cancelled || controller.signal.aborted) return
         setChapters(res.chapters)
         setProviderId(res.providerId)
+        if (!res.chapters.length && res.error) setResolveError(res.error)
       })
       .catch(() => {})
       .finally(() => {
@@ -107,7 +110,9 @@ export function ChapterList({ manga }: { manga: Anime }) {
   if (!ordered?.length) {
     return (
       <div className="rounded-lg border border-[var(--border)] bg-[var(--text)]/[0.02] px-4 py-6 text-center text-xs text-[var(--text-faint)]">
-        {providerId === null && done ? 'No readable English chapters available for this title.' : 'Chapter information not available for this title.'}
+        {resolveError === 'No Manga providers are enabled.'
+          ? 'No Manga providers are enabled. Enable one in Settings → Providers.'
+          : providerId === null && done ? 'No readable English chapters available for this title.' : 'Chapter information not available for this title.'}
       </div>
     )
   }

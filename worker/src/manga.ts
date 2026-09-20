@@ -257,8 +257,12 @@ export async function wcGetPages(providerChapterId: string, signal?: AbortSignal
   )
   if (!res.ok) throw new Error(`pages ${res.status}`)
   const html = await res.text()
+  // Page-image hosts rotate: planeptune (hot/scans-hot) AND lowee
+  // (official.lowee.us — observed 2026-09-20 on Uzumaki/Eri units).
+  // Accept any same-shape https image URL, then gate by suffix allowlist
+  // at the relay (never an open proxy).
   const urls = [...new Set(
-    [...html.matchAll(/https:\/\/(?:hot|scans-hot)\.planeptune\.us\/[^"<>\s]+/g)].map((m) => m[0]),
+    [...html.matchAll(/https:\/\/(?:hot|scans-hot|official)\.(?:planeptune|lowee)\.us\/[^"<>\s]+/g)].map((m) => m[0]),
   )].filter((u) => /\.(png|jpe?g|webp)(\?|$)/i.test(u))
   if (!urls.length) throw new Error('empty page list')
   wcPagesCache.set(key, { at: Date.now(), pages: urls })

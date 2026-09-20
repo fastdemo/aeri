@@ -6,6 +6,8 @@ import { getEffectiveVideoApiUrl } from '../../storage/preferences'
 export class AniWaveProvider implements VideoProvider {
   id = 'aniwave'
   name = 'AniWave'
+  // Verified 2026-09-20: episodes+sources live; HLS playlist+TS segments flow (Naruto).
+  status = 'verified' as const
   capabilities: ProviderCapabilities = {
     id: 'aniwave',
     name: 'aniwave',
