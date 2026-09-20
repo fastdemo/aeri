@@ -171,10 +171,11 @@ class MangaDexProvider implements MangaProvider {
 }
 
 import { weebCentralProvider } from './weebcentral'
+import { mangaPillProvider } from './mangapill'
 
 export const mangaDexProvider = new MangaDexProvider()
 
-export const mangaProviders: MangaProvider[] = [mangaDexProvider, weebCentralProvider]
+export const mangaProviders: MangaProvider[] = [mangaDexProvider, weebCentralProvider, mangaPillProvider]
 
 /**
  * Registry of ALL manga provider instances (verified or not). Settings
@@ -206,6 +207,14 @@ export function getMangaProviderById(id: string): MangaProvider | undefined {
 
 export async function resolveChaptersWithFallback(manga: Anime, signal?: AbortSignal, options?: MangaSourceOptions): Promise<{ chapters: MangaChapter[]; providerId: string | null; error?: string }> {
   if (signal?.aborted) return { chapters: [], providerId: null }
+  // FAIL CLOSED on media type: a manga route must never resolve through an
+  // anime record (HxH collision). The caller passes Manga surfaces; if the
+  // record's own format says otherwise, reject before any provider request.
+  const fmt = (manga.format ?? '').toUpperCase()
+  const looksManga = fmt === '' || fmt === 'MANGA' || fmt === 'NOVEL' || fmt === 'ONE_SHOT'
+  if (!looksManga) {
+    return { chapters: [], providerId: null, error: 'Not a manga entry.' }
+  }
   const opts = { ...options, signal }
   let lastError: string | undefined
   // Deterministic: verified + enabled only, registry order (MangaDex first,

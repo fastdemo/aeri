@@ -371,6 +371,20 @@ export function Read() {
       </div>
     )
   }
+  // Identity guard: the reader route resolves type: MANGA. If the resolved
+  // record is actually an anime (stale cross-type cache, wrong id), fail
+  // closed — never render an anime as manga, never send it to providers.
+  const mangaFormat = (manga.format ?? '').toUpperCase()
+  if (mangaFormat !== '' && mangaFormat !== 'MANGA' && mangaFormat !== 'NOVEL' && mangaFormat !== 'ONE_SHOT') {
+    return (
+      <div className="mx-auto grid max-w-[800px] place-items-center px-4 py-24 text-center">
+        <div>
+          <p className="text-sm font-medium text-[var(--text)]">This entry is an anime, not a manga.</p>
+          <Link to={`/anime/${id}`} className="mt-6 inline-block rounded-full bg-[var(--text)] px-5 py-2 text-sm font-semibold text-[var(--on-text)]">Open anime page</Link>
+        </div>
+      </div>
+    )
+  }
 
   const prefs = getPreferences()
   const fit = prefs.readerFit ?? 'width'
@@ -407,7 +421,7 @@ export function Read() {
       {chaptersError && !chapters && (
         <div className="rounded-lg border border-[var(--border)] bg-[var(--text)]/[0.03] px-4 py-6 text-center">
           <p className="text-sm text-[var(--warn)]">{chaptersError}</p>
-          <p className="mt-1 text-xs text-[var(--text-faint)]">Weeb Central may be challenging this network — try again shortly.</p>
+          <p className="mt-1 text-xs text-[var(--text-faint)]">The manga providers may be busy — try again shortly.</p>
         </div>
       )}
 

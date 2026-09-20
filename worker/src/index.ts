@@ -11,6 +11,7 @@ export interface Env {
 import { setResolveContext, handleStream, handleDiag, handleMangaImage, signMangaImageUrl } from './resolver'
 import { wcSearchAndMatch, wcGetChapters, wcGetPages, wcMatchCached, wcMatchStore } from './manga'
 import { mdxSearchAndMatch, mdxGetChapters, mdxGetPages, mdxMatchCached, mdxMatchStore, mdxChaptersCached, mdxChaptersStore } from './mangadex'
+import { mpSearchAndMatch, mpGetChapters, mpGetPages, mpMatchCached, mpMatchStore } from './mangapill'
 
 import {
   OfficialTrailerProvider,
@@ -368,12 +369,62 @@ export default {
 
     // Signed manga image relay: /api/manga/img?u=<b64url>&e=<exp>&s=<hmac>.
     // Same token scheme as /api/stream (HMAC over u.e, const-time compare).
-    // Only planeptune/compsci88 image hosts; content-type sniffed from bytes
-    // (upstream lies: image/png header on JPEG bytes trips Chromium ORB).
+    // Only planeptune/compsci88/lowee + mangapill CDN hosts; content-type
+    // sniffed from bytes (upstream lies: image/png header on JPEG bytes
+    // trips Chromium ORB).
     if ((url.pathname === '/api/manga/img' || url.pathname === '/manga/img') && request.method === 'GET') {
       const h: Record<string, string> = { ...cors }
       if (!h['Vary']) delete h['Vary']
       return handleMangaImage(request, h)
+    }
+
+    // --- Manga (MangaPill; numeric <mangaId>/<slug> ids, <mangaId>-<pageId> units) ---
+    // GET /api/manga/mp-match/:anilistId?title=&english=&native=
+    // GET /api/manga/mp-chapters/:mangaId/:slug
+    // GET /api/manga/mp-pages/:mangaId/:pageId
+    const mpMatch = url.pathname.match(/^\/(?:api\/)?manga\/mp-match\/(\d+)$/)
+    if (mpMatch) {
+      const anilistId = Number(mpMatch[1])
+      if (!Number.isFinite(anilistId) || anilistId <= 0) return json({ error: 'Invalid anilistId' }, 400, env, origin)
+      const cached = mpMatchCached(`mp:${anilistId}`)
+      if (cached) return json({ providerMangaId: cached.providerMangaId, providerTitle: cached.providerTitle, provider: 'mangapill', cached: true }, 200, env, origin, { 'Cache-Control': 'public, max-age=600' })
+      try {
+        const m = await withTimeout(mpSearchAndMatch(buildHint(), request.signal), 20000, request.signal)
+        mpMatchStore(`mp:${anilistId}`, m)
+        return json({ providerMangaId: m.providerMangaId, providerTitle: m.providerTitle, provider: 'mangapill' }, 200, env, origin, { 'Cache-Control': 'public, max-age=600' })
+      } catch (e) {
+        if ((e as any)?.name === 'AbortError') return json({ error: 'Aborted' }, 499, env, origin)
+        return json({ error: String((e as Error)?.message ?? e), provider: 'mangapill' }, 502, env, origin)
+      }
+    }
+
+    const mpChapters = url.pathname.match(/^\/(?:api\/)?manga\/mp-chapters\/(\d+)\/([^/]{1,80})$/)
+    if (mpChapters) {
+      try {
+        const list = await withTimeout(mpGetChapters(`${mpChapters[1]}/${mpChapters[2]}`, request.signal), 20000, request.signal)
+        return json({ chapters: list, count: list.length, provider: 'mangapill' }, 200, env, origin, { 'Cache-Control': 'public, max-age=300' })
+      } catch (e) {
+        if ((e as any)?.name === 'AbortError') return json({ error: 'Aborted' }, 499, env, origin)
+        return json({ error: String((e as Error)?.message ?? e), chapters: [] }, 502, env, origin)
+      }
+    }
+
+    const mpPages = url.pathname.match(/^\/(?:api\/)?manga\/mp-pages\/(\d+)\/(\d+)$/)
+    if (mpPages) {
+      try {
+        const pages = await withTimeout(mpGetPages(`${mpPages[1]}-${mpPages[2]}`, request.signal), 20000, request.signal)
+        const signed: string[] = []
+        for (const u of pages) {
+          try {
+            const s = await signMangaImageUrl(u)
+            signed.push(s ?? u)
+          } catch { signed.push(u) }
+        }
+        return json({ pages: signed, count: signed.length, provider: 'mangapill', proxied: true }, 200, env, origin, { 'Cache-Control': 'public, max-age=300' })
+      } catch (e) {
+        if ((e as any)?.name === 'AbortError') return json({ error: 'Aborted' }, 499, env, origin)
+        return json({ error: String((e as Error)?.message ?? e), pages: [] }, 502, env, origin)
+      }
     }
 
     const epMatch = url.pathname.match(/^\/(?:api\/)?(?:video\/)?episodes\/(\d+)$/)

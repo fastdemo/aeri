@@ -118,6 +118,9 @@ export function ChapterList({ manga }: { manga: Anime }) {
   }
 
   const nVolumes = ordered.filter(c => c.unitType === 'volume').length
+  // Unit IDs are provider-scoped (ch.id = `<provider>-…`): the reader
+  // resolves pages from the provider named in the unit id, so listing and
+  // reading never mix providers within a title.
   return (
     <div className="space-y-1">
       <div className="mb-2 flex items-baseline justify-between gap-2">

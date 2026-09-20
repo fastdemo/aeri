@@ -103,8 +103,8 @@ query ($search: String, $perPage: Int) {
 }
 `
 
-function mapPage(res: { Page: { media: AniListMedia[] } }): ReturnType<typeof mapAniListMediaToAnime>[] {
-  const out = (res.Page.media ?? []).map(mapAniListMediaToAnime)
+function mapPage(res: { Page: { media: AniListMedia[] } }, mediaType?: 'ANIME' | 'MANGA'): ReturnType<typeof mapAniListMediaToAnime>[] {
+  const out = (res.Page.media ?? []).map((m) => mapAniListMediaToAnime(m, mediaType))
   // Page results are full media records (relations included): publish each
   // to the shared cache so later detail visits cost zero network AND still
   // get Related Shows/Manga. Records without relation edges are NOT
@@ -248,7 +248,7 @@ export class AniListMetadataProvider implements AnimeMetadataProvider {
     const { query, variables, cacheKey } = buildBrowseMangaQuery(params)
     type Res = { Page: { media: AniListMedia[]; pageInfo: { hasNextPage: boolean; currentPage: number; lastPage: number; total: number } } }
     const data = await anilistGraphQL<Res>(query, variables, { cacheKey, useCache: true, signal })
-    return { data: mapPage(data), hasNextPage: !!data.Page.pageInfo?.hasNextPage, pageInfo: { currentPage: data.Page.pageInfo?.currentPage ?? params.page ?? 1, lastPage: data.Page.pageInfo?.lastPage } }
+    return { data: mapPage(data, 'MANGA'), hasNextPage: !!data.Page.pageInfo?.hasNextPage, pageInfo: { currentPage: data.Page.pageInfo?.currentPage ?? params.page ?? 1, lastPage: data.Page.pageInfo?.lastPage } }
   }
 
   async getAnime(id: string, signal?: AbortSignal): Promise<import('../../types/anime').Anime> {
@@ -265,30 +265,39 @@ export class AniListMetadataProvider implements AnimeMetadataProvider {
     // Older cached entries (written before relations rode on Media queries)
     // lack them; using one would permanently hide Related Shows/Manga.
     // Fall through to network so the fresh record includes relations.
-    const shared = await getCachedAnime(anilistId)
+    const shared = await getCachedAnime(anilistId, 'ANIME')
     if (shared && (shared.relations?.edges?.length ?? 0) > 0) return shared
     if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError')
     type Res = { Media: AniListMedia }
     const data = await anilistGraphQL<Res>(MEDIA_QUERY, { id: anilistId }, { cacheKey: `anilist:anime:${anilistId}`, useCache: true, signal })
     if (!data.Media) throw new ProviderError('NOT_FOUND', 'We couldn’t find that anime.', false)
-    const anime = mapAniListMediaToAnime(data.Media)
-    putCachedAnime(anilistId, anime)
+    const anime = mapAniListMediaToAnime(data.Media, 'ANIME')
+    putCachedAnime(anilistId, anime, 'ANIME')
     return anime
   }
 
   async getManga(id: string, signal?: AbortSignal): Promise<import('../../types/anime').Anime> {
     const anilistId = id.startsWith('anilist-') ? Number(id.replace('anilist-', '')) : Number(id)
     if (Number.isNaN(anilistId)) throw new ProviderError('NOT_FOUND', 'We couldn’t find that manga.', false)
-    const shared = await getCachedAnime(anilistId)
+    // Type-scoped shared record: an anime record with the same numeric id
+    // must NEVER satisfy a manga read (HxH collision). The cache itself
+    // enforces the boundary; this explicit type keeps it obvious.
+    const shared = await getCachedAnime(anilistId, 'MANGA')
     if (shared) return shared
     if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError')
     type Res = { Media: AniListMedia }
     // Manga detail must query type: MANGA — the ANIME query returns null for
-    // manga ids (that's why the reader showed "not found").
+    // manga ids (that's why the reader showed "not found"). Fail closed on
+    // type: if AniList says this id is not manga-kind, reject (callers must
+    // not render an anime record as manga).
     const data = await anilistGraphQL<Res>(MEDIA_MANGA_QUERY, { id: anilistId }, { cacheKey: `anilist:manga:${anilistId}`, useCache: true, signal })
     if (!data.Media) throw new ProviderError('NOT_FOUND', 'We couldn’t find that manga.', false)
-    const manga = mapAniListMediaToAnime(data.Media)
-    putCachedAnime(anilistId, manga)
+    const manga = mapAniListMediaToAnime(data.Media, 'MANGA')
+    const fmt = (manga.format ?? '').toUpperCase()
+    if (fmt !== 'MANGA' && fmt !== 'NOVEL' && fmt !== 'ONE_SHOT') {
+      throw new ProviderError('NOT_FOUND', 'That entry is an anime, not a manga.', false)
+    }
+    putCachedAnime(anilistId, manga, 'MANGA')
     return manga
   }
 

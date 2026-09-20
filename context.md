@@ -47,12 +47,14 @@ native HLS (Safari).
 - **Streaming**: aniwave-first registry → worker `resolveSource` (filter →
   threshold-40 match → servers → embed extract) → signed relay → player;
   progress via throttled IDB + tracker. Upstream lottery is the ceiling.
-- **Manga**: MangaDex chain (mdx-match→mdx-chapters→mdx-pages) + `#/read`
-  reader + chapter+page progress; shared AnimeCard/DetailModal treatment.
+- **Manga**: MangaDex primary + WeebCentral + MangaPill (verified-only
+  registry, `enabledMangaProviders` toggles) + `#/read` reader +
+  chapter+page progress; shared AnimeCard/DetailModal treatment.
   Chain: MangaDex JSON API → at-home CDN (`*.mangadex.network`, data-saver
   default). Licensed/external-only titles surface official links, never the
-  reader. (WeebCentral chain retained as fallback; provider down since
-  2026-09-19.)
+  reader. Identity boundary `anilist:media:<TYPE>:<id>` — anime and manga
+  records never collide (HxH). Episode/chapter rows carry per-field
+  loading|resolved|unavailable|error states (skeleton only while loading).
 - **Recommendations**: deterministic genre-overlap scoring; Because row =
   single mixed A/B interleave; Top Picks from list genres.
 - **Seasons**: REMOVED. Route id = the entry. No selector, no group model,

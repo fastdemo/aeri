@@ -283,14 +283,19 @@ export async function mdxGetChapters(
   const fj: any = await first.json()
   const total: number = fj?.total ?? (fj?.data ?? []).length
   let rows: any[] = fj?.data ?? []
-  // Paginate when the title has >500 EN chapters.
-  for (let off = rows.length; off < total; off += 500) {
+  // Paginate when the title has >500 EN chapters. Cap at 2000 rows: beyond
+  // that the title is a pagination outlier, and unbounded fetching would
+  // become a request storm (One Piece-scale feeds). The cap is internal —
+  // the UI renders whatever arrived, oldest-first.
+  const ROW_CAP = 2000
+  for (let off = rows.length; off < total && rows.length < ROW_CAP; off += 500) {
     const r = await mdxFetch(params(500, off), signal)
     if (!r.ok) break
     const j: any = await r.json()
     rows = rows.concat(j?.data ?? [])
     if (!(j?.data ?? []).length) break
   }
+  rows = rows.slice(0, ROW_CAP)
   if (!rows.length) {
     // Empty EN feed is ambiguous: licensed titles (all chapters external)
     // return total=0, but so does a transient/rate-limit response. Consult

@@ -2,8 +2,12 @@
 
 ## Core types (`src/types/anime.ts`)
 
-- `AnimeIdentity { internalId, anilistId?, malId? }` — `internalId` is
-  `anilist-<id>` or `mal-<id>`; **never assume id equality across providers**.
+- `AnimeIdentity { internalId, anilistId?, malId?, mediaType? }` —
+  `internalId` is `anilist-<id>` or `mal-<id>`; **never assume id equality
+  across providers**. `mediaType` (ANIME|MANGA) is part of the identity
+  boundary: the same numeric id under different types is a DIFFERENT entity
+  (HxH anime vs HxH manga) — cache keys, route resolution, and provider
+  matching all respect it.
 - `Anime`: identity (`anilist-<id>` — THE identity; no franchise/group id),
   `title{romaji,english?,native?}`, description,
   cover/backdrop/banner, year, season, `episodes?`, `chapters?`/`volumes?`
@@ -65,12 +69,15 @@ next resolve — Retry/episode-change, no live subscription).
 - AniList memory map + IDB `cache` store (24h TTL): keys `anilist:trending:`,
   `:popular:`, `:airing:`, `:new:`, `:browse:`, `:browsemanga:`,
   `:anime:<id>`, `:manga:<id>`, `:bymal:`, `:search:`,
-  `:related:<id>`, `:seriesgroup:` (legacy, unused),
+  `:related:<TYPE>:<scope>:<id>`, `:seriesgroup:` (legacy, unused),
   `anilist:viewer`, `anilist:list:<viewerId>`,
-  `anilist:media:<id>` (shared per-entry record — one id, one record).
+  `anilist:media:<TYPE>:<id>` (shared per-entry record — one id AND one
+  media type, one record; anime and manga records can never collide or
+  satisfy each other's reads — HxH boundary).
 - Video: `video:*` (mem 5m/empty 2m, IDB 1h/empty 5m); resolver 5–10m.
 - Manga: `manga:mangadex:match:<anilistId>` (mem 1h) /
-  `manga:mangadex:chapters:<uuid>` + `:pages:<chUuid>` (mem 10m); Worker
+  `manga:mangadex:chapters:<uuid>` + `:pages:<chUuid>` (mem 10m) /
+  `manga:mangapill:match:<anilistId>` (1h) + `:chapters:<id/slug>` + `:pages:<mid-pid>` (10m); Worker
   mdx-match 1h, mdx-chapters 10m, mdx-pages resolved fresh per chapter
   (rotating host). Anime: resolver pool = verified-only; stale pref ids for
   dead providers ignored. Manga toggles: `enabledMangaProviders` (independent
@@ -86,6 +93,9 @@ next resolve — Retry/episode-change, no live subscription).
 HashRouter: `#/`, `#/browse`, `#/search?q=`, `#/anime/anilist-<id>` (THAT
 entry — no resolution),
 `#/watch/<id>/<ep>` (this entry's episode 1..N),
-`#/read/<id>/<chapter>` (`first`|`latest`|`ch-N`|provider chapter id),
+`#/read/<id>/<chapter>` (`first`|`latest`|`ch-N`|provider chapter id;
+type: MANGA record required — anime records fail closed with an "open anime
+page" link),
 `#/list`, `#/settings`, `#/manga`, `#/profile`. Related entries link
-directly to their own `#/anime/anilist-<id>`.
+directly to their own route WITH media type: anime → `#/anime/anilist-<id>`,
+manga → `#/manga` (resolves type: MANGA).

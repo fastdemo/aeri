@@ -74,10 +74,12 @@ home. **Manga is open**: `/manga` cards open `DetailModal` directly and
   distinct), `useAnimeDetail`, `useMangaDetail`
   (type: MANGA query — the ANIME query returns null for manga ids).
   All stale-while-revalidate; THROTTLED keeps cached data silently.
-- `useRelatedEntries(anilistId, relations?) → {entries, loading}`: ranks the
-  entry's own edges in memory (zero requests); else one cached
-  relations-only query (mem 30m/100 + IDB 24h + inflight). Current entry
-  excluded, deduped by id, ranked strongest → weakest.
+- `useRelatedEntries(anilistId, relations?, mediaType='ANIME') → {entries, loading}`:
+  ranks the entry's own edges in memory (zero requests); else one cached
+  relations-only query for THAT media type (mem 30m/100 + IDB 24h + inflight,
+  keys `anilist:related:<TYPE>:<scope>:<id>`). Current entry excluded,
+  deduped by id, ranked strongest → weakest. Manga surfaces pass 'MANGA'
+  (Related Manga + Related Anime adaptations); anime surfaces pass 'ANIME'.
 
 ## State management
 

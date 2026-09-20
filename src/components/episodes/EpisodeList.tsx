@@ -15,6 +15,7 @@ export function getEpisodes(anime: Anime) {
     title: e.title,
     thumbnail: e.thumbnail,
     duration: e.duration ?? anime.duration ?? 24,
+    fieldState: e.fieldState,
   }))
 }
 
@@ -56,6 +57,7 @@ export function EpisodeList({ anime, hideHeader }: { anime: Anime; hideHeader?: 
       title: e.title,
       thumbnail: e.thumbnail,
       duration: e.duration ?? anime.duration ?? 24,
+      fieldState: e.fieldState,
     }))
   }, [
     anime.identity.anilistId,
@@ -137,7 +139,16 @@ export function EpisodeList({ anime, hideHeader }: { anime: Anime; hideHeader?: 
           // next-up highlight only (no progress bar — it read as an error state)
           const isCurrent = ep.number === progressEp + 1 || (progressEp === 0 && ep.number === 1)
           const seasonKey = anime.identity.anilistId ? `anilist:${anime.identity.anilistId}` : anime.identity.internalId
+          // Per-row state: skeleton ONLY while that field is genuinely still
+          // loading (provider fetch pending). A resolved-but-absent field
+          // renders the quiet "Episode N" fallback — never a fake thumbnail.
+          // providerDone=false + unavailable state can occur on the very
+          // first paint (fetch not yet settled); treat as loading then.
+          const titleLoading = !providerDone ? (ep.fieldState?.title !== 'resolved') : ep.fieldState?.title === 'loading'
+          const thumbLoading = !providerDone ? (ep.fieldState?.thumbnail !== 'resolved') : ep.fieldState?.thumbnail === 'loading'
           const thumb = ep.thumbnail || fallbackThumb
+          const showThumbSkeleton = thumbLoading && !ep.thumbnail
+          const showRealThumb = !!ep.thumbnail
           const epLabel = `${String(ep.number).padStart(2, '0')}`
           const watchEp = ep.number
           return (
@@ -152,7 +163,9 @@ export function EpisodeList({ anime, hideHeader }: { anime: Anime; hideHeader?: 
               <span className="w-9 text-center text-sm font-medium text-[var(--text-muted)]">{epLabel}</span>
 
               <div className="relative h-12 w-20 shrink-0 overflow-hidden rounded bg-[color-mix(in_srgb,var(--text)_5%,transparent)]">
-                {thumb ? (
+                {showThumbSkeleton ? (
+                  <div className="h-full w-full animate-pulse bg-[color-mix(in_srgb,var(--text)_8%,transparent)]" aria-label="Loading episode thumbnail" />
+                ) : showRealThumb ? (
                   <img
                     key={`${seasonKey}-${ep.number}-${thumb}`}
                     src={thumb}
@@ -168,13 +181,13 @@ export function EpisodeList({ anime, hideHeader }: { anime: Anime; hideHeader?: 
                     }}
                   />
                 ) : null}
-                {!thumb && (
+                {!showRealThumb && !showThumbSkeleton && (
                   <div className="grid h-full w-full place-items-center bg-[var(--text)]/[0.04] text-[10px] font-medium text-[color-mix(in_srgb,var(--text)_30%,transparent)]">
                     {epLabel}
                   </div>
                 )}
                 {/* fallback placeholder when img fails */}
-                <div className="hidden h-full w-full place-items-center bg-[var(--text)]/[0.04] text-[10px] font-medium text-[color-mix(in_srgb,var(--text)_30%,transparent)]" style={{display: thumb ? 'none' : 'grid'}}>
+                <div className="hidden h-full w-full place-items-center bg-[var(--text)]/[0.04] text-[10px] font-medium text-[color-mix(in_srgb,var(--text)_30%,transparent)]" style={{display: showRealThumb ? undefined : 'grid'}}>
                   {epLabel}
                 </div>
                 {isWatched && (
@@ -188,6 +201,10 @@ export function EpisodeList({ anime, hideHeader }: { anime: Anime; hideHeader?: 
                 {ep.title ? (
                   <p className={`truncate text-[13px] font-medium ${isCurrent ? 'text-[var(--text)]' : 'text-[var(--text)]'}`}>
                     {ep.title}
+                  </p>
+                ) : titleLoading ? (
+                  <p aria-label="Loading episode title">
+                    <span className="block h-3 w-3/4 animate-pulse rounded bg-[color-mix(in_srgb,var(--text)_8%,transparent)]" />
                   </p>
                 ) : (
                   <p className={`text-[13px] font-medium ${isCurrent ? 'text-[var(--text)]' : 'text-[var(--text-muted)]'}`}>

@@ -64,7 +64,7 @@
   per-row surface cards, `01` numbers, right-side counts, no provider names.
 - Manga reader (D083): WeebCentral provider + signed image relay + Read page
 - Manga provider (D091): MangaDex primary (WeebCentral search outage 2026-09-19) — mdx-match/chapters/pages routes, opaque provider units, chapterOrder pref (default oldest), external-link surfacing for licensed titles, IDB unit+page progress with resume
-- Provider registry (D092): verified-only data-driven Settings (anime: aniwave+official; manga: mangadex+weebcentral) — `status` field, dead stubs hidden + never requested, `enabledMangaProviders` pref, `npm run verify:providers` matrix, WeebCentral lowee.us host support
+- Provider registry (D092): verified-only data-driven Settings (anime: aniwave+official; manga: mangadex+weebcentral+mangapill) — `status` field, dead stubs hidden + never requested, `enabledMangaProviders` pref, `npm run verify:providers` matrix, WeebCentral lowee.us host support, per-host relay Referer
   + ChapterList + shared AnimeCard manga treatment + open manga (no sign-in
   gate) + loopback CORS for local preview + `useMangaDetail` type fix.
 - DetailModal manga path bypasses `sanitizeAnimeForDisplay` (episode-number

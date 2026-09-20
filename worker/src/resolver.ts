@@ -943,10 +943,10 @@ export async function handleStream(request: Request, cors: Record<string, string
 
 // ---------- signed manga image relay ----------
 
-// Hosts allowed through /api/manga/img. Page images (planeptune, lowee) +
-// covers (compsci88) only — never an open proxy. Suffix match covers
-// rotation subdomains (hot./scans-hot./official.).
-const MANGA_IMG_SUFFIXES = ['planeptune.us', 'compsci88.com', 'lowee.us']
+// Hosts allowed through /api/manga/img. Page images (planeptune, lowee,
+// mangapill CDN) + covers (compsci88) only — never an open proxy. Suffix
+// match covers rotation subdomains (hot./scans-hot./official./cdn.).
+const MANGA_IMG_SUFFIXES = ['planeptune.us', 'compsci88.com', 'lowee.us', 'readdetectiveconan.com']
 
 function mangaHostAllowed(hostname: string): boolean {
   const h = String(hostname || '').toLowerCase()
@@ -987,8 +987,14 @@ export async function handleMangaImage(request: Request, cors: Record<string, st
   }
   if (await isPrivateHost(host)) return plainTextResponse(cors, 403, 'Forbidden')
   try {
+    // Referer must match the image's own provider: the mangapill CDN
+    // (readdetectiveconan) 403s unless Referer is mangapill.com; the
+    // planeptune/lowee hosts accept the weebcentral referer (or none).
+    const referer = /\.readdetectiveconan\.com$/i.test(host)
+      ? 'https://mangapill.com/'
+      : 'https://weebcentral.com/'
     const up = await fetchUpstream(target, {
-      headers: { Accept: 'image/*', Referer: 'https://weebcentral.com/' },
+      headers: { Accept: 'image/*', Referer: referer },
       timeoutMs: 30000,
       signal: request.signal,
     })

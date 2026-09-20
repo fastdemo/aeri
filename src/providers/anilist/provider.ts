@@ -251,7 +251,7 @@ export class AniListProvider implements TrackingProvider {
     const t = getAnilistToken()
     type Res = { Page: { media: AniListMedia[] } }
     const data = await anilistGraphQL<Res>(SEARCH_QUERY, { search: query, perPage: 12 }, { token: t ?? undefined, useCache: true, cacheKey: `anilist:search:${query.toLowerCase()}` })
-    return (data.Page.media ?? []).map(mapAniListMediaToAnime)
+    return (data.Page.media ?? []).map((m) => mapAniListMediaToAnime(m, 'ANIME'))
   }
 
   // Helpers to find existing list entry id

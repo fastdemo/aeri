@@ -64,9 +64,33 @@ function parseScopedId(scopedId: string | number | null | undefined): { scope: s
   return { scope: scopedId.slice(0, idx), anilistId: Number.isFinite(n) ? n : null }
 }
 
-const RELATED_QUERY = `
+const RELATED_QUERY_ANIME = `
 query ($id: Int) {
   Media(id: $id, type: ANIME) {
+    id
+    relations {
+      edges {
+        relationType
+        node {
+          id
+          title { romaji english native }
+          format
+          status
+          episodes
+          chapters
+          volumes
+          coverImage { extraLarge large medium }
+          bannerImage
+        }
+      }
+    }
+  }
+}
+`
+
+const RELATED_QUERY_MANGA = `
+query ($id: Int) {
+  Media(id: $id, type: MANGA) {
     id
     relations {
       edges {
@@ -117,11 +141,13 @@ function toEntry(edge: AniListRelationEdge): RelatedEntry | null {
   return { anime, relationType: edge.relationType ?? 'OTHER' }
 }
 
-async function fetchRelated(anilistId: number, signal?: AbortSignal): Promise<RelatedEntry[]> {
+async function fetchRelated(anilistId: number, mediaType: 'ANIME' | 'MANGA', scope: string, signal?: AbortSignal): Promise<RelatedEntry[]> {
   const data = await anilistGraphQL<RelatedResponse>(
-    RELATED_QUERY,
+    mediaType === 'MANGA' ? RELATED_QUERY_MANGA : RELATED_QUERY_ANIME,
     { id: anilistId },
-    { cacheKey: `anilist:related:${anilistId}`, useCache: true, signal },
+    // Type-scoped cache identity: anime-16498 relations must never satisfy
+    // a manga-16498 read (or vice versa). Scope stays namespaced per mount.
+    { cacheKey: `anilist:related:${mediaType}:${scope}:${anilistId}`, useCache: true, signal },
   )
   const edges = data.Media?.relations?.edges ?? []
   const seen = new Set<number>()
@@ -148,6 +174,13 @@ async function fetchRelated(anilistId: number, signal?: AbortSignal): Promise<Re
  * cached relations-only query. Deduped by media id, current entry excluded,
  * ranked strongest → weakest.
  *
+ * MEDIA TYPE: pass `mediaType` matching the CURRENT entry ('ANIME' for
+ * anime surfaces, 'MANGA' for manga surfaces). The fallback query asks
+ * AniList for that type, and preloaded edges are trusted only when the
+ * caller's own Media query supplied them (same type by construction).
+ * Related nodes carry their own format, so mixed anime↔manga relations
+ * (adaptations) render with the correct card + route per entry.
+ *
  * The first param is a namespaced key `<scope>:<anilistId>` (scope =
  * modal-desktop, modal-mobile, page, watch). Each mount gets its own
  * namespace, so two instances for the SAME anime can never share mem,
@@ -157,6 +190,7 @@ async function fetchRelated(anilistId: number, signal?: AbortSignal): Promise<Re
 export function useRelatedEntries(
   scopedId: string | number | null | undefined,
   preloaded?: Anime['relations'],
+  mediaType: 'ANIME' | 'MANGA' = 'ANIME',
 ): { entries: RelatedEntry[] | null; loading: boolean } {
   const [state, setState] = useState<{ entries: RelatedEntry[] | null; loading: boolean }>(
     { entries: null, loading: !!scopedId },
@@ -216,21 +250,21 @@ export function useRelatedEntries(
     let cancelled = false
     setState({ entries: null, loading: true })
     const run = shared ?? (() => {
-      const p = fetchRelated(anilistId, controller.signal)
+      const p = fetchRelated(anilistId, mediaType, scope, controller.signal)
         .then(res => {
           mem.set(scopedId as string, { at: Date.now(), data: res })
           if (mem.size > MEM_MAX) {
             const oldest = mem.keys().next().value as string | undefined
             if (oldest !== undefined) mem.delete(oldest)
           }
-          try { void putCache(`anilist:related:${scope}:${anilistId}`, { entries: res, at: Date.now() }) } catch {}
+          try { void putCache(`anilist:related:${mediaType}:${scope}:${anilistId}`, { entries: res, at: Date.now() }) } catch {}
           return res
         })
       inflight.set(scopedId as string, p)
       return p
     })()
     // IDB before network (repeat visits: zero requests)
-    getCache<{ entries: RelatedEntry[]; at: number }>(`anilist:related:${scope}:${anilistId}`)
+    getCache<{ entries: RelatedEntry[]; at: number }>(`anilist:related:${mediaType}:${scope}:${anilistId}`)
       .then((cached: { entries: RelatedEntry[]; at: number } | null) => {
         if (cancelled) return
         if (cached && Date.now() - cached.at < 1000 * 60 * 60 * 24) {
@@ -259,7 +293,7 @@ export function useRelatedEntries(
     return () => { cancelled = true; controller.abort() }
   // Stringify preloaded edges as the dep — stable identity without refetch loops.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scopedId, JSON.stringify(preloaded?.edges?.map(e => [e.relationType, e.node?.id]) ?? null)])
+  }, [scopedId, mediaType, JSON.stringify(preloaded?.edges?.map(e => [e.relationType, e.node?.id]) ?? null)])
 
   return state
 }

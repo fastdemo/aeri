@@ -1,5 +1,18 @@
 # Changelog — Aeri (architectural changes only)
 
+## 2026-09-20 — Metadata reliability + manga identity + MangaPill (D093)
+
+### Changed
+- Episode field states (`loading|resolved|unavailable|error` per title/thumbnail in `normalizeEpisodes`): skeleton ONLY while genuinely loading; resolved-but-absent renders quiet "Episode N", never a fake thumbnail. `mergeEpisodeField` guard makes stale/fallback overwrites structurally impossible. One Piece: 1179 rows, first/mid/last correct, cold + warm + rapid A→B→A verified.
+- Manga/anime identity boundary: `identity.mediaType` (ANIME|MANGA) at map time; shared cache keys `anilist:media:<TYPE>:<id>` with payload verification; related keys `anilist:related:<TYPE>:<scope>:<id>`. HxH manga vs anime verified both directions, no collision.
+- Manga Related Entries: `useRelatedEntries(..., 'MANGA')` + `MangaRelatedEntriesBlock` in DetailModal row 2. Berserk: 3 manga + 7 shows; HxH: 6 + 2. Type-safe routes; reader fails closed on anime records.
+- MangaPill verified third provider (server-rendered HTML, no JS/auth): worker `mangapill.ts` + `mp-*` routes, frontend provider module, signed-relay pages (per-host Referer). Default OFF. SxF 170u covers the MDX 2-unit licensed gap.
+- WC `Mission|Misson` parsing; MDX feed ROW_CAP 2000; `verify:providers` 59 checks incl. HxH identity + SxF completeness + honest provider-gap semantics.
+
+### Verification
+- `verify:providers` 59/59; regression matrices (10 anime, 6 manga) via Playwright with rendered UI assertions; typecheck/lint/build clean.
+
+
 ## 2026-09-20 — MangaDex primary; shared-header alignment; manga progress+ordering (D091)
 
 ### Changed

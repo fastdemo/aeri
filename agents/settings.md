@@ -17,6 +17,7 @@ defaults); theme also applies instantly via `applyTheme`.
 | Preferred audio Sub/Dub | `preferredAudio` | `sub` | source order + select (refetch on change) |
 | Preferred source select | `preferredProvider` | null (Auto) | tried first in registry (refetch on change) |
 | Provider Enable checkbox | `enabledProviders` | null (=all) | filters registry; applies on **next resolve** (Retry/episode change) |
+| Manga provider Enable checkbox | `enabledMangaProviders` | null (=all verified) | filters manga registry (mangadex/weebcentral/mangapill); applies on next chapter resolve; all-off → honest message, zero requests |
 | Provider ↑/↓ reorder | `providerOrder` | null (=default) | orders registry; same next-resolve timing |
 | Custom video server + Test | `customVideoApiUrl` | null | `getEffectiveVideoApiUrl`; Test GETs `{url}/health`; same next-resolve timing |
 | Color theme grid (17) | `theme` | `aeri-dark` | instant `applyTheme`, pre-render init, survives reload |

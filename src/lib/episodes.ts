@@ -15,6 +15,54 @@ export interface AnimeEpisode {
   streamingUrl?: string
   source: 'anilist' | 'provider' | 'none'
   providerId?: string
+  /**
+   * Per-field resolution state. Loading ≠ failed ≠ absent: the UI shows a
+   * neutral skeleton while a field is loading, the real value when it
+   * resolves, and a quiet fallback ONLY when the field is confirmed
+   * unavailable (upstream genuinely lacks it) or errored (provider down).
+   * A late response may only fill fields that are still loading — it must
+   * NEVER overwrite a resolved value (stale-overwrite guard in the merge
+   * helpers below).
+   */
+  fieldState?: {
+    title?: 'loading' | 'resolved' | 'unavailable' | 'error'
+    thumbnail?: 'loading' | 'resolved' | 'unavailable' | 'error'
+  }
+}
+
+/** Field quality rank: resolved real data beats everything; a failed or
+ * absent field must never overwrite a resolved one. */
+export function fieldQuality(v: string | undefined, state: 'loading' | 'resolved' | 'unavailable' | 'error' | undefined): number {
+  if (v && state !== 'error' && state !== 'unavailable') return state === 'resolved' ? 3 : 2
+  if (state === 'loading' || state === undefined) return 1
+  return 0
+}
+
+/**
+ * Merge a late episode-metadata patch into an existing episode. Only fills
+ * fields that are still loading/empty — never overwrites resolved values
+ * with fallback or stale data. Returns the (possibly unchanged) episode.
+ */
+export function mergeEpisodeField<T extends Pick<AnimeEpisode, 'title' | 'thumbnail' | 'fieldState'>>(
+  ep: T,
+  patch: { title?: string; thumbnail?: string; source: AnimeEpisode['source'] },
+): T {
+  const out = { ...ep, fieldState: { ...ep.fieldState } }
+  if (patch.title && fieldQuality(out.title, out.fieldState?.title) < 2) {
+    const clean = cleanEpisodeTitle(patch.title.trim())
+    if (clean && !isGenericTitle(clean)) {
+      out.title = clean
+      out.fieldState!.title = 'resolved'
+    }
+  }
+  if (patch.thumbnail && fieldQuality(out.thumbnail, out.fieldState?.thumbnail) < 2) {
+    if (isValidHttpUrl(patch.thumbnail.trim())) {
+      out.thumbnail = patch.thumbnail.trim()
+      out.fieldState!.thumbnail = 'resolved'
+    }
+  }
+  void patch.source
+  return out
 }
 
 function isGenericTitle(t: string): boolean {
@@ -314,12 +362,20 @@ export function normalizeEpisodes(
     let title: string | undefined
     let source: AnimeEpisode['source'] = 'none'
     let providerId: string | undefined
+    // Field states: resolved only when a REAL value landed; loading when a
+    // source COULD still supply it (provider fetch pending or not yet
+    // attempted); unavailable when no source has it and none is pending.
+    // The UI skeleton-binds on 'loading', falls back quietly otherwise —
+    // a generic "Episode N" label is never presented as resolved metadata.
+    let titleState: 'loading' | 'resolved' | 'unavailable' | 'error' = 'unavailable'
+    let thumbState: 'loading' | 'resolved' | 'unavailable' | 'error' = 'unavailable'
 
     const anilistRaw = typeof se?.title === 'string' ? se.title.trim() : ''
     const cleanedAnilist = anilistRaw ? cleanEpisodeTitle(anilistRaw) : ''
     if (cleanedAnilist && !isGenericTitle(cleanedAnilist)) {
       title = cleanedAnilist
       source = 'anilist'
+      titleState = 'resolved'
     } else {
       const pe = providerByNum.get(n)
       const providerRaw = typeof pe?.title === 'string' ? pe.title.trim() : ''
@@ -328,8 +384,16 @@ export function normalizeEpisodes(
         title = cleanedProvider
         source = 'provider'
         providerId = pe?.provider
+        titleState = 'resolved'
       } else if (pe) {
         providerId = pe.provider
+        // Provider knows this episode but gave no usable title (yet?) —
+        // still loading only while the provider fetch itself is pending.
+        titleState = providerEpisodes === null || providerEpisodes === undefined ? 'loading' : 'unavailable'
+      } else {
+        // No provider row at all: loading while provider fetch pending,
+        // unavailable once it settled.
+        titleState = providerEpisodes === null || providerEpisodes === undefined ? 'loading' : 'unavailable'
       }
     }
 
@@ -338,6 +402,7 @@ export function normalizeEpisodes(
     if (anilistThumb && isValidHttpUrl(anilistThumb)) {
       thumbnail = anilistThumb
       if (source === 'none') source = 'anilist'
+      thumbState = 'resolved'
     } else {
       const pe = providerByNum.get(n)
       const providerThumb = typeof pe?.thumbnail === 'string' ? pe.thumbnail.trim() : ''
@@ -345,6 +410,9 @@ export function normalizeEpisodes(
         thumbnail = providerThumb
         if (source === 'none') source = 'provider'
         if (pe && !providerId) providerId = pe.provider
+        thumbState = 'resolved'
+      } else {
+        thumbState = providerEpisodes === null || providerEpisodes === undefined ? 'loading' : 'unavailable'
       }
     }
 
@@ -360,6 +428,7 @@ export function normalizeEpisodes(
       ...(streamingUrl ? { streamingUrl } : {}),
       source,
       ...(providerId ? { providerId } : {}),
+      fieldState: { title: titleState, thumbnail: thumbState },
     }
   })
 }

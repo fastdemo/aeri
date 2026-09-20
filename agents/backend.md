@@ -32,6 +32,7 @@ provider falls back to production Worker automatically on localhost).
 | `scripts/verify-providers.mjs` (`npm run verify:providers`) | end-to-end manga+anime provider probes (units→pages→image bytes, episodes→sources→TS sync bytes); fails CI on regression |
 | `GET /api/manga/mdx-chapters/:uuid` | `{readable, external}` provider units (EN, safe ratings, asc; aggregate fallback for licensed titles), cached 10m |
 | `GET /api/manga/mdx-pages/:chUuid?quality=saver\|data` | at-home direct CDN URLs (data-saver default) — no relay needed |
+| `GET /api/manga/mp-match/:anilistId` / `mp-chapters/:id/:slug` / `mp-pages/:mid/:pid` | MangaPill match/units/signed-relay pages (server-rendered HTML, numeric ids) |
 | `GET /api/manga/match/:anilistId?...` | WeebCentral series match (fallback; provider outage since 2026-09-19), cached 10m |
 | `GET /api/manga/chapters/:providerMangaId` | WeebCentral chapter list (fallback), cached 5m |
 | `GET /api/manga/pages/:providerChapterId` | WeebCentral page URLs re-signed to same-origin `/api/manga/img`, cached 5m |

@@ -362,32 +362,54 @@ export function DetailModal({
             )}
           </div>
 
-          {/* Row 2, col 2: Related Shows + Manga — same grid row as
-              episodes, so headers start at exactly the same y. */}
-          {!isMangaKind && displayAnime.identity.anilistId && (
+          {/* Row 2, col 2: related — same grid row as episodes, so headers
+              start at exactly the same y. Anime surfaces query type: ANIME;
+              manga surfaces query type: MANGA (mixed adaptation relations
+              render per-entry with the correct card + route either way). */}
+          {displayAnime.identity.anilistId && (
             <div className="hidden min-w-0 text-xs leading-5 lg:col-start-2 lg:row-start-2 lg:block">
-              <RelatedEntriesBlock
-                key={`d-${displayKey}`}
-                anilistId={displayAnime.identity.anilistId}
-                relations={displayAnime.relations}
-                onSelectAnime={onSelectRelated}
-                scope="modal-desktop"
-              />
+              {isMangaKind ? (
+                <MangaRelatedEntriesBlock
+                  key={`d-${displayKey}`}
+                  anilistId={displayAnime.identity.anilistId}
+                  relations={displayAnime.relations}
+                  onSelectManga={onSelectRelated}
+                  scope="modal-desktop"
+                />
+              ) : (
+                <RelatedEntriesBlock
+                  key={`d-${displayKey}`}
+                  anilistId={displayAnime.identity.anilistId}
+                  relations={displayAnime.relations}
+                  onSelectAnime={onSelectRelated}
+                  scope="modal-desktop"
+                />
+              )}
             </div>
           )}
           {/* Mobile stack: metadata, then related in normal flow.
               Separate mobile-only instance (no shared state). */}
           <div className="min-w-0 space-y-2 border-t border-[var(--border)] pt-4 text-xs leading-5 lg:hidden">
             <SidebarMeta anime={displayAnime} />
-            {!isMangaKind && displayAnime.identity.anilistId && (
+            {displayAnime.identity.anilistId && (
               <div>
-                <RelatedEntriesBlock
-                  key={`m-${displayKey}`}
-                  anilistId={displayAnime.identity.anilistId}
-                  relations={displayAnime.relations}
-                  onSelectAnime={onSelectRelated}
-                scope="modal-mobile"
-                />
+                {isMangaKind ? (
+                  <MangaRelatedEntriesBlock
+                    key={`m-${displayKey}`}
+                    anilistId={displayAnime.identity.anilistId}
+                    relations={displayAnime.relations}
+                    onSelectManga={onSelectRelated}
+                    scope="modal-mobile"
+                  />
+                ) : (
+                  <RelatedEntriesBlock
+                    key={`m-${displayKey}`}
+                    anilistId={displayAnime.identity.anilistId}
+                    relations={displayAnime.relations}
+                    onSelectAnime={onSelectRelated}
+                    scope="modal-mobile"
+                  />
+                )}
               </div>
             )}
           </div>
@@ -436,11 +458,21 @@ function SidebarMeta({ anime }: { anime: Anime }) {
 }
 
 function RelatedEntriesBlock({ anilistId, relations, onSelectAnime, showsOnly, mangaOnly, hideHeader, scope }: { anilistId: number; relations: Anime['relations']; onSelectAnime?: (anime: Anime) => void; showsOnly?: boolean; mangaOnly?: boolean; hideHeader?: boolean; scope?: string }) {
-  const { entries, loading } = useRelatedEntries(scope ? `${scope}:${anilistId}` : anilistId, relations)
+  const { entries, loading } = useRelatedEntries(scope ? `${scope}:${anilistId}` : anilistId, relations, 'ANIME')
   // In-place swap needs the full Anime object, not just the id.
   const byId = new Map((entries ?? []).map(e => [e.anime.identity.anilistId!, e.anime]))
   return <RelatedEntries entries={entries} loading={loading} showsOnly={showsOnly} mangaOnly={mangaOnly} hideHeader={hideHeader} onSelect={onSelectAnime ? (id) => {
     const found = byId.get(id)
     if (found) onSelectAnime(found)
+  } : undefined} />
+}
+
+/** Manga-surface related block: queries type: MANGA, renders Related Manga + Related Anime. */
+export function MangaRelatedEntriesBlock({ anilistId, relations, onSelectManga, scope }: { anilistId: number; relations: Anime['relations']; onSelectManga?: (anime: Anime) => void; scope?: string }) {
+  const { entries, loading } = useRelatedEntries(scope ? `${scope}:${anilistId}` : anilistId, relations, 'MANGA')
+  const byId = new Map((entries ?? []).map(e => [e.anime.identity.anilistId!, e.anime]))
+  return <RelatedEntries entries={entries} loading={loading} onSelect={onSelectManga ? (id) => {
+    const found = byId.get(id)
+    if (found) onSelectManga(found)
   } : undefined} />
 }

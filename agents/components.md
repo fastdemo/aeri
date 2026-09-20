@@ -27,11 +27,13 @@ Props: anime, onClose. Single dark panel showing EXACTLY the opened entry
 (no group, no selector). This entry's progress truth only (related entries
 never share). Tracking actions; episode list (anime) / chapter list (manga).
 Content grid: row 1 = description | metadata, row 2 = episodes/chapters |
-Related Shows+Manga (anime only) — row 2 is ONE shared grid row so the
-Episodes and Related Shows headers start at exactly the same y by
-construction (the conditional E-line lives in row 1 and shifts row 2 down
-for both columns equally; no offsets, no spacers). DOM order is the mobile
-stacking order; lg placement puts D|M on row 1, E|R on row 2.
+related — row 2 is ONE shared grid row so the Episodes and Related headers
+start at exactly the same y by construction (the conditional E-line lives
+in row 1 and shifts row 2 down for both columns equally; no offsets, no
+spacers). Anime surfaces query type: ANIME; manga surfaces (Berserk etc.)
+query type: MANGA via `MangaRelatedEntriesBlock` (Related Manga + Related
+Anime adaptations). DOM order is the mobile stacking order; lg placement
+puts D|M on row 1, E|R on row 2.
 Hashchange/popstate/`aeri:navigate` auto-close; opens scrolled to top.
 
 ## ContentRow (`components/rows/ContentRow.tsx`)
@@ -59,13 +61,20 @@ Props: anime (only — no seasonNumber/group). Header `Episodes` + right-side
 `N episodes`; transparent wrapper, per-row `bg-[var(--surface)]` cards
 (visible borders in every theme); numbers `01` (no E prefix, no S:);
 sub-line duration only. `getEpisodes()` helper; provider enrichment with
-1.8s cap; movie → null.
+1.8s cap; movie → null. Per-row field states (loading|resolved|unavailable|
+error): skeleton ONLY while a field is genuinely loading (provider pending);
+resolved-but-absent renders quiet "Episode N", never a fake thumbnail.
+`normalizeEpisodes` merges AniList→provider (never reverse); `mergeEpisodeField`
+guard makes stale/fallback overwrites structurally impossible.
 
 ## RelatedEntries (`components/related/RelatedEntries.tsx`)
 
-Ranked relation row reusing AnimeCard; caption `Relation • Format •
-N Episodes`; plain `<a href="#/anime/anilist-<id>">` links (NOT router Link
-— the modal closes on any hashchange). Manga excluded (no relation system).
+Ranked relation rows reusing AnimeCard; caption `Relation • Format •
+N Episodes`; plain anchors (NOT router Link — the modal closes on any
+hashchange). Type-safe routes: manga relations → `#/manga` (resolves type:
+MANGA), anime relations → `#/anime/anilist-<id>` (type: ANIME) — the numeric
+id alone is never trusted across types (HxH collision). In-place modal swap
+via onSelect* (full Anime with identity.mediaType).
 
 ## Hero (`components/hero/Hero.tsx`)
 

@@ -148,6 +148,7 @@ pages/stream bytes→rendered images in a real browser):
 |---|---|---|---|---|
 | MangaDex | Manga | 425u Berserk | 94pp JPEG direct | Verified |
 | WeebCentral | Manga | 403u Berserk | 24pp signed-relay JPEG | Verified |
+| MangaPill | Manga | 405u Berserk | 24pp signed-relay JPEG | Verified (fallback, default OFF) |
 | AniWave | Anime | 1178ep One Piece | HLS TS sync markers | Verified |
 | Official Trailer | Anime | trailer only | embed | Verified (fallback) |
 | Miruro / Custom | Anime | — | trailer-alias / user endpoint | Unverified |
@@ -156,13 +157,18 @@ pages/stream bytes→rendered images in a real browser):
 Rejected with reason (never exposed): ComicK (api DNS dead), MangaFire
 (API needs account token — bypass would defeat access control), Jikan
 (metadata only, no chapters), Consumet (self-host required, no public
-endpoint). WeebCentral was 500-down 2026-09-19 (provider-side, verified via
-the site's own htmx request failing), recovered 2026-09-20; page hosts
-rotate planeptune + lowee (parser + relay allowlist accept both). Licensed
-titles (Solo Leveling) readable via WeebCentral (201u/49pp) while MangaDex
-hosts zero pages (16 external links) — the pair complement each other.
+endpoint), xComic (Qwik `/query/` GraphQL-ish POST — no stable public
+contract), LikeManga (no discoverable search API), MangaGo (CF challenge),
+VyManga (403). WeebCentral was 500-down 2026-09-19 (provider-side, verified
+via the site's own htmx request failing), recovered 2026-09-20; page hosts
+rotate planeptune + lowee (parser + relay allowlist accept both; the relay
+sends a per-host Referer — the mangapill CDN 403s without mangapill.com).
+Licensed titles (Solo Leveling) readable via WeebCentral (201u/49pp) while
+MangaDex hosts zero pages (16 external links) — the pair complement each
+other. MangaPill (server-rendered HTML, no JS/auth/CAPTCHA) covers SxF
+completeness gaps (170u Chapter-labeled units where MDX has 2).
 
-Fallback: enabled + verified only, registry order (mangadex → weebcentral;
-preferred anime source first when enabled), first non-empty wins. All manga
-providers disabled → "No Manga providers are enabled." (no silent fallback,
-no disabled-provider requests). Anime mirrors with 4s/9s timeouts.
+Fallback: enabled + verified only, registry order (mangadex → weebcentral →
+mangapill; preferred anime source first when enabled), first non-empty wins.
+All manga providers disabled → "No Manga providers are enabled." (no silent
+fallback, no disabled-provider requests). Anime mirrors with 4s/9s timeouts.

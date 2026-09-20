@@ -37,6 +37,9 @@ function RelatedGrid({
       {entries.map(({ anime, relationType }) => {
         const id = anime.identity.anilistId
         if (!id) return null
+        // Type-safe destination: manga relations MUST resolve as manga.
+        // The /manga page queries type: MANGA; /anime queries type: ANIME.
+        const href = isMangaFormat(anime.format) ? `#/manga` : `#/anime/anilist-${id}`
         const meta = [
           relationLabel(relationType),
           formatLabel(anime.format) ?? anime.format,
@@ -59,7 +62,7 @@ function RelatedGrid({
               inner
             ) : (
               <a
-                href={`#/anime/anilist-${id}`}
+                href={href}
                 aria-label={`Open related entry ${anime.title.english ?? anime.title.romaji}`}
                 className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)]"
               >
@@ -78,6 +81,12 @@ function RelatedGrid({
  * (anime formats) and Related Manga (MANGA/NOVEL/ONE_SHOT). Each entry links
  * directly to its own AniList id; nothing mutates the current entry, groups
  * identities, or transfers progress. Reuses the shared AnimeCard.
+ *
+ * Media-type routing: manga relations link to `#/manga` (which resolves
+ * type: MANGA) and anime relations to `#/anime/...` (type: ANIME). The
+ * numeric id alone is NOT sufficient — HxH anime vs HxH manga share
+ * nothing but digits. onSelect callers receive the full Anime (with
+ * identity.mediaType) so in-place modal swaps preserve the type.
  *
  * NOTE: Related links must NOT go through react-router <Link>: the parent
  * DetailModal closes on ANY hashchange (including same-hash route swaps),
@@ -166,6 +175,7 @@ function RelatedGridContents({
       {entries.map(({ anime, relationType }) => {
         const id = anime.identity.anilistId
         if (!id) return null
+        const href = isMangaFormat(anime.format) ? `#/manga` : `#/anime/anilist-${id}`
         const meta = [
           relationLabel(relationType),
           formatLabel(anime.format) ?? anime.format,
@@ -188,7 +198,7 @@ function RelatedGridContents({
               inner
             ) : (
               <a
-                href={`#/anime/anilist-${id}`}
+                href={href}
                 aria-label={`Open related entry ${anime.title.english ?? anime.title.romaji}`}
                 className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)]"
               >

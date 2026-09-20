@@ -548,7 +548,6 @@ export function Watch() {
           {anime.identity.anilistId && (
             <WatchRelatedEntries anilistId={anime.identity.anilistId} relations={anime.relations} />
           )}
-
           {/* Provider capabilities footer (quiet) */}
           <div className="mt-6 flex flex-wrap gap-1.5">
             {getProviderCapabilities().filter(c => c.id !== 'mock').map(c => (
@@ -564,6 +563,6 @@ export function Watch() {
 }
 
 function WatchRelatedEntries({ anilistId, relations }: { anilistId: number; relations: import('../types/anime').Anime['relations'] }) {
-  const { entries, loading } = useRelatedEntries(`page-${anilistId}:${anilistId}`, relations)
+  const { entries, loading } = useRelatedEntries(`page-${anilistId}:${anilistId}`, relations, 'ANIME')
   return <RelatedEntries entries={entries} loading={loading} />
 }

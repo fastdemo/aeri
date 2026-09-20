@@ -2,6 +2,13 @@ export interface AnimeIdentity {
   internalId: string
   anilistId?: number
   malId?: number
+  /**
+   * AniList media type that minted this identity (ANIME | MANGA). Part of
+   * the identity boundary: the same numeric id under different types is a
+   * DIFFERENT entity (e.g. HxH anime vs HxH manga). Cache keys, route
+   * resolution, and provider matching must all respect it.
+   */
+  mediaType?: 'ANIME' | 'MANGA'
 }
 
 export type AnimeStatus = 'watching' | 'completed' | 'planned' | 'on_hold' | 'dropped'
