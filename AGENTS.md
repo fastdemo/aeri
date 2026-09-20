@@ -13,12 +13,15 @@
 - Develop with local git only (commit locally if useful). The user pushes.
 - At the end of every task explicitly report: "GitHub untouched."
 
-### Cloudflare — the deployment target
+### Cloudflare — the deployment target. ALWAYS deploy.
 
 - Production is `https://aeri.fastdemo.workers.dev/` (Worker `aeri` serves
   `dist/` + `/api/*`). Never deploy to `aeri-production`.
 - Cloudflare is the production deployment target. Completed production
   changes must be deployed to Cloudflare.
+- ALWAYS deploy to Cloudflare. No exceptions, no "commit first then wait" —
+  every completed change goes live: build → deploy → verify. Do not ask
+  for confirmation; just do it.
 - Production verification must happen against the deployed Cloudflare
   application (live URL), not just localhost.
 - When a task changes the app: develop → test → `npm run build` →
