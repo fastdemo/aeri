@@ -119,7 +119,12 @@ function wcTitleSanityOk(candidateTitle: string, hint: ProviderHint | undefined)
  * titles: pure count-vs-count arithmetic.
  * - expected ≥ 50 chapters but candidate has < 10% of expected AND < 10
  *   units absolute → reject ('series-length mismatch').
- * - Otherwise accept (short series, oneshots, and licensed gaps pass).
+ * - Short EXPECTED works (oneshots, 2-ch volumes like Kurapika): when
+ *   AniList says the work itself is short, additionally require the
+ *   candidate to be short. A 420-unit main series matched for a 2-chapter
+ *   work is the mirror-image mismatch — reject when candidate exceeds
+ *   10× expected AND expected ≤ 10 (generous bound for licensed gaps).
+ * - Otherwise accept (licensed gaps pass).
  */
 export async function wcVerifyMatch(
   providerMangaId: string,
@@ -127,7 +132,6 @@ export async function wcVerifyMatch(
   signal?: AbortSignal,
 ): Promise<{ ok: boolean; reason?: string; units?: number }> {
   const expectedCh = hint?.expectedChapters
-  if (typeof expectedCh !== 'number' || expectedCh < 50) return { ok: true }
   let list: WcChapter[]
   try {
     list = await wcGetChapters(providerMangaId, signal)
@@ -136,8 +140,16 @@ export async function wcVerifyMatch(
     return { ok: true }
   }
   const units = list.length
-  if (units < 10 && units < expectedCh * 0.1) {
-    return { ok: false, reason: `series-length mismatch (${units} units vs ${expectedCh} published)`, units }
+  if (typeof expectedCh === 'number' && expectedCh >= 50) {
+    if (units < 10 && units < expectedCh * 0.1) {
+      return { ok: false, reason: `series-length mismatch (${units} units vs ${expectedCh} published)`, units }
+    }
+    return { ok: true, units }
+  }
+  if (typeof expectedCh === 'number' && expectedCh > 0 && expectedCh <= 10) {
+    if (units > expectedCh * 10) {
+      return { ok: false, reason: `series-length mismatch (${units} units vs ${expectedCh} published)`, units }
+    }
   }
   return { ok: true, units }
 }
@@ -181,11 +193,19 @@ function candidateTitleScore(c: WcCandidate, variants: string[]): number {
 }
 
 export async function wcSearchAndMatch(hint: ProviderHint | undefined, signal?: AbortSignal): Promise<WcMatch> {
+  // Cache identity MUST include the query: the same provider serves many
+  // AniList ids, and different titles can resolve to different series.
+  // Key = normalized title variants. (The route layer adds its own
+  // per-AniList-id cache on top; this inner cache only dedups identical
+  // title searches within its TTL.)
   const romaji = (hint?.title || '').trim()
   const english = (hint?.english || '').trim()
   const native = (hint?.native || '').trim()
   const variants = [romaji, english, native].filter(Boolean) as string[]
   if (!variants.length) throw new Error('no title hints for manga match')
+  const cacheKey = `wc:search:${variants.map(normalizeTitle).sort().join('|')}`
+  const cached = wcSearchCache.get(cacheKey)
+  if (cached && Date.now() - cached.at < 10 * 60 * 1000) return cached.m
   const queries = [english, romaji, native].filter(Boolean) as string[]
   let candidates: WcCandidate[] = []
   // Replica of the browser htmx quick-search request (verified 2026-09-19:
@@ -218,28 +238,41 @@ export async function wcSearchAndMatch(hint: ProviderHint | undefined, signal?: 
   }
   candidates = [...pooled.values()]
   if (!candidates.length) throw new Error('no search results')
-  // Rank ALL candidates by title score, then walk down the ranking: the
-  // first candidate that passes BOTH the confidence threshold AND the
-  // generic sanity checks wins. This fixes the "wrong series with a
-  // slightly better title score" class (e.g. a side-story matching a long
-  // series' name better than the series itself): the better-scoring but
-  // length-mismatched candidate is skipped in favor of the true series.
+  // Walk the ranking top-down, but with a hard rule: the TOP scorer
+  // decides. If it passes threshold + sanity + verification, it wins. If
+  // it fails any of those, the whole match fails closed — weaker
+  // candidates are never the true series in that situation (e.g. a side
+  // story outscoring the series means the provider has no usable series
+  // entry, not that the 4th result is secretly correct).
   const ranked = candidates
     .map((c) => ({ c, s: candidateTitleScore(c, variants) }))
     .sort((a, b) => b.s - a.s)
-  for (const cand of ranked) {
-    if (cand.s < WC_MATCH_THRESHOLD) break
+  const top = ranked[0]
+  if (top && top.s >= WC_MATCH_THRESHOLD) {
     // Exact ties (two different series, same top score) fail closed.
-    const tied = ranked.filter((r) => r.s === cand.s && r.c.id !== cand.c.id)
+    const tied = ranked.filter((r) => r.s === top.s && r.c.id !== top.c.id)
     if (tied.length) throw new Error('ambiguous match')
-    if (!wcTitleSanityOk(cand.c.title, hint)) continue
-    const verified = await wcVerifyMatch(cand.c.id, hint, signal)
-    if (!verified.ok) continue
-    // Do NOT cache here — the route caches per-AniList-id AFTER this
-    // returns, keyed by the real anilistId. (Caching inside the matcher,
-    // which never sees the id, would poison unrelated entries.)
-    return { providerMangaId: cand.c.id, providerTitle: cand.c.title }
+    if (wcTitleSanityOk(top.c.title, hint)) {
+      const verified = await wcVerifyMatch(top.c.id, hint, signal)
+      if (verified.ok) {
+        // Do NOT cache here — the route caches per-AniList-id AFTER this
+        // returns, keyed by the real anilistId. (Caching inside the matcher,
+        // which never sees the id, would poison unrelated entries.)
+        const out = { providerMangaId: top.c.id, providerTitle: top.c.title }
+        wcSearchCache.set(cacheKey, { at: Date.now(), m: out })
+        if (wcSearchCache.size > 500) {
+          const oldest = wcSearchCache.keys().next().value as string | undefined
+          if (oldest !== undefined) wcSearchCache.delete(oldest)
+        }
+        return out
+      }
+    }
   }
+  // Walked the whole ranking with no acceptable candidate. If the top
+  // scorer passed the threshold but failed sanity/verification, that is a
+  // REAL mismatch signal (e.g. side story absorbing a series match) — fail
+  // closed rather than falling through to a weaker candidate that is even
+  // less likely to be the true series.
   throw new Error('no confident match')
 }
 
@@ -285,6 +318,7 @@ function parseChapterList(html: string): WcChapter[] {
 }
 
 const wcMatchCache = new Map<string, { at: number; m: WcMatch }>()
+const wcSearchCache = new Map<string, { at: number; m: WcMatch }>()
 const wcChaptersCache = new Map<string, { at: number; list: WcChapter[] }>()
 const wcPagesCache = new Map<string, { at: number; pages: string[] }>()
 

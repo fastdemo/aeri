@@ -74,6 +74,18 @@ export interface MangaProviderMatch {
   providerId: string
   providerMangaId: string
   title?: string
+  /**
+   * True when the worker verified the match (length-check for long series,
+   * links.al for MangaDex). Frontend trusts ONLY verified cached matches;
+   * anything else is re-resolved. Never set this client-side.
+   */
+  verified?: boolean
+  /**
+   * AniList published chapter total captured at match time. A cached match
+   * is reusable only for the same expectation — prevents serving one
+   * manga's series to another manga sharing the worker cache key space.
+   */
+  expectedChapters?: number
 }
 
 export interface MangaSourceOptions {

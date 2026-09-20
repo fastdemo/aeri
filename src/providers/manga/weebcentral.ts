@@ -95,13 +95,24 @@ class WeebCentralProvider implements MangaProvider {
   async resolveManga(manga: Anime, options?: MangaSourceOptions): Promise<MangaProviderMatch | null> {
     const anilistId = manga.identity.anilistId
     if (!anilistId) return null
-    const key = `manga:weebcentral:match:${anilistId}`
+    const key = `manga:weebcentral:match:v2:${anilistId}`
     const hit = memGet<MangaProviderMatch>(key, 10 * 60 * 1000)
-    if (hit) return hit
+    // Trust boundary: a cached match is reusable ONLY if it was verified
+    // AND the current query carries the same chapter-count expectation.
+    // A stale entry from a title-only query (no chapters hint, no verified
+    // flag semantics for THIS manga's length) must be re-resolved — never
+    // serve another manga's series from cache.
+    if (hit && (hit as any).verified) {
+      const curCh = options?.mangaChapters ?? manga.chapters
+      const hitCh = (hit as any).expectedChapters
+      if (typeof curCh === 'number' && typeof hitCh === 'number' && curCh !== hitCh) {
+        // Different manga — do not reuse.
+      } else return hit
+    }
     try {
       const j = await workerJson(`/api/manga/match/${anilistId}${this.hintsOf(manga, options)}`, options?.signal)
       if (!j?.providerMangaId) return null
-      const m: MangaProviderMatch = { providerId: 'weebcentral', providerMangaId: j.providerMangaId, title: j.providerTitle ?? undefined }
+      const m: MangaProviderMatch = { providerId: 'weebcentral', providerMangaId: j.providerMangaId, title: j.providerTitle ?? undefined, verified: (j as any).verified === true, expectedChapters: options?.mangaChapters ?? manga.chapters ?? undefined }
       memSet(key, m)
       return m
     } catch { return null }

@@ -137,9 +137,13 @@ function altTitlesOf(attrs: any): string[] {
   return out
 }
 
-function pickBest(cands: { m: any; s: number; alBonus: boolean }[]): { m: any; s: number; alBonus: boolean } | null {
-  if (!cands.length) return null
-  const ranked = [...cands].sort((a, b) => b.s - a.s)
+function pickBest(cands: { m: any; s: number; alBonus: boolean; alMismatch?: boolean }[]): { m: any; s: number; alBonus: boolean } | null {
+  // A links.al pointing at a DIFFERENT AniList id is evidence AGAINST:
+  // drop such candidates before ranking (e.g. parent series absorbing a
+  // side story's match). Candidates with no links.al stay on title score.
+  const pool = cands.filter(r => !r.alMismatch)
+  if (!pool.length) return null
+  const ranked = [...pool].sort((a, b) => b.s - a.s)
   const best = ranked[0]
   if (!best || best.s < MDX_MATCH_THRESHOLD) return null
   const tied = ranked.filter(r => r.s === best.s && r.m.id !== best.m.id)
@@ -181,13 +185,18 @@ export async function mdxSearchAndMatch(
   const alId = String(anilistId)
   const scored = [...seen.values()].map(m => {
     const attrs = m.attributes ?? {}
-    const alBonus = String(attrs?.links?.al ?? '') === alId
+    // Verified mapping ONLY when links.al points at THIS anilistId. A
+    // links.al pointing elsewhere (e.g. the parent series for a side
+    // story) is evidence AGAINST — never a bonus.
+    const linkedAl = String(attrs?.links?.al ?? '')
+    const alBonus = linkedAl !== '' && linkedAl === alId
+    const alMismatch = linkedAl !== '' && linkedAl !== alId
     // AniList-linked candidate: verified mapping — score floor 100.
     const s = alBonus ? 100 : Math.max(
       titleScore(mdxTitle(attrs), variants),
       ...altTitlesOf(attrs).map(a => titleScore(a, variants)),
     )
-    return { m, s, alBonus }
+    return { m, s, alBonus, alMismatch }
   })
   const best = pickBest(scored)
   if (!best) throw new Error('no confident match')

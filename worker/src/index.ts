@@ -290,7 +290,7 @@ export default {
         const h = buildHint()
         const m = await withTimeout(mdxSearchAndMatch(anilistId, { title: h.title, english: h.english, native: h.native }, request.signal), 20000, request.signal)
         mdxMatchStore(`mdx:${anilistId}`, m)
-        return json({ providerMangaId: m.providerMangaId, providerTitle: m.providerTitle, coverUrl: m.coverUrl, provider: 'mangadex' }, 200, env, origin, { 'Cache-Control': 'public, max-age=600' })
+        return json({ providerMangaId: m.providerMangaId, providerTitle: m.providerTitle, coverUrl: m.coverUrl, provider: 'mangadex', verified: true }, 200, env, origin, { 'Cache-Control': 'public, max-age=600' })
       } catch (e) {
         if ((e as any)?.name === 'AbortError') return json({ error: 'Aborted' }, 499, env, origin)
         return json({ error: String((e as Error)?.message ?? e), provider: 'mangadex' }, 502, env, origin)
@@ -332,7 +332,7 @@ export default {
       try {
         const m = await withTimeout(wcSearchAndMatch(buildHint(), request.signal), 15000, request.signal)
         wcMatchStore(`m:${anilistId}`, m)
-        return json({ providerMangaId: m.providerMangaId, providerTitle: m.providerTitle, provider: 'weebcentral' }, 200, env, origin, { 'Cache-Control': 'public, max-age=600' })
+        return json({ providerMangaId: m.providerMangaId, providerTitle: m.providerTitle, provider: 'weebcentral', verified: true }, 200, env, origin, { 'Cache-Control': 'public, max-age=600' })
       } catch (e) {
         if ((e as any)?.name === 'AbortError') return json({ error: 'Aborted' }, 499, env, origin)
         return json({ error: String((e as Error)?.message ?? e), provider: 'weebcentral' }, 502, env, origin)
@@ -395,7 +395,7 @@ export default {
       try {
         const m = await withTimeout(mpSearchAndMatch(buildHint(), request.signal), 20000, request.signal)
         mpMatchStore(`mp:${anilistId}`, m)
-        return json({ providerMangaId: m.providerMangaId, providerTitle: m.providerTitle, provider: 'mangapill' }, 200, env, origin, { 'Cache-Control': 'public, max-age=600' })
+        return json({ providerMangaId: m.providerMangaId, providerTitle: m.providerTitle, provider: 'mangapill', verified: true }, 200, env, origin, { 'Cache-Control': 'public, max-age=600' })
       } catch (e) {
         if ((e as any)?.name === 'AbortError') return json({ error: 'Aborted' }, 499, env, origin)
         return json({ error: String((e as Error)?.message ?? e), provider: 'mangapill' }, 502, env, origin)

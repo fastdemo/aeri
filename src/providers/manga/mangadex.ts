@@ -95,6 +95,10 @@ class MangaDexProvider implements MangaProvider {
     if (e) p.set('english', e)
     const n = options?.mangaNative ?? manga.title.native
     if (n) p.set('native', n)
+    const c = options?.mangaChapters ?? manga.chapters
+    if (typeof c === 'number') p.set('chapters', String(c))
+    const v = options?.mangaVolumes ?? manga.volumes
+    if (typeof v === 'number') p.set('volumes', String(v))
     const q = p.toString()
     return q ? `?${q}` : ''
   }
@@ -102,13 +106,24 @@ class MangaDexProvider implements MangaProvider {
   async resolveManga(manga: Anime, options?: MangaSourceOptions): Promise<MangaProviderMatch | null> {
     const anilistId = manga.identity.anilistId
     if (!anilistId) return null
-    const key = `manga:mangadex:match:${anilistId}`
+    const key = `manga:mangadex:match:v2:${anilistId}`
     const hit = memGet<MangaProviderMatch>(key, 60 * 60 * 1000)
-    if (hit) return hit
+    // Trust boundary: a cached match is reusable ONLY if it was verified
+    // AND the current query carries the same chapter-count expectation.
+    // A stale entry from a title-only query (no chapters hint, no verified
+    // flag semantics for THIS manga's length) must be re-resolved — never
+    // serve another manga's series from cache.
+    if (hit && (hit as any).verified) {
+      const curCh = options?.mangaChapters ?? manga.chapters
+      const hitCh = (hit as any).expectedChapters
+      if (typeof curCh === 'number' && typeof hitCh === 'number' && curCh !== hitCh) {
+        // Different manga — do not reuse.
+      } else return hit
+    }
     try {
       const j = await workerJson(`/api/manga/mdx-match/${anilistId}${this.hintsOf(manga, options)}`, options?.signal)
       if (!j?.providerMangaId) return null
-      const m: MangaProviderMatch = { providerId: 'mangadex', providerMangaId: j.providerMangaId, title: j.providerTitle ?? undefined }
+      const m: MangaProviderMatch = { providerId: 'mangadex', providerMangaId: j.providerMangaId, title: j.providerTitle ?? undefined, verified: (j as any).verified === true, expectedChapters: options?.mangaChapters ?? manga.chapters ?? undefined }
       memSet(key, m)
       return m
     } catch { return null }
@@ -230,7 +245,20 @@ export function getMangaProviderById(id: string): MangaProvider | undefined {
   return allMangaProviders().find(p => p.id === id)
 }
 
-export async function resolveChaptersWithFallback(manga: Anime, signal?: AbortSignal, options?: MangaSourceOptions): Promise<{ chapters: MangaChapter[]; providerId: string | null; error?: string }> {
+export interface ChapterResolveResult {
+  chapters: MangaChapter[]
+  providerId: string | null
+  error?: string
+  /**
+   * Per-provider attempt ledger (verified+enabled providers only, in the
+   * order attempted). Lets callers distinguish "all providers failed"
+   * from "a provider matched but hosts nothing" and surface honest
+   * per-provider states. Never includes disabled providers.
+   */
+  attempts?: { providerId: string; units: number; error?: string }[]
+}
+
+export async function resolveChaptersWithFallback(manga: Anime, signal?: AbortSignal, options?: MangaSourceOptions): Promise<ChapterResolveResult> {
   if (signal?.aborted) return { chapters: [], providerId: null }
   // FAIL CLOSED on media type: a manga route must never resolve through an
   // anime record (HxH collision). The caller passes Manga surfaces; if the
@@ -246,16 +274,49 @@ export async function resolveChaptersWithFallback(manga: Anime, signal?: AbortSi
   // (Settings → Providers ↑/↓, persisted as mangaProviderOrder), default
   // WeebCentral → MangaDex → MangaPill. Disabled providers are never
   // requested — zero requests, no fallback through them.
+  // IMPORTANT: every enabled provider is attempted even after one succeeds.
+  // A short work (Kurapika, 2 ch) can match-correctly on provider A while a
+  // LATER provider holds the fuller/correct series — first-non-empty-wins
+  // would freeze the wrong result. All results merge below (dedupe by
+  // chapter identity); the richest verified result leads.
   const enabled = orderedMangaProviders().filter(p => p.status === 'verified' && mangaEnabled(p.id))
+  const attempts: { providerId: string; units: number; error?: string }[] = []
+  const byProvider = new Map<string, MangaChapter[]>()
   for (const p of enabled) {
     try {
       const chapters = await p.getChapters(manga, opts)
-      if (chapters.length) return { chapters, providerId: p.id }
-      lastError = `no readable units via ${p.id}`
+      attempts.push({ providerId: p.id, units: chapters.length })
+      if (chapters.length) byProvider.set(p.id, chapters)
+      else lastError = `no readable units via ${p.id}`
     } catch (e) {
-      lastError = e instanceof Error ? e.message : String(e)
+      const msg = e instanceof Error ? e.message : String(e)
+      attempts.push({ providerId: p.id, units: 0, error: msg })
+      lastError = msg
     }
     if (signal?.aborted) break
   }
-  return { chapters: [], providerId: null, error: enabled.length ? lastError : 'No Manga providers are enabled.' }
+  if (!byProvider.size) {
+    return { chapters: [], providerId: null, error: enabled.length ? lastError : 'No Manga providers are enabled.', attempts }
+  }
+  // Merge: the PRIORITY winner leads (user's configured order), NOT the
+  // richest result. Richest-leads would let a wrong-but-long series absorb
+  // a correct short work (Kurapika: WC-fail-closed + MP-correct-2u would
+  // lose to MDX-wrong-417u HxH-main). Other providers contribute only units
+  // whose chapter numbers are absent from the leader (licensed-gap fill).
+  // Dedup key = normalized (kind, number); unnumbered units always kept
+  // (can't prove duplication). Provider provenance preserved per unit id
+  // prefix (`<provider>-…`); the leader's providerId is reported.
+  const orderedIds = enabled.map(p => p.id)
+  const ranked = [...byProvider.entries()].sort((a, b) => orderedIds.indexOf(a[0]) - orderedIds.indexOf(b[0]))
+  const [leadId, lead] = ranked[0]
+  const seen = new Set(lead.map(u => `${u.kind ?? ''}:${u.number ?? 'null'}`))
+  const merged = [...lead]
+  for (const [, units] of ranked.slice(1)) {
+    for (const u of units) {
+      if (u.number == null) { merged.push(u); continue }
+      const k = `${u.kind ?? ''}:${u.number}`
+      if (!seen.has(k)) { seen.add(k); merged.push(u) }
+    }
+  }
+  return { chapters: merged, providerId: leadId, attempts }
 }

@@ -129,31 +129,136 @@ export async function mpSearchAndMatch(hint: ProviderHint | undefined, signal?: 
     } catch { /* next query */ }
   }
   if (!pooled.size) throw new Error('no search results')
-  // Ranked walk (same discipline as WeebCentral): first candidate passing
-  // threshold + generic sanity wins, so a better-scoring short side story
-  // never steals a long series' match.
+  // Ranked walk with second-chance rule: the top scorer is tried first;
+  // if it fails sanity/verification AND a LATER candidate matches the
+  // query substantially better on token overlap (its score is within 25 of
+  // the top AND it contains rare query tokens the top lacks), try it before
+  // failing closed. This handles side-story queries ("Kurapika Tsuioku-hen")
+  // where the parent series outscores the true entry on prefix rules, while
+  // never letting a weak candidate steal a strong top match.
   const ranked = [...pooled.values()]
     .map((c) => ({
       c,
       s: Math.max(titleScore(c.title, variants), titleScore(c.slug.replace(/-/g, ' '), variants)),
     }))
     .sort((a, b) => b.s - a.s)
-  for (const cand of ranked) {
-    if (cand.s < MP_MATCH_THRESHOLD) break
-    const tied = ranked.filter((r) => r.s === cand.s && r.c.id !== cand.c.id)
-    if (tied.length) throw new Error('ambiguous match')
-    if (!mpTitleSanityOk(cand.c.title, hint)) continue
-    const verified = await mpVerifyMatch(cand.c.id, cand.c.slug, hint, signal)
-    if (!verified.ok) continue
-    return { providerMangaId: `${cand.c.id}/${cand.c.slug}`, providerTitle: cand.c.title }
+  const top = ranked[0]
+  // A top scorer that fails sanity/verification gets ONE generic second
+  // chance (rare-token rule below) before failing closed. Exact ties at
+  // the top fail closed immediately — never guess between equals.
+  if (top && top.s >= MP_MATCH_THRESHOLD) {
+    const tied = ranked.filter((r) => r.s === top.s && r.c.id !== top.c.id)
+    if (tied.length) {
+      // Tie-break BEFORE failing: if exactly one of the tied candidates
+      // carries strictly more rare query tokens, it is the evident winner
+      // (e.g. "kurapika"+"tsuioku" vs the parent series matching on the
+      // shared prefix alone). Otherwise fail closed.
+      const w = mpTieBreak([top, ...tied], variants)
+      if (!w) throw new Error('ambiguous match')
+      if (mpTitleSanityOk(w.c.title, hint)) {
+        const vw = await mpVerifyMatch(w.c.id, w.c.slug, hint, signal)
+        if (vw.ok) {
+          return { providerMangaId: `${w.c.id}/${w.c.slug}`, providerTitle: w.c.title }
+        }
+      }
+      throw new Error('no confident match')
+    }
+    if (mpTitleSanityOk(top.c.title, hint)) {
+      const verified = await mpVerifyMatch(top.c.id, top.c.slug, hint, signal)
+      if (verified.ok) {
+        return { providerMangaId: `${top.c.id}/${top.c.slug}`, providerTitle: top.c.title }
+      }
+      // Second chance: a later candidate with strong token evidence.
+      const second = mpSecondChance(ranked, top, variants, hint)
+      if (second) {
+        const v2 = await mpVerifyMatch(second.c.id, second.c.slug, hint, signal)
+        if (v2.ok && mpTitleSanityOk(second.c.title, hint)) {
+          return { providerMangaId: `${second.c.id}/${second.c.slug}`, providerTitle: second.c.title }
+        }
+      }
+    }
+    throw new Error('no confident match')
   }
   throw new Error('no confident match')
 }
 
 /**
+ * Tie-break for exact top-score ties (generic, no titles): the tied
+ * candidate with strictly more rare query tokens wins. Rare = query tokens
+ * (len>2) appearing in ≤2 candidates' titles/slugs. Returns null when no
+ * candidate strictly dominates (genuine ambiguity → fail closed).
+ */
+function mpTieBreak(
+  tied: { c: MpCandidate; s: number }[],
+  variants: string[],
+): { c: MpCandidate; s: number } | null {
+  const qtokens = new Set(variants.flatMap(v => normalizeTitle(v).split(' ').filter(t => t.length > 2)))
+  if (!qtokens.size) return null
+  const freq = new Map<string, number>()
+  for (const { c } of tied) {
+    const ct = new Set(normalizeTitle(`${c.title} ${c.slug.replace(/-/g, ' ')}`).split(' ').filter(Boolean))
+    for (const t of qtokens) if (ct.has(t)) freq.set(t, (freq.get(t) ?? 0) + 1)
+  }
+  const rareHit = (c: MpCandidate): number => {
+    const ct = new Set(normalizeTitle(`${c.title} ${c.slug.replace(/-/g, ' ')}`).split(' ').filter(Boolean))
+    let n = 0
+    for (const t of qtokens) if (ct.has(t) && (freq.get(t) ?? 99) <= 2) n++
+    return n
+  }
+  let best: { c: MpCandidate; s: number } | null = null
+  let bestN = -1
+  let ambiguous = false
+  for (const cand of tied) {
+    const n = rareHit(cand.c)
+    if (n > bestN) { bestN = n; best = cand; ambiguous = false }
+    else if (n === bestN) ambiguous = true
+  }
+  if (!best || ambiguous) return null
+  return best
+}
+
+/**
+ * Second-chance rule (generic, no titles): when the top scorer fails
+ * verification, look for a later candidate that (a) is within 25 points,
+ * (b) shares MORE rare query tokens with the query than the top does.
+ * Rare = tokens appearing in ≤2 candidates. Prevents parent-series
+ * absorption of side-story queries without weakening the top-wins rule.
+ */
+function mpSecondChance(
+  ranked: { c: MpCandidate; s: number }[],
+  top: { c: MpCandidate; s: number },
+  variants: string[],
+  hint: ProviderHint | undefined,
+): { c: MpCandidate; s: number } | null {
+  void hint
+  const qtokens = new Set(variants.flatMap(v => normalizeTitle(v).split(' ').filter(t => t.length > 2)))
+  if (!qtokens.size) return null
+  const freq = new Map<string, number>()
+  for (const { c } of ranked) {
+    const ct = new Set(normalizeTitle(`${c.title} ${c.slug.replace(/-/g, ' ')}`).split(' ').filter(Boolean))
+    for (const t of qtokens) if (ct.has(t)) freq.set(t, (freq.get(t) ?? 0) + 1)
+  }
+  const rareHit = (c: MpCandidate): number => {
+    const ct = new Set(normalizeTitle(`${c.title} ${c.slug.replace(/-/g, ' ')}`).split(' ').filter(Boolean))
+    let n = 0
+    for (const t of qtokens) if (ct.has(t) && (freq.get(t) ?? 99) <= 2) n++
+    return n
+  }
+  const topRare = rareHit(top.c)
+  let best: { c: MpCandidate; s: number } | null = null
+  for (const cand of ranked.slice(1)) {
+    if (top.s - cand.s > 25) break
+    if (cand.s < MP_MATCH_THRESHOLD) break
+    if (rareHit(cand.c) > topRare) { best = cand; break }
+  }
+  return best
+}
+
+/**
  * Generic sanity + verification for MangaPill matches (no title rules):
  * oneshot-shaped titles rejected for 50+ chapter series; chapter-list size
- * must not be a thin slice (<10 units AND <10% of expected) of a long run.
+ * must not be a thin slice (<10 units AND <10% of expected) of a long run;
+ * mirror-image (420-unit series for a 2-ch work) rejected when expected ≤ 10.
  */
 function mpTitleSanityOk(candidateTitle: string, hint: ProviderHint | undefined): boolean {
   const expectedCh = hint?.expectedChapters
@@ -168,14 +273,18 @@ async function mpVerifyMatch(
   signal?: AbortSignal,
 ): Promise<{ ok: boolean }> {
   const expectedCh = hint?.expectedChapters
-  if (typeof expectedCh !== 'number' || expectedCh < 50) return { ok: true }
   let list: MpChapter[]
   try {
     list = await mpGetChapters(`${mangaId}/${slug}`, signal)
   } catch {
     return { ok: true }
   }
-  if (list.length < 10 && list.length < expectedCh * 0.1) return { ok: false }
+  if (typeof expectedCh === 'number' && expectedCh >= 50) {
+    if (list.length < 10 && list.length < expectedCh * 0.1) return { ok: false }
+  }
+  if (typeof expectedCh === 'number' && expectedCh > 0 && expectedCh <= 10) {
+    if (list.length > expectedCh * 10) return { ok: false }
+  }
   return { ok: true }
 }
 
