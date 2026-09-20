@@ -48,7 +48,7 @@ export function ContentRow({
 
   return (
     <section className="group/row relative">
-      <div className="mb-2 flex items-baseline justify-between gap-2 px-4 sm:px-6 lg:px-0">
+      <div className="mb-2 flex items-baseline justify-between gap-2 lg:px-0">
         <h2 className="min-w-0 flex-1 truncate text-[14px] font-semibold tracking-[-0.01em] text-[var(--text)]">{title}</h2>
         {subtitle && <span className="shrink-0 text-[14px] text-[var(--text-faint)]">{subtitle}</span>}
       </div>
@@ -79,7 +79,7 @@ export function ContentRow({
 
         <div
           ref={scrollerRef}
-          className="no-scrollbar flex snap-x snap-mandatory gap-2 overflow-x-auto scroll-smooth px-4 pb-1 pt-1 sm:px-6 lg:px-1"
+          className="no-scrollbar flex snap-x snap-mandatory gap-2 overflow-x-auto scroll-smooth pb-1 pt-1 lg:px-0"
           style={{ scrollbarWidth: 'none' }}
         >
           {children}

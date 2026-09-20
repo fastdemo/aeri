@@ -369,8 +369,8 @@ export function Home() {
 
   return (
     <div className="pb-10">
-      <div className="mx-auto max-w-[1600px] px-0 sm:px-6 lg:px-12">
-        <div className="px-0 sm:px-0">
+      <div className="px-4 sm:px-6 lg:mx-auto lg:w-full lg:max-w-[1600px] lg:px-12">
+        <div className="px-0">
           {trending.loading ? (
             <div className="aspect-[21/9] w-full animate-pulse rounded-xl bg-[color-mix(in_srgb,var(--text)_5%,transparent)] lg:min-h-[460px]" />
           ) : trending.error ? (
@@ -390,7 +390,7 @@ export function Home() {
         </div>
       </div>
 
-      <div className="mx-auto max-w-[1600px] space-y-6 px-0 pt-5 sm:px-6 lg:px-12 lg:space-y-7">
+      <div className="space-y-6 px-4 pt-5 sm:px-6 lg:mx-auto lg:w-full lg:max-w-[1600px] lg:space-y-7 lg:px-12">
         {/* Continue — only when signed in (spec logged-out: must not appear at all) */}
         {isAuthenticated ? (
           loading ? (
