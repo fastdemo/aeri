@@ -28,6 +28,11 @@
   production for provider paths. Never invent a new deploy architecture.
 
 ### Playwright — prove it in a real browser
+- Preserve `#/anime` as the canonical anime browse route.
+- Preserve media-type boundaries between Anime and Manga
+  (`identity.mediaType`, type-scoped cache keys, type-safe related routes).
+- Do not use title-specific hacks or fabricated fallbacks to hide
+  provider/data failures.
 
 - Always run Playwright for relevant UI/flow verification after changes.
 - Verify the actual rendered production UI after deployment.
