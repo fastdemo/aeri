@@ -4,6 +4,7 @@ import { DetailModal } from '../components/detail/DetailModal'
 import { Icon } from '../components/ui/Icon'
 import type { Anime } from '../types/anime'
 import { useMangaBrowse } from '../hooks/useAnimeMetadata'
+import { useTracking } from '../contexts/TrackingContext'
 import { useLocation } from 'react-router-dom'
 import { ANILIST_GENRES } from '../lib/genres'
 import { SignInModal } from '../components/auth/SignInModal'
@@ -60,8 +61,9 @@ const PAGE_SIZE = 30
 export function Manga() {
   const [selected, setSelected] = useState<Anime | null>(null)
   const [signInOpen, setSignInOpen] = useState(false)
-  // NOTE: manga detail + reading are open to signed-out users (read needs no
-  // tracking). signInOpen is retained for future gated actions only.
+  // Same gate as anime Browse: signed-out card clicks prompt onboarding
+  // signup instead of opening the detail modal.
+  const { isAuthenticated } = useTracking()
   const [category, setCategory] = useState<(typeof categories)[number]['id']>('popular')
   const location = useLocation()
   useEffect(() => { setSelected(null) }, [location.pathname, location.hash, location.search])
@@ -238,7 +240,7 @@ export function Manga() {
           <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {visible.map(a => (
               <div key={a.identity.internalId} className="min-w-0">
-                <AnimeCard anime={a} mediaKind="manga" onSelect={(picked) => setSelected(picked)} fullWidth />
+                <AnimeCard anime={a} mediaKind="manga" onSelect={(picked) => { if (!isAuthenticated) setSignInOpen(true); else setSelected(picked) }} fullWidth />
               </div>
             ))}
           </div>
