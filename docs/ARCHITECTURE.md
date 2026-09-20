@@ -18,7 +18,7 @@ User Browser
 
 ## Routing
 
-- `HashRouter` (`react-router-dom`). Paths: `#/`, `#/browse`, `#/anime/:id`, `#/watch/:id/:episode`, `#/list`, `#/search`, `#/settings`.
+- `HashRouter` (`react-router-dom`). Paths: `#/`, `#/anime`, `#/anime/:id`, `#/watch/:id/:episode`, `#/list`, `#/search`, `#/settings`.
 - Why hash: refresh and deep links work without server rewrites on any static host.
 - AniList Authorization Code flow returns `?code=` + `?state=` (search params, survive HashRouter); handled in `AniListContext` effect (exchange via auth-proxy/Worker), never in the hash. MAL `?code=` likewise parsed in `MALContext` effect. Each context ignores the other's callback by matching URL `state` against its own stored state (D042).
 

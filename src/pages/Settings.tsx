@@ -112,8 +112,21 @@ export function Settings() {
   }
   // Manga providers shown in Settings = verified ONLY, derived from the
   // manga registry (never hardcoded). Toggle state persists in
-  // prefs.enabledMangaProviders (independent from anime toggles).
+  // prefs.enabledMangaProviders (independent from anime toggles); order
+  // persists in prefs.mangaProviderOrder and drives actual resolution.
   const mangaProviders = verifiedMangaProviders()
+  const orderedMangaProviders = (() => {
+    const order = prefs.mangaProviderOrder
+    if (!order) {
+      const prio = ['weebcentral', 'mangadex', 'mangapill']
+      return [...mangaProviders].sort((a, b) => prio.indexOf(a.id) - prio.indexOf(b.id))
+    }
+    const map = new Map(mangaProviders.map(p => [p.id, p] as const))
+    const out: typeof mangaProviders = []
+    for (const id of order) { const p = map.get(id); if (p) { out.push(p); map.delete(id) } }
+    for (const p of map.values()) out.push(p)
+    return out
+  })()
   const isMangaEnabled = (id: string) => {
     const v = prefs.enabledMangaProviders?.[id]
     if (v !== undefined) return v !== false
@@ -121,6 +134,16 @@ export function Settings() {
   }
   const toggleMangaProvider = (id: string, enabled: boolean) => {
     updatePref({ enabledMangaProviders: { ...(prefs.enabledMangaProviders ?? {}), [id]: enabled } })
+  }
+  const moveMangaProvider = (id: string, dir: -1|1) => {
+    const currentOrder = prefs.mangaProviderOrder ?? orderedMangaProviders.map(p => p.id)
+    const idx = currentOrder.indexOf(id)
+    if (idx < 0) return
+    const nIdx = idx + dir
+    if (nIdx < 0 || nIdx >= currentOrder.length) return
+    const next = [...currentOrder]
+    const tmp = next[idx]; next[idx]=next[nIdx]; next[nIdx]=tmp
+    updatePref({ mangaProviderOrder: next })
   }
   const moveProvider = (id: string, dir: -1|1) => {
     const currentOrder = prefs.providerOrder ?? shownVideoCaps.map(c=>c.id)
@@ -456,24 +479,29 @@ export function Settings() {
             <p className="text-xs font-medium text-[var(--text)]">Manga providers</p>
             <p className="text-[11px] text-[var(--text-faint)]">Only verified working providers are listed. Disabled providers are never requested.</p>
             <div className="overflow-hidden rounded-lg border border-[var(--border)]">
-              {mangaProviders.map((p, idx) => {
+              {orderedMangaProviders.map((p, idx) => {
                 const enabled = isMangaEnabled(p.id)
                 return (
-                  <div key={p.id} className={`flex items-center justify-between gap-3 px-3 py-2.5 ${idx !== mangaProviders.length-1 ? 'border-b border-[var(--border)]' : ''} ${enabled ? 'bg-[var(--text)]/[0.02]' : 'bg-[color-mix(in_srgb,var(--bg)_20%,transparent)] opacity-60'}`}>
+                  <div key={p.id} className={`flex items-center justify-between gap-3 px-3 py-2.5 ${idx !== orderedMangaProviders.length-1 ? 'border-b border-[var(--border)]' : ''} ${enabled ? 'bg-[var(--text)]/[0.02]' : 'bg-[color-mix(in_srgb,var(--bg)_20%,transparent)] opacity-60'}`}>
                     <div className="flex items-center gap-2 min-w-0">
                       <div className="min-w-0">
                         <p className="text-xs font-medium text-[var(--text)] truncate">{p.name}</p>
                         <p className="text-[10px] text-[var(--text-faint)]">{p.blurb} • <span className="text-[var(--ok)]">Verified</span></p>
                       </div>
                     </div>
-                    <label className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
-                      <input type="checkbox" checked={enabled} onChange={e=>toggleMangaProvider(p.id, e.target.checked)} className="h-3.5 w-3.5 rounded border-[var(--border-strong)] bg-[color-mix(in_srgb,var(--text)_10%,transparent)]" aria-label={`Enable ${p.name}`} />
-                      <span className="hidden sm:inline">Enable</span>
-                    </label>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button onClick={()=>moveMangaProvider(p.id,-1)} disabled={idx===0} className="h-6 w-6 grid place-items-center rounded text-[var(--text-faint)] hover:text-[var(--text)] disabled:opacity-20" aria-label={`Move ${p.name} up`}><Icon name="arrow-up-short" size={14} /></button>
+                      <button onClick={()=>moveMangaProvider(p.id,1)} disabled={idx===orderedMangaProviders.length-1} className="h-6 w-6 grid place-items-center rounded text-[var(--text-faint)] hover:text-[var(--text)] disabled:opacity-20" aria-label={`Move ${p.name} down`}><Icon name="arrow-down-short" size={14} /></button>
+                      <label className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
+                        <input type="checkbox" checked={enabled} onChange={e=>toggleMangaProvider(p.id, e.target.checked)} className="h-3.5 w-3.5 rounded border-[var(--border-strong)] bg-[color-mix(in_srgb,var(--text)_10%,transparent)]" aria-label={`Enable ${p.name}`} />
+                        <span className="hidden sm:inline">Enable</span>
+                      </label>
+                    </div>
                   </div>
                 )
               })}
             </div>
+            <p className="text-[11px] text-[color-mix(in_srgb,var(--text)_30%,transparent)]">Disable providers you don’t want to try. Reorder with ↑/↓ — resolution follows this order.</p>
           </div>
           <div className="space-y-2 pt-4 border-t border-[var(--border)]">
             <p className="text-xs font-medium text-[var(--text)]">Custom video server (optional)</p>

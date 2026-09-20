@@ -68,7 +68,7 @@ native HLS (Safari).
 
 ## Routing
 
-`#/` Home · `#/browse` Anime · `#/manga` · `#/search?q=` · `#/anime/<id>` ·
+`#/` Home · `#/anime` Anime · `#/manga` · `#/search?q=` · `#/anime/<id>` ·
 `#/watch/<id>/<ep>` · `#/read/<id>/<chapter>` · `#/list` · `#/settings` ·
 `#/profile` · `*` 404.
 Signed-out: anime cards/hero/search → sign-in; anime media/list/settings/

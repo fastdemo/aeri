@@ -33,7 +33,7 @@ no Worker, so provider calls need `customVideoApiUrl` pointed at production.
   early MAL OAuth `?code=` handling, then renders `<App/>`.
 - `src/App.tsx`: `HashRouter` (required — no server rewrites on Workers static
   hosting), providers `AniList → MAL → Tracking`, `Layout` (Navbar + Routes +
-  footer). Routes: `/`, `/browse`, `/search`, `/list`, `/anime/:id` (one
+  footer). Routes: `/`, `/anime`, `/search`, `/list`, `/anime/:id` (one
   AniList entry — no season model), `/watch/:id/:episode` (this entry's
   episodes 1..N), `/read/:id/:chapter`, `/settings`, `/manga`, `/profile`,
   `*` → 404.

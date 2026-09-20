@@ -21,7 +21,7 @@ first) → Top Picks + Because You Watched (ONE show: 50/50 most-recent vs
 top-10-by-score pick per load, first-genre matches) → My List bottom.
 Skeletons mirror rows.
 
-## Anime (`/browse`) / Manga (`/manga`)
+## Anime (`/anime`) / Manga (`/manga`)
 
 One shared strip: categories scroll left, divider, filters dock right, each
 lane scrolls internally (zero overlap at 390–1440). Anime: Popular/Trending/

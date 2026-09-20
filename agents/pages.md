@@ -10,7 +10,7 @@ row skeletons. Errors: hero error card, rows keep working. Nav: logo returns
 here. Known: Because row needs signed-in list; signed-out sees no
 personalized rows.
 
-## `/browse` Anime (`src/pages/Browse.tsx`)
+## `/anime` Anime (`src/pages/Browse.tsx`)
 
 Purpose: filterable anime grid. Data: `useBrowse` (PAGE_SIZE 30, Load-more +
 sentinel). State: category/genre/year/season/format + selected modal.

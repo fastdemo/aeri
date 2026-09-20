@@ -67,7 +67,7 @@ npm run preview -- --base /aeri/ --port 4173
 # open http://localhost:4173/aeri/#/
 ```
 
-Test: `#/`, `#/browse`, `#/anime/<id>`, `#/watch/<id>/1`, `#/list`.
+Test: `#/`, `#/anime`, `#/anime/<id>`, `#/watch/<id>/1`, `#/list`.
 
 ## Assets
 

@@ -90,7 +90,7 @@ next resolve — Retry/episode-change, no live subscription).
 
 ## URL / route identifiers
 
-HashRouter: `#/`, `#/browse`, `#/search?q=`, `#/anime/anilist-<id>` (THAT
+HashRouter: `#/`, `#/anime`, `#/search?q=`, `#/anime/anilist-<id>` (THAT
 entry — no resolution),
 `#/watch/<id>/<ep>` (this entry's episode 1..N),
 `#/read/<id>/<chapter>` (`first`|`latest`|`ch-N`|provider chapter id;

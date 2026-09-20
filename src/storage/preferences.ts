@@ -17,6 +17,12 @@ export interface Preferences {
    * null/undefined = all verified manga providers enabled (defaults).
    */
   enabledMangaProviders?: Record<string, boolean> | null
+  /**
+   * Manga provider resolution order (provider ids, highest priority first).
+   * Mirrors anime `providerOrder`. null = default priority
+   * (WeebCentral → MangaDex → MangaPill). Persisted from Settings ↑/↓.
+   */
+  mangaProviderOrder?: string[] | null
   customVideoApiUrl?: string | null
   preferredQuality?: string | null
   // Manga reader prefs. Mode architecture supports vertical continuous
@@ -57,6 +63,7 @@ const defaults: Preferences = {
   enabledProviders: null,
   providerOrder: null,
   enabledMangaProviders: null,
+  mangaProviderOrder: null,
   customVideoApiUrl: null,
   preferredQuality: null,
   customAuthApiUrl: null,

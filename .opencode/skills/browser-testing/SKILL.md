@@ -23,7 +23,7 @@ Mandatory after major UI changes.
 
 ## Deep links to test
 
-- `#/` `#/browse` `#/anime/cyberpunk-edgerunners` `#/watch/cyberpunk-edgerunners/1` `#/list` `#/search?q=frieren`
+- `#/` `#/anime` `#/anime/cyberpunk-edgerunners` `#/watch/cyberpunk-edgerunners/1` `#/list` `#/search?q=frieren`
 
 ## References
 

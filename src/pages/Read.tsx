@@ -51,6 +51,22 @@ export function Read() {
   const [chaptersError, setChaptersError] = useState<string | null>(null)
   const [activeMangaProvider, setActiveMangaProvider] = useState<MangaProvider | null>(null)
   const [externalUnits, setExternalUnits] = useState<{ label: string; url: string }[] | null>(null)
+  // Pref-change tick: drives BOTH re-resolution (registry order) and
+  // re-sorting (chapterOrder). Declared before the effects that use it.
+  const [orderTick, setOrderTick] = useState(0)
+  useEffect(() => {
+    const onChange = () => setOrderTick(t => t + 1)
+    window.addEventListener('aeri:prefs-changed', onChange)
+    window.addEventListener('storage', onChange)
+    return () => {
+      window.removeEventListener('aeri:prefs-changed', onChange)
+      window.removeEventListener('storage', onChange)
+    }
+  }, [])
+
+  // Re-resolve when manga provider prefs change (enable/disable/reorder):
+  // orderTick in deps re-runs resolution against the CURRENT registry
+  // order — the resolver reads prefs itself, so no stale priority.
   useEffect(() => {
     if (!manga) return
     const controller = new AbortController()
@@ -92,22 +108,13 @@ export function Read() {
         setChaptersError(e instanceof Error ? e.message : 'Couldn’t load chapters')
       })
     return () => { cancelled = true; controller.abort() }
-  }, [manga?.identity.internalId])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [manga?.identity.internalId, orderTick])
 
   // Resolve the URL chapter param to a concrete provider unit.
   // 'first' = oldest unit, 'latest' = newest (per chapterOrder pref);
   // 'ch-N' = unit number N; otherwise a raw provider unit id.
   // Selector/prev/next all follow the same display ordering.
-  const [orderTick, setOrderTick] = useState(0)
-  useEffect(() => {
-    const onChange = () => setOrderTick(t => t + 1)
-    window.addEventListener('aeri:prefs-changed', onChange)
-    window.addEventListener('storage', onChange)
-    return () => {
-      window.removeEventListener('aeri:prefs-changed', onChange)
-      window.removeEventListener('storage', onChange)
-    }
-  }, [])
   const orderedChapters: MangaChapter[] | null = useMemo(() => {
     if (!chapters) return null
     void orderTick

@@ -203,6 +203,12 @@ export function useRelatedEntries(
       return
     }
     // Zero-request path: rank the already-fetched edges in memory.
+    // TRUST BOUNDARY: preloaded edges come from the caller's own Media
+    // query (same AniList type by construction — MEDIA_QUERY vs
+    // MEDIA_MANGA_QUERY). When the fallback query runs, it asks for
+    // `mediaType` explicitly. Either way, related NODES carry their own
+    // format and are routed per-entry (manga → #/manga, anime → #/anime/…),
+    // so a manga ADAPTATION listed on an anime page still opens as manga.
     const preEdges = preloaded?.edges ?? []
     if (preEdges.length) {
       const seen = new Set<number>()

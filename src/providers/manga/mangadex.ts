@@ -180,11 +180,36 @@ export const mangaProviders: MangaProvider[] = [mangaDexProvider, weebCentralPro
 /**
  * Registry of ALL manga provider instances (verified or not). Settings
  * derives its Manga section from this via verifiedMangaProviders() —
- * never a hardcoded list. Deterministic order = resolution priority
- * (MangaDex first, WeebCentral fallback).
+ * never a hardcoded list. Resolution priority follows the user's
+ * Settings → Providers order (`mangaProviderOrder` pref) when set,
+ * else the default priority: WeebCentral → MangaDex → MangaPill.
  */
 export function allMangaProviders(): MangaProvider[] {
   return [...mangaProviders]
+}
+
+/** Default resolution priority (best coverage first). */
+export const DEFAULT_MANGA_ORDER = ['weebcentral', 'mangadex', 'mangapill']
+
+/** Effective resolution order: user order first (valid ids only), then the rest in default priority. */
+export function orderedMangaProviders(): MangaProvider[] {
+  const byId = new Map(allMangaProviders().map(p => [p.id, p]))
+  const out: MangaProvider[] = []
+  try {
+    const pref = getPreferences().mangaProviderOrder
+    if (Array.isArray(pref)) {
+      for (const id of pref) {
+        const p = byId.get(id)
+        if (p && !out.includes(p)) { out.push(p); byId.delete(id) }
+      }
+    }
+  } catch {}
+  for (const id of DEFAULT_MANGA_ORDER) {
+    const p = byId.get(id)
+    if (p) { out.push(p); byId.delete(id) }
+  }
+  for (const p of byId.values()) out.push(p)
+  return out
 }
 
 /** Only verified providers — the sole source for the Settings UI list. */
@@ -217,9 +242,11 @@ export async function resolveChaptersWithFallback(manga: Anime, signal?: AbortSi
   }
   const opts = { ...options, signal }
   let lastError: string | undefined
-  // Deterministic: verified + enabled only, registry order (MangaDex first,
-  // WeebCentral fallback). Disabled providers are never requested.
-  const enabled = allMangaProviders().filter(p => p.status === 'verified' && mangaEnabled(p.id))
+  // Deterministic: verified + enabled only, user-configured priority first
+  // (Settings → Providers ↑/↓, persisted as mangaProviderOrder), default
+  // WeebCentral → MangaDex → MangaPill. Disabled providers are never
+  // requested — zero requests, no fallback through them.
+  const enabled = orderedMangaProviders().filter(p => p.status === 'verified' && mangaEnabled(p.id))
   for (const p of enabled) {
     try {
       const chapters = await p.getChapters(manga, opts)

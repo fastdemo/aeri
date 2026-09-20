@@ -43,6 +43,10 @@ export function ChapterList({ manga }: { manga: Anime }) {
     return sortProviderUnits(chapters, dir)
   }, [chapters, orderTick])
 
+  // Re-resolve when manga provider prefs change (enable/disable/reorder in
+  // Settings broadcasts aeri:prefs-changed). orderTick in the dep array
+  // re-runs resolution against the CURRENT registry order — the resolver
+  // itself reads prefs, so no stale priority is possible.
   useEffect(() => {
     setChapters(null)
     setProviderId(null)
@@ -74,7 +78,7 @@ export function ChapterList({ manga }: { manga: Anime }) {
     return () => { cancelled = true; controller.abort(); clearTimeout(timeout) }
     // AbortController per manga id — stale results rejected via `cancelled`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [manga.identity.internalId])
+  }, [manga.identity.internalId, orderTick])
 
   const entry = (() => {
     if (!isAuthenticated || !combinedList) return null

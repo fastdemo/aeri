@@ -8,17 +8,32 @@
 
 - NEVER push, PR, touch Actions, touch `gh-pages`, or change GitHub config —
   unless the user explicitly requests that exact GitHub operation.
+- NEVER use GitHub Pages as deployment. NEVER treat GitHub as part of
+  normal Aeri deployment.
 - Develop with local git only (commit locally if useful). The user pushes.
+- At the end of every task explicitly report: "GitHub untouched."
 
 ### Cloudflare — the deployment target
 
 - Production is `https://aeri.fastdemo.workers.dev/` (Worker `aeri` serves
   `dist/` + `/api/*`). Never deploy to `aeri-production`.
+- Cloudflare is the production deployment target. Completed production
+  changes must be deployed to Cloudflare.
+- Production verification must happen against the deployed Cloudflare
+  application (live URL), not just localhost.
 - When a task changes the app: develop → test → `npm run build` →
   `env -u XDG_CONFIG_HOME npx wrangler deploy --env production` → verify live
   (bundle hash + `npm run verify:live` + Playwright on the live URL).
 - Local `vite preview` has no Worker — point `customVideoApiUrl` at
   production for provider paths. Never invent a new deploy architecture.
+
+### Playwright — prove it in a real browser
+
+- Always run Playwright for relevant UI/flow verification after changes.
+- Verify the actual rendered production UI after deployment.
+- HTTP 200 is not UI verification. Build success is not UI verification.
+- API success is not UI verification. Source existence is not playback
+  verification. A provider homepage loading is not provider verification.
 
 ### Project knowledge
 
@@ -165,7 +180,7 @@ If conflict: **better visual quality > more features**, **cleaner hierarchy > mo
 - Assets, images, CSS, JS, manifest, routes must use relative base
 - Use `HashRouter` so `/#/anime/123` survives refresh. If using BrowserRouter, must add `404.html` hack — prefer HashRouter simplicity.
 - Deploy via `.github/workflows/deploy.yml`: `npm ci && npm run build` → upload `dist` to `gh-pages`
-- Test deep links: `/`, `/#/browse`, `/#/anime/123`, `/#/watch/123/4`, `/#/list`
+- Test deep links: `/`, `/#/anime`, `/#/anime/123`, `/#/watch/123/4`, `/#/list`
 
 ---
 

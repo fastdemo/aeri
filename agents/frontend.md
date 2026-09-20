@@ -13,7 +13,7 @@
 | Route | Component | Data |
 |---|---|---|
 | `/` | `Home` | 4 parallel Page queries (trending/popular/airing/new) + derived rows + Because/TopPicks (signed-in) |
-| `/browse` | `Browse` | `useBrowse` (5 categories + genre/year/season/format + pagination, perPage 30, local row slicing) |
+| `/anime` | `Browse` | `useBrowse` (5 categories + genre/year/season/format + pagination, perPage 30, local row slicing) |
 | `/manga` | `Manga` | `useMangaBrowse` (`type: MANGA`, formats MANGA/NOVEL/ONE_SHOT, no season filter) |
 | `/search` | `Search` | URL-driven `useAnimeSearch` (300ms debounce, stale-ignore) |
 | `/anime/:id` | `AnimeDetail` | `useAnimeDetail` + `useSeriesGroup`; selector navigates to canonical season |
