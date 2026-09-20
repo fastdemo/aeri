@@ -252,7 +252,7 @@ export default {
       return Number.isFinite(n) && n > 0 ? n : undefined
     }
     const buildHint = () => {
-      const h: { title?: string; english?: string; native?: string; expectedEpisodes?: number; expectedFormat?: string; year?: number } = {}
+      const h: { title?: string; english?: string; native?: string; expectedEpisodes?: number; expectedFormat?: string; year?: number; expectedChapters?: number; expectedVolumes?: number } = {}
       const t = url.searchParams.get('title') || undefined
       if (t) h.title = t
       const e = url.searchParams.get('english') || undefined
@@ -265,6 +265,10 @@ export default {
       if (f) h.expectedFormat = f
       const y = numParam(url.searchParams.get('year'))
       if (y !== undefined && y < 3000) h.year = y
+      const ch = numParam(url.searchParams.get('chapters'))
+      if (ch !== undefined) h.expectedChapters = ch
+      const vo = numParam(url.searchParams.get('volumes'))
+      if (vo !== undefined) h.expectedVolumes = vo
       return Object.keys(h).length ? h : undefined
     }
 

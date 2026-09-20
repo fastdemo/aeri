@@ -96,6 +96,52 @@ function titleScore(name: string, variants: string[]): number {
 
 const WC_MATCH_THRESHOLD = 40
 
+/**
+ * Sanity-check a WeebCentral match against AniList published totals.
+ * Generic rules only — no title-specific exceptions:
+ * - candidate title is shaped like a single-unit oneshot but AniList
+ *   expects a long series (50+ chapters) → reject at match time.
+ * - full verification happens in wcVerifyMatch (chapter-list size vs
+ *   expected totals) after the top candidate is chosen.
+ */
+function wcTitleSanityOk(candidateTitle: string, hint: ProviderHint | undefined): boolean {
+  const expectedCh = hint?.expectedChapters
+  if (typeof expectedCh !== 'number' || expectedCh < 50) return true
+  const t = `${candidateTitle}`.toLowerCase()
+  if (/\boneshot\b|\bone-shot\b/.test(t)) return false
+  return true
+}
+
+/**
+ * Post-match verification: fetch the candidate's chapter list and compare
+ * against AniList published totals. Rejects long-series mismatches (e.g. a
+ * 2-chapter side story matched for a 400-ch series) WITHOUT knowing any
+ * titles: pure count-vs-count arithmetic.
+ * - expected ≥ 50 chapters but candidate has < 10% of expected AND < 10
+ *   units absolute → reject ('series-length mismatch').
+ * - Otherwise accept (short series, oneshots, and licensed gaps pass).
+ */
+export async function wcVerifyMatch(
+  providerMangaId: string,
+  hint: ProviderHint | undefined,
+  signal?: AbortSignal,
+): Promise<{ ok: boolean; reason?: string; units?: number }> {
+  const expectedCh = hint?.expectedChapters
+  if (typeof expectedCh !== 'number' || expectedCh < 50) return { ok: true }
+  let list: WcChapter[]
+  try {
+    list = await wcGetChapters(providerMangaId, signal)
+  } catch (e) {
+    // Can't verify (network) — don't block on verification failure alone.
+    return { ok: true }
+  }
+  const units = list.length
+  if (units < 10 && units < expectedCh * 0.1) {
+    return { ok: false, reason: `series-length mismatch (${units} units vs ${expectedCh} published)`, units }
+  }
+  return { ok: true, units }
+}
+
 interface WcCandidate { id: string; slug: string; title: string }
 
 function parseSearchResults(html: string): WcCandidate[] {
@@ -172,15 +218,29 @@ export async function wcSearchAndMatch(hint: ProviderHint | undefined, signal?: 
   }
   candidates = [...pooled.values()]
   if (!candidates.length) throw new Error('no search results')
+  // Rank ALL candidates by title score, then walk down the ranking: the
+  // first candidate that passes BOTH the confidence threshold AND the
+  // generic sanity checks wins. This fixes the "wrong series with a
+  // slightly better title score" class (e.g. a side-story matching a long
+  // series' name better than the series itself): the better-scoring but
+  // length-mismatched candidate is skipped in favor of the true series.
   const ranked = candidates
     .map((c) => ({ c, s: candidateTitleScore(c, variants) }))
     .sort((a, b) => b.s - a.s)
-  const best = ranked[0]
-  if (!best || best.s < WC_MATCH_THRESHOLD) throw new Error('no confident match')
-  // Exact ties (two different series, same top score) fail closed.
-  const tied = ranked.filter((r) => r.s === best.s && r.c.id !== best.c.id)
-  if (tied.length) throw new Error('ambiguous match')
-  return { providerMangaId: best.c.id, providerTitle: best.c.title }
+  for (const cand of ranked) {
+    if (cand.s < WC_MATCH_THRESHOLD) break
+    // Exact ties (two different series, same top score) fail closed.
+    const tied = ranked.filter((r) => r.s === cand.s && r.c.id !== cand.c.id)
+    if (tied.length) throw new Error('ambiguous match')
+    if (!wcTitleSanityOk(cand.c.title, hint)) continue
+    const verified = await wcVerifyMatch(cand.c.id, hint, signal)
+    if (!verified.ok) continue
+    // Do NOT cache here — the route caches per-AniList-id AFTER this
+    // returns, keyed by the real anilistId. (Caching inside the matcher,
+    // which never sees the id, would poison unrelated entries.)
+    return { providerMangaId: cand.c.id, providerTitle: cand.c.title }
+  }
+  throw new Error('no confident match')
 }
 
 function parseChapterList(html: string): WcChapter[] {

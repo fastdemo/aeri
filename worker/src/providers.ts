@@ -48,6 +48,10 @@ export interface ProviderHint {
   expectedEpisodes?: number
   expectedFormat?: string
   year?: number
+  /** AniList manga chapter total (published). Sanity-checks provider matches. */
+  expectedChapters?: number
+  /** AniList manga volume total (published). Sanity-checks provider matches. */
+  expectedVolumes?: number
 }
 
 export interface VideoSourceProvider {

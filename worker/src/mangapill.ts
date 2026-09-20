@@ -129,17 +129,54 @@ export async function mpSearchAndMatch(hint: ProviderHint | undefined, signal?: 
     } catch { /* next query */ }
   }
   if (!pooled.size) throw new Error('no search results')
+  // Ranked walk (same discipline as WeebCentral): first candidate passing
+  // threshold + generic sanity wins, so a better-scoring short side story
+  // never steals a long series' match.
   const ranked = [...pooled.values()]
     .map((c) => ({
       c,
       s: Math.max(titleScore(c.title, variants), titleScore(c.slug.replace(/-/g, ' '), variants)),
     }))
     .sort((a, b) => b.s - a.s)
-  const best = ranked[0]
-  if (!best || best.s < MP_MATCH_THRESHOLD) throw new Error('no confident match')
-  const tied = ranked.filter((r) => r.s === best.s && r.c.id !== best.c.id)
-  if (tied.length) throw new Error('ambiguous match')
-  return { providerMangaId: `${best.c.id}/${best.c.slug}`, providerTitle: best.c.title }
+  for (const cand of ranked) {
+    if (cand.s < MP_MATCH_THRESHOLD) break
+    const tied = ranked.filter((r) => r.s === cand.s && r.c.id !== cand.c.id)
+    if (tied.length) throw new Error('ambiguous match')
+    if (!mpTitleSanityOk(cand.c.title, hint)) continue
+    const verified = await mpVerifyMatch(cand.c.id, cand.c.slug, hint, signal)
+    if (!verified.ok) continue
+    return { providerMangaId: `${cand.c.id}/${cand.c.slug}`, providerTitle: cand.c.title }
+  }
+  throw new Error('no confident match')
+}
+
+/**
+ * Generic sanity + verification for MangaPill matches (no title rules):
+ * oneshot-shaped titles rejected for 50+ chapter series; chapter-list size
+ * must not be a thin slice (<10 units AND <10% of expected) of a long run.
+ */
+function mpTitleSanityOk(candidateTitle: string, hint: ProviderHint | undefined): boolean {
+  const expectedCh = hint?.expectedChapters
+  if (typeof expectedCh !== 'number' || expectedCh < 50) return true
+  return !/\boneshot\b|\bone-shot\b/i.test(`${candidateTitle}`)
+}
+
+async function mpVerifyMatch(
+  mangaId: string,
+  slug: string,
+  hint: ProviderHint | undefined,
+  signal?: AbortSignal,
+): Promise<{ ok: boolean }> {
+  const expectedCh = hint?.expectedChapters
+  if (typeof expectedCh !== 'number' || expectedCh < 50) return { ok: true }
+  let list: MpChapter[]
+  try {
+    list = await mpGetChapters(`${mangaId}/${slug}`, signal)
+  } catch {
+    return { ok: true }
+  }
+  if (list.length < 10 && list.length < expectedCh * 0.1) return { ok: false }
+  return { ok: true }
 }
 
 function parseChapterList(html: string): MpChapter[] {
