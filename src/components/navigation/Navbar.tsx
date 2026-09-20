@@ -112,14 +112,14 @@ export function Navbar() {
   // spacing never breathes during scaling transitions.
   const desktopNav = [
     { to: '/', label: 'Home' },
-    { to: '/browse', label: 'Anime' },
+    { to: '/anime', label: 'Anime' },
     { to: '/manga', label: 'Manga' },
     ...(isAuthenticated ? [{ to: '/list', label: 'My List' } as const] : []),
   ]
 
   const mobileNav = [
     { to: '/', label: 'Home' },
-    { to: '/browse', label: 'Anime' },
+    { to: '/anime', label: 'Anime' },
     { to: '/manga', label: 'Manga' },
     ...(isAuthenticated ? [{ to: '/list', label: 'My List' } as const] : []),
     { to: '/search', label: 'Search' },

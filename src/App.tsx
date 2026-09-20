@@ -55,7 +55,7 @@ function Layout() {
       <main className="flex-1 pt-14">
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/browse" element={<Browse />} />
+          <Route path="/anime" element={<Browse />} />
           <Route path="/search" element={<Search />} />
           <Route path="/list" element={<MyList />} />
           <Route path="/anime/:id" element={<AnimeDetail />} />
