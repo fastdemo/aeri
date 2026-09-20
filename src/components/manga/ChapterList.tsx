@@ -24,7 +24,10 @@ export function ChapterList({ manga }: { manga: Anime }) {
   const { combinedList, isAuthenticated, updateProgress } = useTracking()
 
   // Re-sort when the chapterOrder pref changes (Settings writes prefs, then
-  // broadcasts; storage event covers other tabs).
+  // broadcasts; storage event covers other tabs). ALSO re-resolves when
+  // manga provider prefs change (enable/disable/reorder): orderTick in the
+  // resolve-effect deps re-runs resolution against the CURRENT registry
+  // order — the resolver reads prefs itself, so no stale priority.
   useEffect(() => {
     const onChange = () => setOrderTick(t => t + 1)
     window.addEventListener('aeri:prefs-changed', onChange)
