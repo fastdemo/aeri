@@ -117,6 +117,7 @@ export function AnimeCard({
   onSelect,
   fullWidth,
   mediaKind,
+  disableLink,
 }: {
   anime: Anime
   variant?: Variant
@@ -124,6 +125,10 @@ export function AnimeCard({
   fullWidth?: boolean
   /** Overrides auto-detection from format. Manga cards pass 'manga'. */
   mediaKind?: MediaKind
+  /** Render static content (no inner <Link>). For use inside an outer <a>
+      (e.g. RelatedEntries grids) where a nested anchor would be invalid HTML
+      and cause hydration errors + ambiguous taps on mobile. */
+  disableLink?: boolean
 }) {
   const kind = kindOf(anime, mediaKind)
   const isManga = kind === 'manga'
@@ -241,12 +246,15 @@ export function AnimeCard({
   // title (card interaction precedes route change by ~100-500ms). Warms the
   // shared media cache so the destination reveals with metadata ready.
   // No-op without an id; shared cache + inflight make repeats free.
+  // Type-scoped: manga cards prewarm the MANGA record, anime cards the
+  // ANIME record — never cross-type (same numeric id, different entity).
   const prewarmId = anime.identity.anilistId ?? null
   const prewarm = () => {
     if (!prewarmId || Number.isNaN(prewarmId)) return
     try {
       void import('../../providers/metadata/anilistMetadata').then((m) => {
-        m.anilistMetadataProvider.getAnime(`anilist-${prewarmId}`).catch(() => {})
+        if (isManga) m.anilistMetadataProvider.getManga(`anilist-${prewarmId}`).catch(() => {})
+        else m.anilistMetadataProvider.getAnime(`anilist-${prewarmId}`).catch(() => {})
       })
     } catch {}
   }
@@ -265,9 +273,22 @@ export function AnimeCard({
     )
   }
 
+  if (disableLink) {
+    return (
+      <div className={`block ${fullWidth ? 'w-full' : ''}`}>
+        {content}
+      </div>
+    )
+  }
+
+  // Type-safe destination: a manga card must never link to the anime
+  // route (same numeric id under ANIME vs MANGA is a DIFFERENT entity —
+  // HxH anime vs HxH manga). Manga surfaces resolve as manga.
+  const linkTo = kind === 'manga' ? `/manga` : `/anime/${anime.identity.internalId}`
+
   return (
     <Link
-      to={`/anime/${anime.identity.internalId}`}
+      to={linkTo}
       onMouseEnter={prewarm}
       onFocus={prewarm}
       aria-label={`Open ${primaryTitle}`}

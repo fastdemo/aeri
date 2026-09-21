@@ -16,6 +16,60 @@ type MangaDexProviderLike = MangaProvider & {
 }
 
 /**
+ * Prev/next chapter controls. Previous (earlier in display order, idx-1) on
+ * the LEFT, next (later in display order, idx+1) on the RIGHT — both follow
+ * the chapterOrder pref via orderedChapters. Both buttons always render:
+ * at boundaries the missing side is a disabled greyed-out pill.
+ * Filled-white pill style matches the site's primary buttons.
+ */
+function ChapterNavButtons({
+  id,
+  prevChapter,
+  nextChapter,
+  testId,
+}: {
+  id: string
+  prevChapter: MangaChapter | null
+  nextChapter: MangaChapter | null
+  testId: string
+}) {
+  const pill =
+    'max-w-[48%] truncate rounded-full bg-[var(--text)] px-5 py-2 text-sm font-semibold text-[var(--on-text)] transition hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40'
+  return (
+    <div data-testid={testId} className="flex items-center justify-between gap-2">
+      {prevChapter ? (
+        <Link
+          to={`/read/${id}/${encodeURIComponent(prevChapter.providerChapterId)}`}
+          aria-label="Previous chapter"
+          data-testid={`${testId}-prev`}
+          className={pill}
+        >
+          ← {unitDisplayLabel(prevChapter)}
+        </Link>
+      ) : (
+        <button type="button" disabled aria-label="Previous chapter" data-testid={`${testId}-prev`} className={pill}>
+          No previous chapter
+        </button>
+      )}
+      {nextChapter ? (
+        <Link
+          to={`/read/${id}/${encodeURIComponent(nextChapter.providerChapterId)}`}
+          aria-label="Next chapter"
+          data-testid={`${testId}-next`}
+          className={pill}
+        >
+          {unitDisplayLabel(nextChapter)} →
+        </Link>
+      ) : (
+        <button type="button" disabled aria-label="Next chapter" data-testid={`${testId}-next`} className={pill}>
+          No next chapter
+        </button>
+      )}
+    </div>
+  )
+}
+
+/**
  * Manga reader (`#/read/:id/:chapter`). Architectural sibling of Watch:
  * same route-convention shape, same loading/error shell, same progress
  * persistence pattern — but manga-native behavior:
@@ -450,15 +504,10 @@ export function Read() {
         </div>
       )}
 
-      {/* Prev/next chapter */}
+      {/* Prev/next chapter (top) — prev LEFT, next RIGHT, always both */}
       {currentChapter && (
-        <div className="mb-4 flex items-center justify-between gap-2">
-          {olderChapter ? (
-            <Link to={`/read/${id}/${encodeURIComponent(olderChapter.providerChapterId)}`} className="rounded-full border border-[var(--border)] bg-[var(--bg-soft)] px-4 py-1.5 text-xs font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)]">← {unitDisplayLabel(olderChapter)}</Link>
-          ) : <span />}
-          {newerChapter ? (
-            <Link to={`/read/${id}/${encodeURIComponent(newerChapter.providerChapterId)}`} className="rounded-full border border-[var(--border)] bg-[var(--bg-soft)] px-4 py-1.5 text-xs font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)]">{unitDisplayLabel(newerChapter)} →</Link>
-          ) : <span />}
+        <div className="mb-4">
+          <ChapterNavButtons id={id} prevChapter={prevChapter} nextChapter={nextChapter} testId="chapter-nav-top" />
         </div>
       )}
 
@@ -489,15 +538,10 @@ export function Read() {
         </div>
       )}
 
-      {/* End-of-chapter nav */}
+      {/* End-of-chapter nav (bottom) — prev LEFT, next RIGHT, always both */}
       {pages && pages.length > 0 && (
-        <div className="mt-8 flex items-center justify-between gap-2">
-          {olderChapter ? (
-            <Link to={`/read/${id}/${encodeURIComponent(olderChapter.providerChapterId)}`} className="rounded-full bg-[var(--text)] px-5 py-2 text-sm font-semibold text-[var(--on-text)]">Next: {unitDisplayLabel(olderChapter)}</Link>
-          ) : <span className="text-xs text-[var(--text-faint)]">You’re all caught up</span>}
-          {newerChapter ? (
-            <Link to={`/read/${id}/${encodeURIComponent(newerChapter.providerChapterId)}`} className="rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-5 py-2 text-sm font-medium text-[var(--text)]">← {newerChapter.label}</Link>
-          ) : <span />}
+        <div className="mt-8">
+          <ChapterNavButtons id={id} prevChapter={prevChapter} nextChapter={nextChapter} testId="chapter-nav-bottom" />
         </div>
       )}
     </div>

@@ -52,12 +52,13 @@ function RelatedGrid({
               onSelect={onSelect ? () => onSelect(id) : undefined}
               mediaKind={isMangaFormat(anime.format) ? 'manga' : 'anime'}
               fullWidth
+              disableLink={!onSelect}
             />
             {meta && <p className="mt-1 truncate px-0.5 text-[11px] text-[var(--text-faint)]">{meta}</p>}
           </>
         )
         return (
-          <div key={`related-${id}`} className="min-w-0">
+          <div key={`related-${id}-${relationType}`} className="min-w-0">
             {onSelect ? (
               inner
             ) : (
@@ -188,12 +189,13 @@ function RelatedGridContents({
               onSelect={onSelect ? () => onSelect(id) : undefined}
               mediaKind={isMangaFormat(anime.format) ? 'manga' : 'anime'}
               fullWidth
+              disableLink={!onSelect}
             />
             {meta && <p className="mt-1 truncate px-0.5 text-[11px] text-[var(--text-faint)]">{meta}</p>}
           </>
         )
         return (
-          <div key={`related-${id}`} className="min-w-0">
+          <div key={`related-manga-${id}-${relationType}`} className="min-w-0">
             {onSelect ? (
               inner
             ) : (

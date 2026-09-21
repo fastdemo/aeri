@@ -3,7 +3,7 @@ import { Link, useParams, useNavigate, Navigate } from 'react-router-dom'
 import { useTracking } from '../contexts/TrackingContext'
 import { useAnimeDetail } from '../hooks/useAnimeMetadata'
 import { VideoPlayer } from '../components/player/VideoPlayer'
-import { resolveEpisodesWithFallback, resolveSourcesWithFallback, getProviderCapabilities } from '../providers/video/registry'
+import { resolveEpisodesWithFallback, resolveSourcesWithFallback } from '../providers/video/registry'
 import type { VideoEpisode, VideoSourceEnhanced } from '../providers/video/types'
 import { getWatchPos, putWatchPos, clearWatchPos } from '../storage/db'
 import { getPreferences } from '../storage/preferences'
@@ -249,7 +249,6 @@ export function Watch() {
   const hasVideo = sources && sources.length > 0 && selectedSource && selectedSource.url
   const isLoadingVideo = episodesLoading || sourcesLoading
   const showNoSource = !isLoadingVideo && (!sources || sources.length === 0) && !sourcesError
-  const capabilities = getProviderCapabilities().filter(c => c.id !== 'mock')
 
   return (
     <div className="min-h-screen bg-[var(--bg)]">
@@ -352,13 +351,6 @@ export function Watch() {
                     {isMovie ? 'Details' : 'Episodes'}
                   </Link>
                 </div>
-                <div className="mt-4 flex flex-wrap justify-center gap-1.5">
-                  {capabilities.slice(0,4).map(c => (
-                    <span key={c.id} className="rounded-full border border-[var(--border)] bg-[color-mix(in_srgb,var(--text)_5%,transparent)] px-2 py-1 text-[10px] text-[var(--text-faint)]">
-                      {c.displayName}
-                    </span>
-                  ))}
-                </div>
               </div>
             </div>
           )}
@@ -432,8 +424,8 @@ export function Watch() {
                       aria-label="Select video source"
                       className="appearance-none rounded-full border border-[var(--border)] bg-[var(--text)]/[0.06] px-3 py-1.5 pr-8 text-xs text-[var(--text)] focus:border-[var(--border-strong)] focus:outline-none"
                     >
-                      {sources.map(s => (
-                        <option key={s.url} value={s.url} className="bg-[var(--surface)]">
+                      {sources.map((s, idx) => (
+                        <option key={`${s.url}::${idx}`} value={s.url} className="bg-[var(--surface)]">
                           {s.provider} {s.quality ? `• ${s.quality}` : ''} {s.language ? `• ${s.language}` : ''} {s.embed ? '• embed' : ''}
                         </option>
                       ))}
@@ -548,14 +540,6 @@ export function Watch() {
           {anime.identity.anilistId && (
             <WatchRelatedEntries anilistId={anime.identity.anilistId} relations={anime.relations} />
           )}
-          {/* Provider capabilities footer (quiet) */}
-          <div className="mt-6 flex flex-wrap gap-1.5">
-            {getProviderCapabilities().filter(c => c.id !== 'mock').map(c => (
-              <span key={c.id} className="rounded-full border border-[var(--border)] bg-[var(--text)]/[0.02] px-2 py-1 text-[10px] text-[color-mix(in_srgb,var(--text)_30%,transparent)]">
-                {c.displayName} {c.languages.join('/')}
-              </span>
-            ))}
-          </div>
         </div>
       </div>
     </div>

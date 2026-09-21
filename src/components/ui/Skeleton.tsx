@@ -15,12 +15,15 @@ export function CardSkeleton() {
 }
 
 export function RowSkeleton({ title = 'Loading' }: { title?: string }) {
+  // No horizontal padding here — callers (Home rows container, MyList
+  // container) already pad to the hero edge. Own px-* would double-pad
+  // below lg and push bar + first card right of the hero/row-title edge.
   return (
     <section>
-      <div className="mb-2 flex items-baseline gap-2 px-4 sm:px-6 lg:px-0">
+      <div className="mb-2 flex items-baseline gap-2">
         <div className="h-3 w-28 rounded bg-[color-mix(in_srgb,var(--text)_10%,transparent)]" />
       </div>
-      <div className="flex gap-2 overflow-hidden px-4 sm:px-6 lg:px-0">
+      <div className="flex gap-2 overflow-hidden">
         {Array.from({ length: 6 }).map((_, i) => (
           <CardSkeleton key={i} />
         ))}
