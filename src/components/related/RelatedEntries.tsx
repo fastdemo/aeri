@@ -121,19 +121,19 @@ export function RelatedEntries({
   // The sidebar below stays clean instead of showing a dead header.
   // Related Manga is capped at 2 per row everywhere (sidebar slot is
   // narrow; 4-across portrait cards would be unreadable).
-  // Spacing (desktop): the Episodes block is mt-6 (24px below description)
-  // and each header row is mb-2 (8px). The sidebar mirrors exactly that:
-  // SidebarMeta gets mt-6, Related Shows gets mt-6 — so Related Shows lands
-  // on the Episodes line and Related Manga clears the Year row, with zero
-  // offsets, translates, or negative margins. Mobile stacks naturally.
+  // ALIGNMENT: the parent places this block in a shared grid row with
+  // Episodes/Chapters (row-start-2 both columns). No top margin here —
+  // the sidebar's meta rows above already separate it from row 1. Any
+  // mt-* on these sections would push Related below the Episodes line.
+  // Mobile stacks naturally (grid becomes single column).
   return (
     <>
       {(!mangaOnly) && ((!loading && !shows.length && manga.length) ? null : (
-        <section aria-label="Related Shows" className="mt-6 lg:mt-0">
+        <section aria-label="Related Shows" className="mt-0">
           {!hideHeader && shows.length > 0 && (
             <div className="mb-2 flex items-baseline justify-between gap-2">
               <h3 className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--text)]">
-                Related Shows
+                Related Anime
               </h3>
             </div>
           )}

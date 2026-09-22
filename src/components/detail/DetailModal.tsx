@@ -39,14 +39,20 @@ export function DetailModal({
   const [localError, setLocalError] = useState<string | null>(null)
   const [showStatusPicker, setShowStatusPicker] = useState(false)
 
-  // Base entry: prop-only match, available before grouping resolves
+  // Base entry: prop-only match, available before grouping resolves.
+  // TYPE-SAFE: malId namespaces collide across MAL anime/manga (same digits,
+  // different works), so a malId hit is accepted ONLY when the media kinds
+  // agree (manga-format vs anime-format). Otherwise an anime list entry
+  // could replace a manga modal (HxH manga → random anime).
   const baseEntry = (() => {
     if (!isAuthenticated || !combinedList) return null
     const malId = anime.identity.malId
     const anilistId = anime.identity.anilistId
+    const selfManga = ['MANGA', 'NOVEL', 'ONE_SHOT'].includes(anime.format?.toUpperCase() ?? '')
     return combinedList.find((e) => {
-      if (malId && e.anime.identity.malId === malId) return true
-      if (anilistId && e.anime.identity.anilistId === anilistId) return true
+      const eManga = ['MANGA', 'NOVEL', 'ONE_SHOT'].includes(e.anime.format?.toUpperCase() ?? '')
+      if (malId && e.anime.identity.malId === malId) return eManga === selfManga
+      if (anilistId && e.anime.identity.anilistId === anilistId) return eManga === selfManga
       if (e.anime.identity.internalId === anime.identity.internalId) return true
       return false
     }) ?? null
@@ -69,12 +75,15 @@ export function DetailModal({
   const isMangaKind = ['MANGA', 'NOVEL', 'ONE_SHOT'].includes(displayAnime.format?.toUpperCase() ?? '')
 
   // Tracking: this entry's own progress only. Related entries never share.
+  // Same malId-kind guard as baseEntry above.
   const entry = useMemo(() => {
     if (!isAuthenticated || !combinedList) return null
     const id = displayAnime.identity
+    const selfManga = ['MANGA', 'NOVEL', 'ONE_SHOT'].includes(displayAnime.format?.toUpperCase() ?? '')
     return combinedList.find((e) => {
-      if (id.malId && e.anime.identity.malId === id.malId) return true
-      if (id.anilistId && e.anime.identity.anilistId === id.anilistId) return true
+      const eManga = ['MANGA', 'NOVEL', 'ONE_SHOT'].includes(e.anime.format?.toUpperCase() ?? '')
+      if (id.malId && e.anime.identity.malId === id.malId) return eManga === selfManga
+      if (id.anilistId && e.anime.identity.anilistId === id.anilistId) return eManga === selfManga
       return e.anime.identity.internalId === id.internalId
     }) ?? null
   }, [isAuthenticated, combinedList, displayAnime])

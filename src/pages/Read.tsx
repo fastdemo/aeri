@@ -166,14 +166,14 @@ export function Read() {
   }, [manga?.identity.internalId, orderTick])
 
   // Resolve the URL chapter param to a concrete provider unit.
-  // 'first' = oldest unit, 'latest' = newest (per chapterOrder pref);
+  // 'first' = oldest unit, 'latest' = newest (reader always oldest-first;
+  // the list's local toggle is display-only and never rewrites routes);
   // 'ch-N' = unit number N; otherwise a raw provider unit id.
   // Selector/prev/next all follow the same display ordering.
   const orderedChapters: MangaChapter[] | null = useMemo(() => {
     if (!chapters) return null
     void orderTick
-    const dir = (getPreferences().chapterOrder ?? 'oldest') === 'latest' ? 'desc' : 'asc'
-    return sortProviderUnits(chapters, dir)
+    return sortProviderUnits(chapters, 'asc')
   }, [chapters, orderTick])
   const currentChapter: MangaChapter | null = useMemo(() => {
     if (!orderedChapters?.length) return null

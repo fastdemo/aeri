@@ -5,15 +5,14 @@ import { useTracking } from '../../contexts/TrackingContext'
 import { resolveChaptersWithFallback } from '../../providers/manga/mangadex'
 import type { MangaChapter } from '../../providers/manga/types'
 import { sortProviderUnits, unitDisplayLabel } from '../../providers/manga/types'
-import { getPreferences } from '../../storage/preferences'
 
 /**
  * Manga chapter list — mirrors EpisodeList's contract (loading skeleton →
  * rows → empty state) but operates on provider UNITS, never episodes.
  * A provider unit is opaque: usually a chapter, sometimes a volume — the
  * provider's own label is preserved verbatim ("Volume 3" stays Volume 3).
- * Display order follows the `chapterOrder` pref (default oldest-first),
- * sorted numerically at the presentation layer; provider data untouched.
+ * Display order is local state (default oldest-first, toggle beside the
+ * heading); provider data untouched. No global order pref exists.
  */
 export function ChapterList({ manga }: { manga: Anime }) {
   const [chapters, setChapters] = useState<MangaChapter[] | null>(null)
@@ -38,13 +37,7 @@ export function ChapterList({ manga }: { manga: Anime }) {
     }
   }, [])
 
-  const ordered = useMemo(() => {
-    if (!chapters) return null
-    const dir = (getPreferences().chapterOrder ?? 'oldest') === 'latest' ? 'desc' : 'asc'
-    // orderTick subscribes this memo to pref changes.
-    void orderTick
-    return sortProviderUnits(chapters, dir)
-  }, [chapters, orderTick])
+  // (orderTick memo below subscribes to provider-pref changes for sorting.)
 
   // Re-resolve when manga provider prefs change (enable/disable/reorder in
   // Settings broadcasts aeri:prefs-changed). orderTick in the dep array
@@ -87,13 +80,29 @@ export function ChapterList({ manga }: { manga: Anime }) {
     if (!isAuthenticated || !combinedList) return null
     const malId = manga.identity.malId
     const anilistId = manga.identity.anilistId
+    // malId namespaces collide across MAL anime/manga — accept a malId hit
+    // only when media kinds agree (ChapterList is manga-only context).
+    const selfManga = ['MANGA', 'NOVEL', 'ONE_SHOT'].includes(manga.format?.toUpperCase() ?? '')
     return combinedList.find((e) => {
-      if (malId && e.anime.identity.malId === malId) return true
-      if (anilistId && e.anime.identity.anilistId === anilistId) return true
+      const eManga = ['MANGA', 'NOVEL', 'ONE_SHOT'].includes(e.anime.format?.toUpperCase() ?? '')
+      if (malId && e.anime.identity.malId === malId) return eManga === selfManga
+      if (anilistId && e.anime.identity.anilistId === anilistId) return eManga === selfManga
       return e.anime.identity.internalId === manga.identity.internalId
     }) ?? null
   })()
   const progressCh = entry?.progress ?? 0
+
+  // Local order toggle beside the heading (NOT the global chapterOrder
+  // pref): default oldest→newest. Component-local so anime Episodes and
+  // manga Chapters use the same pattern without a shared pref.
+  // Declared BEFORE the early returns (hooks order must be stable).
+  const [localDesc, setLocalDesc] = useState(false)
+  const ordered = useMemo(() => {
+    if (!chapters) return null
+    // orderTick subscribes this memo to provider-pref changes.
+    void orderTick
+    return sortProviderUnits(chapters, localDesc ? 'desc' : 'asc')
+  }, [chapters, orderTick, localDesc])
 
   if (!done && !chapters) {
     return (
@@ -125,13 +134,21 @@ export function ChapterList({ manga }: { manga: Anime }) {
   }
 
   const nVolumes = ordered.filter(c => c.unitType === 'volume').length
-  // Unit IDs are provider-scoped (ch.id = `<provider>-…`): the reader
-  // resolves pages from the provider named in the unit id, so listing and
-  // reading never mix providers within a title.
   return (
     <div className="space-y-1">
       <div className="mb-2 flex items-baseline justify-between gap-2">
-        <h3 className="text-[14px] font-semibold text-[var(--text)]">Chapters</h3>
+        <h3 className="flex min-w-0 flex-1 items-baseline gap-1.5 text-[14px] font-semibold text-[var(--text)]">
+          <span className="truncate">Chapters</span>
+          <button
+            type="button"
+            onClick={() => setLocalDesc(v => !v)}
+            aria-label={localDesc ? 'Sort chapters oldest first' : 'Sort chapters newest first'}
+            title={localDesc ? 'Oldest first' : 'Newest first'}
+            className="grid h-5 w-5 shrink-0 place-items-center rounded text-[var(--text-faint)] transition hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)] hover:text-[var(--text)]"
+          >
+            <span aria-hidden className="text-[11px] leading-none">{localDesc ? '↓' : '↑'}</span>
+          </button>
+        </h3>
         <span className="shrink-0 text-[14px] text-[var(--text-faint)]">
           {ordered.length} {ordered.length === 1 ? 'unit' : 'units'}{nVolumes ? ` • ${nVolumes} ${nVolumes === 1 ? 'volume' : 'volumes'}` : ''}{manga.volumes ? ` • ${manga.volumes} published` : ''}
         </span>

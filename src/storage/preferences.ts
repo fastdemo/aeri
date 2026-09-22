@@ -33,9 +33,9 @@ export interface Preferences {
   readerFit?: 'width' | 'height'
   readerShowControls?: boolean
   /**
-   * Manga chapter/unit display order. Default 'oldest' (Chapter 1 first).
-   * Sorted at the presentation layer (sortProviderUnits) — never mutates
-   * provider data. Applies to chapter lists, reader selector, prev/next.
+   * REMOVED: global chapter order pref (replaced by per-list ↑/↓ toggles
+   * beside Episodes/Chapters headings; reader is always oldest-first).
+   * Kept as an ignored optional so old stored prefs still parse.
    */
   chapterOrder?: 'oldest' | 'latest'
   // Standalone AniList OAuth token-exchange base (non-Cloudflare host, since

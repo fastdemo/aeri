@@ -128,26 +128,44 @@ export function AnimeDetail() {
             </div>
           </div>
         </div>
+        {/* Row 1: description | full meta (desktop). Row 2: Episodes |
+            Related — ONE shared grid row, so both headers start at the
+            same y by construction (no offsets, no spacers, no per-state
+            tuning). Mobile stacks: description, episodes, meta, related. */}
         <div className="grid gap-6 p-6 sm:p-8 lg:grid-cols-[1.6fr_0.8fr]">
-          <div>
+          <div className="min-w-0 lg:col-start-1 lg:row-start-1">
             <p className="text-sm leading-6 text-[var(--text-muted)]">{displayAnime.description || 'No description available.'}</p>
-
+          </div>
+          <div className="hidden min-w-0 text-xs leading-5 lg:col-start-2 lg:row-start-1 lg:block">
+            <div className="space-y-3">
+              <div><span className="text-[var(--text-faint)]">Genres: </span><span className="text-[var(--text)]">{displayAnime.genres.join(', ') || '—'}</span></div>
+              <div><span className="text-[var(--text-faint)]">Studios: </span><span className="text-[var(--text)]">{displayAnime.studios?.join(', ') || '—'}</span></div>
+              <div><span className="text-[var(--text-faint)]">Status: </span><span className="text-[var(--text)]">{statusLabel(displayAnime.status) ?? '—'}</span></div>
+              <div><span className="text-[var(--text-faint)]">Format: </span><span className="text-[var(--text)]">{formatLabel(displayAnime.format) ?? '—'}</span></div>
+              {displayAnime.identity.malId && <div><span className="text-[var(--text-faint)]">MAL ID: </span><span className="text-[var(--text)]">{displayAnime.identity.malId}</span></div>}
+              {loading && <p className="text-[var(--text-faint)]">Loading metadata…</p>}
+              {error && <p className="text-[var(--warn)]">{error}</p>}
+            </div>
+          </div>
+          <div className="min-w-0 lg:col-start-1 lg:row-start-2">
             {!isMovie && !isMangaKind && (
-              <div className="mt-6">
-                <EpisodeList key={displayKey} anime={displayAnime} />
-              </div>
+              <EpisodeList key={displayKey} anime={displayAnime} />
             )}
           </div>
-          <div className="space-y-3 text-xs leading-5">
-            <div><span className="text-[var(--text-faint)]">Genres: </span><span className="text-[var(--text)]">{displayAnime.genres.join(', ') || '—'}</span></div>
-            <div><span className="text-[var(--text-faint)]">Studios: </span><span className="text-[var(--text)]">{displayAnime.studios?.join(', ') || '—'}</span></div>
-            <div><span className="text-[var(--text-faint)]">Status: </span><span className="text-[var(--text)]">{statusLabel(displayAnime.status) ?? '—'}</span></div>
-            <div><span className="text-[var(--text-faint)]">Format: </span><span className="text-[var(--text)]">{formatLabel(displayAnime.format) ?? '—'}</span></div>
-            {displayAnime.identity.malId && <div><span className="text-[var(--text-faint)]">MAL ID: </span><span className="text-[var(--text)]">{displayAnime.identity.malId}</span></div>}
-            {loading && <p className="text-[var(--text-faint)]">Loading metadata…</p>}
-            {error && <p className="text-[var(--warn)]">{error}</p>}
-            {/* Related Shows / Manga live inside the sidebar column so no
-                dead space sits between the metadata and the related rows. */}
+          <div className="min-w-0 text-xs leading-5 lg:col-start-2 lg:row-start-2">
+            {/* Mobile meta (desktop meta lives in row 1). Related sits
+                directly in this shared row-2 cell on desktop: zero rows
+                above it, so its header starts at exactly the Episodes
+                header y (delta 0). */}
+            <div className="space-y-3 lg:hidden">
+              <div><span className="text-[var(--text-faint)]">Genres: </span><span className="text-[var(--text)]">{displayAnime.genres.join(', ') || '—'}</span></div>
+              <div><span className="text-[var(--text-faint)]">Studios: </span><span className="text-[var(--text)]">{displayAnime.studios?.join(', ') || '—'}</span></div>
+              <div><span className="text-[var(--text-faint)]">Status: </span><span className="text-[var(--text)]">{statusLabel(displayAnime.status) ?? '—'}</span></div>
+              <div><span className="text-[var(--text-faint)]">Format: </span><span className="text-[var(--text)]">{formatLabel(displayAnime.format) ?? '—'}</span></div>
+              {displayAnime.identity.malId && <div><span className="text-[var(--text-faint)]">MAL ID: </span><span className="text-[var(--text)]">{displayAnime.identity.malId}</span></div>}
+              {loading && <p className="text-[var(--text-faint)]">Loading metadata…</p>}
+              {error && <p className="text-[var(--warn)]">{error}</p>}
+            </div>
             {!isMangaKind && displayAnime.identity.anilistId && (
               <AnimeRelatedEntries anilistId={displayAnime.identity.anilistId} relations={displayAnime.relations} />
             )}
