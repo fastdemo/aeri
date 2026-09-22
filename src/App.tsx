@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { HashRouter, Routes, Route, useLocation } from 'react-router-dom'
+import { HashRouter, Routes, Route, Link, useLocation } from 'react-router-dom'
 import { Navbar } from './components/navigation/Navbar'
 import { Home } from './pages/Home'
 import { Browse } from './pages/Browse'
@@ -11,6 +11,8 @@ import { AnimeDetail } from './pages/AnimeDetail'
 import { Settings } from './pages/Settings'
 import { NotFound, ProfilePlaceholder } from './pages/NotFound'
 import { Manga } from './pages/Manga'
+import { Docs } from './pages/Docs'
+import { Legal } from './pages/Legal'
 import { AniListProvider } from './contexts/AniListContext'
 import { MALProvider } from './contexts/MALContext'
 import { TrackingProvider } from './contexts/TrackingContext'
@@ -63,6 +65,8 @@ function Layout() {
           <Route path="/read/:id/:chapter" element={<Read />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/manga" element={<Manga />} />
+          <Route path="/docs" element={<Docs />} />
+          <Route path="/legal" element={<Legal />} />
           <Route path="/profile" element={<ProfilePlaceholder />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
@@ -74,8 +78,8 @@ function Layout() {
           </div>
           <div className="flex shrink-0 items-center gap-3">
             <a href="https://github.com/fastdemo/aeri" className="text-[var(--text-faint)] transition-colors duration-200 hover:text-[var(--text)]">GitHub</a>
-            <span className="cursor-pointer text-[var(--text-faint)] transition-colors duration-200 hover:text-[var(--text)]">Docs</span>
-            <span className="cursor-pointer text-[var(--text-faint)] transition-colors duration-200 hover:text-[var(--text)]">Legal</span>
+            <Link to="/docs" className="text-[var(--text-faint)] transition-colors duration-200 hover:text-[var(--text)]">Docs</Link>
+            <Link to="/legal" className="text-[var(--text-faint)] transition-colors duration-200 hover:text-[var(--text)]">Legal</Link>
           </div>
         </div>
       </footer>
