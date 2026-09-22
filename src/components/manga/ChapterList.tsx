@@ -5,6 +5,7 @@ import { useTracking } from '../../contexts/TrackingContext'
 import { resolveChaptersWithFallback } from '../../providers/manga/mangadex'
 import type { MangaChapter } from '../../providers/manga/types'
 import { sortProviderUnits, unitDisplayLabel } from '../../providers/manga/types'
+import { Icon } from '../ui/Icon'
 
 /**
  * Manga chapter list — mirrors EpisodeList's contract (loading skeleton →
@@ -143,10 +144,10 @@ export function ChapterList({ manga }: { manga: Anime }) {
             type="button"
             onClick={() => setLocalDesc(v => !v)}
             aria-label={localDesc ? 'Sort chapters oldest first' : 'Sort chapters newest first'}
-            title={localDesc ? 'Oldest first' : 'Newest first'}
+            title={localDesc ? 'Oldest first (click for newest)' : 'Newest first (click for oldest)'}
             className="grid h-5 w-5 shrink-0 place-items-center rounded text-[var(--text-faint)] transition hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)] hover:text-[var(--text)]"
           >
-            <span aria-hidden className="text-[11px] leading-none">{localDesc ? '↓' : '↑'}</span>
+            <Icon name="arrow-down-up" size={12} />
           </button>
         </h3>
         <span className="shrink-0 text-[14px] text-[var(--text-faint)]">
@@ -155,8 +156,9 @@ export function ChapterList({ manga }: { manga: Anime }) {
       </div>
       <div className="overflow-hidden rounded-lg border border-[var(--border)]">
         {ordered.map((ch, idx) => {
+          // No next-up highlight (same reason as episodes: on desc-sort it
+          // tints the top rows and reads as a rendering bug).
           const isRead = progressCh > 0 && ch.number != null && ch.number <= progressCh
-          const isNext = ch.number != null && ch.number === progressCh + 1
           const label = unitDisplayLabel(ch)
           return (
             <Link
@@ -165,9 +167,7 @@ export function ChapterList({ manga }: { manga: Anime }) {
               onClick={() => {
                 if (isAuthenticated && ch.number != null) updateProgress(manga, ch.number).catch(() => {})
               }}
-              className={`flex items-center gap-3 bg-[var(--surface)] px-3 py-3 text-left transition hover:bg-[var(--text)]/[0.04] ${
-                isNext ? 'bg-[var(--text)]/[0.06]' : ''
-              } ${idx !== ordered.length - 1 ? 'border-b border-[var(--border)]' : ''}`}
+              className={`flex items-center gap-3 bg-[var(--surface)] px-3 py-3 text-left transition hover:bg-[var(--text)]/[0.04] ${idx !== ordered.length - 1 ? 'border-b border-[var(--border)]' : ''}`}
             >
               <span className="w-24 shrink-0 text-[13px] font-medium text-[var(--text)]">{label}</span>
               <span className="min-w-0 flex-1 truncate text-[11px] text-[var(--text-faint)]">

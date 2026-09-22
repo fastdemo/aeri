@@ -1,12 +1,22 @@
 import { useState } from 'react'
 import type { AnimeStatus } from '../../types/anime'
+import { Icon } from '../ui/Icon'
+
+const STATUS_OPTIONS: { value: AnimeStatus; label: string }[] = [
+  { value: 'watching', label: 'Watching' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'planned', label: 'Planned' },
+  { value: 'on_hold', label: 'On Hold' },
+  { value: 'dropped', label: 'Dropped' },
+]
 
 /**
  * Compact tracker control for the preview/detail modal (§2).
  * Collapsed: status pill only — plus episode/chapter + score when the
  * status is anything but planned (Plan to Watch / Plan to Read hides both).
- * Expanded (tap the pill): the existing status picker options + a score
- * stepper, reusing the same update callbacks (no parallel tracker state).
+ * Expanded: a native select reusing the browse-filter dropdown styling
+ * (same pill, same chevron, same option treatment) + a score stepper,
+ * reusing the same update callbacks (no parallel tracker state).
  * All values come from props derived live from useTracking, so mutations
  * propagate through the existing reactive contexts with no reload.
  */
@@ -30,7 +40,8 @@ export function TrackerCompact({
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const planned = status === 'planned'
-  const unit = isManga ? 'Ch.' : 'Ep.'
+  const unit = isManga ? 'Chapter' : 'Episode'
+  const statusLabel = status ? (STATUS_OPTIONS.find(o => o.value === status)?.label ?? status.replace('_', ' ')) : 'Not tracked'
   const run = async (fn: () => Promise<void>) => {
     setBusy(true)
     try { await fn() } finally { setBusy(false) }
@@ -46,7 +57,7 @@ export function TrackerCompact({
           className="inline-flex items-center gap-1.5 rounded-full border border-[var(--border)] bg-[color-mix(in_srgb,var(--text)_5%,transparent)] px-2.5 py-1 text-[var(--text)] transition hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)]"
         >
           <span className="capitalize text-[var(--text-muted)]">Status:</span>
-          <span className="capitalize">{status ? status.replace('_', ' ') : '—'}</span>
+          <span>{statusLabel}</span>
           <span aria-hidden className="text-[9px] text-[var(--text-faint)]">{open ? '▲' : '▼'}</span>
         </button>
         {!planned && (
@@ -64,18 +75,22 @@ export function TrackerCompact({
         {(syncing || busy) && <span className="px-1 text-[var(--text-faint)]">Syncing…</span>}
       </div>
       {open && (
-        <div className="anim-pop-in mt-2 flex flex-wrap items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] p-2">
-          {(['watching', 'completed', 'planned', 'on_hold', 'dropped'] as AnimeStatus[]).map(s => (
-            <button
-              key={s}
-              type="button"
+        <div className="anim-pop-in mt-2 flex flex-wrap items-center gap-2 rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] p-2">
+          <div className="relative shrink-0">
+            <select
+              value={status ?? ''}
               disabled={busy}
-              onClick={() => run(() => onStatus(s))}
-              className={`rounded-full px-2.5 py-1 text-[11px] capitalize transition ${status === s ? 'bg-[var(--text)] font-semibold text-[var(--on-text)]' : 'text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)] hover:text-[var(--text)]'}`}
+              onChange={e => { const v = e.target.value as AnimeStatus; if (v) run(() => onStatus(v)) }}
+              aria-label="Tracking status"
+              className="max-w-[150px] appearance-none truncate rounded-full border border-[var(--border)] bg-[var(--bg-soft)] py-1.5 pl-3.5 pr-8 text-xs font-medium text-[var(--text)] focus:border-[var(--border-strong)] focus:outline-none disabled:opacity-50"
             >
-              {s.replace('_', ' ')}
-            </button>
-          ))}
+              {!status && <option value="" className="bg-[var(--surface)]">Select status</option>}
+              {STATUS_OPTIONS.map(o => (
+                <option key={o.value} className="bg-[var(--surface)]" value={o.value}>{isManga && o.value === 'watching' ? 'Reading' : o.value === 'planned' ? (isManga ? 'Plan to Read' : 'Plan to Watch') : o.label}</option>
+              ))}
+            </select>
+            <Icon name="chevron-down" size={12} className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--text-faint)]" />
+          </div>
           <span className="mx-1 h-4 w-px bg-[var(--border)]" aria-hidden />
           {[0, -1, 1].map(d =>
             d === 0 ? (

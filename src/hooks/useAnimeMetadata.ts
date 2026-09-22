@@ -85,8 +85,12 @@ export function useBrowse(params: { sort?: string; status?: string; genre?: stri
   useEffect(() => {
     const controller = new AbortController()
     let cancelled = false
-    setState(s => ({ ...s, loading: true, error: null }))
+    // Filter change clears ALL old items first: keep stale data only when
+    // appending page 2+ of the SAME filter (p > 1). A new filter (p === 1)
+    // renders empty + skeleton until its own response lands — a slow old
+    // response can never leave foreign items in the grid.
     const p = params.page ?? page
+    setState(s => ({ ...s, data: p === 1 ? null : s.data, loading: true, error: null }))
     anilistMetadataProvider.browse({ sort: sort as any, status: status as any, genre, seasonYear, season: season as any, format: format as any, yearFrom, yearTo, perPage, page: p }, controller.signal)
       .then(res => {
         if (cancelled || controller.signal.aborted) return
@@ -125,8 +129,8 @@ export function useMangaBrowse(params: { sort?: string; status?: string; genre?:
   useEffect(() => {
     const controller = new AbortController()
     let cancelled = false
-    setState(s => ({ ...s, loading: true, error: null }))
     const p = params.page ?? page
+    setState(s => ({ ...s, data: p === 1 ? null : s.data, loading: true, error: null }))
     anilistMetadataProvider.browseManga({ sort: sort as any, status: status as any, genre, seasonYear, format: format as any, yearFrom, yearTo, perPage, page: p }, controller.signal)
       .then(res => {
         if (cancelled || controller.signal.aborted) return

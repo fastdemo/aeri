@@ -17,6 +17,7 @@ import chevronDownSvg from 'bootstrap-icons/icons/chevron-down.svg?raw'
 import chevronLeftSvg from 'bootstrap-icons/icons/chevron-left.svg?raw'
 import chevronRightSvg from 'bootstrap-icons/icons/chevron-right.svg?raw'
 import arrowLeftSvg from 'bootstrap-icons/icons/arrow-left.svg?raw'
+import arrowDownUpSvg from 'bootstrap-icons/icons/arrow-down-up.svg?raw'
 import arrowUpShortSvg from 'bootstrap-icons/icons/arrow-up-short.svg?raw'
 import arrowDownShortSvg from 'bootstrap-icons/icons/arrow-down-short.svg?raw'
 
@@ -37,6 +38,7 @@ const PATHS: Record<string, string> = {
   'chevron-left': chevronLeftSvg,
   'chevron-right': chevronRightSvg,
   'arrow-left': arrowLeftSvg,
+  'arrow-down-up': arrowDownUpSvg,
   'arrow-up-short': arrowUpShortSvg,
   'arrow-down-short': arrowDownShortSvg,
 }

@@ -44,13 +44,15 @@ export function Hero({ anime, onMoreInfo, trackingProvider }: { anime: Anime; on
               'linear-gradient(90deg, color-mix(in srgb, var(--bg) 96%, transparent) 0%, color-mix(in srgb, var(--bg) 78%, transparent) 22%, color-mix(in srgb, var(--bg) 45%, transparent) 42%, color-mix(in srgb, var(--bg) 14%, transparent) 62%, transparent 78%)',
           }}
         />
-        {/* bottom */}
+        {/* bottom — anchored to the box (inset-x-0 bottom-0, fixed height)
+            so rapid slide swaps on mobile can never leave it floating a few
+            px above the hero's bottom edge. */}
         <div
           aria-hidden
-          className="absolute inset-0"
+          className="absolute inset-x-0 bottom-0 h-[45%]"
           style={{
             background:
-              'linear-gradient(180deg, transparent 50%, color-mix(in srgb, var(--bg) 45%, transparent) 78%, var(--bg) 100%)',
+              'linear-gradient(180deg, transparent 0%, color-mix(in srgb, var(--bg) 45%, transparent) 55%, var(--bg) 100%)',
           }}
         />
         {/* top subtle for nav */}
@@ -257,10 +259,10 @@ export function HeroCarousel({
         />
         <div
           aria-hidden
-          className="absolute inset-0"
+          className="absolute inset-x-0 bottom-0 h-[45%]"
           style={{
             background:
-              'linear-gradient(180deg, transparent 50%, color-mix(in srgb, var(--bg) 45%, transparent) 78%, var(--bg) 100%)',
+              'linear-gradient(180deg, transparent 0%, color-mix(in srgb, var(--bg) 45%, transparent) 55%, var(--bg) 100%)',
           }}
         />
         <div aria-hidden className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-[color-mix(in_srgb,var(--bg)_40%,transparent)] to-transparent" />

@@ -47,11 +47,14 @@ export function MangaPlaceholder() {
 }
 
 export function ProfilePlaceholder() {
-  const { isAuthenticated, combinedList } = useTracking()
+  const { isAuthenticated, combinedList, trackingProvider } = useTracking()
   const { user: anilistUser } = useAniList()
   const { user: malUser } = useMAL()
   const navigate = useNavigate()
-  const user = anilistUser ?? malUser ?? null
+  // Avatar + name follow the ACTIVE tracker (switching MAL/AniList swaps
+  // both). combinedList + stats below already derive from the same source.
+  const user = trackingProvider === 'mal' ? (malUser ?? anilistUser) : (anilistUser ?? malUser)
+  const trackerName = trackingProvider === 'mal' ? 'MyAnimeList' : 'AniList'
   const stats = useMemo(() => {
     const list = combinedList ?? []
     const byStatus = (s: string) => list.filter(e => e.status === s).length
@@ -77,8 +80,7 @@ export function ProfilePlaceholder() {
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-[20px] font-semibold tracking-tight text-[var(--text)] sm:text-[24px]">{user?.name ?? 'Profile'}</h1>
           <p className="mt-0.5 text-xs text-[var(--text-faint)] sm:text-[13px]">
-            {stats.total} in list • {stats.watching} watching • {stats.completed} completed
-            {stats.mean != null ? ` • mean ${formatRating(stats.mean) ?? stats.mean}` : ''} • {stats.eps} episodes watched
+            {trackerName}
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <Link

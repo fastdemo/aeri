@@ -142,10 +142,10 @@ export function EpisodeList({ anime, hideHeader }: { anime: Anime; hideHeader?: 
               type="button"
               onClick={() => setLocalDesc(v => !v)}
               aria-label={localDesc ? 'Sort episodes oldest first' : 'Sort episodes newest first'}
-              title={localDesc ? 'Oldest first' : 'Newest first'}
+              title={localDesc ? 'Oldest first (click for newest)' : 'Newest first (click for oldest)'}
               className="grid h-5 w-5 shrink-0 place-items-center rounded text-[var(--text-faint)] transition hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)] hover:text-[var(--text)]"
             >
-              <span aria-hidden className="text-[11px] leading-none">{localDesc ? '↓' : '↑'}</span>
+              <Icon name="arrow-down-up" size={12} />
             </button>
           </h3>
           <span className="shrink-0 text-[14px] text-[var(--text-faint)]">{anime.episodes && anime.episodes > 0 ? `${anime.episodes} episodes` : `${episodes.length} episodes`}</span>
@@ -154,10 +154,10 @@ export function EpisodeList({ anime, hideHeader }: { anime: Anime; hideHeader?: 
 
       <div className="overflow-hidden rounded-lg border border-[var(--border)]">
         {episodes.map((ep: any) => {
-          // progress = episodes watched: everything up to and including it is Watched
+          // progress = episodes watched: everything up to and including it is Watched.
+          // No next-up highlight: tinting the first 2 rows on desc-sort read
+          // as a rendering bug (they ARE the highlight, just relocated).
           const isWatched = progressEp > 0 && ep.number <= progressEp
-          // next-up highlight only (no progress bar — it read as an error state)
-          const isCurrent = ep.number === progressEp + 1 || (progressEp === 0 && ep.number === 1)
           const seasonKey = anime.identity.anilistId ? `anilist:${anime.identity.anilistId}` : anime.identity.internalId
           // Per-row state: skeleton ONLY while that field is genuinely still
           // loading (provider fetch pending). A resolved-but-absent field
@@ -176,9 +176,7 @@ export function EpisodeList({ anime, hideHeader }: { anime: Anime; hideHeader?: 
               key={`${seasonKey}-${ep.number}`}
               to={`/watch/${anime.identity.internalId}/${watchEp}`}
               onClick={() => handleSelect(ep.number)}
-              className={`flex items-center gap-3 bg-[var(--surface)] px-3 py-3 text-left transition hover:bg-[var(--text)]/[0.04] ${
-                isCurrent ? 'bg-[var(--text)]/[0.06]' : ''
-              } ${ep.number !== episodes.length ? 'border-b border-[var(--border)]' : ''}`}
+              className={`flex items-center gap-3 bg-[var(--surface)] px-3 py-3 text-left transition hover:bg-[var(--text)]/[0.04] ${ep.number !== episodes.length ? 'border-b border-[var(--border)]' : ''}`}
             >
               <span className="w-9 text-center text-sm font-medium text-[var(--text-muted)]">{epLabel}</span>
 
@@ -219,7 +217,7 @@ export function EpisodeList({ anime, hideHeader }: { anime: Anime; hideHeader?: 
 
               <div className="min-w-0 flex-1">
                 {ep.title ? (
-                  <p className={`truncate text-[13px] font-medium ${isCurrent ? 'text-[var(--text)]' : 'text-[var(--text)]'}`}>
+                  <p className="truncate text-[13px] font-medium text-[var(--text)]">
                     {ep.title}
                   </p>
                 ) : titleLoading ? (
@@ -227,7 +225,7 @@ export function EpisodeList({ anime, hideHeader }: { anime: Anime; hideHeader?: 
                     <span className="block h-3 w-3/4 animate-pulse rounded bg-[color-mix(in_srgb,var(--text)_8%,transparent)]" />
                   </p>
                 ) : (
-                  <p className={`text-[13px] font-medium ${isCurrent ? 'text-[var(--text)]' : 'text-[var(--text-muted)]'}`}>
+                  <p className="text-[13px] font-medium text-[var(--text-muted)]">
                     Episode {ep.number}
                   </p>
                 )}

@@ -48,7 +48,7 @@ const modalInfo = () => page.evaluate(() => {
   // can hang when the modal overlay is mid-animation. Visibility filtering
   // happens in the dedicated related tests instead.
   const m = [...dlg.querySelectorAll('section[aria-label="Related Manga"]')]
-  const s = [...dlg.querySelectorAll('section[aria-label="Related Shows"]')]
+  const s = [...dlg.querySelectorAll('section[aria-label="Related Anime"]')]
   return {
     title: dlg.querySelector('h2')?.textContent?.slice(0, 24),
     rows: rows.length,
@@ -141,7 +141,7 @@ for (const id of [16498, 20958, 99147]) {
   await nav(`${BASE}/#/anime/anilist-${id}`)
   await page.waitForTimeout(12000)
   const r = await page.evaluate(() => {
-    const secs = [...document.querySelectorAll('section[aria-label="Related Shows"]')]
+    const secs = [...document.querySelectorAll('section[aria-label="Related Anime"]')]
     return secs.length ? secs[0].querySelectorAll(':scope div.grid > div').length : 0
   })
   check(`aot ${id} related entries`, r >= 3, `${r} cards`)

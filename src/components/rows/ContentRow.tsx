@@ -79,7 +79,7 @@ export function ContentRow({
 
         <div
           ref={scrollerRef}
-          className="no-scrollbar flex snap-x snap-mandatory gap-2 overflow-x-auto scroll-smooth pb-1 pt-1 lg:px-0"
+          className="no-scrollbar flex snap-x gap-2 overflow-x-auto scroll-smooth pb-1 pt-1 [scroll-snap-type:x_proximity] [scroll-padding-left:0] lg:px-0"
           style={{ scrollbarWidth: 'none' }}
         >
           {children}

@@ -117,19 +117,19 @@ export function RelatedEntries({
   if (showsOnly && !loading && !shows.length) return null
   if (mangaOnly && !loading && !manga.length) return null
   // Empty sections render nothing (not even headers): a show with only
-  // manga relations shows no "Related Shows" header, and vice versa.
+  // manga relations shows no "Related Anime" header, and vice versa.
   // The sidebar below stays clean instead of showing a dead header.
   // Related Manga is capped at 2 per row everywhere (sidebar slot is
   // narrow; 4-across portrait cards would be unreadable).
   // ALIGNMENT: the parent places this block in a shared grid row with
-  // Episodes/Chapters (row-start-2 both columns). No top margin here —
-  // the sidebar's meta rows above already separate it from row 1. Any
-  // mt-* on these sections would push Related below the Episodes line.
+  // Episodes/Chapters (row-start-2 both columns). No padding/margin here —
+  // both headers use the identical mb-2 header row, so Related starts at
+  // exactly the Episodes line (delta 0). Any pt/mt would offset it.
   // Mobile stacks naturally (grid becomes single column).
   return (
     <>
       {(!mangaOnly) && ((!loading && !shows.length && manga.length) ? null : (
-        <section aria-label="Related Shows" className="mt-0">
+        <section aria-label="Related Anime" className="mt-0">
           {!hideHeader && shows.length > 0 && (
             <div className="mb-2 flex items-baseline justify-between gap-2">
               <h3 className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--text)]">
