@@ -48,7 +48,7 @@ function ChapterNavButtons({
         </Link>
       ) : (
         <button type="button" disabled aria-label="Previous chapter" data-testid={`${testId}-prev`} className={pill}>
-          No previous chapter
+          ← No previous chapter
         </button>
       )}
       {nextChapter ? (
@@ -62,7 +62,7 @@ function ChapterNavButtons({
         </Link>
       ) : (
         <button type="button" disabled aria-label="Next chapter" data-testid={`${testId}-next`} className={pill}>
-          No next chapter
+          No next chapter →
         </button>
       )}
     </div>

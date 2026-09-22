@@ -7,12 +7,21 @@ import type { Anime } from '../types/anime'
 export function rankSearchResults(query: string, items: Anime[]): Anime[] {
   const nq = query.trim().toLowerCase()
   if (!nq) return items
+  // Normalize once: ×/x variants + collapsed separators so "hunter x
+  // hunter" matches romaji "HUNTER×HUNTER" exactly (not just substring).
+  const norm = (t: string) => t.toLowerCase().replace(/[×✕✖]/g, 'x').replace(/[^a-z0-9]+/g, ' ').trim().replace(/\s+/g, ' ')
+  const nnq = norm(nq)
   const titlesOf = (a: Anime) => [a.title.romaji, a.title.english, a.title.native]
     .filter((t): t is string => !!t)
     .map((t) => t.toLowerCase())
+  const normTitlesOf = (a: Anime) => [a.title.romaji, a.title.english, a.title.native]
+    .filter((t): t is string => !!t)
+    .map((t) => norm(t))
   const tierOf = (a: Anime): number => {
     const ts = titlesOf(a)
     if (ts.some((t) => t === nq)) return 0
+    // Normalized exact match (× vs x, punctuation): the user typed THIS title.
+    if (normTitlesOf(a).some((t) => t === nnq)) return 0
     if (ts.some((t) => t.startsWith(nq))) return 1
     if (ts.some((t) => t.includes(nq))) return 2
     const studios = (a.studios ?? []).map((s) => s.toLowerCase())
