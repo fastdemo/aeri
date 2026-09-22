@@ -64,39 +64,60 @@ export function ProfilePlaceholder() {
     return <Navigate to="/" replace />
   }
   return (
-    <div className="mx-auto max-w-[1200px] px-4 py-10 sm:px-6">
-      <div className="flex items-center gap-4">
+    <div className="mx-auto w-full max-w-[1600px] px-4 py-6 sm:px-6 lg:px-12 lg:py-8">
+      {/* Header: avatar + name + tracker + stats inline (no dead space) */}
+      <div className="flex flex-wrap items-center gap-4 sm:gap-5">
         {user?.avatar?.large ? (
-          <img src={user.avatar.large} alt={user.name ?? 'Profile'} className="h-16 w-16 rounded-full object-cover" loading="lazy" />
+          <img src={user.avatar.large} alt={user.name ?? 'Profile'} className="h-16 w-16 shrink-0 rounded-full object-cover sm:h-20 sm:w-20" loading="lazy" />
         ) : (
-          <div className="grid h-16 w-16 place-items-center rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)] text-lg font-bold text-[var(--text)]">
+          <div className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)] text-lg font-bold text-[var(--text)] sm:h-20 sm:w-20">
             {(user?.name ?? '?').slice(0, 1).toUpperCase()}
           </div>
         )}
-        <div className="min-w-0">
-          <h1 className="truncate text-[18px] font-semibold tracking-tight text-[var(--text)]">{user?.name ?? 'Profile'}</h1>
-          <p className="text-xs text-[var(--text-faint)]">
+        <div className="min-w-0 flex-1">
+          <h1 className="truncate text-[20px] font-semibold tracking-tight text-[var(--text)] sm:text-[24px]">{user?.name ?? 'Profile'}</h1>
+          <p className="mt-0.5 text-xs text-[var(--text-faint)] sm:text-[13px]">
             {stats.total} in list • {stats.watching} watching • {stats.completed} completed
             {stats.mean != null ? ` • mean ${formatRating(stats.mean) ?? stats.mean}` : ''} • {stats.eps} episodes watched
           </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Link
+              to="/list"
+              className="rounded-full bg-[var(--text)] px-4 py-1.5 text-xs font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]"
+            >
+              My List
+            </Link>
+            <Link
+              to="/settings"
+              className="rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-4 py-1.5 text-xs font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)]"
+            >
+              Settings
+            </Link>
+          </div>
         </div>
       </div>
 
-      <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        {[
-          { label: 'Watching', value: stats.watching },
-          { label: 'Completed', value: stats.completed },
-          { label: 'Planned', value: stats.planned },
-          { label: 'Episodes', value: stats.eps },
-        ].map(s => (
-          <div key={s.label} className="rounded-xl border border-[var(--border)] bg-[var(--text)]/[0.02] p-4">
-            <p className="text-xl font-semibold text-[var(--text)]">{s.value}</p>
-            <p className="mt-0.5 text-xs text-[var(--text-faint)]">{s.label}</p>
-          </div>
-        ))}
-      </div>
+      {/* Statistics (kept, same numbers) */}
+      <section aria-label="Statistics" className="mt-6">
+        <h2 className="mb-2 text-[14px] font-semibold text-[var(--text)]">Statistics</h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+          {[
+            { label: 'Watching', value: stats.watching },
+            { label: 'Completed', value: stats.completed },
+            { label: 'Planned', value: stats.planned },
+            { label: 'Episodes', value: stats.eps },
+            { label: 'Total', value: stats.total },
+            { label: 'Mean score', value: stats.mean != null ? (formatRating(stats.mean) ?? stats.mean) : '—' },
+          ].map(s => (
+            <div key={s.label} className="rounded-xl border border-[var(--border)] bg-[var(--text)]/[0.02] p-4">
+              <p className="text-xl font-semibold text-[var(--text)]">{s.value}</p>
+              <p className="mt-0.5 text-xs text-[var(--text-faint)]">{s.label}</p>
+            </div>
+          ))}
+        </div>
+      </section>
 
-      {(combinedList ?? []).filter(e => e.status === 'watching').length > 0 && (
+      {(combinedList ?? []).filter(e => e.status === 'watching').length > 0 ? (
         <div className="mt-8">
           <ContentRow title="Currently watching" subtitle={`${(combinedList ?? []).filter(e => e.status === 'watching').length} titles`}>
             {(combinedList ?? []).filter(e => e.status === 'watching').slice(0, 12).map(e => (
@@ -106,22 +127,18 @@ export function ProfilePlaceholder() {
             ))}
           </ContentRow>
         </div>
+      ) : (
+        <div className="mt-8 rounded-xl border border-[var(--border)] bg-[var(--text)]/[0.02] px-4 py-8 text-center">
+          <p className="text-sm font-medium text-[var(--text)]">Nothing in progress</p>
+          <p className="mt-1 text-xs text-[var(--text-faint)]">Titles you mark as watching will appear here.</p>
+          <Link
+            to="/anime"
+            className="mt-4 inline-block rounded-full bg-[var(--text)] px-5 py-2 text-xs font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]"
+          >
+            Browse anime
+          </Link>
+        </div>
       )}
-
-      <div className="mt-8 flex gap-2">
-        <Link
-          to="/list"
-          className="rounded-full bg-[var(--text)] px-5 py-2 text-sm font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]"
-        >
-          My List
-        </Link>
-        <Link
-          to="/settings"
-          className="rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-5 py-2 text-sm font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)]"
-        >
-          Settings
-        </Link>
-      </div>
     </div>
   )
 }

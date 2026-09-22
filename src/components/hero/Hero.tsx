@@ -178,6 +178,25 @@ export function HeroCarousel({
     [advance, animes.length, paused, prefersReducedMotion],
   )
 
+  // Touch/drag swipe: horizontal pointer drag switches slides. Vertical
+  // drags (page scroll) are untouched — only a predominantly-horizontal
+  // gesture with real displacement navigates. No library, no scroll lock.
+  const dragRef = useRef<{ x: number; y: number; active: boolean } | null>(null)
+  const onPointerDown = (e: React.PointerEvent) => {
+    if (e.pointerType === 'mouse') return
+    dragRef.current = { x: e.clientX, y: e.clientY, active: true }
+  }
+  const onPointerUp = (e: React.PointerEvent) => {
+    const d = dragRef.current
+    dragRef.current = null
+    if (!d?.active || e.pointerType === 'mouse') return
+    const dx = e.clientX - d.x
+    const dy = e.clientY - d.y
+    if (Math.abs(dx) < 48 || Math.abs(dx) < Math.abs(dy) * 1.5) return
+    go(index + (dx < 0 ? 1 : -1))
+  }
+  const onPointerCancel = () => { dragRef.current = null }
+
   if (!animes.length) return null
   const active = animes[index]!
 
@@ -206,8 +225,11 @@ export function HeroCarousel({
           go(index + 1)
         }
       }}
+      onPointerDown={onPointerDown}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
     >
-      <div className="relative aspect-[16/9] w-full overflow-hidden sm:aspect-[21/9] lg:aspect-[2.2/1] lg:min-h-[460px] lg:max-h-[640px]">
+      <div className="relative aspect-[16/9] w-full overflow-hidden sm:aspect-[21/9] lg:aspect-[2.2/1] lg:min-h-[460px] lg:max-h-[640px]" style={{ touchAction: 'pan-y' }}>
         {/* Single active backdrop. Previously all slides stayed stacked for
             a CSS crossfade — but the scaled (1.04) inert backdrops painted
             ~6px outside the rounded clip on narrow viewports (the left-edge

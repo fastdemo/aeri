@@ -44,13 +44,44 @@ export function Search() {
               {results.length} result{results.length === 1 ? '' : 's'} for “{liveQuery}”
             </h1>
             <p className="mb-4 text-center text-xs text-[var(--text-faint)]">from AniList.</p>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-              {results.map((a) => (
-                <div key={a.identity.internalId} className="min-w-0">
-                  <AnimeCard anime={a} onSelect={setSelected} fullWidth />
+            {(() => {
+              const isMangaFmt = (f?: string | null) => ['MANGA', 'NOVEL', 'ONE_SHOT'].includes((f ?? '').toUpperCase())
+              const isOvaFmt = (f?: string | null) => ['OVA', 'ONA', 'SPECIAL', 'MUSIC'].includes((f ?? '').toUpperCase())
+              const animeRes = results.filter(a => !isMangaFmt(a.format) && !isOvaFmt(a.format))
+              const mangaRes = results.filter(a => isMangaFmt(a.format))
+              const ovaRes = results.filter(a => isOvaFmt(a.format))
+              const renderGrid = (list: Anime[]) => (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                  {list.map((a) => (
+                    <div key={a.identity.internalId} className="min-w-0">
+                      <AnimeCard anime={a} onSelect={setSelected} mediaKind={isMangaFmt(a.format) ? 'manga' : 'anime'} fullWidth />
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              )
+              return (
+                <>
+                  {animeRes.length > 0 && (
+                    <section aria-label="Anime results" className="mb-6">
+                      <h2 className="mb-2 text-[13px] font-semibold text-[var(--text)]">Anime</h2>
+                      {renderGrid(animeRes)}
+                    </section>
+                  )}
+                  {mangaRes.length > 0 && (
+                    <section aria-label="Manga results" className="mb-6">
+                      <h2 className="mb-2 text-[13px] font-semibold text-[var(--text)]">Manga</h2>
+                      {renderGrid(mangaRes)}
+                    </section>
+                  )}
+                  {ovaRes.length > 0 && (
+                    <section aria-label="OVA results" className="mb-6">
+                      <h2 className="mb-2 text-[13px] font-semibold text-[var(--text)]">OVAs</h2>
+                      {renderGrid(ovaRes)}
+                    </section>
+                  )}
+                </>
+              )
+            })()}
           </>
         )}
       </div>

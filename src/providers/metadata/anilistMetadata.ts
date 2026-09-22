@@ -96,7 +96,7 @@ query ($malId: Int) {
 const SEARCH_QUERY = `
 query ($search: String, $perPage: Int) {
   Page(perPage: $perPage) {
-    media(search: $search, type: ANIME, isAdult: false) {
+    media(search: $search, isAdult: false) {
       ${MEDIA_FIELDS}
     }
   }

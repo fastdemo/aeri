@@ -101,16 +101,26 @@ export function SearchSuggestions({ query, onClose, onPreview }: Props) {
     )
   }
 
-  return (
-    <div
-      ref={containerRef}
-      role="listbox"
-      // Isolate compositing so ancestor transforms/filters can't flatten the
-      // backdrop blur while the page scrolls underneath.
-      style={{ isolation: 'isolate' }}
-      className="absolute left-0 right-0 top-[calc(100%+8px)] z-[70] max-h-[min(68vh,420px)] overflow-x-hidden overflow-y-auto rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--bg)_70%,transparent)] backdrop-blur-2xl shadow-[0_16px_48px_var(--shadow)]"
-    >
-      {results.map((anime, idx) => {
+  // Group by real media kind (§10): Anime (TV/MOVIE/etc), Manga
+  // (MANGA/NOVEL/ONE_SHOT), OVAs (OVA/ONA/SPECIAL/MUSIC). No empty headers.
+  const isMangaFmt = (f?: string | null) => ['MANGA', 'NOVEL', 'ONE_SHOT'].includes((f ?? '').toUpperCase())
+  const isOvaFmt = (f?: string | null) => ['OVA', 'ONA', 'SPECIAL', 'MUSIC'].includes((f ?? '').toUpperCase())
+  const groups: { label: string; items: { anime: Anime; idx: number }[] }[] = []
+  {
+    const animeItems: typeof groups[0]['items'] = []
+    const mangaItems: typeof groups[0]['items'] = []
+    const ovaItems: typeof groups[0]['items'] = []
+    results.forEach((anime, idx) => {
+      const f = anime.format
+      if (isMangaFmt(f)) mangaItems.push({ anime, idx })
+      else if (isOvaFmt(f)) ovaItems.push({ anime, idx })
+      else animeItems.push({ anime, idx })
+    })
+    if (animeItems.length) groups.push({ label: 'Anime', items: animeItems })
+    if (mangaItems.length) groups.push({ label: 'Manga', items: mangaItems })
+    if (ovaItems.length) groups.push({ label: 'OVAs', items: ovaItems })
+  }
+  const renderRow = (anime: Anime, idx: number) => {
         const titles = getTitleHierarchy(anime)
         return (
         <button
@@ -138,7 +148,25 @@ export function SearchSuggestions({ query, onClose, onPreview }: Props) {
             <p className="text-[11px] text-[var(--text-faint)]">{[formatLabel(anime.format) ?? anime.format, anime.year ? String(anime.year) : null].filter(Boolean).join(' • ')}</p>
           </div>
         </button>
-      )})}
+        )
+  }
+  return (
+    <div
+      ref={containerRef}
+      role="listbox"
+      // Isolate compositing so ancestor transforms/filters can't flatten the
+      // backdrop blur while the page scrolls underneath.
+      style={{ isolation: 'isolate' }}
+      className="absolute left-0 right-0 top-[calc(100%+8px)] z-[70] max-h-[min(68vh,420px)] overflow-x-hidden overflow-y-auto rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--bg)_70%,transparent)] backdrop-blur-2xl shadow-[0_16px_48px_var(--shadow)]"
+    >
+      {groups.map(g => (
+        <div key={g.label}>
+          <p className="sticky top-0 bg-[color-mix(in_srgb,var(--bg)_85%,transparent)] px-3 pb-0.5 pt-2 text-[10px] font-semibold uppercase tracking-wider text-[var(--text-faint)] backdrop-blur-2xl" aria-hidden>
+            {g.label}
+          </p>
+          {g.items.map(({ anime, idx }) => renderRow(anime, idx))}
+        </div>
+      ))}
       <button
         type="button"
         onClick={() => {

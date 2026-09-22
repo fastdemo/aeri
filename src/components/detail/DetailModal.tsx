@@ -4,6 +4,7 @@ import type { Anime, AnimeStatus } from '../../types/anime'
 import { EpisodeList, getEpisodes } from '../episodes/EpisodeList'
 import { ChapterList } from '../manga/ChapterList'
 import { useTracking } from '../../contexts/TrackingContext'
+import { TrackerCompact } from './TrackerCompact'
 import { useRelatedEntries } from '../../hooks/useRelatedEntries'
 import { RelatedEntries } from '../related/RelatedEntries'
 import { displayRating, formatRating } from '../../lib/rating'
@@ -34,7 +35,7 @@ export function DetailModal({
   onSelectRelated?: (anime: Anime) => void
 }) {
   const dialogRef = useRef<HTMLDivElement>(null)
-  const { isAuthenticated, combinedList, updateStatus, error: trackingError, trackingProvider } = useTracking()
+  const { isAuthenticated, combinedList, updateStatus, updateRating, error: trackingError, trackingProvider } = useTracking()
   const [syncing, setSyncing] = useState<string | null>(null)
   const [localError, setLocalError] = useState<string | null>(null)
   const [showStatusPicker, setShowStatusPicker] = useState(false)
@@ -303,19 +304,25 @@ export function DetailModal({
           </div>
         )}
         {isAuthenticated && (currentStatus || currentScore !== null) && (
-          <div className="flex flex-wrap gap-2 px-4 pt-3 text-[11px] sm:px-6">
-            {currentStatus && (
-              <span className="rounded-full border border-[var(--border)] bg-[color-mix(in_srgb,var(--text)_5%,transparent)] px-2 py-1 text-[var(--text-muted)]">
-                Status: <span className="capitalize text-[var(--text)]">{currentStatus.replace('_', ' ')}</span>
-              </span>
-            )}
-            {currentScore !== null && currentScore > 0 && (
-              <span className="rounded-full border border-[var(--border)] bg-[color-mix(in_srgb,var(--text)_5%,transparent)] px-2 py-1 text-[var(--text)]">
-                <span className="text-[var(--text)]">★</span> {currentScore}/10
-              </span>
-            )}
-            {syncing && <span className="px-2 py-1 text-[var(--text-faint)]">Syncing…</span>}
-          </div>
+          <TrackerCompact
+            status={currentStatus}
+            score={currentScore}
+            progress={numEp}
+            isManga={isMangaKind}
+            syncing={syncing}
+            onStatus={async (s) => {
+              setSyncing('status')
+              try { await updateStatus(displayAnime, s) }
+              catch (e) { setLocalError(e instanceof Error ? e.message : 'Couldn’t update status') }
+              finally { setSyncing(null) }
+            }}
+            onScore={async (n) => {
+              setSyncing('score')
+              try { await updateRating(displayAnime, n) }
+              catch (e) { setLocalError(e instanceof Error ? e.message : 'Couldn’t update score') }
+              finally { setSyncing(null) }
+            }}
+          />
         )}
 
         {/* Content grid: row 1 = description | metadata, row 2 =
