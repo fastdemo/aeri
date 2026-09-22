@@ -180,8 +180,31 @@ export function MALProvider({ children }: { children: React.ReactNode }) {
       setUser(null)
       setAnimeList(null)
     }
+    // Pull-sync (same contract as AniList): external MAL changes surface
+    // on focus/reconnect/visibility. Bounded 60s cooldown, silent fails.
+    const lastSyncRef = { current: 0 }
+    const pullSync = () => {
+      try {
+        const t = getMalToken()
+        if (!t || isMalTokenExpired()) return
+        if (document.hidden) return
+        const now = Date.now()
+        if (now - lastSyncRef.current < 60000) return
+        lastSyncRef.current = now
+        loadUser(t).catch(() => {})
+        loadList(t).catch(() => {})
+      } catch {}
+    }
     window.addEventListener('aeri:mal:logout', onLogout as EventListener)
-    return () => window.removeEventListener('aeri:mal:logout', onLogout as EventListener)
+    window.addEventListener('focus', pullSync)
+    window.addEventListener('online', pullSync)
+    document.addEventListener('visibilitychange', pullSync)
+    return () => {
+      window.removeEventListener('aeri:mal:logout', onLogout as EventListener)
+      window.removeEventListener('focus', pullSync)
+      window.removeEventListener('online', pullSync)
+      document.removeEventListener('visibilitychange', pullSync)
+    }
   }, [loadUser, loadList])
 
   const login = useCallback(async () => {

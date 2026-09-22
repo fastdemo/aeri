@@ -302,8 +302,10 @@ export function Read() {
       maxPage: pages.length,
       updatedAt: now,
     }).catch(() => {})
-    // Reached the final page → chapter counts as read for the tracker.
-    if (isAuthenticated && !completedRef.current && pageRef.current >= pages.length - 1 && currentChapter.number != null) {
+    // Reached ~80% of the chapter → counts as read for the tracker.
+    // Discrete pages: furthest page >= 80% of page count. Never on open.
+    const readThreshold = Math.max(1, Math.ceil(pages.length * 0.8))
+    if (isAuthenticated && !completedRef.current && pageRef.current + 1 >= readThreshold && currentChapter.number != null) {
       completedRef.current = true
       updateProgress(manga, currentChapter.number).catch(() => {})
     }

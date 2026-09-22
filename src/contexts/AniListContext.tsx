@@ -166,10 +166,32 @@ export function AniListProvider({ children }: { children: React.ReactNode }) {
       setUser(null)
       setAnimeList(null)
     }
+    // Pull-sync: external changes (site/app) surface on focus, reconnect,
+    // and visibility return. No webhooks exist — this is the sync path.
+    // Bounded: 60s cooldown, token-gated, failures silent (stale list kept).
+    const lastSyncRef = { current: 0 }
+    const pullSync = () => {
+      try {
+        const t = getAnilistToken()
+        if (!t || isAnilistTokenExpired()) return
+        if (document.hidden) return
+        const now = Date.now()
+        if (now - lastSyncRef.current < 60000) return
+        lastSyncRef.current = now
+        loadUser(t).catch(() => {})
+        loadList(t).catch(() => {})
+      } catch {}
+    }
     window.addEventListener('aeri:anilist:logout', onLogout as EventListener)
+    window.addEventListener('focus', pullSync)
+    window.addEventListener('online', pullSync)
+    document.addEventListener('visibilitychange', pullSync)
     return () => {
       cancelled = true
       window.removeEventListener('aeri:anilist:logout', onLogout as EventListener)
+      window.removeEventListener('focus', pullSync)
+      window.removeEventListener('online', pullSync)
+      document.removeEventListener('visibilitychange', pullSync)
     }
   }, [loadUser, loadList])
 
