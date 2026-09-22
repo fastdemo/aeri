@@ -94,15 +94,18 @@ export function Manga() {
   if (rawData.length > 0 && (shuffledRef.current.sig !== sigKey || shuffledRef.current.from !== headIds)) {
     shuffledRef.current = { sig: sigKey, from: headIds, first: shuffle(rawData.slice(0, PAGE_SIZE)) }
   }
+  // Same filter-clear rule as Browse: mid-flight filter shows zero rows.
+  const shuffleFresh = shuffledRef.current.sig === sigKey
   const headLen = Math.min(PAGE_SIZE, rawData.length)
-  const ordered = [...shuffledRef.current.first.slice(0, headLen), ...rawData.slice(PAGE_SIZE)]
+  const ordered = shuffleFresh ? [...shuffledRef.current.first.slice(0, headLen), ...rawData.slice(PAGE_SIZE)] : []
   const visibleCount = ordered.length - (ordered.length % cols)
   const visible = ordered.slice(0, visibleCount)
 
   const sentinelRef = useRef<HTMLDivElement>(null)
   const loadMoreRef = useRef(browse.loadMore)
   loadMoreRef.current = browse.loadMore
-  const sentinelActive = browse.hasNextPage && !browse.loading
+  // Same settled-only rule as Browse: no sentinel mid-transition.
+  const sentinelActive = browse.hasNextPage && !browse.loading && browse.data !== null
   useEffect(() => {
     const el = sentinelRef.current
     if (!el || !sentinelActive) return

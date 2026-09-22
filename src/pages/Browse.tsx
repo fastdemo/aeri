@@ -95,15 +95,27 @@ export function Browse() {
   // NOTE: keyed on the category ID (not just sort/status) so two categories
   // sharing a sort (e.g. Airing vs Popular, both POPULARITY_DESC) never
   // reuse each other's shuffle — that showed stale grids on tab switches.
+  // ALSO: while a new filter is loading (data null), render NOTHING from
+  // the previous filter — never the old shuffle, never old rows.
+  // Shuffle re-runs ONLY when the response identity changes (new headIds
+  // for the same filter), never on every render: a late duplicate response
+  // for an already-shown filter must not reshuffle the visible grid.
   const sigKey = [category, cat.sort, (cat as any).status ?? '', genre, yearKey, season, format].join('|')
   const shuffledRef = useRef<{ sig: string; from: string; first: Anime[] }>({ sig: '', from: '', first: [] })
   const rawData = browse.data ?? []
   const headIds = rawData.slice(0, PAGE_SIZE).map(a => a.identity.internalId).join(',')
-  if (rawData.length > 0 && (shuffledRef.current.sig !== sigKey || shuffledRef.current.from !== headIds)) {
+  if (rawData.length > 0 && shuffledRef.current.sig === sigKey && shuffledRef.current.from !== headIds) {
+    // Same filter, genuinely new data (pagination / refetch) → reshuffle.
+    shuffledRef.current = { sig: sigKey, from: headIds, first: shuffle(rawData.slice(0, PAGE_SIZE)) }
+  } else if (rawData.length > 0 && shuffledRef.current.sig !== sigKey) {
+    // New filter with data → shuffle once.
     shuffledRef.current = { sig: sigKey, from: headIds, first: shuffle(rawData.slice(0, PAGE_SIZE)) }
   }
+  // Filter is mid-flight when loading AND the stored shuffle belongs to a
+  // different filter: show zero rows (skeleton path below takes over).
+  const shuffleFresh = shuffledRef.current.sig === sigKey
   const headLen = Math.min(PAGE_SIZE, rawData.length)
-  const ordered = [...shuffledRef.current.first.slice(0, headLen), ...rawData.slice(PAGE_SIZE)]
+  const ordered = shuffleFresh ? [...shuffledRef.current.first.slice(0, headLen), ...rawData.slice(PAGE_SIZE)] : []
   const visibleCount = ordered.length - (ordered.length % cols)
   const visible = ordered.slice(0, visibleCount)
 
@@ -111,10 +123,14 @@ export function Browse() {
   // Re-subscribes on loading/page changes so the closure always sees fresh
   // state (a stale `loading=false` closure would double-increment the page
   // and skip results). loadMore itself also guards while fetching.
+  // Sentinel renders ONLY when settled (not loading): during a filter
+  // switch the old sentinel must unmount so its IntersectionObserver
+  // (800px rootMargin = visible on most screens) can't fire loadMore for
+  // the previous filter's page-2 mid-transition.
   const sentinelRef = useRef<HTMLDivElement>(null)
   const loadMoreRef = useRef(browse.loadMore)
   loadMoreRef.current = browse.loadMore
-  const sentinelActive = browse.hasNextPage && !browse.loading
+  const sentinelActive = browse.hasNextPage && !browse.loading && browse.data !== null
   useEffect(() => {
     const el = sentinelRef.current
     if (!el || !sentinelActive) return

@@ -161,7 +161,7 @@ export function SearchSuggestions({ query, onClose, onPreview }: Props) {
     >
       {groups.map(g => (
         <div key={g.label}>
-          <p className="sticky top-0 px-3 pb-1 pt-2 text-[14px] font-semibold text-[var(--text)]" style={{ background: 'color-mix(in srgb, var(--bg) 70%, transparent)', backdropFilter: 'blur(24px)', WebkitBackdropFilter: 'blur(24px)' }} aria-hidden>
+          <p className="sticky top-0 z-10 px-3 pb-1 pt-2 text-[14px] font-semibold text-[var(--text)]" style={{ background: 'transparent' }} aria-hidden>
             {g.label}
           </p>
           {g.items.map(({ anime, idx }) => renderRow(anime, idx))}

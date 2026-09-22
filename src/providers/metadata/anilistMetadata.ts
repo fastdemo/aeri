@@ -240,14 +240,18 @@ export class AniListMetadataProvider implements AnimeMetadataProvider {
   async browse(params: BrowseParams, signal?: AbortSignal): Promise<{ data: import('../../types/anime').Anime[]; hasNextPage: boolean; pageInfo: { currentPage: number; lastPage?: number } }> {
     const { query, variables, cacheKey } = buildBrowseQuery(params)
     type Res = { Page: { media: AniListMedia[]; pageInfo: { hasNextPage: boolean; currentPage: number; lastPage: number; total: number } } }
-    const data = await anilistGraphQL<Res>(query, variables, { cacheKey, useCache: true, signal })
+    // Filter switches bypass the cache: a cached response for the NEW key
+    // may itself be stale (older snapshot), and serving ANY cached data
+    // here re-introduces the stale-grid bug (old filter's rows surviving
+    // under the new filter's tab). Fresh fetch, then cache for later.
+    const data = await anilistGraphQL<Res>(query, variables, { cacheKey, useCache: true, force: params.page === 1 || params.page == null, signal })
     return { data: mapPage(data), hasNextPage: !!data.Page.pageInfo?.hasNextPage, pageInfo: { currentPage: data.Page.pageInfo?.currentPage ?? params.page ?? 1, lastPage: data.Page.pageInfo?.lastPage } }
   }
 
   async browseManga(params: BrowseMangaParams, signal?: AbortSignal): Promise<{ data: import('../../types/anime').Anime[]; hasNextPage: boolean; pageInfo: { currentPage: number; lastPage?: number } }> {
     const { query, variables, cacheKey } = buildBrowseMangaQuery(params)
     type Res = { Page: { media: AniListMedia[]; pageInfo: { hasNextPage: boolean; currentPage: number; lastPage: number; total: number } } }
-    const data = await anilistGraphQL<Res>(query, variables, { cacheKey, useCache: true, signal })
+    const data = await anilistGraphQL<Res>(query, variables, { cacheKey, useCache: true, force: params.page === 1 || params.page == null, signal })
     return { data: mapPage(data, 'MANGA'), hasNextPage: !!data.Page.pageInfo?.hasNextPage, pageInfo: { currentPage: data.Page.pageInfo?.currentPage ?? params.page ?? 1, lastPage: data.Page.pageInfo?.lastPage } }
   }
 

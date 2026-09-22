@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { Anime } from '../types/anime'
 import { anilistMetadataProvider } from '../providers/metadata/anilistMetadata'
 import { ProviderError } from '../services/anilist/errors'
@@ -78,13 +78,19 @@ export function useBrowse(params: { sort?: string; status?: string; genre?: stri
   const { sort, status, genre, seasonYear, season, format, yearFrom, yearTo, perPage = 24 } = params
   const [state, setState] = useState<BrowseState>({ data: null, loading: true, error: null, hasNextPage: false, page: 1 })
   const [page, setPage] = useState(1)
+  // Request generation: every filter change bumps it. Late responses from
+  // a PREVIOUS filter (page 2/3 in flight when the user switched tabs)
+  // are dropped even if their AbortController didn't catch them — only
+  // the current generation may commit state.
+  const genRef = useRef(0)
 
   // Reset page when filters change
-  useEffect(() => { setPage(1) }, [sort, status, genre, seasonYear, season, format, yearFrom, yearTo, perPage])
+  useEffect(() => { setPage(1); genRef.current += 1 }, [sort, status, genre, seasonYear, season, format, yearFrom, yearTo, perPage])
 
   useEffect(() => {
     const controller = new AbortController()
     let cancelled = false
+    const gen = genRef.current
     // Filter change clears ALL old items first: keep stale data only when
     // appending page 2+ of the SAME filter (p > 1). A new filter (p === 1)
     // renders empty + skeleton until its own response lands — a slow old
@@ -94,6 +100,7 @@ export function useBrowse(params: { sort?: string; status?: string; genre?: stri
     anilistMetadataProvider.browse({ sort: sort as any, status: status as any, genre, seasonYear, season: season as any, format: format as any, yearFrom, yearTo, perPage, page: p }, controller.signal)
       .then(res => {
         if (cancelled || controller.signal.aborted) return
+        if (gen !== genRef.current) return
         setState(prev => ({
           data: p === 1 ? res.data : [...(prev.data ?? []), ...res.data],
           loading: false,
@@ -104,6 +111,7 @@ export function useBrowse(params: { sort?: string; status?: string; genre?: stri
       })
       .catch(e => {
         if (cancelled || controller.signal.aborted || (e as any)?.name === 'AbortError') return
+        if (gen !== genRef.current) return
         if (e instanceof ProviderError && e.code === 'THROTTLED') {
           if (!cancelled) setState(s => (s.data ? { ...s, loading: false, error: null } : { ...s, loading: false, error: friendlyError(e, 'Something went wrong.') }))
           return
@@ -123,17 +131,20 @@ export function useMangaBrowse(params: { sort?: string; status?: string; genre?:
   const { sort, status, genre, seasonYear, format, yearFrom, yearTo, perPage = 24 } = params
   const [state, setState] = useState<BrowseState>({ data: null, loading: true, error: null, hasNextPage: false, page: 1 })
   const [page, setPage] = useState(1)
+  const genRef = useRef(0)
 
-  useEffect(() => { setPage(1) }, [sort, status, genre, seasonYear, format, yearFrom, yearTo, perPage])
+  useEffect(() => { setPage(1); genRef.current += 1 }, [sort, status, genre, seasonYear, format, yearFrom, yearTo, perPage])
 
   useEffect(() => {
     const controller = new AbortController()
     let cancelled = false
+    const gen = genRef.current
     const p = params.page ?? page
     setState(s => ({ ...s, data: p === 1 ? null : s.data, loading: true, error: null }))
     anilistMetadataProvider.browseManga({ sort: sort as any, status: status as any, genre, seasonYear, format: format as any, yearFrom, yearTo, perPage, page: p }, controller.signal)
       .then(res => {
         if (cancelled || controller.signal.aborted) return
+        if (gen !== genRef.current) return
         setState(prev => ({
           data: p === 1 ? res.data : [...(prev.data ?? []), ...res.data],
           loading: false,
@@ -144,6 +155,7 @@ export function useMangaBrowse(params: { sort?: string; status?: string; genre?:
       })
       .catch(e => {
         if (cancelled || controller.signal.aborted || (e as any)?.name === 'AbortError') return
+        if (gen !== genRef.current) return
         if (e instanceof ProviderError && e.code === 'THROTTLED') {
           if (!cancelled) setState(s => (s.data ? { ...s, loading: false, error: null } : { ...s, loading: false, error: friendlyError(e, 'Something went wrong.') }))
           return
