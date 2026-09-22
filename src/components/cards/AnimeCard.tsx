@@ -224,9 +224,12 @@ export function AnimeCard({
       </div>
 
       {/* Captions ONLY on Continue Watching (clean rows everywhere else).
-          Manga continue cards show the provider unit label; anime shows E number. */}
+          Manga continue cards show the provider unit label; anime shows E number.
+          Caption block uses --bg-soft (the page-adjacent neutral), NOT
+          --surface: on Catppuccin Mocha --surface IS #1E1E2E (same as --bg),
+          which would erase the card/background separation the caption needs. */}
       {variant === 'continue' && anime.progress && (
-        <div className="space-y-1 bg-[var(--surface)] px-2.5 py-2">
+        <div className="space-y-1 bg-[var(--bg-soft)] px-2.5 py-2">
           <div className="flex items-center justify-between">
             <p className="line-clamp-1 text-[11px] font-medium text-[var(--text)]">{primaryTitle}</p>
           </div>

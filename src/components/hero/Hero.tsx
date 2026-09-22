@@ -21,7 +21,8 @@ export function Hero({ anime, onMoreInfo, trackingProvider }: { anime: Anime; on
   const metaParts = [formatLabel(anime.format) ?? 'TV', anime.year, anime.episodes ? `${anime.episodes} Episodes` : null].filter(Boolean).join(' • ')
 
   return (
-    <section className="relative overflow-hidden rounded-xl bg-[var(--surface)] sm:rounded-[14px]">
+    <CarouselShell>
+    <section className="relative overflow-hidden rounded-xl bg-[var(--surface)] sm:rounded-[14px] [transform:translateZ(0)]">
       {/* Backdrop image */}
       <div className="relative aspect-[16/9] w-full overflow-hidden sm:aspect-[21/9] lg:aspect-[2.2/1] lg:min-h-[460px] lg:max-h-[640px]">
         <img
@@ -104,6 +105,7 @@ export function Hero({ anime, onMoreInfo, trackingProvider }: { anime: Anime; on
         </div>
       </div>
     </section>
+    </CarouselShell>
   )
 }
 
@@ -179,10 +181,14 @@ export function HeroCarousel({
   if (!animes.length) return null
   const active = animes[index]!
 
+  // CarouselShell owns the clip boundary (rounded + composited) so the
+  // ken-burns scale on stacked backdrops can never bleed outside the hero
+  // at any viewport. The section keeps carousel semantics inside it.
   return (
+    <CarouselShell>
     <section
       ref={containerRef as never}
-      className="relative overflow-hidden rounded-xl bg-[var(--surface)] sm:rounded-[14px]"
+      className="relative overflow-hidden rounded-xl bg-[var(--surface)] sm:rounded-[14px] [transform:translateZ(0)]"
       aria-roledescription="carousel"
       aria-label="Featured anime"
       onMouseEnter={() => setPaused(true)}
@@ -202,31 +208,21 @@ export function HeroCarousel({
       }}
     >
       <div className="relative aspect-[16/9] w-full overflow-hidden sm:aspect-[21/9] lg:aspect-[2.2/1] lg:min-h-[460px] lg:max-h-[640px]">
-        {/* Stacked backdrops for crossfade */}
-        {animes.map((a, i) => {
-          const isActive = i === index
-          return (
-            <img
-              key={a.identity.internalId}
-              src={a.backdropImage}
-              alt=""
-              aria-hidden
-              loading={i === 0 ? 'eager' : 'lazy'}
-              decoding="async"
-              fetchPriority={i === 0 ? 'high' : 'low'}
-              className="absolute inset-0 h-full w-full object-cover"
-              style={{
-                opacity: isActive ? 1 : 0,
-                transition: prefersReducedMotion ? 'none' : `opacity ${CROSSFADE_MS}ms ease`,
-                // subtle ken-burns on active only, paused when reduced motion
-                transform: isActive && !prefersReducedMotion ? 'scale(1)' : 'scale(1.04)',
-                transitionProperty: 'opacity, transform',
-                transitionDuration: `${CROSSFADE_MS}ms, 6500ms`,
-                transitionTimingFunction: 'ease, ease-out',
-              }}
-            />
-          )
-        })}
+        {/* Single active backdrop. Previously all slides stayed stacked for
+            a CSS crossfade — but the scaled (1.04) inert backdrops painted
+            ~6px outside the rounded clip on narrow viewports (the left-edge
+            bleed). One mounted image = nothing to bleed. Slide changes
+            re-mount with a short fade-in (key) instead. */}
+        <img
+          key={active.identity.internalId}
+          src={active.backdropImage}
+          alt=""
+          aria-hidden
+          loading="eager"
+          decoding="async"
+          fetchPriority="high"
+          className="absolute inset-0 h-full w-full object-cover anim-hero-fade"
+        />
 
         {/* Gradients — cinematic, always on top of images */}
         <div
@@ -355,5 +351,17 @@ export function HeroCarousel({
       {/* keyframes for text */}
       <style>{`@keyframes aeri-hero-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}`}</style>
     </section>
+    </CarouselShell>
+  )
+}
+
+function CarouselShell({ children }: { children: React.ReactNode }) {
+  // Own stacking context + clip boundary: the ken-burns scale on backdrop
+  // images must never paint outside the rounded hero at any viewport.
+  // translateZ(0) forces the compositor to respect overflow + radius.
+  return (
+    <div className="relative overflow-hidden rounded-xl sm:rounded-[14px] [transform:translateZ(0)] [isolation:isolate]">
+      {children}
+    </div>
   )
 }
