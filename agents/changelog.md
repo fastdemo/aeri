@@ -177,3 +177,22 @@
 
 ### Verification
 - `verify:live` 8/8; matrix 21 passed; live playback advancing.
+
+## 2026-09-22 — Reliability/UX/tracking pass (Phase 1)
+
+### Changed
+- Identity (§1/§16): malId-first list matching now requires media-kind agreement (DetailModal baseEntry/entry, EpisodeList, ChapterList). Stops anime list entries replacing manga modals. No title/ID hacks.
+- Tracker (§2/§17): TrackerCompact expandable control in DetailModal (collapsed status; +Ep/Chapter + score unless planned). Same updateStatus/updateRating callbacks — reactive via existing contexts.
+- Manga 80% (§4): chapter counts as read at furthest-page >= ceil(80% of pages); episode gate (>=0.8) unchanged. Logic matrix 10/50/79/80/90/100% verified.
+- Pull-sync (§3): AniList + MAL refetch on window focus/online/visibilitychange (60s cooldown, token-gated, silent). Manga external tracking still absent (no /mangalist endpoints, no progressVolumes) — documented, not faked.
+- Order (§8): per-list ↑/↓ toggles beside Episodes/Chapters (local state, oldest-first); Settings chapter-order UI removed; reader always oldest-first; chapterOrder pref retired (ignored optional).
+- Alignment (§7): AnimeDetail shared grid row-2; RelatedEntries sections carry no top margin; "Related Shows" → "Related Anime". Delta 0 @1440 (stacked <lg); manga modal delta 0.
+- Search (§10): AniList query unscoped from type: ANIME; suggestions + full page grouped Anime/Manga/OVAs by real format; cards pass mediaKind.
+- Hero (§12): touch swipe via pointer drag (pan-y, no scroll lock). Popup blur (§11) verified stable on scroll (bg 0.7 constant); stays inline (no portal).
+- Profile (§13): full-width 1600px layout, inline header actions, Statistics section (same numbers + Total + Mean), empty state.
+- Watch (§14): header z-50 clickable over video overlays (pointer-events-none shells); Home navigation while on watch verified.
+- Docs/Legal (§18/19/20): #/docs + #/legal routes, footer Links live.
+- Caption/hero crop: caption stays --surface (Mocha Base #1E1E2E); hero single-active-backdrop + CarouselShell clip; hover overlay can-hover gated.
+
+### Verification
+- verify:live 8/8 (bundle index-Co1y3Fw-.js); HxH manga modal 422 rows + related both; rapid Popular→Trending→Airing→Popular lands on Popular; search groups [Anime Manga OVAs]; home rows [0,0,0].

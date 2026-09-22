@@ -25,6 +25,15 @@
 - AniList resilience: dedup + shared cooldown + stale serve + paced
   enrichment; no user-facing countdowns. `useMangaDetail` (type: MANGA —
   ANIME query returns null for manga ids).
+- Tracker: compact expandable control in DetailModal (status; +Ep/Ch + score
+  unless planned); same callbacks, reactive contexts. Pull-sync on
+  focus/online/visible (60s cooldown) for AniList + MAL. Episode 80% gate;
+  chapter 80%-of-pages gate. Manga external tracking absent (documented).
+- Identity: malId-kind guard on all list matches; type-scoped caches
+  (`anilist:media:<TYPE>:<id>`); Related Anime heading; per-list order
+  toggles (Settings order UI removed); shared-grid detail alignment delta 0.
+- Search surfaces anime+manga+OVAs grouped by format. Hero swipeable
+  (touch). Profile full-width. Docs/Legal routes live, footer linked.
 
 ## Partially working
 
