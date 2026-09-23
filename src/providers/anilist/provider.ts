@@ -23,9 +23,9 @@ export interface TrackingProvider {
   getAnimeList(token?: string): Promise<AnimeListEntry[]>
   getAnime(id: string): Promise<Anime>
   search(query: string): Promise<Anime[]>
-  updateProgress(id: string, episode: number): Promise<void>
-  updateStatus(id: string, status: AnimeStatus): Promise<void>
-  updateRating(id: string, rating: number): Promise<void>
+  updateProgress(id: string, episode: number, isManga?: boolean): Promise<void>
+  updateStatus(id: string, status: AnimeStatus, isManga?: boolean): Promise<void>
+  updateRating(id: string, rating: number, isManga?: boolean): Promise<void>
 }
 
 // Queries
@@ -207,13 +207,23 @@ export class AniListProvider implements TrackingProvider {
         lists: { name: string; isCustomList: boolean; entries: AniListMediaListEntryRaw[] }[]
       } | null
     }
-    const cacheKey = `anilist:list:${viewer.id}`
-    const data = await anilistGraphQL<Res>(
-      MEDIA_LIST_COLLECTION_QUERY,
-      { userId: viewer.id, type: 'ANIME' },
-      { token: t, cacheKey, useCache: true },
-    )
-    const lists = data.MediaListCollection?.lists ?? []
+    // Anime + manga lists: same shape, progress = episodes/chapters.
+    // Fetched in parallel; manga entries carry MANGA mediaType at map time.
+    const cacheKeyA = `anilist:list:${viewer.id}`
+    const cacheKeyM = `anilist:list:manga:${viewer.id}`
+    const [aData, mData] = await Promise.all([
+      anilistGraphQL<Res>(
+        MEDIA_LIST_COLLECTION_QUERY,
+        { userId: viewer.id, type: 'ANIME' },
+        { token: t, cacheKey: cacheKeyA, useCache: true },
+      ),
+      anilistGraphQL<Res>(
+        MEDIA_LIST_COLLECTION_QUERY,
+        { userId: viewer.id, type: 'MANGA' },
+        { token: t, cacheKey: cacheKeyM, useCache: true },
+      ).catch(() => null),
+    ])
+    const lists = [...(aData.MediaListCollection?.lists ?? []), ...(mData?.MediaListCollection?.lists ?? [])]
     const entries: AnimeListEntry[] = []
     for (const list of lists) {
       // Include custom lists too per docs — already iterating all

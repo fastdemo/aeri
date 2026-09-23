@@ -120,7 +120,13 @@ export function TrackingProvider({ children }: { children: React.ReactNode }) {
     : false
 
   const active = trackingProvider
+  // isManga derives from the object's own format/mediaType (never the
+  // route): manga chapters route to manga endpoints + manga vocabulary.
+  const isMangaObj = (anime: Anime) =>
+    anime.identity.mediaType === 'MANGA' ||
+    ['MANGA', 'NOVEL', 'ONE_SHOT'].includes((anime.format ?? '').toUpperCase())
   const updateProgress = useCallback(async (anime: Anime, ep: number) => {
+    const isManga = isMangaObj(anime)
     if (active === 'anilist' && ani.isAuthenticated && isSyncEnabled('anilist', 'progress')) {
       const anilistId = anime.identity.anilistId?.toString() ?? (anime.identity.internalId.startsWith('anilist-') ? anime.identity.internalId.replace('anilist-', '') : null)
       if (anilistId) { await ani.updateProgress(anilistId, ep).catch(() => {}); return }
@@ -128,12 +134,13 @@ export function TrackingProvider({ children }: { children: React.ReactNode }) {
     }
     if (active === 'mal' && mal.isAuthenticated && isSyncEnabled('mal', 'progress')) {
       const malId = anime.identity.malId ? `mal-${anime.identity.malId}` : (anime.identity.internalId.startsWith('mal-') ? anime.identity.internalId : null)
-      if (malId) { await mal.updateProgress(malId, ep).catch(() => {}); return }
-      if (anime.identity.malId) { await mal.updateProgress(`mal-${anime.identity.malId}`, ep).catch(() => {}); return }
+      if (malId) { await mal.updateProgress(malId, ep, isManga).catch(() => {}); return }
+      if (anime.identity.malId) { await mal.updateProgress(`mal-${anime.identity.malId}`, ep, isManga).catch(() => {}); return }
     }
   }, [active, ani.isAuthenticated, ani.updateProgress, mal.isAuthenticated, mal.updateProgress])
 
   const updateStatus = useCallback(async (anime: Anime, status: AnimeStatus) => {
+    const isManga = isMangaObj(anime)
     if (active === 'anilist' && ani.isAuthenticated && isSyncEnabled('anilist', 'status')) {
       const anilistId = anime.identity.anilistId?.toString() ?? (anime.identity.internalId.startsWith('anilist-') ? anime.identity.internalId.replace('anilist-', '') : null)
       if (anilistId) { await ani.updateStatus(anilistId, status).catch(() => {}); return }
@@ -141,12 +148,13 @@ export function TrackingProvider({ children }: { children: React.ReactNode }) {
     }
     if (active === 'mal' && mal.isAuthenticated && isSyncEnabled('mal', 'status')) {
       const malId = anime.identity.malId ? `mal-${anime.identity.malId}` : (anime.identity.internalId.startsWith('mal-') ? anime.identity.internalId : null)
-      if (malId) { await mal.updateStatus(malId, status).catch(() => {}); return }
-      if (anime.identity.malId) { await mal.updateStatus(`mal-${anime.identity.malId}`, status).catch(() => {}); return }
+      if (malId) { await mal.updateStatus(malId, status, isManga).catch(() => {}); return }
+      if (anime.identity.malId) { await mal.updateStatus(`mal-${anime.identity.malId}`, status, isManga).catch(() => {}); return }
     }
   }, [active, ani.isAuthenticated, ani.updateStatus, mal.isAuthenticated, mal.updateStatus])
 
   const updateRating = useCallback(async (anime: Anime, rating: number) => {
+    const isManga = isMangaObj(anime)
     if (active === 'anilist' && ani.isAuthenticated && isSyncEnabled('anilist', 'rating')) {
       const anilistId = anime.identity.anilistId?.toString() ?? (anime.identity.internalId.startsWith('anilist-') ? anime.identity.internalId.replace('anilist-', '') : null)
       if (anilistId) { await ani.updateRating(anilistId, rating).catch(() => {}); return }
@@ -154,8 +162,8 @@ export function TrackingProvider({ children }: { children: React.ReactNode }) {
     }
     if (active === 'mal' && mal.isAuthenticated && isSyncEnabled('mal', 'rating')) {
       const malId = anime.identity.malId ? `mal-${anime.identity.malId}` : (anime.identity.internalId.startsWith('mal-') ? anime.identity.internalId : null)
-      if (malId) { await mal.updateRating(malId, rating).catch(() => {}); return }
-      if (anime.identity.malId) { await mal.updateRating(`mal-${anime.identity.malId}`, rating).catch(() => {}); return }
+      if (malId) { await mal.updateRating(malId, rating, isManga).catch(() => {}); return }
+      if (anime.identity.malId) { await mal.updateRating(`mal-${anime.identity.malId}`, rating, isManga).catch(() => {}); return }
     }
   }, [active, ani.isAuthenticated, ani.updateRating, mal.isAuthenticated, mal.updateRating])
 

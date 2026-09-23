@@ -221,8 +221,10 @@ export function mapAniListEntryToAeri(entry: AniListMediaListEntryRaw): AnimeLis
   const anime = mapAniListMediaToAnime(entry.media)
   const status = anilistStatusToAeri(entry.status)
   const progress = entry.progress ?? 0
-  const episodes = anime.episodes ?? 0
-  const percent = episodes > 0 ? Math.round((progress / episodes) * 100) : progress > 0 ? 50 : 0
+  // Progress base is type-aware: chapters for manga, episodes for anime.
+  // A manga entry with 0 chapters field but real progress still shows 50%.
+  const total = anime.identity.mediaType === 'MANGA' ? (anime.chapters ?? 0) : (anime.episodes ?? 0)
+  const percent = total > 0 ? Math.round((progress / total) * 100) : progress > 0 ? 50 : 0
 
   // attach progress to anime for continue watching UI
   anime.progress = { episode: progress, percent }

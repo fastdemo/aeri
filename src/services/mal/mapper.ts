@@ -23,20 +23,25 @@ export interface MALNode {
   rank?: number | null
   popularity?: number | null
   num_episodes?: number | null
+  num_chapters?: number | null
+  num_volumes?: number | null
   status?: string | null // finished_airing, currently_airing, not_yet_aired
   genres?: { id: number; name: string }[] | null
   studios?: { id: number; name: string }[] | null
-  media_type?: string | null // tv, ova, movie etc
+  media_type?: string | null // tv, ova, movie etc / manga, novel, oneshot...
   nsfw?: string | null
   created_at?: string | null
   updated_at?: string | null
 }
 
 export interface MALListStatus {
-  status: string // watching, completed, on_hold, dropped, plan_to_watch
+  status: string // watching/completed/on_hold/dropped/plan_to_watch (anime) or reading/plan_to_read (manga)
   score: number // 0-10
-  num_episodes_watched: number
+  num_episodes_watched?: number
+  num_chapters_read?: number
+  num_volumes_read?: number
   is_rewatching?: boolean
+  is_rereading?: boolean
   updated_at?: string
   start_date?: string | null
   finish_date?: string | null
@@ -55,23 +60,27 @@ export interface MALUser {
 
 export function malStatusToAeri(s: string | null | undefined): AnimeStatus {
   switch (s) {
-    case 'watching': return 'watching'
+    case 'watching':
+    case 'reading':
+      return 'watching'
     case 'completed': return 'completed'
     case 'on_hold': return 'on_hold'
     case 'dropped': return 'dropped'
-    case 'plan_to_watch': return 'planned'
+    case 'plan_to_watch':
+    case 'plan_to_read':
+      return 'planned'
     default: return 'planned'
   }
 }
 
-export function aeriStatusToMal(s: AnimeStatus): string {
+export function aeriStatusToMal(s: AnimeStatus, isManga = false): string {
   switch (s) {
-    case 'watching': return 'watching'
+    case 'watching': return isManga ? 'reading' : 'watching'
     case 'completed': return 'completed'
-    case 'planned': return 'plan_to_watch'
+    case 'planned': return isManga ? 'plan_to_read' : 'plan_to_watch'
     case 'on_hold': return 'on_hold'
     case 'dropped': return 'dropped'
-    default: return 'watching'
+    default: return isManga ? 'reading' : 'watching'
   }
 }
 
@@ -111,6 +120,8 @@ export function mapMALNodeToAnime(node: MALNode, listStatus?: MALListStatus): An
     year,
     season: undefined, // MAL start_date season not directly
     episodes: node.num_episodes ?? undefined,
+    chapters: node.num_chapters ?? undefined,
+    volumes: node.num_volumes ?? undefined,
     duration: undefined, // MAL has average_episode_duration but not in list_status
     status: node.status ?? undefined,
     rating,
@@ -123,9 +134,11 @@ export function mapMALNodeToAnime(node: MALNode, listStatus?: MALListStatus): An
 
   if (listStatus) {
     const status = malStatusToAeri(listStatus.status)
-    const progress = listStatus.num_episodes_watched ?? 0
-    const episodes = anime.episodes ?? 0
-    const percent = episodes > 0 ? Math.round((progress / episodes) * 100) : progress > 0 ? 50 : 0
+    // Manga lists report chapters; anime lists report episodes.
+    const isMangaStatus = listStatus.status === 'reading' || listStatus.status === 'plan_to_read' || (listStatus.num_chapters_read ?? 0) > 0
+    const progress = listStatus.num_chapters_read ?? listStatus.num_episodes_watched ?? 0
+    const total = isMangaStatus ? (anime.chapters ?? 0) : (anime.episodes ?? 0)
+    const percent = total > 0 ? Math.round((progress / total) * 100) : progress > 0 ? 50 : 0
     anime.progress = { episode: progress, percent }
     anime.listStatus = status
     anime.inList = true
@@ -137,7 +150,7 @@ export function mapMALNodeToAnime(node: MALNode, listStatus?: MALListStatus): An
 export function mapMALEntryToAeri(raw: MALListEntryRaw): AnimeListEntry {
   const anime = mapMALNodeToAnime(raw.node, raw.list_status)
   const status = malStatusToAeri(raw.list_status.status)
-  const progress = raw.list_status.num_episodes_watched ?? 0
+  const progress = raw.list_status.num_chapters_read ?? raw.list_status.num_episodes_watched ?? 0
   const score = raw.list_status.score > 0 ? raw.list_status.score : undefined
   // Ensure anime already has progress/listStatus from map
   const updatedAt = (() => {

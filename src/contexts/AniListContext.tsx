@@ -21,9 +21,9 @@ type Ctx = {
   logout: () => void
   setManualToken: (raw: string) => boolean | Promise<boolean>
   refresh: () => Promise<void>
-  updateProgress: (id: string, ep: number) => Promise<void>
-  updateStatus: (id: string, status: AnimeStatus) => Promise<void>
-  updateRating: (id: string, rating: number) => Promise<void>
+  updateProgress: (id: string, ep: number, isManga?: boolean) => Promise<void>
+  updateStatus: (id: string, status: AnimeStatus, isManga?: boolean) => Promise<void>
+  updateRating: (id: string, rating: number, isManga?: boolean) => Promise<void>
 }
 
 const AniListContext = createContext<Ctx | null>(null)
@@ -274,8 +274,9 @@ export function AniListProvider({ children }: { children: React.ReactNode }) {
         if (entryAid !== target && aid !== id) return e
         const nextAnime = { ...e.anime }
         if (patch.progress !== undefined) {
-          const episodes = nextAnime.episodes ?? 0
-          const percent = episodes > 0 ? Math.round((patch.progress / episodes) * 100) : 50
+          const isM = nextAnime.identity.mediaType === 'MANGA' || ['MANGA', 'NOVEL', 'ONE_SHOT'].includes((nextAnime.format ?? '').toUpperCase())
+          const total = isM ? (nextAnime.chapters ?? 0) : (nextAnime.episodes ?? 0)
+          const percent = total > 0 ? Math.round((patch.progress / total) * 100) : 50
           nextAnime.progress = { episode: patch.progress, percent }
         }
         if (patch.status !== undefined) nextAnime.listStatus = patch.status

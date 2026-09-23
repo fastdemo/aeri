@@ -23,8 +23,9 @@ export class MALProvider implements TrackingProvider {
 
   async getAnimeList(token?: string): Promise<AnimeListEntry[]> {
     this.ensureToken(token)
-    // MAL animelist: need to handle pagination and fields
-    const fields = [
+    // MAL anime + manga lists (official v2 endpoints, same shape).
+    // Manga fields mirror anime: num_chapters_read / num_volumes_read.
+    const animeFields = [
       'list_status{status,score,num_episodes_watched,updated_at}',
       'num_episodes',
       'genres',
@@ -38,21 +39,42 @@ export class MALProvider implements TrackingProvider {
       'studios',
       'nsfw',
     ].join(',')
-    // Try to fetch all pages via paging.next
-    let url = `/users/@me/animelist?fields=${encodeURIComponent(fields)}&limit=1000&nsfw=true`
+    const mangaFields = [
+      'list_status{status,score,num_chapters_read,num_volumes_read,updated_at}',
+      'num_chapters',
+      'num_volumes',
+      'genres',
+      'main_picture',
+      'alternative_titles',
+      'start_date',
+      'synopsis',
+      'mean',
+      'status',
+      'media_type',
+      'authors{first_name,last_name}',
+      'nsfw',
+    ].join(',')
     const entries: AnimeListEntry[] = []
-    while (url) {
-      type PageRes = { data: MALListEntryRaw[]; paging?: { next?: string } }
-      const cacheKey = url.includes('offset=') ? undefined : 'mal:list'
-      const page = await malFetch<PageRes>(url, { cacheKey, useCache: !url.includes('offset=') })
-      for (const raw of page.data ?? []) {
-        const mapped = mapMALEntryToAeri(raw)
-        entries.push(mapped)
+    for (const [path, fields, cacheKey0] of [
+      ['/users/@me/animelist', animeFields, 'mal:list'],
+      ['/users/@me/mangalist', mangaFields, 'mal:list:manga'],
+    ] as const) {
+      // Try to fetch all pages via paging.next
+      let url: string | '' = `${path}?fields=${encodeURIComponent(fields)}&limit=1000&nsfw=true`
+      while (url) {
+        type PageRes = { data: MALListEntryRaw[]; paging?: { next?: string } }
+        const cacheKey = url.includes('offset=') ? undefined : cacheKey0
+        const page = await malFetch<PageRes>(url, { cacheKey, useCache: !url.includes('offset=') }).catch(() => null)
+        if (!page) break
+        for (const raw of page.data ?? []) {
+          const mapped = mapMALEntryToAeri(raw)
+          entries.push(mapped)
+        }
+        url = page.paging?.next ? page.paging.next.replace('https://api.myanimelist.net/v2', '') : ''
+        // Avoid infinite loop: break after first page for performance if not needed - but spec says reuse caching, not fetch every
+        // MAL pagination next is full URL, we strip base to reuse malFetch
+        if (url && entries.length > 500) break // safety
       }
-      url = page.paging?.next ? page.paging.next.replace('https://api.myanimelist.net/v2', '') : ''
-      // Avoid infinite loop: break after first page for performance if not needed - but spec says reuse caching, not fetch every
-      // MAL pagination next is full URL, we strip base to reuse malFetch
-      if (url && entries.length > 500) break // safety
     }
     return entries
   }
@@ -96,21 +118,23 @@ export class MALProvider implements TrackingProvider {
     return (data.data ?? []).map(d => mapMALNodeToAnime(d.node))
   }
 
-  async updateProgress(id: string, episode: number): Promise<void> {
+  async updateProgress(id: string, episode: number, isManga = false): Promise<void> {
     const malId = this.toMalId(id)
     const body = new URLSearchParams()
-    body.set('num_watched_episodes', String(episode))
+    // Manga writes go to /manga/ with chapter vocabulary; anime to /anime/.
+    const base = isManga ? 'manga' : 'anime'
+    body.set(isManga ? 'num_chapters_read' : 'num_watched_episodes', String(episode))
     // MAL requires status to be set; if not in list, it will create with default? We need to ensure status is at least watching
     // First try to get current status via getAnime or via list? For simplicity, we set status to watching if not provided
     // To avoid overwriting, we fetch current list_status first
     try {
       const current = await this.getAnime(malId.toString())
       const currentStatus = current.listStatus ?? 'watching'
-      body.set('status', aeriStatusToMal(currentStatus))
+      body.set('status', aeriStatusToMal(currentStatus, isManga))
     } catch {
-      body.set('status', 'watching')
+      body.set('status', isManga ? 'reading' : 'watching')
     }
-    await malFetch(`/anime/${malId}/my_list_status`, {
+    await malFetch(`/${base}/${malId}/my_list_status`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: body.toString(),
@@ -119,13 +143,13 @@ export class MALProvider implements TrackingProvider {
     clearMalMemoryCache()
   }
 
-  async updateStatus(id: string, status: AnimeStatus): Promise<void> {
+  async updateStatus(id: string, status: AnimeStatus, isManga = false): Promise<void> {
     const malId = this.toMalId(id)
-    const malStatus = aeriStatusToMal(status)
+    const malStatus = aeriStatusToMal(status, isManga)
     const body = new URLSearchParams()
     body.set('status', malStatus)
     // When moving to completed, MAL may require num_watched_episodes = num_episodes; but we leave as is
-    await malFetch(`/anime/${malId}/my_list_status`, {
+    await malFetch(`/${isManga ? 'manga' : 'anime'}/${malId}/my_list_status`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: body.toString(),
@@ -134,13 +158,13 @@ export class MALProvider implements TrackingProvider {
     clearMalMemoryCache()
   }
 
-  async updateRating(id: string, rating: number): Promise<void> {
+  async updateRating(id: string, rating: number, isManga = false): Promise<void> {
     const malId = this.toMalId(id)
     const score = Math.round(rating) // MAL score 0-10 integer
     const body = new URLSearchParams()
     body.set('score', String(score))
     // Need status as well? MAL allows just score
-    await malFetch(`/anime/${malId}/my_list_status`, {
+    await malFetch(`/${isManga ? 'manga' : 'anime'}/${malId}/my_list_status`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: body.toString(),

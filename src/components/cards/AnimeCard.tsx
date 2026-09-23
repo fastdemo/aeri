@@ -283,7 +283,7 @@ export function AnimeCard({
 
   if (disableLink) {
     return (
-      <div className={`block ${fullWidth ? 'w-full' : ''}`}>
+      <div className={`min-w-0 ${fullWidth ? 'w-full' : ''}`}>
         {content}
       </div>
     )

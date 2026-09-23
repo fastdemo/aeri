@@ -22,9 +22,9 @@ type Ctx = {
   logout: () => void
   setManualToken: (raw: string) => boolean
   refresh: () => Promise<void>
-  updateProgress: (id: string, ep: number) => Promise<void>
-  updateStatus: (id: string, status: AnimeStatus) => Promise<void>
-  updateRating: (id: string, rating: number) => Promise<void>
+  updateProgress: (id: string, ep: number, isManga?: boolean) => Promise<void>
+  updateStatus: (id: string, status: AnimeStatus, isManga?: boolean) => Promise<void>
+  updateRating: (id: string, rating: number, isManga?: boolean) => Promise<void>
 }
 
 const MALContext = createContext<Ctx | null>(null)
@@ -255,8 +255,9 @@ export function MALProvider({ children }: { children: React.ReactNode }) {
         if (entryAid !== target && aid !== id) return e
         const nextAnime = { ...e.anime }
         if (patch.progress !== undefined) {
-          const episodes = nextAnime.episodes ?? 0
-          const percent = episodes > 0 ? Math.round((patch.progress / episodes) * 100) : 50
+          const isM = nextAnime.identity.mediaType === 'MANGA' || ['MANGA', 'NOVEL', 'ONE_SHOT'].includes((nextAnime.format ?? '').toUpperCase())
+          const total = isM ? (nextAnime.chapters ?? 0) : (nextAnime.episodes ?? 0)
+          const percent = total > 0 ? Math.round((patch.progress / total) * 100) : 50
           nextAnime.progress = { episode: patch.progress, percent }
         }
         if (patch.status !== undefined) nextAnime.listStatus = patch.status
@@ -271,7 +272,7 @@ export function MALProvider({ children }: { children: React.ReactNode }) {
     })
   }, [])
 
-  const updateProgress = useCallback(async (id: string, ep: number) => {
+  const updateProgress = useCallback(async (id: string, ep: number, isManga = false) => {
     optimisticUpdate(id, { progress: ep })
     try {
       // For MAL, id may be mal- or anilist- mapped; try to resolve malId
@@ -283,7 +284,7 @@ export function MALProvider({ children }: { children: React.ReactNode }) {
         if (found?.anime.identity.malId) malId = `mal-${found.anime.identity.malId}`
         else malId = id // will fail gracefully with NOT_FOUND handled
       }
-      await malProvider.updateProgress(malId, ep)
+      await malProvider.updateProgress(malId, ep, isManga)
       const t = getMalToken()
       if (t) await loadList(t).catch(()=>{})
     } catch (e) {
@@ -294,7 +295,7 @@ export function MALProvider({ children }: { children: React.ReactNode }) {
     }
   }, [optimisticUpdate, loadList, animeList])
 
-  const updateStatus = useCallback(async (id: string, status: AnimeStatus) => {
+  const updateStatus = useCallback(async (id: string, status: AnimeStatus, isManga = false) => {
     optimisticUpdate(id, { status })
     try {
       let malId = id
@@ -302,7 +303,7 @@ export function MALProvider({ children }: { children: React.ReactNode }) {
         const found = animeList?.find(e => e.anime.identity.anilistId?.toString() === id.replace('anilist-',''))
         if (found?.anime.identity.malId) malId = `mal-${found.anime.identity.malId}`
       }
-      await malProvider.updateStatus(malId, status)
+      await malProvider.updateStatus(malId, status, isManga)
       const t = getMalToken()
       if (t) await loadList(t).catch(()=>{})
     } catch (e) {
@@ -313,7 +314,7 @@ export function MALProvider({ children }: { children: React.ReactNode }) {
     }
   }, [optimisticUpdate, loadList, animeList])
 
-  const updateRating = useCallback(async (id: string, rating: number) => {
+  const updateRating = useCallback(async (id: string, rating: number, isManga = false) => {
     optimisticUpdate(id, { score: rating })
     try {
       let malId = id
@@ -321,7 +322,7 @@ export function MALProvider({ children }: { children: React.ReactNode }) {
         const found = animeList?.find(e => e.anime.identity.anilistId?.toString() === id.replace('anilist-',''))
         if (found?.anime.identity.malId) malId = `mal-${found.anime.identity.malId}`
       }
-      await malProvider.updateRating(malId, rating)
+      await malProvider.updateRating(malId, rating, isManga)
       const t = getMalToken()
       if (t) await loadList(t).catch(()=>{})
     } catch (e) {
