@@ -170,7 +170,7 @@ export function AnimeCard({
   const content = (
     <div className="group group/card relative w-full flex-shrink-0">
       <div
-        className={`relative w-full flex-shrink-0 overflow-hidden rounded-[6px] bg-[var(--surface)] ring-1 ring-inset ring-[var(--border-strong)] transition-[ring-color] duration-200 hover:z-10 hover:ring-[var(--border-strong)] ${width}`}
+        className={`relative w-full flex-shrink-0 overflow-hidden rounded-[6px] bg-[var(--surface)] ring-1 ring-[var(--border-strong)] transition-[ring-color] duration-200 hover:z-10 hover:ring-[var(--border-strong)] ${width}`}
       >
       <div className={`relative ${artAspect} w-full overflow-hidden bg-[var(--surface-elevated)]`}>
         <img
