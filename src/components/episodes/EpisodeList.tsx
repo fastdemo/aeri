@@ -153,7 +153,7 @@ export function EpisodeList({ anime, hideHeader }: { anime: Anime; hideHeader?: 
       )}
 
       <div className="overflow-hidden rounded-lg border border-[var(--border)]">
-        {episodes.map((ep: any) => {
+        {episodes.map((ep: any, idx: number) => {
           // progress = episodes watched: everything up to and including it is Watched.
           // No next-up highlight: tinting the first 2 rows on desc-sort read
           // as a rendering bug (they ARE the highlight, just relocated).
@@ -176,7 +176,7 @@ export function EpisodeList({ anime, hideHeader }: { anime: Anime; hideHeader?: 
               key={`${seasonKey}-${ep.number}`}
               to={`/watch/${anime.identity.internalId}/${watchEp}`}
               onClick={() => handleSelect(ep.number)}
-              className={`flex items-center gap-3 bg-[var(--surface)] px-3 py-3 text-left transition hover:bg-[var(--text)]/[0.04] ${ep.number !== episodes.length ? 'border-b border-[var(--border)]' : ''}`}
+              className={`flex items-center gap-3 bg-[var(--surface)] px-3 py-3 text-left transition hover:bg-[var(--text)]/[0.04] ${idx !== episodes.length - 1 ? 'border-b border-[var(--border)]' : ''}`}
             >
               <span className="w-9 text-center text-sm font-medium text-[var(--text-muted)]">{epLabel}</span>
 
