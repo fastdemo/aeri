@@ -4,6 +4,7 @@ import { useAniList } from '../../contexts/AniListContext'
 import { useMAL } from '../../contexts/MALContext'
 import { useTracking } from '../../contexts/TrackingContext'
 import { SearchSuggestions } from '../search/SearchSuggestions'
+import { SchedulePanel } from './SchedulePanel'
 import { DetailModal } from '../detail/DetailModal'
 import { SignInModal } from '../auth/SignInModal'
 import { Icon } from '../ui/Icon'
@@ -19,7 +20,9 @@ export function Navbar() {
   const [previewAnime, setPreviewAnime] = useState<Anime | null>(null)
   const [signInOpen, setSignInOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
+  const [scheduleOpen, setScheduleOpen] = useState(false)
   const profileRef = useRef<HTMLDivElement>(null)
+  const scheduleRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLDivElement>(null)
   const mobileSearchRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
@@ -45,6 +48,7 @@ export function Navbar() {
     setPreviewAnime(null)
     setSignInOpen(false)
     setProfileOpen(false)
+    setScheduleOpen(false)
   }, [location.pathname, location.search, location.hash])
 
   // Returning from OAuth (full page load): reopen the sign-in popup so the
@@ -71,11 +75,15 @@ export function Navbar() {
       const inDesktop = searchRef.current?.contains(t) ?? false
       const inMobile = mobileSearchRef.current?.contains(t) ?? false
       const inProfile = profileRef.current?.contains(t) ?? false
+      const inSchedule = scheduleRef.current?.contains(t) ?? false
       if (!inDesktop && !inMobile) {
         setShowSuggestions(false)
       }
       if (!inProfile) {
         setProfileOpen(false)
+      }
+      if (!inSchedule) {
+        setScheduleOpen(false)
       }
     }
     document.addEventListener('pointerdown', onDown, { passive: true })
@@ -296,12 +304,23 @@ export function Navbar() {
           )}
 
           {isAuthenticated && navFits && (
-            <button
-              aria-label="Notifications"
-              className="grid h-8 w-8 place-items-center rounded-full text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)] hover:text-[var(--text)]"
-            >
-              <Icon name="bell" size={16} />
-            </button>
+            <div className="relative" ref={scheduleRef}>
+              <button
+                aria-label="Airing schedule"
+                aria-expanded={scheduleOpen}
+                aria-haspopup="menu"
+                onClick={() => setScheduleOpen(v => !v)}
+                className="grid h-8 w-8 place-items-center rounded-full text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)] hover:text-[var(--text)]"
+              >
+                <Icon name="bell" size={16} />
+              </button>
+              {scheduleOpen && (
+                <SchedulePanel
+                  onClose={() => setScheduleOpen(false)}
+                  onOpen={(animeId) => { setScheduleOpen(false); navigate(`/anime/${animeId}`) }}
+                />
+              )}
+            </div>
           )}
 
           {isAuthenticated && navFits && <div className="h-6 w-px bg-[color-mix(in_srgb,var(--text)_10%,transparent)]" />}
