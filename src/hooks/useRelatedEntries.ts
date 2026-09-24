@@ -7,6 +7,8 @@ import { getCache, putCache } from '../storage/db'
 export interface RelatedEntry {
   anime: Anime
   relationType: string
+  /** True when discovered via a second hop (A→B→C), not a direct edge. */
+  indirect?: boolean
 }
 
 // AniList relation types, ranked strongest → weakest. Direct story
@@ -112,14 +114,15 @@ query ($id: Int) {
 }
 `
 
+type RelatedEdge = {
+  relationType: string
+  node: AniListMedia & { id: number }
+}
 type RelatedResponse = {
   Media: {
     id: number
     relations?: {
-      edges?: {
-        relationType: string
-        node: AniListMedia & { id: number }
-      }[]
+      edges?: RelatedEdge[]
     } | null
   } | null
 }
@@ -151,20 +154,51 @@ async function fetchRelated(anilistId: number, mediaType: 'ANIME' | 'MANGA', sco
   )
   const edges = data.Media?.relations?.edges ?? []
   const seen = new Set<number>()
-  const out: RelatedEntry[] = []
+  const direct: RelatedEntry[] = []
   for (const e of edges) {
     if (!e?.node?.id || e.node.id === anilistId || seen.has(e.node.id)) continue
     const entry = toEntry(e)
     if (!entry) continue
     seen.add(e.node.id)
-    out.push(entry)
+    direct.push(entry)
+  }
+  // Second hop (transitive closure, depth 1): A→B→C implies A→C listing.
+  // AniList relation graphs are shallow per entry, so sequels-of-sequels
+  // (AOT S1→S2→S3→Final) only appear via their direct neighbors. Fetch
+  // each direct neighbor's own relations (cached, aborted as a group) and
+  // merge unseen ids as INDIRECT entries (relationType preserved from the
+  // neighbor edge; excluded from top-rank contention by rank penalty).
+  // Bounded: max 12 neighbors, failures ignored per neighbor.
+  const hopTargets = direct.slice(0, 12)
+  const hopResults: RelatedEdge[][] = await Promise.all(hopTargets.map(async (d) => {
+    const nid = d.anime.identity.anilistId
+    if (!nid) return [] as RelatedEdge[]
+    try {
+      const nd = await anilistGraphQL<RelatedResponse>(
+        mediaType === 'MANGA' ? RELATED_QUERY_MANGA : RELATED_QUERY_ANIME,
+        { id: nid },
+        { cacheKey: `anilist:related:${mediaType}:${scope}:${nid}`, useCache: true, signal },
+      )
+      return nd.Media?.relations?.edges ?? []
+    } catch { return [] as RelatedEdge[] }
+  }))
+  for (const hopEdges of hopResults) {
+    for (const edge of hopEdges ?? []) {
+      if (!edge?.node?.id || edge.node.id === anilistId || seen.has(edge.node.id)) continue
+      const entry = toEntry(edge)
+      if (!entry) continue
+      seen.add(edge.node.id)
+      direct.push({ ...entry, indirect: true })
+    }
   }
   // Deterministic: strongest relation first, then format, then id for ties.
-  out.sort((a, b) =>
+  // Indirect (second-hop) entries sort after all direct ones.
+  direct.sort((a, b) =>
+    (a.indirect ? 1 : 0) - (b.indirect ? 1 : 0) ||
     rankOf(a.relationType, a.anime.format) - rankOf(b.relationType, b.anime.format) ||
     (a.anime.identity.anilistId ?? 0) - (b.anime.identity.anilistId ?? 0),
   )
-  return out
+  return direct
 }
 
 /**
@@ -202,7 +236,11 @@ export function useRelatedEntries(
       setState({ entries: null, loading: false })
       return
     }
-    // Zero-request path: rank the already-fetched edges in memory.
+    let cancelled = false
+    // Zero-request path: rank the already-fetched edges in memory, then
+    // enrich with the transitive second hop in the background (same
+    // closure rule as fetchRelated; direct entries render immediately,
+    // indirect ones merge in when their cached queries resolve).
     // TRUST BOUNDARY: preloaded edges come from the caller's own Media
     // query (same AniList type by construction — MEDIA_QUERY vs
     // MEDIA_MANGA_QUERY). When the fallback query runs, it asks for
@@ -239,12 +277,47 @@ export function useRelatedEntries(
         seen.add(id)
         out.push({ anime, relationType: e.relationType ?? 'OTHER' })
       }
-      out.sort((a, b) =>
+      const rankEntries = (list: RelatedEntry[]) => list.sort((a, b) =>
+        (a.indirect ? 1 : 0) - (b.indirect ? 1 : 0) ||
         rankOf(a.relationType, a.anime.format) - rankOf(b.relationType, b.anime.format) ||
         (a.anime.identity.anilistId ?? 0) - (b.anime.identity.anilistId ?? 0),
       )
+      rankEntries(out)
       setState({ entries: out, loading: false })
-      return
+      // Background second hop: same closure rule as fetchRelated, using the
+      // cached per-id relations queries (no new cache keys, abort-scoped).
+      // Merges unseen ids as indirect; a superseded effect (cancelled)
+      // never commits.
+      const hopController = new AbortController()
+      const hopTargets = out.slice(0, 12).map(d => d.anime.identity.anilistId).filter((nid): nid is number => !!nid)
+      void Promise.all(hopTargets.map(async (nid) => {
+        try {
+          const nd = await anilistGraphQL<RelatedResponse>(
+            mediaType === 'MANGA' ? RELATED_QUERY_MANGA : RELATED_QUERY_ANIME,
+            { id: nid },
+            { cacheKey: `anilist:related:${mediaType}:${scope}:${nid}`, useCache: true, signal: hopController.signal },
+          )
+          return nd.Media?.relations?.edges ?? []
+        } catch { return [] as RelatedEdge[] }
+      })).then(hopResults => {
+        if (cancelled || hopController.signal.aborted) return
+        let added = false
+        for (const hopEdges of hopResults) {
+          for (const edge of hopEdges ?? []) {
+            if (!edge?.node?.id || edge.node.id === anilistId || seen.has(edge.node.id)) continue
+            const entry = toEntry(edge)
+            if (!entry) continue
+            seen.add(edge.node.id)
+            out.push({ ...entry, indirect: true })
+            added = true
+          }
+        }
+        if (added) {
+          rankEntries(out)
+          setState({ entries: [...out], loading: false })
+        }
+      })
+      return () => { cancelled = true; hopController.abort() }
     }
     const hit = mem.get(scopedId as string)
     if (hit && Date.now() - hit.at < MEM_TTL) {
@@ -253,7 +326,6 @@ export function useRelatedEntries(
     }
     const shared = inflight.get(scopedId as string)
     const controller = new AbortController()
-    let cancelled = false
     setState({ entries: null, loading: true })
     const run = shared ?? (() => {
       const p = fetchRelated(anilistId, mediaType, scope, controller.signal)
