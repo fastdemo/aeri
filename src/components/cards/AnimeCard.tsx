@@ -273,7 +273,7 @@ export function AnimeCard({
         onClick={() => onSelect(anime)}
         onMouseEnter={prewarm}
         onFocus={prewarm}
-        className={`text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)] ${fullWidth ? 'w-full' : ''}`}
+        className={`min-w-0 shrink-0 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)] ${fullWidth ? 'w-full' : ''} ${width}`}
         aria-label={`Open ${primaryTitle}`}
       >
         {content}
