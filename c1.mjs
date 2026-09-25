@@ -1,0 +1,11 @@
+import { chromium } from 'playwright-core';
+const B = 'https://aeri.fastdemo.workers.dev';
+const browser = await chromium.launch({ args: ['--disable-dev-shm-usage', '--no-sandbox', '--host-resolver-rules=MAP aeri.fastdemo.workers.dev 172.67.128.215', '--force-device-scale-factor=1'] });
+const ctx = await browser.newContext({ viewport: { width: 1512, height: 860 } });
+await ctx.addInitScript(() => { try { indexedDB.deleteDatabase('aeri'); } catch {} try { localStorage.clear(); } catch {} });
+const page = await ctx.newPage();
+await page.goto(`${B}/#/`, { waitUntil: 'networkidle', timeout: 90000 });
+await page.waitForTimeout(14000);
+await page.screenshot({ path: '/tmp/c1-live.png' });
+console.log('shot');
+await browser.close();

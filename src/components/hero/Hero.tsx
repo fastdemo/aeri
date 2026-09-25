@@ -34,14 +34,16 @@ export function Hero({ anime, onMoreInfo, trackingProvider }: { anime: Anime; on
           fetchPriority="high"
         />
 
-        {/* Gradients — cinematic */}
-        {/* left */}
+        {/* Gradients — cinematic. The left scrim exists ONLY behind the
+            text column (max-w aligned with the content, not full-bleed):
+            a full-width 96%-opaque scrim buries the artwork's left ~200px
+            in near-black and reads as a cropped/blocked edge. */}
         <div
           aria-hidden
-          className="absolute inset-0"
+          className="absolute inset-y-0 left-0 w-full max-w-[560px]"
           style={{
             background:
-              'linear-gradient(90deg, color-mix(in srgb, var(--bg) 96%, transparent) 0%, color-mix(in srgb, var(--bg) 78%, transparent) 22%, color-mix(in srgb, var(--bg) 45%, transparent) 42%, color-mix(in srgb, var(--bg) 14%, transparent) 62%, transparent 78%)',
+              'linear-gradient(90deg, color-mix(in srgb, var(--bg) 88%, transparent) 0%, color-mix(in srgb, var(--bg) 55%, transparent) 45%, color-mix(in srgb, var(--bg) 22%, transparent) 70%, transparent 100%)',
           }}
         />
         {/* bottom — anchored to the box (inset-x-0 bottom-0, fixed height)
@@ -248,13 +250,15 @@ export function HeroCarousel({
           className="absolute inset-0 h-full w-full object-cover anim-hero-fade"
         />
 
-        {/* Gradients — cinematic, always on top of images */}
+        {/* Gradients — cinematic, always on top of images. Same
+            text-column scrim as the static Hero (see above): full-bleed
+            96% scrim reads as a cropped left edge. */}
         <div
           aria-hidden
-          className="absolute inset-0"
+          className="absolute inset-y-0 left-0 w-full max-w-[560px]"
           style={{
             background:
-              'linear-gradient(90deg, color-mix(in srgb, var(--bg) 96%, transparent) 0%, color-mix(in srgb, var(--bg) 78%, transparent) 22%, color-mix(in srgb, var(--bg) 45%, transparent) 42%, color-mix(in srgb, var(--bg) 14%, transparent) 62%, transparent 78%)',
+              'linear-gradient(90deg, color-mix(in srgb, var(--bg) 88%, transparent) 0%, color-mix(in srgb, var(--bg) 55%, transparent) 45%, color-mix(in srgb, var(--bg) 22%, transparent) 70%, transparent 100%)',
           }}
         />
         <div
