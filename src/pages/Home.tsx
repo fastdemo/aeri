@@ -165,9 +165,16 @@ export function Home() {
     // Strict: only status=watching (works for both trackers — statuses are
     // normalized at the provider boundary). Every entry stands alone: no
     // franchise merging, no season collapsing. No title cap: show everything.
+    // HOME RULE: anime only. Manga progress lives in the reader/My List,
+    // never in this row — even when a manga watching entry exists.
     const filtered = combinedList
       .map((e, idx) => ({ e, idx }))
       .filter(({ e }) => e.status === 'watching')
+      .filter(({ e }) => {
+        const mt = e.anime.identity.mediaType
+        if (mt) return mt === 'ANIME'
+        return !['MANGA', 'NOVEL', 'ONE_SHOT'].includes((e.anime.format ?? '').toUpperCase())
+      })
     if (!filtered.length) return []
 
     // Most-recently-updated first (updatedAt desc, stable by list order).
@@ -182,24 +189,38 @@ export function Home() {
 
   const stableOrder = useStableOrder()
 
-  // Hero: only popular and/or currently airing. Order is stable per mount
-  // (fresh shuffle each full load, never mid-session) so the hero never jumps.
+  // Hero: only popular and/or currently airing. STABLE across data
+  // arrivals within a session: the pool grows as queries resolve (popular
+  // lands before airing, etc.), but the hero must not re-pick mid-session
+  // — a re-pick swaps the mounted <img> (keyed by id) and flashes a
+  // half-loaded backdrop over the previous one (reads as a left-edge
+  // glitch during the crossfade window). Lock the first non-empty pick.
+  // The lock keys on the DATA SIGNATURE (pool id set), not array order:
+  // the same pool arriving in a different order must NOT re-shuffle.
+  // NOTE: the carousel auto-advances every INTERVAL_MS by design (dots +
+  // arrows); the lock below only stops DATA-driven re-picks, not rotation.
+  const heroesLocked = useRef<{ sig: string; heroes: Anime[] } | null>(null)
   const heroes: Anime[] = useMemo(() => {
     const pool = dedup([
       ...(popular.data ?? []),
       ...(airing.data ?? []),
     ]).filter(a => !!a.backdropImage)
-    if (!pool.length) {
-      // fallback to trending+popular+airing if too few popular/airing (rare)
-      const fallback = dedup([
-        ...(trending.data ?? []),
-        ...(popular.data ?? []),
-        ...(airing.data ?? []),
-      ]).filter(a => !!a.backdropImage)
-      if (!fallback.length) return []
-      return stableOrder('heroes', fallback).slice(0, 7)
-    }
-    return stableOrder('heroes', pool).slice(0, 7)
+    const base = pool.length ? pool : dedup([
+      ...(trending.data ?? []),
+      ...(popular.data ?? []),
+      ...(airing.data ?? []),
+    ]).filter(a => !!a.backdropImage)
+    if (!base.length) return heroesLocked.current?.heroes ?? []
+    // Order-insensitive signature: sorted ids. Same set = same pick.
+    const sig = [...new Set(base.map(a => a.identity.internalId))].sort().join(',')
+    if (heroesLocked.current && heroesLocked.current.sig === sig) return heroesLocked.current.heroes
+    // New set (first load or genuinely new data): pick once, then lock.
+    // If a lock already exists, keep it (mid-session arrivals) — only the
+    // very first pick populates.
+    if (heroesLocked.current?.heroes.length) return heroesLocked.current.heroes
+    const picked = stableOrder('heroes', base).slice(0, 7)
+    heroesLocked.current = { sig, heroes: picked }
+    return picked
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [popular.data, airing.data, trending.data])
 

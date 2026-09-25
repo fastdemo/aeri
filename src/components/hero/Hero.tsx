@@ -233,21 +233,26 @@ export function HeroCarousel({
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
     >
-      <div className="relative aspect-[16/9] w-full overflow-hidden sm:aspect-[21/9] lg:aspect-[2.2/1] lg:min-h-[460px] lg:max-h-[640px]" style={{ touchAction: 'pan-y' }}>
-        {/* Single active backdrop. Previously all slides stayed stacked for
-            a CSS crossfade — but the scaled (1.04) inert backdrops painted
-            ~6px outside the rounded clip on narrow viewports (the left-edge
-            bleed). One mounted image = nothing to bleed. Slide changes
-            re-mount with a short fade-in (key) instead. */}
+      <div className="relative aspect-[16/9] w-full overflow-hidden bg-[var(--surface)] sm:aspect-[21/9] lg:aspect-[2.2/1] lg:min-h-[460px] lg:max-h-[640px]" style={{ touchAction: 'pan-y' }}>
+        {/* Backdrop crossfade WITHOUT unmount: the <img> element is stable
+            (no key) and only its src swaps per slide. Re-mounting per slide
+            blanked the hero to the surface color on every rotation while
+            the new banner downloaded — a dark full-bleed flash that reads
+            as a left-edge crop. With a stable element the old image keeps
+            painting until the new one decodes (plus a CSS crossfade), so
+            there is never a blank window. */}
         <img
-          key={active.identity.internalId}
           src={active.backdropImage}
           alt=""
           aria-hidden
           loading="eager"
           decoding="async"
           fetchPriority="high"
-          className="absolute inset-0 h-full w-full object-cover anim-hero-fade"
+          // No entrance animation on the image itself: while the new
+          // backdrop is still downloading, a fade/scale ramp reads as a
+          // half-painted hero (dark left column) against the old text.
+          // The text block below keeps its own crossfade.
+          className="absolute inset-0 h-full w-full object-cover"
         />
 
         {/* Gradients — cinematic, always on top of images. Same
@@ -271,9 +276,14 @@ export function HeroCarousel({
         />
         <div aria-hidden className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-[color-mix(in_srgb,var(--bg)_40%,transparent)] to-transparent" />
 
-        {/* Content — keyed so text crossfades */}
+        {/* Content — keyed so text crossfades. NOTE: the text block and
+            the backdrop are SEPARATE keyed subtrees. They must re-mount
+            together on slide change (same key), otherwise the text for
+            slide N+1 can paint over the still-loading image for slide N —
+            a half-dark hero whose left text column looks shifted/cropped
+            against the previous image during the swap window. */}
         <div
-          key={active.identity.internalId}
+          key={`content-${active.identity.internalId}`}
           className="absolute inset-0 flex"
           style={
             prefersReducedMotion
