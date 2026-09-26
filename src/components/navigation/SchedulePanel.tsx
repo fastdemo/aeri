@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useTracking } from '../../contexts/TrackingContext'
 import { useAiring } from '../../hooks/useAnimeMetadata'
 import { getTitleHierarchy } from '../../lib/titles'
@@ -11,11 +11,15 @@ import type { Anime } from '../../types/anime'
  * panel is useful even with an empty list). Same dropdown language as
  * search suggestions (blur panel, cover rows). No new data source:
  * nextAiringEpisode already rides on AniList metadata + list entries.
+ *
+ * Renders ONLY inner content — the glass panel chrome + fixed positioning
+ * come from HeaderPopup (portaled to body, so backdrop-blur genuinely
+ * samples the page). The sticky header stays transparent (a translucent bg
+ * would double-layer over the panel bg and read opaque).
  */
 export function SchedulePanel({ onClose, onOpen }: { onClose: () => void; onOpen: (animeId: string) => void }) {
   const { combinedList } = useTracking()
   const { data: airing } = useAiring(24)
-  const ref = useRef<HTMLDivElement>(null)
   const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 60000)
@@ -23,15 +27,8 @@ export function SchedulePanel({ onClose, onOpen }: { onClose: () => void; onOpen
   }, [])
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    const onClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose()
-    }
     document.addEventListener('keydown', onKey)
-    document.addEventListener('mousedown', onClick)
-    return () => {
-      document.removeEventListener('keydown', onKey)
-      document.removeEventListener('mousedown', onClick)
-    }
+    return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
 
   const mine = ((combinedList ?? [])
@@ -66,14 +63,11 @@ export function SchedulePanel({ onClose, onOpen }: { onClose: () => void; onOpen
     return `in ${Math.max(1, Math.floor(ms / 60000))}m`
   }
 
+  // Inner content only — HeaderPopup (Navbar) owns the glass panel
+  // chrome + fixed positioning (body portal, see its doc comment). The
+  // Navbar's outside-pointerdown handler owns outside-close.
   return (
-    <div
-      ref={ref}
-      role="menu"
-      aria-label="Airing schedule"
-      style={{ isolation: 'isolate' }}
-      className="absolute right-0 top-[calc(100%+8px)] z-[70] max-h-[min(68vh,420px)] w-[240px] max-w-[calc(100vw-2rem)] overflow-x-hidden overflow-y-auto rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--bg)_70%,transparent)] backdrop-blur-2xl shadow-[0_16px_48px_var(--shadow)]"
-    >
+    <>
       {/* Transparent sticky header — same as search-suggestion group
           headers. A translucent bg here would double-layer over the panel
           bg and read as opaque. */}
@@ -111,6 +105,6 @@ export function SchedulePanel({ onClose, onOpen }: { onClose: () => void; onOpen
           )
         })
       )}
-    </div>
+    </>
   )
 }

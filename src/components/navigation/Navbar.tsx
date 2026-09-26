@@ -5,6 +5,7 @@ import { useMAL } from '../../contexts/MALContext'
 import { useTracking } from '../../contexts/TrackingContext'
 import { SearchSuggestions } from '../search/SearchSuggestions'
 import { SchedulePanel } from './SchedulePanel'
+import { HeaderPopup } from './HeaderPopup'
 import { DetailModal } from '../detail/DetailModal'
 import { SignInModal } from '../auth/SignInModal'
 import { Icon } from '../ui/Icon'
@@ -89,6 +90,14 @@ export function Navbar() {
     document.addEventListener('pointerdown', onDown, { passive: true })
     return () => document.removeEventListener('pointerdown', onDown as any)
   }, [])
+
+  // Anchor for the suggestions popup: the input itself (left-aligned,
+  // same width as the focused input = 240px). The popup is a body portal
+  // (HeaderPopup) so its backdrop-blur samples the real page at every
+  // scroll position — see HeaderPopup's doc comment.
+  const searchInputRef = useRef<HTMLInputElement>(null)
+  // Bell anchor for the schedule popup (body portal, same as search).
+  const bellRef = useRef<HTMLButtonElement>(null)
 
   const dispatchNavigate = (to?: string) => {
     try { window.dispatchEvent(new CustomEvent('aeri:navigate')) } catch {}
@@ -264,6 +273,7 @@ export function Navbar() {
           <form onSubmit={onSearch} className="flex items-center">
             <div ref={searchRef} className="relative">
               <input
+                ref={searchInputRef}
                 value={query}
                 onChange={(e) => { setQuery(e.target.value); setShowSuggestions(true) }}
                 onFocus={() => { if (query.trim().length >= 2) setShowSuggestions(true) }}
@@ -285,7 +295,9 @@ export function Navbar() {
                 <path d="m20 20-3.5-3.5" />
               </svg>
               {showSuggestions && query.trim().length >= 2 && (
-                <SearchSuggestions query={query} onClose={() => setShowSuggestions(false)} onPreview={(a) => { if (!isAuthenticated) setSignInOpen(true); else setPreviewAnime(a) }} />
+                <HeaderPopup anchorRef={searchInputRef} align="left" width={240} ariaLabel="Search suggestions" role="listbox">
+                  <SearchSuggestions query={query} onClose={() => setShowSuggestions(false)} onPreview={(a) => { if (!isAuthenticated) setSignInOpen(true); else setPreviewAnime(a) }} />
+                </HeaderPopup>
               )}
             </div>
           </form>
@@ -304,8 +316,9 @@ export function Navbar() {
           )}
 
           {isAuthenticated && navFits && (
-            <div className="relative" ref={scheduleRef}>
+            <div ref={scheduleRef}>
               <button
+                ref={bellRef}
                 aria-label="Airing schedule"
                 aria-expanded={scheduleOpen}
                 aria-haspopup="menu"
@@ -315,10 +328,12 @@ export function Navbar() {
                 <Icon name="bell" size={16} />
               </button>
               {scheduleOpen && (
-                <SchedulePanel
-                  onClose={() => setScheduleOpen(false)}
-                  onOpen={(animeId) => { setScheduleOpen(false); navigate(`/anime/${animeId}`) }}
-                />
+                <HeaderPopup anchorRef={bellRef} align="right" width={240} ariaLabel="Airing schedule">
+                  <SchedulePanel
+                    onClose={() => setScheduleOpen(false)}
+                    onOpen={(animeId) => { setScheduleOpen(false); navigate(`/anime/${animeId}`) }}
+                  />
+                </HeaderPopup>
               )}
             </div>
           )}

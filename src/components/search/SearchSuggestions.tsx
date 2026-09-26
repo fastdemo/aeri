@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { anilistMetadataProvider } from '../../providers/metadata/anilistMetadata'
 import type { Anime } from '../../types/anime'
@@ -15,7 +15,6 @@ export function SearchSuggestions({ query, onClose, onPreview }: Props) {
   const [results, setResults] = useState<Anime[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [activeIdx, setActiveIdx] = useState(-1)
-  const containerRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
 
   const openPreview = (anime: Anime) => {
@@ -77,7 +76,7 @@ export function SearchSuggestions({ query, onClose, onPreview }: Props) {
   if (query.trim().length < 2) return null
   if (loading) {
     return (
-      <div ref={containerRef} className="absolute left-0 right-0 top-[calc(100%+8px)] z-[70] overflow-hidden rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--bg)_70%,transparent)] p-2 backdrop-blur-2xl shadow-[0_16px_48px_var(--shadow)]">
+      <div className="p-2">
         <div className="space-y-2">
           {[0,1,2].map(i => (
             <div key={i} className="flex items-center gap-3 px-2 py-2">
@@ -95,7 +94,7 @@ export function SearchSuggestions({ query, onClose, onPreview }: Props) {
   if (!results) return null
   if (results.length === 0) {
     return (
-      <div ref={containerRef} className="absolute left-0 right-0 top-[calc(100%+8px)] z-[70] rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--bg)_70%,transparent)] p-4 text-center backdrop-blur-2xl shadow-[0_16px_48px_var(--shadow)]">
+      <div className="p-4 text-center">
         <p className="text-xs text-[var(--text-muted)]">No titles for “{query.trim()}”</p>
       </div>
     )
@@ -150,14 +149,14 @@ export function SearchSuggestions({ query, onClose, onPreview }: Props) {
         </button>
         )
   }
+  // Inner content only — the glass panel chrome + fixed positioning
+  // come from HeaderPopup (Navbar portals it to body so backdrop-blur
+  // samples the real page at every scroll position). The outer
+  // listbox wrapper keeps role semantics + keyboard handling; the
+  // containerRef anchors nothing visual anymore.
   return (
     <div
-      ref={containerRef}
       role="listbox"
-      // Isolate compositing so ancestor transforms/filters can't flatten the
-      // backdrop blur while the page scrolls underneath.
-      style={{ isolation: 'isolate' }}
-      className="absolute left-0 right-0 top-[calc(100%+8px)] z-[70] max-h-[min(68vh,420px)] overflow-x-hidden overflow-y-auto rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--bg)_70%,transparent)] backdrop-blur-2xl shadow-[0_16px_48px_var(--shadow)]"
     >
       {groups.map(g => (
         <div key={g.label}>
