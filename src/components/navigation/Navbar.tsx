@@ -67,23 +67,30 @@ export function Navbar() {
 
   // Close suggestions + profile menu on outside pointerdown — unified
   // pointer event, no microtask delay.
-  // The desktop search box, mobile search dropdown, and profile menu all
-  // count as inside (mobile taps previously closed the dropdown on
-  // pointerdown, before click).
+  // The desktop search box, mobile search dropdown, profile menu, AND the
+  // portaled popups (search suggestions / schedule / profile, which live
+  // in document.body via HeaderPopup) all count as inside. The portal
+  // nodes are outside searchRef/profileRef/scheduleRef, so without this
+  // their pointerdown would setShowSuggestions(false) BEFORE the click
+  // fires — unmounting the row and swallowing the tap (regression from
+  // the portal migration: rows rendered but never opened).
+  // Bell/profile buttons have dedicated refs for HeaderPopup anchoring;
+  // the wrapper div refs remain the inside-test (button is inside them).
   useEffect(() => {
     const onDown = (e: PointerEvent) => {
-      const t = e.target as Node
+      const t = e.target as HTMLElement
       const inDesktop = searchRef.current?.contains(t) ?? false
       const inMobile = mobileSearchRef.current?.contains(t) ?? false
       const inProfile = profileRef.current?.contains(t) ?? false
       const inSchedule = scheduleRef.current?.contains(t) ?? false
-      if (!inDesktop && !inMobile) {
+      const inPortal = t.closest?.('[data-header-popup]') ? true : false
+      if (!inDesktop && !inMobile && !inPortal) {
         setShowSuggestions(false)
       }
-      if (!inProfile) {
+      if (!inProfile && !inPortal) {
         setProfileOpen(false)
       }
-      if (!inSchedule) {
+      if (!inSchedule && !inPortal) {
         setScheduleOpen(false)
       }
     }

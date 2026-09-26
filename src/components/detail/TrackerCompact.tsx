@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { AnimeStatus } from '../../types/anime'
 import { FilterSelect, type FilterOption } from '../ui/FilterSelect'
 import { Icon } from '../ui/Icon'
@@ -66,10 +66,20 @@ export function TrackerCompact({
   // Status "–" removes the entry from the list (AniList
   // DeleteMediaListEntry / MAL DELETE my_list_status). Any other value is
   // a plain status change. No silent no-op: every branch runs a write.
+  // After a local remove the pill must read "–" IMMEDIATELY (props still
+  // show the old status until the refetch lands), so a just-removed flag
+  // forces the "–" display until props confirm status === null.
   const REMOVE_VALUE = '__remove__'
-  const statusValue = status === null ? REMOVE_VALUE : status
+  const [justRemoved, setJustRemoved] = useState(false)
+  const statusValue = justRemoved || status === null ? REMOVE_VALUE : status
   const [busy, setBusy] = useState(false)
   const [draft, setDraft] = useState<string | null>(null)
+  // Clear the just-removed display override once the entry carries a
+  // real status again (user re-added, or remove failed and the refetch
+  // restored it). status === null keeps the override (props already agree).
+  useEffect(() => {
+    if (status !== null) setJustRemoved(false)
+  }, [status])
   const unit = isManga ? 'Chapters' : 'Episodes'
   const disabled = busy || syncing !== null
   const run = async (fn: () => Promise<void>) => {
@@ -109,7 +119,7 @@ export function TrackerCompact({
             ...STATUS_VALUES.map(s => ({ value: s, label: statusLabel(s, isManga) })),
           ]}
           onChange={v => {
-            if (v === REMOVE_VALUE) run(() => onRemove())
+            if (v === REMOVE_VALUE) run(async () => { setJustRemoved(true); try { await onRemove() } catch { setJustRemoved(false); throw new Error('remove failed') } })
             else if (v) run(() => onStatus(v as AnimeStatus))
           }}
         />

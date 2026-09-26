@@ -167,10 +167,20 @@ export function AnimeCard({
   // overlay on desktop (see below).
   const hoverMeta = `${anime.year ?? ''}${anime.year ? ' • ' : ''}${formatLabel(anime.format) ?? anime.format ?? ''}${anime.genres?.[0] ? ` • ${anime.genres[0]}` : ''}`
 
+  // THE CHOP (measured, not guessed): the card's `ring-1` draws its
+  // 1px border OUTSIDE the frame's border box via box-shadow. The frame
+  // sits at the scroller's x=0 edge, so the left 1px of the ring paints
+  // past the scroller's clip origin and is cut off — the right side has
+  // room (tail spacer / viewport), so only the left reads "chopped".
+  // Rows with horizontal breathing room (browse grids, My List) never show
+  // it; edge-flush horizontal scrollers (Home rows, Profile row) always do.
+  // Fix: paint the 1px edge INSIDE the frame (inset ring) so nothing
+  // extends past the border box. Same color, same 6px radius, zero layout
+  // shift — the ring simply no longer overhangs the clip edge.
   const content = (
     <div className="group group/card relative w-full min-w-0 flex-shrink-0">
       <div
-        className={`relative w-full min-w-0 flex-shrink-0 overflow-hidden rounded-[6px] bg-[var(--surface)] ring-1 ring-[var(--border-strong)] transition-[ring-color] duration-200 hover:z-10 hover:ring-[var(--border-strong)] ${width}`}
+        className={`relative w-full min-w-0 flex-shrink-0 overflow-hidden rounded-[6px] bg-[var(--surface)] ring-1 ring-inset ring-[var(--border-strong)] transition-[ring-color] duration-200 hover:z-10 hover:ring-[var(--border-strong)] ${width}`}
       >
       <div className={`relative ${artAspect} w-full min-w-0 overflow-hidden bg-[var(--surface-elevated)]`}>
         <img

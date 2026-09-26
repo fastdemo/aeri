@@ -73,6 +73,7 @@ export function HeaderPopup({
       ref={panelRef}
       role={role}
       aria-label={ariaLabel}
+      data-header-popup="true"
       style={style}
       className="z-[70] max-h-[min(68vh,420px)] overflow-x-hidden overflow-y-auto rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--bg)_70%,transparent)] shadow-[0_16px_48px_var(--shadow)] backdrop-blur-2xl"
     >
