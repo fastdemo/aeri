@@ -74,7 +74,13 @@ function Layout() {
       <footer className="border-t border-[var(--border)]">
         <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-3 px-4 py-5 text-[11px] sm:px-6 lg:px-12">
           <div className="flex min-w-0 items-center gap-2">
-            <span className="shrink-0 text-[color-mix(in_srgb,var(--text)_25%,transparent)]">aeri by @fastdemo</span>
+            {/* Hover swaps the tagline for the credit (opacity crossfade,
+                grid-stacked so width never shifts). Touch/keyboard get the
+                credit via focus-within too. */}
+            <span className="group/credit grid shrink-0 grid-cols-1 grid-rows-1 text-[color-mix(in_srgb,var(--text)_25%,transparent)]" tabIndex={0} aria-label="made by otakus, for otakus. aeri by @fastdemo">
+              <span aria-hidden className="col-start-1 row-start-1 transition-opacity duration-300 group-hover/credit:opacity-0 group-focus-within/credit:opacity-0">made by otakus, for otakus.</span>
+              <span aria-hidden className="col-start-1 row-start-1 opacity-0 transition-opacity duration-300 group-hover/credit:opacity-100 group-focus-within/credit:opacity-100">aeri by @fastdemo</span>
+            </span>
           </div>
           <div className="flex shrink-0 items-center gap-3">
             <a href="https://github.com/fastdemo/aeri" className="text-[var(--text-faint)] transition-colors duration-200 hover:text-[var(--text)]">GitHub</a>
