@@ -60,7 +60,7 @@ export function TrackerCompact({
 }) {
   const [busy, setBusy] = useState(false)
   const [draft, setDraft] = useState<string | null>(null)
-  const unit = isManga ? 'Chapter' : 'Episode'
+  const unit = isManga ? 'Chapters' : 'Episodes'
   const disabled = busy || syncing !== null
   const run = async (fn: () => Promise<void>) => {
     setBusy(true)
@@ -92,7 +92,8 @@ export function TrackerCompact({
         {/* Progress pill: "Episodes: N" / "Chapters: N" — the number is a
             type-in that commits on Enter/blur (Escape reverts), clamped to
             the known total. */}
-        <span className="relative inline-flex shrink-0 items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--bg-soft)] py-1.5 pl-3 pr-3 text-xs">
+        <span className="inline-flex min-w-0 shrink-0 items-center gap-1 overflow-hidden rounded-full border border-[var(--border)] bg-[var(--bg-soft)] py-1.5 pl-3 pr-3 text-xs">
+          <label htmlFor="tracker-progress" className="shrink-0 cursor-text whitespace-nowrap text-[var(--text-muted)]">{unit}:</label>
           <label htmlFor="tracker-progress" className="text-[var(--text-muted)]">{isManga ? 'Chapters:' : 'Episodes:'}</label>
           <input
             id="tracker-progress"

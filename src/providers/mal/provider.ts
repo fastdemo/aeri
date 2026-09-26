@@ -1,6 +1,7 @@
 import type { TrackingProvider, AniListUser } from '../anilist/provider'
 import type { Anime, AnimeListEntry, AnimeStatus } from '../../types/anime'
 import { malFetch, clearMalMemoryCache, MalProviderError } from '../../services/mal/client'
+import { deleteCache } from '../../storage/db'
 import { mapMALNodeToAnime, mapMALEntryToAeri, aeriStatusToMal, type MALNode, type MALListEntryRaw } from '../../services/mal/mapper'
 import { getMalToken } from '../../storage/mal'
 
@@ -140,7 +141,10 @@ export class MALProvider implements TrackingProvider {
       body: body.toString(),
       useCache: false,
     })
+    // Invalidate list cache (memory + IDB) so the follow-up loadList in the
+    // context reads the just-written server state, not a 24h IDB snapshot.
     clearMalMemoryCache()
+    try { await deleteCache('mal:list').catch(() => {}); await deleteCache('mal:list:manga').catch(() => {}) } catch {}
   }
 
   async updateStatus(id: string, status: AnimeStatus, isManga = false): Promise<void> {
@@ -156,6 +160,7 @@ export class MALProvider implements TrackingProvider {
       useCache: false,
     })
     clearMalMemoryCache()
+    try { await deleteCache('mal:list').catch(() => {}); await deleteCache('mal:list:manga').catch(() => {}) } catch {}
   }
 
   async updateRating(id: string, rating: number, isManga = false): Promise<void> {
@@ -171,6 +176,7 @@ export class MALProvider implements TrackingProvider {
       useCache: false,
     })
     clearMalMemoryCache()
+    try { await deleteCache('mal:list').catch(() => {}); await deleteCache('mal:list:manga').catch(() => {}) } catch {}
   }
 
   private toMalId(id: string): number {

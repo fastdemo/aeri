@@ -26,6 +26,7 @@ export interface AniListMedia {
   genres?: string[] | null
   studios?: { nodes?: { name: string; isAnimationStudio: boolean }[] | null; edges?: { isMain: boolean }[] | null } | null
   format?: string | null // TV, MOVIE etc; anime queries never return MANGA and vice versa
+  type?: string | null // ANIME | MANGA — authoritative when present
   popularity?: number | null
   streamingEpisodes?: { title?: string | null; thumbnail?: string | null; url?: string | null; site?: string | null }[] | null
   trailer?: { id?: string | null; site?: string | null } | null
@@ -177,11 +178,14 @@ export function mapAniListMediaToAnime(media: AniListMedia, mediaType?: 'ANIME' 
 
   // Identity boundary: AniList id alone is NOT sufficient — the same
   // numeric id under ANIME vs MANGA is a different entity (HxH anime vs
-  // HxH manga). Callers pass the query's media type; format infers it when
-  // they don't (MANGA/NOVEL/ONE_SHOT ⇒ MANGA, else ANIME).
-  const inferredType: 'ANIME' | 'MANGA' = mediaType ?? (
-    ['MANGA', 'NOVEL', 'ONE_SHOT'].includes((media.format ?? '').toUpperCase()) ? 'MANGA' : 'ANIME'
-  )
+  // HxH manga). Callers pass the query's media type; the response's own
+  // `type` field wins when present; format infers it otherwise
+  // (MANGA/NOVEL/ONE_SHOT ⇒ MANGA, else ANIME).
+  const responseType = (media.type ?? '').toUpperCase()
+  const inferredType: 'ANIME' | 'MANGA' = responseType === 'ANIME' || responseType === 'MANGA' ? responseType
+    : (mediaType ?? (
+      ['MANGA', 'NOVEL', 'ONE_SHOT'].includes((media.format ?? '').toUpperCase()) ? 'MANGA' : 'ANIME'
+    ))
   return {
     identity: {
       internalId: `anilist-${media.id}`,

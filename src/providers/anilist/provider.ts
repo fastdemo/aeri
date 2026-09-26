@@ -1,4 +1,5 @@
 import { anilistGraphQL, clearAnilistMemoryCache } from '../../services/anilist/client'
+import { deleteCache } from '../../storage/db'
 import { ProviderError } from '../../services/anilist/errors'
 import {
   aeriStatusToAnilist,
@@ -40,6 +41,23 @@ query {
 }
 `
 
+/**
+ * Convert our 0-10 score into the user's AniList scoring format.
+ * POINT_100: 8 → 80 · POINT_5: 8 → 4 · POINT_10/POINT_10_DECIMAL: 8 → 8.
+ * Unknown format: raw passthrough. 0 always means unrated.
+ */
+export function toAnilistScore(rating: number, format: string | null): number {
+  if (rating <= 0) return 0
+  switch (format) {
+    case 'POINT_100': return Math.round(rating * 10)
+    case 'POINT_5': return Math.max(1, Math.min(5, Math.round(rating / 2)))
+    case 'POINT_10':
+    case 'POINT_10_DECIMAL':
+    default:
+      return format === 'POINT_10' ? Math.round(rating) : rating
+  }
+}
+
 const MEDIA_LIST_COLLECTION_QUERY = `
 query ($userId: Int!, $type: MediaType) {
   MediaListCollection(userId: $userId, type: $type) {
@@ -56,6 +74,7 @@ query ($userId: Int!, $type: MediaType) {
         media {
           id
           idMal
+          type
           title { romaji english native }
           description
           coverImage { extraLarge large medium }
@@ -305,9 +324,10 @@ export class AniListProvider implements TrackingProvider {
     }
 
     await anilistGraphQL(SAVE_MEDIA_LIST_ENTRY, mutationId, { token: t, useCache: false })
-    // Invalidate list cache
+    // Invalidate list cache (memory + IDB) so the follow-up loadList in the
+    // context reads the just-written server state, not a 24h IDB snapshot.
     clearAnilistMemoryCache()
-    // Also clear IDB cache for list — we don't have delete, but put new expiry? Just clear memory and next fetch will refetch; IDB will still be respected until TTL, so force? For now, force next getAnimeList by clearing memory and not using IDB? We'll bypass by adding force flag in future. For now, we can clear IDB via putCache with new? Simpler: just clear memory and rely on IDB TTL 24h may still return stale. We should handle forced refresh in context.
+    try { await deleteCache(`anilist:list:${(await this.getUser(t).catch(() => null))?.id ?? ''}`).catch(() => {}) } catch {}
   }
 
   async updateStatus(id: string, status: AnimeStatus): Promise<void> {
@@ -318,18 +338,23 @@ export class AniListProvider implements TrackingProvider {
     const vars: any = entryId ? { id: entryId, status: anilistStatus } : { mediaId: anilistId, status: anilistStatus }
     await anilistGraphQL(SAVE_MEDIA_LIST_ENTRY, vars, { token: t, useCache: false })
     clearAnilistMemoryCache()
+    try { await deleteCache(`anilist:list:${(await this.getUser(t).catch(() => null))?.id ?? ''}`).catch(() => {}) } catch {}
   }
 
   async updateRating(id: string, rating: number): Promise<void> {
     const t = this.ensureToken()
     const anilistId = this.toAnilistId(id)
-    // AniList score is float; user setting may be 10-point. We store normalized 0-10.
-    // AniList expects score in user's scoring format; passing Float will respect user's method. We'll pass as given (0-10) — if user uses 100-point, 8 -> 80? But we handle simple.
-    const score = rating // assume 0-10
+    // AniList stores score in the USER's scoring format (POINT_100 = 0-100,
+    // POINT_10_DECIMAL = 0-10 float, POINT_10 = 0-10 int, POINT_5 = 0-5).
+    // Convert our 0-10 value into that format so the write round-trips;
+    // the read path (mapper) normalizes >10 back by /10.
+    const format = await this.getScoreFormat(t).catch(() => null)
+    const score = toAnilistScore(rating, format)
     const entryId = await this.findEntryIdForMedia(anilistId, t).catch(() => null)
     const vars: any = entryId ? { id: entryId, score } : { mediaId: anilistId, score, status: 'COMPLETED' }
     await anilistGraphQL(SAVE_MEDIA_LIST_ENTRY, vars, { token: t, useCache: false })
     clearAnilistMemoryCache()
+    try { await deleteCache(`anilist:list:${(await this.getUser(t).catch(() => null))?.id ?? ''}`).catch(() => {}) } catch {}
   }
 
   private toAnilistId(id: string): number {
@@ -337,6 +362,22 @@ export class AniListProvider implements TrackingProvider {
     const n = Number(id)
     if (!Number.isNaN(n)) return n
     throw new ProviderError('NOT_FOUND', 'We couldn’t find that anime.', false)
+  }
+
+  /** The user's score-format preference (drives write conversion). Cached;
+      failures return null (caller falls back to raw 0-10). */
+  private scoreFormatCache: { value: string | null; expiry: number } | null = null
+  private async getScoreFormat(token: string): Promise<string | null> {
+    if (this.scoreFormatCache && this.scoreFormatCache.expiry > Date.now()) return this.scoreFormatCache.value
+    type R = { Viewer: { mediaListOptions?: { scoreFormat?: string | null } | null } | null }
+    const r = await anilistGraphQL<R>(
+      `query { Viewer { mediaListOptions { scoreFormat } } }`,
+      {},
+      { token, useCache: false },
+    ).catch(() => null)
+    const value = r?.Viewer?.mediaListOptions?.scoreFormat ?? null
+    this.scoreFormatCache = { value, expiry: Date.now() + 1000 * 60 * 60 }
+    return value
   }
 }
 
