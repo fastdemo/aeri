@@ -76,13 +76,21 @@ export function MyList() {
         </div>
       )}
 
-      <div className="mt-4 flex gap-2 overflow-x-auto no-scrollbar">
+      {/* Status tabs — ripped directly from the Anime/Manga browse lane:
+          same pill component language (bordered pills, border-strong +
+          filled active, transparent inactive) and the same joined
+          horizontal scroller at every width (single swipeable strip,
+          nothing clips). Only the labels + state differ (list statuses
+          instead of browse categories). Single instance (not a wide/narrow
+          pair like browse, which needs the split for its side filters) —
+          so exactly one visible set, no hidden duplicate. */}
+      <div className="mt-4 flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto no-scrollbar py-0.5">
         {tabs.map((t) => (
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-medium transition ${
-              tab === t.id ? 'bg-[var(--text)] text-[var(--on-text)]' : 'bg-[color-mix(in_srgb,var(--text)_10%,transparent)] text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)] hover:text-[var(--text)]'
+            className={`shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-medium transition ${
+              tab === t.id ? 'border-[var(--border-strong)] bg-[var(--text)] text-[var(--on-text)]' : 'border-transparent bg-[color-mix(in_srgb,var(--text)_10%,transparent)] text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)] hover:text-[var(--text)]'
             }`}
           >
             {t.label}
