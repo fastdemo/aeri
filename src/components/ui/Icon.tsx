@@ -9,6 +9,7 @@ import checkLgSvg from 'bootstrap-icons/icons/check-lg.svg?raw'
 import xSvg from 'bootstrap-icons/icons/x.svg?raw'
 import plusLgSvg from 'bootstrap-icons/icons/plus-lg.svg?raw'
 import plusCircleSvg from 'bootstrap-icons/icons/plus-circle.svg?raw'
+import dashLgSvg from 'bootstrap-icons/icons/dash-lg.svg?raw'
 import listSvg from 'bootstrap-icons/icons/list.svg?raw'
 import searchSvg from 'bootstrap-icons/icons/search.svg?raw'
 import bellSvg from 'bootstrap-icons/icons/bell.svg?raw'
@@ -31,6 +32,7 @@ const PATHS: Record<string, string> = {
   x: xSvg,
   'plus-lg': plusLgSvg,
   'plus-circle': plusCircleSvg,
+  'dash-lg': dashLgSvg,
   list: listSvg,
   search: searchSvg,
   bell: bellSvg,

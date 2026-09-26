@@ -200,6 +200,14 @@ mutation ($mediaId: Int, $id: Int, $status: MediaListStatus, $progress: Int, $sc
 }
 `
 
+const DELETE_MEDIA_LIST_ENTRY = `
+mutation ($id: Int) {
+  DeleteMediaListEntry(id: $id) {
+    deleted
+  }
+}
+`
+
 export class AniListProvider implements TrackingProvider {
   id: 'anilist' = 'anilist' as const
 
@@ -339,6 +347,22 @@ export class AniListProvider implements TrackingProvider {
     await anilistGraphQL(SAVE_MEDIA_LIST_ENTRY, vars, { token: t, useCache: false })
     clearAnilistMemoryCache()
     try { await deleteCache(`anilist:list:${(await this.getUser(t).catch(() => null))?.id ?? ''}`).catch(() => {}) } catch {}
+    try { await deleteCache(`anilist:list:manga:${(await this.getUser(t).catch(() => null))?.id ?? ''}`).catch(() => {}) } catch {}
+  }
+
+  /**
+   * Remove the entry from the user's list entirely (AniList
+   * DeleteMediaListEntry). No-op when the title isn't in the list.
+   */
+  async removeEntry(id: string): Promise<void> {
+    const t = this.ensureToken()
+    const anilistId = this.toAnilistId(id)
+    const entryId = await this.findEntryIdForMedia(anilistId, t).catch(() => null)
+    if (!entryId) return
+    await anilistGraphQL(DELETE_MEDIA_LIST_ENTRY, { id: entryId }, { token: t, useCache: false })
+    clearAnilistMemoryCache()
+    try { await deleteCache(`anilist:list:${(await this.getUser(t).catch(() => null))?.id ?? ''}`).catch(() => {}) } catch {}
+    try { await deleteCache(`anilist:list:manga:${(await this.getUser(t).catch(() => null))?.id ?? ''}`).catch(() => {}) } catch {}
   }
 
   async updateRating(id: string, rating: number): Promise<void> {

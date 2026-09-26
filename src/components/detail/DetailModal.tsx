@@ -35,7 +35,7 @@ export function DetailModal({
   onSelectRelated?: (anime: Anime) => void
 }) {
   const dialogRef = useRef<HTMLDivElement>(null)
-  const { isAuthenticated, combinedList, updateStatus, updateRating, updateProgress, error: trackingError, trackingProvider } = useTracking()
+  const { isAuthenticated, combinedList, updateStatus, updateRating, updateProgress, removeEntry, error: trackingError, trackingProvider } = useTracking()
   const [syncing, setSyncing] = useState<string | null>(null)
   const [localError, setLocalError] = useState<string | null>(null)
   const [showStatusPicker, setShowStatusPicker] = useState(false)
@@ -240,6 +240,39 @@ export function DetailModal({
               </span>
             )}
 
+            {/* List toggle: same row as Play/Read. Untracked → "+" adds as
+                Plan to Watch / Plan to Read; tracked → "–" removes the
+                entry from the list. Manga-aware labels throughout. */}
+            <button
+              type="button"
+              aria-label={currentStatus ? `Remove ${titles.primary} from My List` : `Add ${titles.primary} to My List as ${isMangaKind ? 'Plan to Read' : 'Plan to Watch'}`}
+              onClick={async () => {
+                if (!isAuthenticated) {
+                  setLocalError('Sign in with AniList or connect MyAnimeList in Settings to track.')
+                  setTimeout(() => setLocalError(null), 2500)
+                  return
+                }
+                setSyncing('status')
+                try {
+                  if (currentStatus) await removeEntry(displayAnime)
+                  else await updateStatus(displayAnime, 'planned')
+                } catch (e) {
+                  setLocalError(e instanceof Error ? e.message : 'Couldn’t update list')
+                } finally {
+                  setSyncing(null)
+                }
+              }}
+              className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-[var(--border-strong)] bg-[color-mix(in_srgb,var(--bg)_30%,transparent)] text-[var(--text)] backdrop-blur transition hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)]"
+            >
+              {syncing === 'status' ? (
+                <span className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--border-strong)] border-t-[var(--text)]" />
+              ) : currentStatus ? (
+                <Icon name="dash-lg" size={14} />
+              ) : (
+                <Icon name="plus-lg" size={14} />
+              )}
+            </button>
+
             <div className="ml-auto flex items-center gap-2">
               <div className="relative">
                 <button
@@ -319,6 +352,12 @@ export function DetailModal({
               setSyncing('status')
               try { await updateStatus(displayAnime, s) }
               catch (e) { setLocalError(e instanceof Error ? e.message : 'Couldn’t update status') }
+              finally { setSyncing(null) }
+            }}
+            onRemove={async () => {
+              setSyncing('status')
+              try { await removeEntry(displayAnime) }
+              catch (e) { setLocalError(e instanceof Error ? e.message : 'Couldn’t remove from list') }
               finally { setSyncing(null) }
             }}
             onScore={async (n) => {

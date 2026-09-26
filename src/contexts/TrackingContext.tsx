@@ -29,6 +29,8 @@ type UnifiedTracking = {
   updateProgress: (anime: Anime, ep: number) => Promise<void>
   updateStatus: (anime: Anime, status: AnimeStatus) => Promise<void>
   updateRating: (anime: Anime, rating: number) => Promise<void>
+  /** Remove the entry from the list entirely ("–" in the Status pill). */
+  removeEntry: (anime: Anime) => Promise<void>
 }
 
 const TrackingContext = createContext<UnifiedTracking | null>(null)
@@ -122,6 +124,14 @@ export function TrackingProvider({ children }: { children: React.ReactNode }) {
   const active = trackingProvider
   // isManga derives from the object's own format/mediaType (never the
   // route): manga chapters route to manga endpoints + manga vocabulary.
+  // removeEntry shares the same id-resolution as the writers below (never
+  // raw internalId: AniList needs the numeric anilist id, MAL the mal id).
+  const resolveAnilistId = (anime: Anime): string | null =>
+    anime.identity.anilistId?.toString()
+    ?? (anime.identity.internalId.startsWith('anilist-') ? anime.identity.internalId.replace('anilist-', '') : null)
+  const resolveMalId = (anime: Anime): string | null =>
+    anime.identity.malId ? `mal-${anime.identity.malId}`
+    : (anime.identity.internalId.startsWith('mal-') ? anime.identity.internalId : null)
   const isMangaObj = (anime: Anime) =>
     anime.identity.mediaType === 'MANGA' ||
     ['MANGA', 'NOVEL', 'ONE_SHOT'].includes((anime.format ?? '').toUpperCase())
@@ -167,6 +177,18 @@ export function TrackingProvider({ children }: { children: React.ReactNode }) {
     }
   }, [active, ani.isAuthenticated, ani.updateRating, mal.isAuthenticated, mal.updateRating])
 
+  const removeEntry = useCallback(async (anime: Anime) => {
+    const isManga = isMangaObj(anime)
+    if (active === 'anilist' && ani.isAuthenticated && isSyncEnabled('anilist', 'status')) {
+      const anilistId = resolveAnilistId(anime)
+      if (anilistId) { await ani.removeEntry(anilistId).catch(() => {}); return }
+    }
+    if (active === 'mal' && mal.isAuthenticated && isSyncEnabled('mal', 'status')) {
+      const malId = resolveMalId(anime) ?? (anime.identity.malId ? `mal-${anime.identity.malId}` : null)
+      if (malId) { await mal.removeEntry(malId, isManga).catch(() => {}); return }
+    }
+  }, [active, ani.isAuthenticated, ani.removeEntry, mal.isAuthenticated, mal.removeEntry])
+
   const value: UnifiedTracking = useMemo(() => ({
     trackingProvider,
     setTrackingProvider,
@@ -180,7 +202,8 @@ export function TrackingProvider({ children }: { children: React.ReactNode }) {
     updateProgress,
     updateStatus,
     updateRating,
-  }), [trackingProvider, setTrackingProvider, isAuthenticated, ani.isAuthenticated, mal.isAuthenticated, combinedList, loading, error, authExpired, updateProgress, updateStatus, updateRating])
+    removeEntry,
+  }), [trackingProvider, setTrackingProvider, isAuthenticated, ani.isAuthenticated, mal.isAuthenticated, combinedList, loading, error, authExpired, updateProgress, updateStatus, updateRating, removeEntry])
 
   return <TrackingContext.Provider value={value}>{children}</TrackingContext.Provider>
 }

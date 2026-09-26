@@ -29,13 +29,14 @@ const SCORE_OPTIONS: FilterOption[] = Array.from({ length: 10 }, (_, i) => {
 /**
  * Compact tracker control for the preview/detail modal.
  * Three pills, always visible, no expanding bar: a Status dropdown (all
- * five statuses, manga-aware labels), a type-in Episode/Chapter pill
- * (commit on Enter/blur, Escape reverts, clamped to the known total),
- * and a ★ score dropdown (10→1 plus unrated). All values come from props
- * derived live from useTracking, so mutations propagate through the
- * existing reactive contexts with no reload. Status/progress/score
- * routing (incl. manga vocabulary + endpoints) lives in TrackingContext
- * and the provider mappers — this component only collects input.
+ * five statuses plus "–" to remove the entry from the list, manga-aware
+ * labels), a type-in Episode/Chapter pill (commit on Enter/blur, Escape
+ * reverts, clamped to the known total), and a ★ score dropdown (10→1 plus
+ * unrated). All values come from props derived live from useTracking, so
+ * mutations propagate through the existing reactive contexts with no
+ * reload. Status/progress/score routing (incl. manga vocabulary +
+ * endpoints) lives in TrackingContext and the provider mappers — this
+ * component only collects input.
  */
 export function TrackerCompact({
   status,
@@ -45,6 +46,7 @@ export function TrackerCompact({
   isManga,
   syncing,
   onStatus,
+  onRemove,
   onScore,
   onProgress,
 }: {
@@ -56,9 +58,16 @@ export function TrackerCompact({
   isManga: boolean
   syncing: string | null
   onStatus: (s: AnimeStatus) => Promise<void>
+  /** Remove the entry from the list entirely (Status "–"). */
+  onRemove: () => Promise<void>
   onScore: (n: number) => Promise<void>
   onProgress: (n: number) => Promise<void>
 }) {
+  // Status "–" removes the entry from the list (AniList
+  // DeleteMediaListEntry / MAL DELETE my_list_status). Any other value is
+  // a plain status change. No silent no-op: every branch runs a write.
+  const REMOVE_VALUE = '__remove__'
+  const statusValue = status === null ? REMOVE_VALUE : status
   const [busy, setBusy] = useState(false)
   const [draft, setDraft] = useState<string | null>(null)
   const unit = isManga ? 'Chapters' : 'Episodes'
@@ -88,14 +97,21 @@ export function TrackerCompact({
   return (
     <div className="px-4 pt-3 sm:px-6">
       <div className="flex flex-wrap items-center gap-2">
+        {/* Status "–" removes the entry from the list; untracked titles
+            also show "–" (no phantom "Planned on air" default). */}
         <FilterSelect
           prefix="Status:"
-          value={status ?? ''}
-          placeholder="–"
+          value={statusValue}
           ariaLabel="Tracking status"
           disabled={disabled}
-          options={STATUS_VALUES.map(s => ({ value: s, label: statusLabel(s, isManga) }))}
-          onChange={v => { if (v) run(() => onStatus(v as AnimeStatus)) }}
+          options={[
+            { value: REMOVE_VALUE, label: '–' },
+            ...STATUS_VALUES.map(s => ({ value: s, label: statusLabel(s, isManga) })),
+          ]}
+          onChange={v => {
+            if (v === REMOVE_VALUE) run(() => onRemove())
+            else if (v) run(() => onStatus(v as AnimeStatus))
+          }}
         />
         {/* Progress pill: "Episodes: N" / "Chapters: N" — the number is a
             type-in that commits on Enter/blur (Escape reverts), clamped to

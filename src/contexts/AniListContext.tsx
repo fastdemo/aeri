@@ -24,6 +24,8 @@ type Ctx = {
   updateProgress: (id: string, ep: number, isManga?: boolean) => Promise<void>
   updateStatus: (id: string, status: AnimeStatus, isManga?: boolean) => Promise<void>
   updateRating: (id: string, rating: number, isManga?: boolean) => Promise<void>
+  /** Remove the entry from the list entirely (AniList DeleteMediaListEntry). */
+  removeEntry: (id: string) => Promise<void>
 }
 
 const AniListContext = createContext<Ctx | null>(null)
@@ -291,6 +293,17 @@ export function AniListProvider({ children }: { children: React.ReactNode }) {
     })
   }, [])
 
+  const optimisticRemove = useCallback((id: string) => {
+    const target = id.startsWith('anilist-') ? id.replace('anilist-', '') : id
+    setAnimeList((prev) => {
+      if (!prev) return prev
+      return prev.filter((e) => {
+        const entryId = e.anime.identity.anilistId?.toString() ?? e.anime.identity.internalId
+        return entryId !== target && entryId !== id
+      })
+    })
+  }, [])
+
   const updateProgress = useCallback(async (id: string, ep: number) => {
     optimisticUpdate(id, { progress: ep })
     try {
@@ -333,6 +346,20 @@ export function AniListProvider({ children }: { children: React.ReactNode }) {
     }
   }, [optimisticUpdate, loadList])
 
+  const removeEntry = useCallback(async (id: string) => {
+    optimisticRemove(id)
+    try {
+      await aniListProvider.removeEntry(id)
+      const t = getAnilistToken()
+      if (t) await loadList(t).catch(() => {})
+    } catch (e) {
+      setError(friendly(e))
+      const t = getAnilistToken()
+      if (t) await loadList(t).catch(() => {})
+      throw e
+    }
+  }, [optimisticRemove, loadList])
+
   const value = useMemo<Ctx>(() => ({
     isAuthenticated,
     token,
@@ -351,7 +378,8 @@ export function AniListProvider({ children }: { children: React.ReactNode }) {
     updateProgress,
     updateStatus,
     updateRating,
-  }), [isAuthenticated, token, user, animeList, loadingUser, loadingList, error, authExpired, redirectUri, hasClientId, login, logout, setManualToken, refresh, updateProgress, updateStatus, updateRating])
+    removeEntry,
+  }), [isAuthenticated, token, user, animeList, loadingUser, loadingList, error, authExpired, redirectUri, hasClientId, login, logout, setManualToken, refresh, updateProgress, updateStatus, updateRating, removeEntry])
 
   return <AniListContext.Provider value={value}>{children}</AniListContext.Provider>
 }

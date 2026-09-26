@@ -163,6 +163,20 @@ export class MALProvider implements TrackingProvider {
     try { await deleteCache('mal:list').catch(() => {}); await deleteCache('mal:list:manga').catch(() => {}) } catch {}
   }
 
+  /**
+   * Remove the entry from the user's list entirely (MAL DELETE
+   * /{anime,manga}/{id}/my_list_status). No-op when not in the list.
+   */
+  async removeEntry(id: string, isManga = false): Promise<void> {
+    const malId = this.toMalId(id)
+    await malFetch(`/${isManga ? 'manga' : 'anime'}/${malId}/my_list_status`, {
+      method: 'DELETE',
+      useCache: false,
+    }).catch(() => {})
+    clearMalMemoryCache()
+    try { await deleteCache('mal:list').catch(() => {}); await deleteCache('mal:list:manga').catch(() => {}) } catch {}
+  }
+
   async updateRating(id: string, rating: number, isManga = false): Promise<void> {
     const malId = this.toMalId(id)
     const score = Math.round(rating) // MAL score 0-10 integer

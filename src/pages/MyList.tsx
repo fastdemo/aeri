@@ -46,6 +46,7 @@ export function MyList() {
   return (
     <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-12">
       <h1 className="text-[18px] font-semibold tracking-tight text-[var(--text)]">My List</h1>
+      <p className="mt-0.5 text-xs text-[var(--text-faint)]">Everything you're tracking, in one place.</p>
 
       {isAuthenticated && loading && (
         <div className="mt-6">

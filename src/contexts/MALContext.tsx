@@ -25,6 +25,8 @@ type Ctx = {
   updateProgress: (id: string, ep: number, isManga?: boolean) => Promise<void>
   updateStatus: (id: string, status: AnimeStatus, isManga?: boolean) => Promise<void>
   updateRating: (id: string, rating: number, isManga?: boolean) => Promise<void>
+  /** Remove the entry from the list entirely (MAL DELETE my_list_status). */
+  removeEntry: (id: string, isManga?: boolean) => Promise<void>
 }
 
 const MALContext = createContext<Ctx | null>(null)
@@ -272,18 +274,29 @@ export function MALProvider({ children }: { children: React.ReactNode }) {
     })
   }, [])
 
+  const optimisticRemove = useCallback((id: string) => {
+    const target = id.replace('mal-', '')
+    setAnimeList((prev) => {
+      if (!prev) return prev
+      return prev.filter((e) => {
+        const entryId = e.anime.identity.malId?.toString() ?? e.anime.identity.internalId
+        return entryId !== target && entryId !== id
+      })
+    })
+  }, [])
+
+  const resolveMalId = useCallback((id: string): string => {
+    if (!id.startsWith('anilist-')) return id
+    const found = animeList?.find(e => e.anime.identity.anilistId?.toString() === id.replace('anilist-', ''))
+    return found?.anime.identity.malId ? `mal-${found.anime.identity.malId}` : id
+  }, [animeList])
+
   const updateProgress = useCallback(async (id: string, ep: number, isManga = false) => {
     optimisticUpdate(id, { progress: ep })
     try {
       // For MAL, id may be mal- or anilist- mapped; try to resolve malId
       // If id is anilist-xxx, we need to find malId from current list or via mapping
-      let malId = id
-      if (id.startsWith('anilist-')) {
-        // Try to find corresponding malId via current list's anilist->mal mapping if available
-        const found = animeList?.find(e => e.anime.identity.anilistId?.toString() === id.replace('anilist-',''))
-        if (found?.anime.identity.malId) malId = `mal-${found.anime.identity.malId}`
-        else malId = id // will fail gracefully with NOT_FOUND handled
-      }
+      const malId = resolveMalId(id)
       await malProvider.updateProgress(malId, ep, isManga)
       const t = getMalToken()
       if (t) await loadList(t).catch(()=>{})
@@ -293,16 +306,12 @@ export function MALProvider({ children }: { children: React.ReactNode }) {
       if (t) await loadList(t).catch(()=>{})
       throw e
     }
-  }, [optimisticUpdate, loadList, animeList])
+  }, [optimisticUpdate, loadList, resolveMalId])
 
   const updateStatus = useCallback(async (id: string, status: AnimeStatus, isManga = false) => {
     optimisticUpdate(id, { status })
     try {
-      let malId = id
-      if (id.startsWith('anilist-')) {
-        const found = animeList?.find(e => e.anime.identity.anilistId?.toString() === id.replace('anilist-',''))
-        if (found?.anime.identity.malId) malId = `mal-${found.anime.identity.malId}`
-      }
+      const malId = resolveMalId(id)
       await malProvider.updateStatus(malId, status, isManga)
       const t = getMalToken()
       if (t) await loadList(t).catch(()=>{})
@@ -312,16 +321,12 @@ export function MALProvider({ children }: { children: React.ReactNode }) {
       if (t) await loadList(t).catch(()=>{})
       throw e
     }
-  }, [optimisticUpdate, loadList, animeList])
+  }, [optimisticUpdate, loadList, resolveMalId])
 
   const updateRating = useCallback(async (id: string, rating: number, isManga = false) => {
     optimisticUpdate(id, { score: rating })
     try {
-      let malId = id
-      if (id.startsWith('anilist-')) {
-        const found = animeList?.find(e => e.anime.identity.anilistId?.toString() === id.replace('anilist-',''))
-        if (found?.anime.identity.malId) malId = `mal-${found.anime.identity.malId}`
-      }
+      const malId = resolveMalId(id)
       await malProvider.updateRating(malId, rating, isManga)
       const t = getMalToken()
       if (t) await loadList(t).catch(()=>{})
@@ -331,11 +336,26 @@ export function MALProvider({ children }: { children: React.ReactNode }) {
       if (t) await loadList(t).catch(()=>{})
       throw e
     }
-  }, [optimisticUpdate, loadList, animeList])
+  }, [optimisticUpdate, loadList, resolveMalId])
+
+  const removeEntry = useCallback(async (id: string, isManga = false) => {
+    optimisticRemove(id)
+    try {
+      const malId = resolveMalId(id)
+      await malProvider.removeEntry(malId, isManga)
+      const t = getMalToken()
+      if (t) await loadList(t).catch(()=>{})
+    } catch (e) {
+      setError(friendly(e))
+      const t = getMalToken()
+      if (t) await loadList(t).catch(()=>{})
+      throw e
+    }
+  }, [optimisticRemove, loadList, resolveMalId])
 
   const value = useMemo<Ctx>(() => ({
-    isAuthenticated, token, user, animeList, loadingUser, loadingList, error, authExpired, redirectUri, hasClientId, login, logout, setManualToken, refresh, updateProgress, updateStatus, updateRating,
-  }), [isAuthenticated, token, user, animeList, loadingUser, loadingList, error, authExpired, redirectUri, hasClientId, login, logout, setManualToken, refresh, updateProgress, updateStatus, updateRating])
+    isAuthenticated, token, user, animeList, loadingUser, loadingList, error, authExpired, redirectUri, hasClientId, login, logout, setManualToken, refresh, updateProgress, updateStatus, updateRating, removeEntry,
+  }), [isAuthenticated, token, user, animeList, loadingUser, loadingList, error, authExpired, redirectUri, hasClientId, login, logout, setManualToken, refresh, updateProgress, updateStatus, updateRating, removeEntry])
 
   return <MALContext.Provider value={value}>{children}</MALContext.Provider>
 }
