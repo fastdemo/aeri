@@ -52,10 +52,10 @@ export function FilterSelect({
   if (prefix) {
     return (
       <span className={`relative inline-flex min-w-0 shrink-0 items-center gap-1 overflow-hidden rounded-full border border-[var(--border)] bg-[var(--bg-soft)] py-1.5 pl-3 pr-6 text-xs focus-within:border-[var(--border-strong)] ${disabled ? 'opacity-50' : ''}`}>
-        <span aria-hidden className="pointer-events-none inline-flex min-w-0 items-center gap-1 whitespace-nowrap">
-          <span className="shrink-0 text-[var(--text-muted)]">{prefix}</span>
+        <span aria-hidden className="pointer-events-none inline-flex min-w-0 items-center whitespace-nowrap">
+          <span className="shrink-0 text-[var(--text-muted)]">{prefix}&nbsp;</span>
           <span className="truncate font-medium text-[var(--text)]">{current}</span>
-          {suffix && <span className="shrink-0 text-[var(--text-muted)]">{suffix}</span>}
+          {suffix && <span className="shrink-0 text-[var(--text-muted)]">&nbsp;{suffix}</span>}
         </span>
         {overlay}
         <Icon name="chevron-down" size={12} className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 shrink-0 -translate-y-1/2 text-[var(--text-faint)]" />
