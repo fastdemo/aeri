@@ -106,7 +106,10 @@ export function TrackerCompact({
               if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
               else if (e.key === 'Escape') { setDraft(null); (e.target as HTMLInputElement).blur() }
             }}
-            className="w-[4ch] bg-transparent font-medium text-[var(--text)] focus:outline-none disabled:opacity-50"
+            // Width tracks the digit count: a fixed w-[4ch] left ~3ch of
+            // empty input after 1-digit values ("Episodes: 5   ").
+            style={{ width: `${Math.max(1, (draft ?? String(progress)).length || 1)}ch` }}
+            className="bg-transparent font-medium text-[var(--text)] focus:outline-none disabled:opacity-50"
           />
         </span>
         <FilterSelect
