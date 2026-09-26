@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { AnimeStatus } from '../../types/anime'
 import { FilterSelect, type FilterOption } from '../ui/FilterSelect'
+import { Icon } from '../ui/Icon'
 
 const STATUS_VALUES: AnimeStatus[] = ['watching', 'completed', 'planned', 'on_hold', 'dropped']
 
@@ -66,6 +67,13 @@ export function TrackerCompact({
     setBusy(true)
     try { await fn() } finally { setBusy(false) }
   }
+  const bump = () => {
+    setDraft(null)
+    const max = total && total > 0 ? total : Number.POSITIVE_INFINITY
+    const next = Math.min(max, progress + 1)
+    if (next === progress) return
+    run(() => onProgress(next))
+  }
   const commitDraft = () => {
     const raw = draft
     setDraft(null)
@@ -111,6 +119,15 @@ export function TrackerCompact({
             style={{ width: `${Math.max(1, (draft ?? String(progress)).length || 1)}ch` }}
             className="bg-transparent font-medium text-[var(--text)] focus:outline-none disabled:opacity-50"
           />
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={bump}
+            aria-label={`Mark one more ${isManga ? 'chapter' : 'episode'} watched`}
+            className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-[var(--text-muted)] transition hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)] hover:text-[var(--text)] disabled:opacity-30"
+          >
+            <Icon name="plus-lg" size={10} />
+          </button>
         </span>
         <FilterSelect
           prefix="★"
