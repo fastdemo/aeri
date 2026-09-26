@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { AnimeCard } from '../components/cards/AnimeCard'
 import { DetailModal } from '../components/detail/DetailModal'
-import { Icon } from '../components/ui/Icon'
+import { FilterSelect } from '../components/ui/FilterSelect'
 import type { Anime } from '../types/anime'
 import { useBrowse } from '../hooks/useAnimeMetadata'
 import { useLocation } from 'react-router-dom'
@@ -176,19 +176,13 @@ export function Browse() {
             { value: season, set: (v: string) => setSeason(v as any), label: 'Season', options: [{ label: 'All Seasons', value: 'All' }, ...seasons.slice(1).map(s => ({ label: s.charAt(0) + s.slice(1).toLowerCase(), value: s }))] },
             { value: format, set: (v: string) => setFormat(v as any), label: 'Format', options: formats.map(f => ({ label: formatLabels[f] ?? f, value: f })) },
           ].map(f => (
-            <div key={f.label} className="relative shrink-0">
-              <select
-                value={f.value}
-                onChange={e => f.set(e.target.value)}
-                aria-label={`Filter by ${f.label}`}
-                className="max-w-[130px] appearance-none truncate rounded-full border border-[var(--border)] bg-[var(--bg-soft)] py-1.5 pl-3.5 pr-8 text-xs font-medium text-[var(--text)] focus:border-[var(--border-strong)] focus:outline-none"
-              >
-                {f.options.map(o => (
-                  <option key={o.value} className="bg-[var(--surface)]" value={o.value}>{o.label}</option>
-                ))}
-              </select>
-              <Icon name="chevron-down" size={12} className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--text-faint)]" />
-            </div>
+            <FilterSelect
+              key={f.label}
+              value={f.value}
+              onChange={f.set}
+              ariaLabel={`Filter by ${f.label}`}
+              options={f.options}
+            />
           ))}
 
           {(genre !== 'All' || yearKey !== 'All Years' || season !== 'All' || format !== 'All') && (
@@ -221,19 +215,13 @@ export function Browse() {
           { value: season, set: (v: string) => setSeason(v as any), label: 'Season', options: [{ label: 'All Seasons', value: 'All' }, ...seasons.slice(1).map(s => ({ label: s.charAt(0) + s.slice(1).toLowerCase(), value: s }))] },
           { value: format, set: (v: string) => setFormat(v as any), label: 'Format', options: formats.map(f => ({ label: formatLabels[f] ?? f, value: f })) },
         ].map(f => (
-          <div key={f.label} className="relative shrink-0">
-            <select
-              value={f.value}
-              onChange={e => f.set(e.target.value)}
-              aria-label={`Filter by ${f.label}`}
-              className="max-w-[130px] appearance-none truncate rounded-full border border-[var(--border)] bg-[var(--bg-soft)] py-1.5 pl-3.5 pr-8 text-xs font-medium text-[var(--text)] focus:border-[var(--border-strong)] focus:outline-none"
-            >
-              {f.options.map(o => (
-                <option key={o.value} className="bg-[var(--surface)]" value={o.value}>{o.label}</option>
-              ))}
-            </select>
-            <Icon name="chevron-down" size={12} className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--text-faint)]" />
-          </div>
+          <FilterSelect
+            key={`m-${f.label}`}
+            value={f.value}
+            onChange={f.set}
+            ariaLabel={`Filter by ${f.label}`}
+            options={f.options}
+          />
         ))}
 
         {(genre !== 'All' || yearKey !== 'All Years' || season !== 'All' || format !== 'All') && (

@@ -35,7 +35,7 @@ export function DetailModal({
   onSelectRelated?: (anime: Anime) => void
 }) {
   const dialogRef = useRef<HTMLDivElement>(null)
-  const { isAuthenticated, combinedList, updateStatus, updateRating, error: trackingError, trackingProvider } = useTracking()
+  const { isAuthenticated, combinedList, updateStatus, updateRating, updateProgress, error: trackingError, trackingProvider } = useTracking()
   const [syncing, setSyncing] = useState<string | null>(null)
   const [localError, setLocalError] = useState<string | null>(null)
   const [showStatusPicker, setShowStatusPicker] = useState(false)
@@ -303,11 +303,12 @@ export function DetailModal({
             {localError ?? trackingError}
           </div>
         )}
-        {isAuthenticated && (currentStatus || currentScore !== null) && (
+        {isAuthenticated && (
           <TrackerCompact
             status={currentStatus}
             score={currentScore}
             progress={numEp}
+            total={isMangaKind ? (displayAnime.chapters ?? null) : (displayAnime.episodes ?? null)}
             isManga={isMangaKind}
             syncing={syncing}
             onStatus={async (s) => {
@@ -320,6 +321,12 @@ export function DetailModal({
               setSyncing('score')
               try { await updateRating(displayAnime, n) }
               catch (e) { setLocalError(e instanceof Error ? e.message : 'Couldn’t update score') }
+              finally { setSyncing(null) }
+            }}
+            onProgress={async (n) => {
+              setSyncing('progress')
+              try { await updateProgress(displayAnime, n) }
+              catch (e) { setLocalError(e instanceof Error ? e.message : 'Couldn’t update progress') }
               finally { setSyncing(null) }
             }}
           />

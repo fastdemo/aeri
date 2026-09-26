@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { AnimeCard } from '../components/cards/AnimeCard'
 import { DetailModal } from '../components/detail/DetailModal'
-import { Icon } from '../components/ui/Icon'
+import { FilterSelect } from '../components/ui/FilterSelect'
 import type { Anime } from '../types/anime'
 import { useMangaBrowse } from '../hooks/useAnimeMetadata'
 import { useTracking } from '../contexts/TrackingContext'
@@ -150,19 +150,13 @@ export function Manga() {
             { value: yearKey, set: (v: string) => setYearKey(v), label: 'Year', options: yearPresets.map(y => ({ label: y.label, value: y.label })) },
             { value: format, set: (v: string) => setFormat(v as any), label: 'Format', options: formats.map(f => ({ label: formatLabels[f] ?? f, value: f })) },
           ].map(f => (
-            <div key={f.label} className="relative shrink-0">
-              <select
-                value={f.value}
-                onChange={e => f.set(e.target.value)}
-                aria-label={`Filter by ${f.label}`}
-                className="max-w-[130px] appearance-none truncate rounded-full border border-[var(--border)] bg-[var(--bg-soft)] py-1.5 pl-3.5 pr-8 text-xs font-medium text-[var(--text)] focus:border-[var(--border-strong)] focus:outline-none"
-              >
-                {f.options.map(o => (
-                  <option key={o.value} className="bg-[var(--surface)]" value={o.value}>{o.label}</option>
-                ))}
-              </select>
-              <Icon name="chevron-down" size={12} className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--text-faint)]" />
-            </div>
+            <FilterSelect
+              key={f.label}
+              value={f.value}
+              onChange={f.set}
+              ariaLabel={`Filter by ${f.label}`}
+              options={f.options}
+            />
           ))}
 
           {(genre !== 'All' || yearKey !== 'All Years' || format !== 'All') && (
@@ -194,19 +188,13 @@ export function Manga() {
           { value: yearKey, set: (v: string) => setYearKey(v), label: 'Year', options: yearPresets.map(y => ({ label: y.label, value: y.label })) },
           { value: format, set: (v: string) => setFormat(v as any), label: 'Format', options: formats.map(f => ({ label: formatLabels[f] ?? f, value: f })) },
         ].map(f => (
-          <div key={f.label} className="relative shrink-0">
-            <select
-              value={f.value}
-              onChange={e => f.set(e.target.value)}
-              aria-label={`Filter by ${f.label}`}
-              className="max-w-[130px] appearance-none truncate rounded-full border border-[var(--border)] bg-[var(--bg-soft)] py-1.5 pl-3.5 pr-8 text-xs font-medium text-[var(--text)] focus:border-[var(--border-strong)] focus:outline-none"
-            >
-              {f.options.map(o => (
-                <option key={o.value} className="bg-[var(--surface)]" value={o.value}>{o.label}</option>
-              ))}
-            </select>
-            <Icon name="chevron-down" size={12} className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--text-faint)]" />
-          </div>
+          <FilterSelect
+            key={f.label}
+            value={f.value}
+            onChange={f.set}
+            ariaLabel={`Filter by ${f.label}`}
+            options={f.options}
+          />
         ))}
 
         {(genre !== 'All' || yearKey !== 'All Years' || format !== 'All') && (
