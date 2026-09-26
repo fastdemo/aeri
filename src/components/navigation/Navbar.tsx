@@ -231,7 +231,10 @@ export function Navbar() {
       aria-label="Primary"
     >
       <div ref={barRef} data-navbar-bar="true" className="mx-auto flex h-full max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-12 lg:gap-6">
-        <div className="flex items-center gap-6">
+        {/* Left cluster: logo + menu share ONE gap (halved on the
+            collapsed/mobile branch so the icon sits close to "aeri").
+            The old gap-6 (24px) read as detached on phones. */}
+        <div className="flex items-center gap-3">
           {/* Logo — simple Aeri, unselectable */}
           {/* Logo — simple Aeri, unselectable */}
           <Link

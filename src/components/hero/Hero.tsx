@@ -256,7 +256,7 @@ export function HeroCarousel({
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerCancel}
     >
-      <div className="relative aspect-[16/9] w-full overflow-hidden bg-[var(--surface)] sm:aspect-[21/9] lg:aspect-[2.2/1] lg:min-h-[460px] lg:max-h-[640px]" style={{ touchAction: 'pan-y' }}>
+      <div className="relative aspect-[4/3] w-full overflow-hidden bg-[var(--surface)] sm:aspect-[21/9] lg:aspect-[2.2/1] lg:min-h-[460px] lg:max-h-[640px]" style={{ touchAction: 'pan-y' }}>
         {/* Two-layer backdrop: the OLD slide keeps painting (with the
             ken-burns scale it accumulated) while the NEW slide mounts on
             top at scale(1.04) and eases to scale(1) over ~6.5s — exactly
@@ -337,7 +337,7 @@ export function HeroCarousel({
               : { animation: `aeri-hero-in ${CROSSFADE_MS}ms ease` }
           }
         >
-          <div className="flex w-full max-w-[560px] flex-col justify-end gap-3 px-5 pb-10 pt-16 sm:px-8 sm:pb-12 lg:justify-center lg:pb-0 lg:pl-12 lg:pr-0">
+          <div className="flex w-full max-w-[560px] flex-col justify-end gap-2 px-5 pb-6 pt-16 sm:gap-3 sm:px-8 sm:pb-8 lg:justify-center lg:pb-0 lg:pl-12 lg:pr-0">
             {(() => {
               const titles = getTitleHierarchy(active)
               const metaParts = [
@@ -349,29 +349,35 @@ export function HeroCarousel({
                 .join(' • ')
               return (
                 <>
-                  <h1 className="text-[22px] font-semibold leading-[1.05] tracking-[-0.03em] text-[var(--text)] sm:text-[30px] lg:text-[34px]">
+                  {/* Mobile: shorter hero — title clamps to 2 lines, no
+                      description, compact pills. Desktop unchanged.
+                      Native title hidden on mobile too: with a 2-line
+                      primary + meta + pills the column overflows the
+                      shorter hero and the dots pill collides with More
+                      Info (see mobile screenshot). */}
+                  <h1 className="line-clamp-2 text-[22px] font-semibold leading-[1.05] tracking-[-0.03em] text-[var(--text)] sm:text-[30px] lg:text-[34px]">
                     {titles.primary}
                   </h1>
-                  {titles.native && <p className="-mt-1 text-[12px] tracking-wide text-[var(--text-muted)]">{titles.native}</p>}
-                  {titles.romaji && <p className="-mt-1 text-[11px] tracking-wide text-[var(--text-faint)]">{titles.romaji}</p>}
+                  {titles.native && <p className="-mt-1 hidden text-[12px] tracking-wide text-[var(--text-muted)] sm:block">{titles.native}</p>}
+                  {titles.romaji && <p className="-mt-1 hidden text-[11px] tracking-wide text-[var(--text-faint)] sm:block">{titles.romaji}</p>}
                   <p className="text-[12px] font-medium tracking-wide text-[var(--text-muted)] flex items-center gap-2">
                     <span>{metaParts}</span>
                     <ScoreBadge anime={active} trackingProvider={trackingProvider} />
                   </p>
-                  <p className="line-clamp-2 max-w-[520px] text-[13px] leading-6 text-[var(--text-muted)] sm:line-clamp-3 sm:text-[14px]">
+                  <p className="hidden max-w-[520px] text-[13px] leading-6 text-[var(--text-muted)] sm:line-clamp-3 sm:text-[14px]">
                     {active.description}
                   </p>
                   <div className="mt-1 flex items-center gap-2">
                     <Link
                       to={`/watch/${active.identity.internalId}/1`}
-                      className="inline-flex h-8 items-center gap-1.5 rounded-full bg-[var(--text)] px-5 text-[13px] font-semibold text-[var(--on-text)] transition hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)] active:scale-[0.98]"
+                      className="inline-flex h-7 items-center gap-1.5 rounded-full bg-[var(--text)] px-4 text-[12px] font-semibold text-[var(--on-text)] transition hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)] active:scale-[0.98] sm:h-8 sm:px-5 sm:text-[13px]"
                     >
                       <Icon name="play-fill" size={14} />
                       Play
                     </Link>
                     <button
                       onClick={() => onMoreInfo?.(active)}
-                      className="inline-flex h-8 items-center rounded-full bg-[color-mix(in_srgb,var(--text)_14%,transparent)] px-4 text-[13px] font-medium text-[var(--text)] backdrop-blur transition hover:bg-[color-mix(in_srgb,var(--text)_20%,transparent)]"
+                      className="inline-flex h-7 items-center rounded-full bg-[color-mix(in_srgb,var(--text)_14%,transparent)] px-4 text-[12px] font-medium text-[var(--text)] backdrop-blur transition hover:bg-[color-mix(in_srgb,var(--text)_20%,transparent)] sm:h-8 sm:text-[13px]"
                       aria-label={`More info about ${titles.primary}`}
                     >
                       More Info
@@ -405,8 +411,11 @@ export function HeroCarousel({
               <Icon name="chevron-right" size={16} />
             </button>
 
-            {/* Pill dots centered bottom */}
-            <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 items-center gap-1.5 rounded-full bg-[color-mix(in_srgb,var(--bg)_45%,transparent)] px-2.5 py-1.5 backdrop-blur sm:bottom-4">
+            {/* Pill dots: bottom-center on desktop; on mobile tucked into
+                the top-right corner (out of the text column's way — the
+                shorter 4:3 hero has no free bottom edge: bottom-3 collides
+                with More Info, bottom-16 collides with the meta line). */}
+            <div className="absolute right-3 top-3 flex items-center gap-1.5 rounded-full bg-[color-mix(in_srgb,var(--bg)_45%,transparent)] px-2.5 py-1.5 backdrop-blur sm:bottom-4 sm:left-1/2 sm:right-auto sm:top-auto sm:-translate-x-1/2">
               {animes.map((a, i) => {
                 const isActive = i === index
                 return (
