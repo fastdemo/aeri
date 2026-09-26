@@ -182,7 +182,7 @@
 
 ### Changed
 - Identity (§1/§16): malId-first list matching now requires media-kind agreement (DetailModal baseEntry/entry, EpisodeList, ChapterList). Stops anime list entries replacing manga modals. No title/ID hacks.
-- Tracker (§2/§17): TrackerCompact three always-visible pills in DetailModal (Status: dropdown, Episodes:/Chapters: type-in, ★ score/10 dropdown — shared FilterSelect with the browse filters, full-pill overlay). Same updateStatus/updateProgress/updateRating callbacks — reactive via existing contexts.
+- Tracker (§2/§17): TrackerCompact three always-visible pills in DetailModal (Status: dropdown, Episodes:/Chapters: type-in, ★ score/10 dropdown — shared FilterSelect with the browse filters, full-pill overlay). Same updateStatus/updateProgress/updateRating callbacks — reactive via existing contexts. Writes deleteCache the 24h IDB list snapshots (AniList anilist:list:<uid>, MAL mal:list*) so the follow-up loadList can't resurrect stale progress; AniList score writes convert 0-10 into the user's scoreFormat (POINT_100/POINT_5/POINT_10).
 - Manga 80% (§4): chapter counts as read at furthest-page >= ceil(80% of pages); episode gate (>=0.8) unchanged. Logic matrix 10/50/79/80/90/100% verified.
 - Pull-sync (§3): AniList + MAL refetch on window focus/online/visibilitychange (60s cooldown, token-gated, silent). Manga external tracking still absent (no /mangalist endpoints, no progressVolumes) — documented, not faked.
 - Order (§8): per-list ↑/↓ toggles beside Episodes/Chapters (local state, oldest-first); Settings chapter-order UI removed; reader always oldest-first; chapterOrder pref retired (ignored optional).
