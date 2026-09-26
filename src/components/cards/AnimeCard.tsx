@@ -168,11 +168,11 @@ export function AnimeCard({
   const hoverMeta = `${anime.year ?? ''}${anime.year ? ' • ' : ''}${formatLabel(anime.format) ?? anime.format ?? ''}${anime.genres?.[0] ? ` • ${anime.genres[0]}` : ''}`
 
   const content = (
-    <div className="group group/card relative w-full flex-shrink-0">
+    <div className="group group/card relative w-full min-w-0 flex-shrink-0">
       <div
-        className={`relative w-full flex-shrink-0 overflow-hidden rounded-[6px] bg-[var(--surface)] ring-1 ring-[var(--border-strong)] transition-[ring-color] duration-200 hover:z-10 hover:ring-[var(--border-strong)] ${width}`}
+        className={`relative w-full min-w-0 flex-shrink-0 overflow-hidden rounded-[6px] bg-[var(--surface)] ring-1 ring-[var(--border-strong)] transition-[ring-color] duration-200 hover:z-10 hover:ring-[var(--border-strong)] ${width}`}
       >
-      <div className={`relative ${artAspect} w-full overflow-hidden bg-[var(--surface-elevated)]`}>
+      <div className={`relative ${artAspect} w-full min-w-0 overflow-hidden bg-[var(--surface-elevated)]`}>
         <img
           src={fallbackSrc}
           alt={primaryTitle}
@@ -234,9 +234,9 @@ export function AnimeCard({
           #1E1E2E, so the rectangle melts into the page exactly. Token
           (not hex) so every theme renders its own background step. */}
       {variant === 'continue' && anime.progress && (
-        <div className="space-y-1 bg-[var(--surface-0)] px-2.5 py-2">
-          <div className="flex items-center justify-between">
-            <p className="line-clamp-1 text-[11px] font-medium text-[var(--text)]">{primaryTitle}</p>
+        <div className="w-full min-w-0 space-y-1 bg-[var(--surface-0)] px-2.5 py-2">
+          <div className="flex min-w-0 items-center justify-between">
+            <p className="min-w-0 flex-1 line-clamp-1 text-[11px] font-medium text-[var(--text)]">{primaryTitle}</p>
           </div>
           <p className="truncate text-[11px] text-[var(--text-muted)]">
             {isManga
