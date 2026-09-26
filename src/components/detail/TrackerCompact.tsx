@@ -100,7 +100,7 @@ export function TrackerCompact({
         {/* Progress pill: "Episodes: N" / "Chapters: N" — the number is a
             type-in that commits on Enter/blur (Escape reverts), clamped to
             the known total. */}
-        <span className="inline-flex min-w-0 shrink-0 items-center gap-1 overflow-hidden rounded-full border border-[var(--border)] bg-[var(--bg-soft)] py-1.5 pl-3 pr-3 text-xs">
+        <span className="inline-flex min-w-0 shrink-0 items-center gap-1 overflow-hidden rounded-full border border-[var(--border)] bg-[var(--bg-soft)] py-1.5 pl-3 pr-2.5 text-xs">
           <label htmlFor="tracker-progress" className="shrink-0 cursor-text whitespace-nowrap text-[var(--text-muted)]">{unit}:</label>
           <input
             id="tracker-progress"
@@ -124,9 +124,9 @@ export function TrackerCompact({
             disabled={disabled}
             onClick={bump}
             aria-label={`Mark one more ${isManga ? 'chapter' : 'episode'} watched`}
-            className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-[var(--text-muted)] transition hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)] hover:text-[var(--text)] disabled:opacity-30"
+            className="grid shrink-0 place-items-center self-center rounded-full text-[var(--text-muted)] transition hover:text-[var(--text)] disabled:opacity-30"
           >
-            <Icon name="plus-lg" size={10} />
+            <Icon name="plus-circle" size={13} />
           </button>
         </span>
         <FilterSelect
