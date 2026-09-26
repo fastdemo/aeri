@@ -204,6 +204,29 @@ export function HeroCarousel({
   if (!animes.length) return null
   const active = animes[index]!
 
+  // Previous slide: kept mounted underneath while the new one loads, so
+  // there is never a blank window. prevIdx trails index by one change:
+  // the effect cleanup runs with the OUTGOING index before the new
+  // effect sets flags — so cleanup records outgoing, effect resets the
+  // new-layer load flags. The new layer starts at scale(1.04) / opacity
+  // 0 and eases in on its own onLoad — the old slow zoom-out.
+  // NOTE: prevIdx intentionally NEVER clears (stays at the last outgoing
+  // slide). Clearing it on load would unmount the old layer mid-zoom and
+  // snap the hero to a single static image; keeping it mounted means the
+  // old layer (now at scale(1)) simply sits invisible under the new one
+  // until the next rotation — zero visual cost, no blank window ever.
+  const [prevIdx, setPrevIdx] = useState<number | null>(null)
+  const [newLoaded, setNewLoaded] = useState(false)
+  const [newFailed, setNewFailed] = useState(false)
+  useEffect(() => {
+    setNewLoaded(false)
+    setNewFailed(false)
+    return () => { setPrevIdx(index) }
+  }, [index])
+  const prev = prevIdx !== null && prevIdx !== index && !newFailed
+    ? animes[prevIdx]
+    : undefined
+
   // CarouselShell owns the clip boundary (rounded + composited) so the
   // ken-burns scale on stacked backdrops can never bleed outside the hero
   // at any viewport. The section keeps carousel semantics inside it.
@@ -234,25 +257,48 @@ export function HeroCarousel({
       onPointerCancel={onPointerCancel}
     >
       <div className="relative aspect-[16/9] w-full overflow-hidden bg-[var(--surface)] sm:aspect-[21/9] lg:aspect-[2.2/1] lg:min-h-[460px] lg:max-h-[640px]" style={{ touchAction: 'pan-y' }}>
-        {/* Backdrop crossfade WITHOUT unmount: the <img> element is stable
-            (no key) and only its src swaps per slide. Re-mounting per slide
-            blanked the hero to the surface color on every rotation while
-            the new banner downloaded — a dark full-bleed flash that reads
-            as a left-edge crop. With a stable element the old image keeps
-            painting until the new one decodes (plus a CSS crossfade), so
-            there is never a blank window. */}
+        {/* Two-layer backdrop: the OLD slide keeps painting (with the
+            ken-burns scale it accumulated) while the NEW slide mounts on
+            top at scale(1.04) and eases to scale(1) over ~6.5s — exactly
+            the old slow zoom-out. No blank window is possible: the old
+            layer only unmounts after the new image's onLoad fires (plus a
+            700ms crossfade), and if the new src 404s/errors we keep the
+            old layer rather than showing surface color. */}
+        {prev && (
+          <img
+            src={prev.backdropImage}
+            alt=""
+            aria-hidden
+            loading="eager"
+            decoding="async"
+            className="absolute inset-0 h-full w-full object-cover"
+            style={{
+              opacity: newLoaded ? 0 : 1,
+              transition: prefersReducedMotion ? 'none' : 'opacity 700ms ease',
+              transform: 'scale(1)',
+            }}
+          />
+        )}
         <img
+          key={active.identity.internalId}
           src={active.backdropImage}
           alt=""
           aria-hidden
           loading="eager"
           decoding="async"
           fetchPriority="high"
-          // No entrance animation on the image itself: while the new
-          // backdrop is still downloading, a fade/scale ramp reads as a
-          // half-painted hero (dark left column) against the old text.
-          // The text block below keeps its own crossfade.
+          onLoad={() => setNewLoaded(true)}
+          onError={() => setNewFailed(true)}
           className="absolute inset-0 h-full w-full object-cover"
+          style={
+            prefersReducedMotion
+              ? { opacity: 1 }
+              : {
+                  opacity: newLoaded && !newFailed ? 1 : 0,
+                  transition: 'opacity 700ms ease, transform 6500ms ease-out',
+                  transform: newLoaded && !newFailed ? 'scale(1)' : 'scale(1.04)',
+                }
+          }
         />
 
         {/* Gradients — cinematic, always on top of images. Same
