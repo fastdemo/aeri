@@ -8,10 +8,10 @@ export interface FilterOption {
 
 /**
  * Shared pill dropdown — the filter selects from the Anime/Manga browse tabs.
- * Plain variant: the select itself is the pill (value doubles as the visible
- * label, e.g. Genre/Year). Prefixed variant: a muted `prefix` (e.g. "Status:",
- * "★") sits inside the pill and the select shows only the value.
- * Same pill, same chevron, same option treatment in both.
+ * The native select is transparent and covers the WHOLE pill, so every pixel
+ * opens the menu (no dead space, no unclickable prefix/suffix/padding); the
+ * visible row (prefix + value + suffix + chevron) is pointer-events-none.
+ * Same pill, same chevron, same option treatment in both variants.
  */
 export function FilterSelect({
   value,
@@ -34,42 +34,39 @@ export function FilterSelect({
   /** Shown when value is '' (e.g. unrated). Omitted = no placeholder option. */
   placeholder?: string
 }) {
+  const current = options.find(o => o.value === value)?.label ?? placeholder ?? ''
+  const overlay = (
+    <select
+      value={value}
+      disabled={disabled}
+      onChange={e => onChange(e.target.value)}
+      aria-label={ariaLabel}
+      className="absolute inset-0 h-full w-full cursor-pointer appearance-none opacity-0 focus:outline-none disabled:cursor-default"
+    >
+      {placeholder !== undefined && <option value="" className="bg-[var(--surface)]">{placeholder}</option>}
+      {options.map(o => (
+        <option key={o.value} className="bg-[var(--surface)]" value={o.value}>{o.label}</option>
+      ))}
+    </select>
+  )
   if (prefix) {
     return (
-      <span className="relative inline-flex shrink-0 items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--bg-soft)] py-1.5 pl-3.5 pr-8">
-        <span className="text-xs text-[var(--text-muted)]">{prefix}</span>
-        <select
-          value={value}
-          disabled={disabled}
-          onChange={e => onChange(e.target.value)}
-          aria-label={ariaLabel}
-          className="appearance-none bg-transparent text-xs font-medium text-[var(--text)] focus:outline-none disabled:opacity-50"
-        >
-          {placeholder !== undefined && <option value="" className="bg-[var(--surface)]">{placeholder}</option>}
-          {options.map(o => (
-            <option key={o.value} className="bg-[var(--surface)]" value={o.value}>{o.label}</option>
-          ))}
-        </select>
-        {suffix && <span className="text-xs text-[var(--text-muted)]">{suffix}</span>}
-        <Icon name="chevron-down" size={12} className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--text-faint)]" />
+      <span className={`relative inline-flex shrink-0 items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--bg-soft)] py-1.5 pl-3 pr-6 text-xs focus-within:border-[var(--border-strong)] ${disabled ? 'opacity-50' : ''}`}>
+        <span aria-hidden className="pointer-events-none inline-flex items-center gap-1">
+          <span className="text-[var(--text-muted)]">{prefix}</span>
+          <span className="font-medium text-[var(--text)]">{current}</span>
+          {suffix && <span className="text-[var(--text-muted)]">{suffix}</span>}
+        </span>
+        {overlay}
+        <Icon name="chevron-down" size={12} className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--text-faint)]" />
       </span>
     )
   }
   return (
-    <div className="relative shrink-0">
-      <select
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        aria-label={ariaLabel}
-        disabled={disabled}
-        className="max-w-[130px] appearance-none truncate rounded-full border border-[var(--border)] bg-[var(--bg-soft)] py-1.5 pl-3.5 pr-8 text-xs font-medium text-[var(--text)] focus:border-[var(--border-strong)] focus:outline-none disabled:opacity-50"
-      >
-        {placeholder !== undefined && <option value="" className="bg-[var(--surface)]">{placeholder}</option>}
-        {options.map(o => (
-          <option key={o.value} className="bg-[var(--surface)]" value={o.value}>{o.label}</option>
-        ))}
-      </select>
-      <Icon name="chevron-down" size={12} className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--text-faint)]" />
-    </div>
+    <span className={`relative inline-flex shrink-0 items-center rounded-full border border-[var(--border)] bg-[var(--bg-soft)] py-1.5 pl-3 pr-6 text-xs font-medium focus-within:border-[var(--border-strong)] ${disabled ? 'opacity-50' : ''}`}>
+      <span aria-hidden className="pointer-events-none max-w-[130px] truncate text-[var(--text)]">{current}</span>
+      {overlay}
+      <Icon name="chevron-down" size={12} className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--text-faint)]" />
+    </span>
   )
 }

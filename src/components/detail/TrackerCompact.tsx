@@ -89,9 +89,13 @@ export function TrackerCompact({
           options={STATUS_VALUES.map(s => ({ value: s, label: statusLabel(s, isManga) }))}
           onChange={v => { if (v) run(() => onStatus(v as AnimeStatus)) }}
         />
-        <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--bg-soft)] py-1.5 pl-3.5 pr-3.5">
-          <span className="text-xs text-[var(--text-muted)]">{unit}</span>
+        {/* Progress pill: "Episodes: N" / "Chapters: N" — the number is a
+            type-in that commits on Enter/blur (Escape reverts), clamped to
+            the known total. */}
+        <span className="relative inline-flex shrink-0 items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--bg-soft)] py-1.5 pl-3 pr-3 text-xs">
+          <label htmlFor="tracker-progress" className="text-[var(--text-muted)]">{isManga ? 'Chapters:' : 'Episodes:'}</label>
           <input
+            id="tracker-progress"
             value={draft ?? String(progress)}
             disabled={disabled}
             inputMode="numeric"
@@ -102,7 +106,7 @@ export function TrackerCompact({
               if (e.key === 'Enter') (e.target as HTMLInputElement).blur()
               else if (e.key === 'Escape') { setDraft(null); (e.target as HTMLInputElement).blur() }
             }}
-            className="w-[4ch] bg-transparent text-xs font-medium text-[var(--text)] focus:outline-none disabled:opacity-50"
+            className="w-[4ch] bg-transparent font-medium text-[var(--text)] focus:outline-none disabled:opacity-50"
           />
         </span>
         <FilterSelect
@@ -110,7 +114,7 @@ export function TrackerCompact({
           suffix="/10"
           value={score !== null && score > 0 ? String(Math.round(score)) : ''}
           placeholder="–"
-          ariaLabel="Score"
+          ariaLabel="Score out of 10"
           disabled={disabled}
           options={SCORE_OPTIONS}
           onChange={v => run(() => onScore(v === '' ? 0 : Number(v)))}
