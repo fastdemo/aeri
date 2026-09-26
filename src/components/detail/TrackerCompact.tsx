@@ -126,7 +126,7 @@ export function TrackerCompact({
             aria-label={`Mark one more ${isManga ? 'chapter' : 'episode'} watched`}
             className="grid shrink-0 place-items-center self-center rounded-full text-[var(--text-muted)] transition hover:text-[var(--text)] disabled:opacity-30"
           >
-            <Icon name="plus-circle" size={13} />
+            <Icon name="plus-lg" size={12} />
           </button>
         </span>
         <FilterSelect
