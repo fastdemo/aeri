@@ -226,7 +226,15 @@ export function Home() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [popular.data, airing.data, trending.data])
 
-  // Pool for derived categories and recommendations (deduplicated) — use larger pool for variety
+  // Pool for derived categories and recommendations (deduplicated) — use larger pool for variety.
+  // HOME RULE: TV + MOVIE only (OVA/ONA/SPECIAL/MUSIC never appear in
+  // home rows — Continue Watching is the only exempt row). The filter
+  // MUST live inside the fetch layer (mapPage, below), not here: these
+  // rows consume hook data DIRECTLY (variedTrending, variedPopular, …),
+  // bypassing allPool entirely — a pool-only filter leaves those rows
+  // unfiltered. mapPage drops non-TV/MOVIE ANIME records at ingestion so
+  // every consumer (pool, rows, hero) inherits it. The format comes
+  // straight from the provider record (no title-specific hacks).
   const allPool = useMemo(() => {
     return dedup([
       ...(trending.data ?? []),
@@ -237,10 +245,11 @@ export function Home() {
   }, [trending.data, popular.data, airing.data, news.data])
 
   // --- Personalized: "Because you watched X" — ONE row, ONE show.
-  // 50/50 per page load (mount-stable): heads = most-recently-updated entry,
-  // tails = random pick from top 10 by score (fallback: rating). Row = that
-  // show's first-genre matches, rating ordered. Title names ONLY that show.
-  const becauseCoinFlip = useRef(Math.random() < 0.5)
+  // FROZEN per mount: the reference show is picked once (most-recently-
+  // updated entry) and never re-picks mid-session — background refetches
+  // landing later must not swap the row out from under the user.
+  // (The old 50/50 coin flip + random top-10 pick re-rolled as list/pool
+  // data arrived, which is why the row "updated on its own".)
   const becauseRecommendations = useMemo(() => {
     if (!isAuthenticated || !combinedList || !combinedList.length || !allPool.length) return null
     const listIds = new Set(combinedList.map(e => e.anime.identity.internalId))
@@ -251,15 +260,9 @@ export function Home() {
     }
     const eligible = combinedList.filter(e => e.anime.genres?.length && matchCount(e.anime.genres) >= 2)
     if (!eligible.length) return null
-    let ref: (typeof eligible)[number]
-    if (becauseCoinFlip.current) {
-      ref = [...eligible].sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))[0]!
-    } else {
-      const byScore = [...eligible].sort((a, b) =>
-        ((b.score ?? 0) - (a.score ?? 0)) || ((b.anime.rating ?? 0) - (a.anime.rating ?? 0)))
-      const top10 = byScore.slice(0, 10)
-      ref = top10[Math.floor(Math.random() * top10.length)]!
-    }
+    // Deterministic: most-recently-updated eligible entry. No randomness,
+    // so the row is identical on every render for the same list+pool.
+    const ref = [...eligible].sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))[0]!
     const first = ref.anime.genres[0]?.toLowerCase()
     if (!first) return null
     const items = allPool

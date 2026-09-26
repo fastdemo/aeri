@@ -104,7 +104,15 @@ query ($search: String, $perPage: Int) {
 `
 
 function mapPage(res: { Page: { media: AniListMedia[] } }, mediaType?: 'ANIME' | 'MANGA'): ReturnType<typeof mapAniListMediaToAnime>[] {
-  const out = (res.Page.media ?? []).map((m) => mapAniListMediaToAnime(m, mediaType))
+  // HOME RULE: TV + MOVIE only. Home rows consume hook data directly
+  // (bypassing any page-level pool), so the filter lives HERE at
+  // ingestion — every consumer (home rows, hero, pools) inherits it.
+  // OVA/ONA/SPECIAL/MUSIC never appear on Home (Continue Watching is the
+  // only exempt surface). MANGA-type queries are unaffected. Format comes
+  // straight from the provider record — no title-specific hacks.
+  const out = (res.Page.media ?? [])
+    .filter((m) => mediaType === 'MANGA' || ['TV', 'MOVIE'].includes(((m as AniListMedia).format ?? '').toUpperCase()))
+    .map((m) => mapAniListMediaToAnime(m, mediaType))
   // Page results are full media records (relations included): publish each
   // to the shared cache so later detail visits cost zero network AND still
   // get Related Shows/Manga. Records without relation edges are NOT
