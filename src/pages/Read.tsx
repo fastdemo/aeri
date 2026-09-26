@@ -7,6 +7,7 @@ import { getPreferences } from '../storage/preferences'
 import { sortProviderUnits, unitDisplayLabel } from '../providers/manga/types'
 import { getTitleHierarchy } from '../lib/titles'
 import { Icon } from '../components/ui/Icon'
+import { FilterSelect } from '../components/ui/FilterSelect'
 import type { MangaChapter, MangaPage, MangaProvider, MangaSourceOptions } from '../providers/manga/types'
 import { getMangaProviderById, resolveChaptersWithFallback } from '../providers/manga/mangadex'
 
@@ -465,19 +466,12 @@ export function Read() {
         </div>
         {/* Chapter selector (follows chapterOrder pref) */}
         {orderedChapters && orderedChapters.length > 0 && (
-          <div className="relative shrink-0">
-            <select
-              value={currentChapter?.providerChapterId ?? ''}
-              onChange={e => { if (e.target.value && id) navigate(`/read/${id}/${encodeURIComponent(e.target.value)}`) }}
-              aria-label="Select chapter"
-              className="max-w-[150px] appearance-none truncate rounded-full border border-[var(--border)] bg-[var(--bg-soft)] py-1.5 pl-3.5 pr-8 text-xs font-medium text-[var(--text)] focus:border-[var(--border-strong)] focus:outline-none"
-            >
-              {orderedChapters.map(c => (
-                <option key={c.id} value={c.providerChapterId} className="bg-[var(--surface)]">{unitDisplayLabel(c)}</option>
-              ))}
-            </select>
-            <Icon name="chevron-down" size={12} className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--text-faint)]" />
-          </div>
+          <FilterSelect
+            value={currentChapter?.providerChapterId ?? ''}
+            onChange={v => { if (v && id) navigate(`/read/${id}/${encodeURIComponent(v)}`) }}
+            ariaLabel="Select chapter"
+            options={orderedChapters.map(c => ({ value: c.providerChapterId, label: unitDisplayLabel(c) }))}
+          />
         )}
       </div>
 

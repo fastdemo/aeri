@@ -219,7 +219,7 @@ export function DetailModal({
                 className="inline-flex h-8 items-center gap-1.5 rounded-full bg-[var(--text)] px-4 text-[13px] font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]"
               >
                 <Icon name="book" size={14} />
-                {hasWatched ? 'Continue' : 'Read'}
+                {hasWatched ? 'Resume' : 'Read'}
               </Link>
             ) : (
               <Link
@@ -230,9 +230,13 @@ export function DetailModal({
                 {hasWatched ? 'Resume' : 'Play'}
               </Link>
             )}
+            {/* Manga captions read "N of M" (chapters read of total);
+                anime keeps Episode N • title. */}
             {hasWatched && (
               <span className="text-xs text-[var(--text-muted)]">
-                {resumeEp}{displayAnime.episodes && displayAnime.episodes > 0 ? ` of ${displayAnime.episodes}` : ''} • {barPercent}% watched
+                {isMangaKind
+                  ? `${resumeEp} of ${displayAnime.chapters && displayAnime.chapters > 0 ? displayAnime.chapters : '—'}`
+                  : (<>{resumeEp}{displayAnime.episodes && displayAnime.episodes > 0 ? ` of ${displayAnime.episodes}` : ''} • {barPercent}% watched</>)}
               </span>
             )}
 

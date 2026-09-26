@@ -56,12 +56,17 @@ export function ProfilePlaceholder() {
   const user = trackingProvider === 'mal' ? (malUser ?? anilistUser) : (anilistUser ?? malUser)
   const trackerName = trackingProvider === 'mal' ? 'MyAnimeList' : 'AniList'
   const stats = useMemo(() => {
-    const list = combinedList ?? []
+    // PROFILE RULE: anime only — same boundary as Home + My List tab.
+    const list = (combinedList ?? []).filter(e => {
+      const mt = e.anime.identity.mediaType
+      if (mt) return mt === 'ANIME'
+      return !['MANGA', 'NOVEL', 'ONE_SHOT'].includes((e.anime.format ?? '').toUpperCase())
+    })
     const byStatus = (s: string) => list.filter(e => e.status === s).length
     const scores = list.map(e => e.score ?? 0).filter(s => s > 0)
     const mean = scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null
     const eps = list.reduce((a, e) => a + (e.progress ?? 0), 0)
-    return { total: list.length, watching: byStatus('watching'), completed: byStatus('completed'), planned: byStatus('planned'), mean, eps }
+    return { total: list.length, watching: byStatus('watching'), completed: byStatus('completed'), planned: byStatus('planned'), mean, eps, watchingList: list.filter(e => e.status === 'watching') }
   }, [combinedList])
   if (!isAuthenticated) {
     return <Navigate to="/" replace />
@@ -119,10 +124,10 @@ export function ProfilePlaceholder() {
         </div>
       </section>
 
-      {(combinedList ?? []).filter(e => e.status === 'watching').length > 0 ? (
+      {stats.watching > 0 ? (
         <div className="mt-8">
-          <ContentRow title="Currently watching" subtitle={`${(combinedList ?? []).filter(e => e.status === 'watching').length} titles`}>
-            {(combinedList ?? []).filter(e => e.status === 'watching').slice(0, 12).map(e => (
+          <ContentRow title="Currently watching" subtitle={`${stats.watching} titles`}>
+            {stats.watchingList.slice(0, 12).map(e => (
               <div key={e.anime.identity.internalId} className="w-[200px] shrink-0 snap-start sm:w-[240px]">
                 <AnimeCard anime={e.anime} onSelect={(a) => navigate(`/anime/${a.identity.anilistId ? `anilist-${a.identity.anilistId}` : a.identity.internalId}`)} variant="continue" />
               </div>

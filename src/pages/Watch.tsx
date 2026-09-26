@@ -11,6 +11,7 @@ import { getTitleHierarchy } from '../lib/titles'
 import { normalizeEpisodes, sanitizeAnimeForDisplay } from '../lib/episodes'
 import { formatLabel } from '../lib/mediaLabels'
 import { Icon } from '../components/ui/Icon'
+import { FilterSelect } from '../components/ui/FilterSelect'
 import { useRelatedEntries } from '../hooks/useRelatedEntries'
 import { RelatedEntries } from '../components/related/RelatedEntries'
 
@@ -414,24 +415,19 @@ export function Watch() {
               {sources && sources.length > 0 && (
                 <div className="flex items-center gap-2">
                   <span className="text-xs text-[var(--text-faint)]">Source:</span>
-                  <div className="relative">
-                    <select
-                      value={selectedSource?.url ?? ''}
-                      onChange={e => {
-                        const s = sources.find(s => s.url === e.target.value)
-                        if (s) setSelectedSource(s)
-                      }}
-                      aria-label="Select video source"
-                      className="appearance-none rounded-full border border-[var(--border)] bg-[var(--text)]/[0.06] px-3 py-1.5 pr-8 text-xs text-[var(--text)] focus:border-[var(--border-strong)] focus:outline-none"
-                    >
-                      {sources.map((s, idx) => (
-                        <option key={`${s.url}::${idx}`} value={s.url} className="bg-[var(--surface)]">
-                          {s.provider} {s.quality ? `• ${s.quality}` : ''} {s.language ? `• ${s.language}` : ''} {s.embed ? '• embed' : ''}
-                        </option>
-                      ))}
-                    </select>
-                    <Icon name="chevron-down" size={12} className="pointer-events-none absolute right-2.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[var(--text-faint)]" />
-                  </div>
+                  <FilterSelect
+                    value={selectedSource?.url ?? ''}
+                    onChange={v => {
+                      const s = sources.find(s => s.url === v)
+                      if (s) setSelectedSource(s)
+                    }}
+                    ariaLabel="Select video source"
+                    options={sources.map((s, idx) => ({
+                      value: s.url,
+                      label: `${s.provider}${s.quality ? ` • ${s.quality}` : ''}${s.language ? ` • ${s.language}` : ''}${s.embed ? ' • embed' : ''}`,
+                      key: `${s.url}::${idx}`,
+                    }))}
+                  />
                   <span className="text-[10px] text-[color-mix(in_srgb,var(--text)_30%,transparent)]">{preferredProvider ? `Preferred: ${preferredProvider}` : 'Auto'}</span>
                 </div>
               )}

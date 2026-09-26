@@ -4,6 +4,7 @@ import { Icon } from './Icon'
 export interface FilterOption {
   value: string
   label: string
+  key?: string
 }
 
 /**
@@ -45,7 +46,7 @@ export function FilterSelect({
     >
       {placeholder !== undefined && <option value="" className="bg-[var(--surface)]">{placeholder}</option>}
       {options.map(o => (
-        <option key={o.value} className="bg-[var(--surface)]" value={o.value}>{o.label}</option>
+        <option key={o.key ?? o.value} className="bg-[var(--surface)]" value={o.value}>{o.label}</option>
       ))}
     </select>
   )

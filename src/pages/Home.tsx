@@ -4,7 +4,7 @@ import { AnimeCard } from '../components/cards/AnimeCard'
 import { ContentRow } from '../components/rows/ContentRow'
 import { DetailModal } from '../components/detail/DetailModal'
 import { SignInModal } from '../components/auth/SignInModal'
-import type { Anime } from '../types/anime'
+import type { Anime, AnimeListEntry } from '../types/anime'
 import { useTracking } from '../contexts/TrackingContext'
 import { RowSkeleton } from '../components/ui/Skeleton'
 import { useTrending, usePopular, useAiring, useNewReleases } from '../hooks/useAnimeMetadata'
@@ -160,21 +160,22 @@ export function Home() {
   const airing = useAiring(24)
   const news = useNewReleases(24)
 
+  // HOME RULE: anime only. Manga progress lives in the reader/My List,
+  // never in this row — even when a manga watching entry exists.
+  const isAnimeEntry = (e: AnimeListEntry) => {
+    const mt = e.anime.identity.mediaType
+    if (mt) return mt === 'ANIME'
+    return !['MANGA', 'NOVEL', 'ONE_SHOT'].includes((e.anime.format ?? '').toUpperCase())
+  }
   const continueWatching: Anime[] = useMemo(() => {
     if (!isAuthenticated || !combinedList) return []
     // Strict: only status=watching (works for both trackers — statuses are
     // normalized at the provider boundary). Every entry stands alone: no
     // franchise merging, no season collapsing. No title cap: show everything.
-    // HOME RULE: anime only. Manga progress lives in the reader/My List,
-    // never in this row — even when a manga watching entry exists.
     const filtered = combinedList
       .map((e, idx) => ({ e, idx }))
       .filter(({ e }) => e.status === 'watching')
-      .filter(({ e }) => {
-        const mt = e.anime.identity.mediaType
-        if (mt) return mt === 'ANIME'
-        return !['MANGA', 'NOVEL', 'ONE_SHOT'].includes((e.anime.format ?? '').toUpperCase())
-      })
+      .filter(({ e }) => isAnimeEntry(e))
     if (!filtered.length) return []
 
     // Most-recently-updated first (updatedAt desc, stable by list order).
@@ -182,8 +183,9 @@ export function Home() {
     return sorted.map(({ e }) => e.anime)
   }, [isAuthenticated, combinedList])
 
+  // Home My List: anime only (manga has its own surfaces — reader, My List tab).
   const myList: Anime[] = useMemo(() => {
-    if (isAuthenticated && combinedList) return combinedList.map((e) => e.anime)
+    if (isAuthenticated && combinedList) return combinedList.filter(isAnimeEntry).map((e) => e.anime)
     return []
   }, [isAuthenticated, combinedList])
 

@@ -8,6 +8,7 @@ import { clearAnilistMemoryCache, getAnilistStats } from '../services/anilist/cl
 import { clearMalMemoryCache } from '../services/mal/client'
 import { getProviderCapabilities, checkProviderHealth, verifiedVideoProviders } from '../providers/video/registry'
 import { verifiedMangaProviders } from '../providers/manga/mangadex'
+import { FilterSelect } from '../components/ui/FilterSelect'
 import { THEMES, applyTheme } from '../lib/themes'
 import { Icon } from '../components/ui/Icon'
 
@@ -32,7 +33,6 @@ export function Settings() {
   const ani = useAniList()
   const mal = useMAL()
   const { trackingProvider, setTrackingProvider } = useTracking()
-  const [clearing, setClearing] = useState<string | null>(null)
 
   const updatePref = (patch: Partial<Preferences>) => {
     const next = setPreferences(patch)
@@ -51,7 +51,6 @@ export function Settings() {
     prefs.sync?.[provider]?.[field] !== false
 
   const handleClearCache = async () => {
-    setClearing('cache')
     try {
       const { clearAllCache } = await import('../storage/db')
       await clearAllCache()
@@ -62,22 +61,18 @@ export function Settings() {
         clearVideoMemoryCache()
       } catch {}
     } catch {}
-    setTimeout(() => setClearing(null), 800)
   }
 
   const handleClearWatchPos = async () => {
-    setClearing('watchPos')
     try {
       const { clearAllWatchPos } = await import('../storage/db')
       await clearAllWatchPos()
       localStorage.removeItem('aeri:progress:anilist-154587')
     } catch {}
-    setTimeout(() => setClearing(null), 800)
   }
 
   const handleResetAll = async () => {
     if (!confirm('Reset all local data? This will clear cache, watch positions, and preferences (accounts stay connected). Continue?')) return
-    setClearing('all')
     try {
       // Clear cache and watchPos as above
       await handleClearCache()
@@ -86,7 +81,6 @@ export function Settings() {
       localStorage.removeItem('aeri:prefs')
       setPrefs(getPreferences())
     } catch {}
-    setClearing(null)
   }
 
 // Video providers shown in Settings = verified ONLY (registry is the
@@ -165,6 +159,9 @@ export function Settings() {
     return out
   })()
 
+  // readerFit IS read by the reader (object-fit width/height). No UI yet —
+  // keep the pref (functional), surface it under Manga below.
+  const readerFit = prefs.readerFit ?? 'width'
   const isAuthenticated = ani.isAuthenticated || mal.isAuthenticated
   if (!isAuthenticated) {
     return <Navigate to="/" replace />
@@ -323,9 +320,10 @@ export function Settings() {
         </div>
       </section>
 
-      {/* Playback */}
+      {/* Anime: playback behavior + video sources, one section. */}
       <section className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--text)]/[0.02] p-4 sm:p-5">
-        <h2 className="text-sm font-semibold text-[var(--text)]">Playback</h2>
+        <h2 className="text-sm font-semibold text-[var(--text)]">Anime</h2>
+        <p className="mt-1 text-xs text-[var(--text-faint)]">Playback behavior and how Aeri picks video sources.</p>
         <div className="mt-4 space-y-4">
           <label className="flex items-center justify-between gap-4">
             <div>
@@ -371,20 +369,6 @@ export function Settings() {
               className="w-24 accent-[var(--accent)]"
             />
           </div>
-        </div>
-      </section>
-
-      {/* Manga */}
-      <section className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--text)]/[0.02] p-4 sm:p-5">
-        <h2 className="text-sm font-semibold text-[var(--text)]">Manga</h2>
-        <p className="mt-1 text-xs text-[var(--text-faint)]">Chapter list and reader preferences. Order is toggled beside each Chapters heading (↑/↓).</p>
-      </section>
-
-      {/* Video Sources */}
-      <section className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--text)]/[0.02] p-4 sm:p-5">
-        <h2 className="text-sm font-semibold text-[var(--text)]">Playback Sources</h2>
-        <p className="mt-1 text-xs text-[var(--text-faint)]">Choose how Aeri picks video sources.</p>
-        <div className="mt-4 space-y-4">
           <div>
             <p className="text-xs font-medium text-[var(--text)]">Preferred audio</p>
             <p className="text-[11px] text-[var(--text-faint)]">Sub: Japanese with subtitles. Dub: English where available. Falls back if missing.</p>
@@ -405,17 +389,13 @@ export function Settings() {
           <div>
             <p className="text-xs font-medium text-[var(--text)]">Preferred source</p>
             <p className="text-[11px] text-[var(--text-faint)]">Auto tries your choice first, then others.</p>
-            <select
+            <FilterSelect
               value={prefs.preferredProvider ?? ''}
-              onChange={e => updatePref({ preferredProvider: e.target.value || null })}
-              aria-label="Preferred source"
-              className="mt-2 w-full max-w-[260px] rounded-full border border-[var(--border)] bg-[var(--text)]/[0.06] px-3 py-2 text-xs text-[var(--text)] focus:border-[var(--border-strong)] focus:outline-none"
-            >
-              <option value="" className="bg-[var(--surface)]">Auto (Recommended)</option>
-              {orderedCaps.filter(c=>isEnabled(c.id)).map(c => (
-                <option key={c.id} value={c.id} className="bg-[var(--surface)]">{c.displayName}</option>
-              ))}
-            </select>
+              onChange={v => updatePref({ preferredProvider: v || null })}
+              ariaLabel="Preferred source"
+              placeholder="Auto (Recommended)"
+              options={orderedCaps.filter(c=>isEnabled(c.id)).map(c => ({ value: c.id, label: c.displayName }))}
+            />
             <p className="mt-1 text-[11px] text-[color-mix(in_srgb,var(--text)_30%,transparent)]">
               {prefs.preferredProvider ? `Trying ${prefs.preferredProvider} first, then fallback.` : 'Auto picks the best available source.'}
             </p>
@@ -454,34 +434,6 @@ export function Settings() {
             <p className="text-[11px] text-[color-mix(in_srgb,var(--text)_30%,transparent)]">Disable providers you don’t want to try. Reorder with ↑/↓ — preferred source still tried first.</p>
           </div>
           <div className="space-y-2 pt-4 border-t border-[var(--border)]">
-            <p className="text-xs font-medium text-[var(--text)]">Manga providers</p>
-            <p className="text-[11px] text-[var(--text-faint)]">Only verified working providers are listed. Disabled providers are never requested.</p>
-            <div className="overflow-hidden rounded-lg border border-[var(--border)]">
-              {orderedMangaProviders.map((p, idx) => {
-                const enabled = isMangaEnabled(p.id)
-                return (
-                  <div key={p.id} className={`flex items-center justify-between gap-3 px-3 py-2.5 ${idx !== orderedMangaProviders.length-1 ? 'border-b border-[var(--border)]' : ''} ${enabled ? 'bg-[var(--text)]/[0.02]' : 'bg-[color-mix(in_srgb,var(--bg)_20%,transparent)] opacity-60'}`}>
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="min-w-0">
-                        <p className="text-xs font-medium text-[var(--text)] truncate">{p.name}</p>
-                        <p className="text-[10px] text-[var(--text-faint)]">{p.blurb} • <span className="text-[var(--ok)]">Verified</span></p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <button onClick={()=>moveMangaProvider(p.id,-1)} disabled={idx===0} className="h-6 w-6 grid place-items-center rounded text-[var(--text-faint)] hover:text-[var(--text)] disabled:opacity-20" aria-label={`Move ${p.name} up`}><Icon name="arrow-up-short" size={14} /></button>
-                      <button onClick={()=>moveMangaProvider(p.id,1)} disabled={idx===orderedMangaProviders.length-1} className="h-6 w-6 grid place-items-center rounded text-[var(--text-faint)] hover:text-[var(--text)] disabled:opacity-20" aria-label={`Move ${p.name} down`}><Icon name="arrow-down-short" size={14} /></button>
-                      <label className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
-                        <input type="checkbox" checked={enabled} onChange={e=>toggleMangaProvider(p.id, e.target.checked)} className="h-3.5 w-3.5 rounded border-[var(--border-strong)] bg-[color-mix(in_srgb,var(--text)_10%,transparent)]" aria-label={`Enable ${p.name}`} />
-                        <span className="hidden sm:inline">Enable</span>
-                      </label>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-            <p className="text-[11px] text-[color-mix(in_srgb,var(--text)_30%,transparent)]">Disable providers you don’t want to try. Reorder with ↑/↓ — resolution follows this order.</p>
-          </div>
-          <div className="space-y-2 pt-4 border-t border-[var(--border)]">
             <p className="text-xs font-medium text-[var(--text)]">Custom video server (optional)</p>
             <p className="text-[11px] text-[var(--text-faint)]">Optional server for full episodes. Leave empty to use the built-in server.</p>
             <div className="flex gap-2">
@@ -512,6 +464,59 @@ export function Settings() {
             </div>
             <p className="text-[11px] text-[color-mix(in_srgb,var(--text)_30%,transparent)]">Your address stays in this browser. Nothing secret is stored here.</p>
           </div>
+        </div>
+      </section>
+
+      {/* Manga */}
+      <section className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--text)]/[0.02] p-4 sm:p-5">
+        <h2 className="text-sm font-semibold text-[var(--text)]">Manga</h2>
+        <p className="mt-1 text-xs text-[var(--text-faint)]">Chapter list and reader preferences. Order is toggled beside each Chapters heading (↑/↓).</p>
+        <div className="mt-4 space-y-4">
+          <div>
+            <p className="text-xs font-medium text-[var(--text)]">Reader page fit</p>
+            <p className="text-[11px] text-[var(--text-faint)]">Width fills the screen; height fits whole pages.</p>
+            <div className="mt-2 inline-flex rounded-full border border-[var(--border)] bg-[var(--bg-soft)] p-1" role="radiogroup" aria-label="Reader page fit">
+              {(['width','height'] as const).map(f => (
+                <button
+                  key={f}
+                  role="radio"
+                  aria-checked={readerFit === f}
+                  onClick={() => updatePref({ readerFit: f })}
+                  className={`rounded-full px-4 py-1 text-xs font-medium ${readerFit === f ? 'bg-[var(--text)] text-[var(--on-text)]' : 'text-[var(--text-muted)] hover:text-[var(--text)]'}`}
+                >
+                  {f === 'width' ? 'Width' : 'Height'}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="space-y-2 pt-4">
+          <p className="text-xs font-medium text-[var(--text)]">Manga providers</p>
+          <p className="text-[11px] text-[var(--text-faint)]">Only verified working providers are listed. Disabled providers are never requested.</p>
+          <div className="overflow-hidden rounded-lg border border-[var(--border)]">
+            {orderedMangaProviders.map((p, idx) => {
+              const enabled = isMangaEnabled(p.id)
+              return (
+                <div key={p.id} className={`flex items-center justify-between gap-3 px-3 py-2.5 ${idx !== orderedMangaProviders.length-1 ? 'border-b border-[var(--border)]' : ''} ${enabled ? 'bg-[var(--text)]/[0.02]' : 'bg-[color-mix(in_srgb,var(--bg)_20%,transparent)] opacity-60'}`}>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium text-[var(--text)] truncate">{p.name}</p>
+                      <p className="text-[10px] text-[var(--text-faint)]">{p.blurb} • <span className="text-[var(--ok)]">Verified</span></p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button onClick={()=>moveMangaProvider(p.id,-1)} disabled={idx===0} className="h-6 w-6 grid place-items-center rounded text-[var(--text-faint)] hover:text-[var(--text)] disabled:opacity-20" aria-label={`Move ${p.name} up`}><Icon name="arrow-up-short" size={14} /></button>
+                    <button onClick={()=>moveMangaProvider(p.id,1)} disabled={idx===orderedMangaProviders.length-1} className="h-6 w-6 grid place-items-center rounded text-[var(--text-faint)] hover:text-[var(--text)] disabled:opacity-20" aria-label={`Move ${p.name} down`}><Icon name="arrow-down-short" size={14} /></button>
+                    <label className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
+                      <input type="checkbox" checked={enabled} onChange={e=>toggleMangaProvider(p.id, e.target.checked)} className="h-3.5 w-3.5 rounded border-[var(--border-strong)] bg-[color-mix(in_srgb,var(--text)_10%,transparent)]" aria-label={`Enable ${p.name}`} />
+                      <span className="hidden sm:inline">Enable</span>
+                    </label>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+          <p className="text-[11px] text-[color-mix(in_srgb,var(--text)_30%,transparent)]">Disable providers you don’t want to try. Reorder with ↑/↓ — resolution follows this order.</p>
         </div>
       </section>
 
@@ -552,22 +557,19 @@ export function Settings() {
         <div className="mt-4 grid gap-2 sm:grid-cols-3">
           <button
             onClick={handleClearCache}
-            disabled={clearing === 'cache'}
-            className="rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-4 py-2 text-xs font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)] disabled:opacity-50"
+            className="rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-4 py-2 text-xs font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)]"
           >
-            {clearing === 'cache' ? 'Clearing…' : 'Clear cached data'}
+            Clear cached data
           </button>
           <button
             onClick={handleClearWatchPos}
-            disabled={clearing === 'watchPos'}
-            className="rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-4 py-2 text-xs font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)] disabled:opacity-50"
+            className="rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-4 py-2 text-xs font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)]"
           >
-            {clearing === 'watchPos' ? 'Clearing…' : 'Clear watch positions'}
+            Clear watch positions
           </button>
           <button
             onClick={handleResetAll}
-            disabled={!!clearing}
-            className="rounded-full bg-[var(--text)] px-4 py-2 text-xs font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)] disabled:opacity-50"
+            className="rounded-full bg-[var(--text)] px-4 py-2 text-xs font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]"
           >
             Reset local data
           </button>

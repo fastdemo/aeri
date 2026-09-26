@@ -72,9 +72,12 @@ export function SchedulePanel({ onClose, onOpen }: { onClose: () => void; onOpen
       role="menu"
       aria-label="Airing schedule"
       style={{ isolation: 'isolate' }}
-      className="absolute right-0 top-[calc(100%+8px)] z-[70] max-h-[min(68vh,420px)] w-[300px] overflow-x-hidden overflow-y-auto rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--bg)_70%,transparent)] backdrop-blur-2xl shadow-[0_16px_48px_var(--shadow)]"
+      className="absolute right-0 top-[calc(100%+8px)] z-[70] max-h-[min(68vh,420px)] w-[240px] max-w-[calc(100vw-2rem)] overflow-x-hidden overflow-y-auto rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--bg)_70%,transparent)] backdrop-blur-2xl shadow-[0_16px_48px_var(--shadow)]"
     >
-      <p className="sticky top-0 z-10 bg-[color-mix(in_srgb,var(--bg)_70%,transparent)] px-3 pb-1 pt-2 text-[14px] font-semibold text-[var(--text)] backdrop-blur-2xl">
+      {/* Transparent sticky header — same as search-suggestion group
+          headers. A translucent bg here would double-layer over the panel
+          bg and read as opaque. */}
+      <p className="sticky top-0 z-10 px-3 pb-1 pt-2 text-[14px] font-semibold text-[var(--text)]" style={{ background: 'transparent' }}>
         Airing soon
       </p>
       {items.length === 0 ? (
