@@ -19,11 +19,16 @@ const tabs: { id: AnimeStatus | 'all'; label: string }[] = [
 export function MyList() {
   const [tab, setTab] = useState<AnimeStatus | 'all'>('all')
   const [selected, setSelected] = useState<Anime | null>(null)
-  const { isAuthenticated, combinedList, loading, error, authExpired } = useTracking()
+  const { isAuthenticated, trackingProvider, combinedList, loading, error, authExpired } = useTracking()
   const location = useLocation()
   useEffect(() => { setSelected(null) }, [location.pathname, location.hash, location.search])
   const ani = useAniList()
   const mal = useMAL()
+  // Same header language as the Anime/Manga browse tabs: title + 1-line
+  // "Discover … • <tracker>" description (text-xs faint). The tracker is
+  // the active provider (AniList/MyAnimeList) — metadata is AniList either
+  // way, so the suffix names the active tracker exactly like Home rows do.
+  const trackerName = trackingProvider === 'anilist' ? 'AniList' : trackingProvider === 'mal' ? 'MyAnimeList' : 'AniList'
 
   // Production: real list only when authenticated; unauth shows empty with CTA (no fake anime).
   // Most recently active first (entries without activity timestamps keep provider order at the end).
@@ -46,7 +51,7 @@ export function MyList() {
   return (
     <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-12">
       <h1 className="text-[18px] font-semibold tracking-tight text-[var(--text)]">My List</h1>
-      <p className="mt-0.5 text-xs text-[var(--text-faint)]">Everything you're tracking, in one place.</p>
+      <p className="text-xs text-[var(--text-faint)]">Your tracked anime in one place • {trackerName}</p>
 
       {isAuthenticated && loading && (
         <div className="mt-6">

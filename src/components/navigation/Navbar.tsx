@@ -96,8 +96,9 @@ export function Navbar() {
   // (HeaderPopup) so its backdrop-blur samples the real page at every
   // scroll position — see HeaderPopup's doc comment.
   const searchInputRef = useRef<HTMLInputElement>(null)
-  // Bell anchor for the schedule popup (body portal, same as search).
+  // Bell + avatar anchors for the portaled popups (body portal, same as search).
   const bellRef = useRef<HTMLButtonElement>(null)
+  const profileBtnRef = useRef<HTMLButtonElement>(null)
 
   const dispatchNavigate = (to?: string) => {
     try { window.dispatchEvent(new CustomEvent('aeri:navigate')) } catch {}
@@ -350,8 +351,9 @@ export function Navbar() {
               Sign in
             </button>
           ) : (
-            <div ref={profileRef} className="relative">
+            <div ref={profileRef}>
               <button
+                ref={profileBtnRef}
                 onClick={() => setProfileOpen((v) => !v)}
                 aria-label="Profile"
                 aria-expanded={profileOpen}
@@ -366,12 +368,7 @@ export function Navbar() {
                 )}
               </button>
               {profileOpen && (
-                <div
-                  role="menu"
-                  aria-label="Profile menu"
-                  style={{ isolation: 'isolate' }}
-                  className="absolute right-0 top-[calc(100%+8px)] z-[70] w-[168px] overflow-hidden rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--bg)_70%,transparent)] backdrop-blur-2xl shadow-[0_16px_48px_var(--shadow)]"
-                >
+                <HeaderPopup anchorRef={profileBtnRef} align="right" width={168} ariaLabel="Profile menu">
                   <div className="p-1">
                     <Link
                       to="/profile"
@@ -389,7 +386,7 @@ export function Navbar() {
                       to="/settings"
                       role="menuitem"
                       onClick={() => { setProfileOpen(false); dispatchNavigate('/settings') }}
-                      className="flex w-full touch-manipulation items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-[color-mix(in_srgb,var(--text)_5%,transparent)]"
+                      className="flex w-full touch-manipulation items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)]"
                       style={{ touchAction: 'manipulation' } as any}
                     >
                       <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)]" aria-hidden>
@@ -398,7 +395,7 @@ export function Navbar() {
                       <span className="text-xs font-medium text-[var(--text)]">Settings</span>
                     </Link>
                   </div>
-                </div>
+                </HeaderPopup>
               )}
             </div>
           )}
@@ -421,7 +418,7 @@ export function Navbar() {
             </button>
           </form>
           {showSuggestions && query.trim().length >= 2 && (
-            <div className="relative mt-2 isolate">
+            <div className="relative mt-2">
               <SearchSuggestions query={query} onClose={() => { setShowSuggestions(false); setMobileSearchOpen(false) }} onPreview={(a) => { setMobileSearchOpen(false); if (!isAuthenticated) setSignInOpen(true); else setPreviewAnime(a) }} />
             </div>
           )}
