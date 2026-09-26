@@ -55,7 +55,7 @@ export function FilterSelect({
         <span aria-hidden className="pointer-events-none inline-flex min-w-0 items-center whitespace-nowrap">
           <span className="shrink-0 text-[var(--text-muted)]">{prefix}&nbsp;</span>
           <span className="truncate font-medium text-[var(--text)]">{current}</span>
-          {suffix && <span className="shrink-0 text-[var(--text-muted)]">&nbsp;{suffix}</span>}
+          {suffix && <span className="shrink-0 text-[var(--text-muted)]">{suffix}</span>}
         </span>
         {overlay}
         <Icon name="chevron-down" size={12} className="pointer-events-none absolute right-2 top-1/2 h-3 w-3 shrink-0 -translate-y-1/2 text-[var(--text-faint)]" />

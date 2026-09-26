@@ -111,7 +111,7 @@ export function TrackerCompact({
         </span>
         <FilterSelect
           prefix="★"
-          suffix="/10"
+          suffix=" /10"
           value={score !== null && score > 0 ? String(Math.round(score)) : ''}
           placeholder="–"
           ariaLabel="Score out of 10"
