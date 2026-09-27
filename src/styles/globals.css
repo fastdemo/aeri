@@ -135,3 +135,19 @@ button.rounded-full:focus-visible {
 img.img-fade { opacity: 0; transition: opacity 0.35s ease; }
 img.img-fade.is-loaded { opacity: 0.96; }
 img.img-fade.is-loaded:hover { opacity: 1; }
+
+/* Multi-line clamp that actually clamps. The Tailwind v4 line-clamp-*
+   utilities in this repo's build compute `display` to flow-root (verified
+   across every line-clamp node), so they never clamp. These plain-CSS
+   classes pair the legacy -webkit-box clamp with an explicit max-height
+   fallback (line-height × lines), so even where -webkit-box is dropped
+   the text still cannot exceed N lines — the overflow is hidden either
+   way. Single-line truncation (truncate) is unaffected. */
+.clamp-1, .clamp-2, .clamp-3 {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.clamp-1 { -webkit-line-clamp: 1; max-height: 1.6em; }
+.clamp-2 { -webkit-line-clamp: 2; max-height: 3.2em; }
+.clamp-3 { -webkit-line-clamp: 3; max-height: 4.8em; }

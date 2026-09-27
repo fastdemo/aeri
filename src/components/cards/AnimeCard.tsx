@@ -167,15 +167,21 @@ export function AnimeCard({
   // overlay on desktop (see below).
   const hoverMeta = `${anime.year ?? ''}${anime.year ? ' • ' : ''}${formatLabel(anime.format) ?? anime.format ?? ''}${anime.genres?.[0] ? ` • ${anime.genres[0]}` : ''}`
 
-  // Card edge: a real 1px border drawn INSIDE the frame (inset
-  // box-shadow, not Tailwind's outside ring). An outside ring paints past
-  // the scroller's clip origin on edge-flush rows (Home/Profile) and gets
-  // its left 1px cut — the chop. Inset keeps the full edge visible on
-  // every row at every viewport, same color/radius, zero layout shift.
+  // Card edge: a real 1px CSS border (border-box, painted INSIDE the
+  // frame). Unlike Tailwind's outside ring (box-shadow overhangs the
+  // border box and gets its left 1px cut by edge-flush scrollers on
+  // Home/Profile — the chop), a real border can never extend past the
+  // box, so it stays fully visible on every row at every viewport.
+  // Visible by design: --border-strong on dark surfaces.
+  // FIX-ME (root cause, Chromium ≤ headless-shell-1234?): `display:
+  // -webkit-box` computes to `flow-root` in this build, so ALL
+  // line-clamp-* utilities silently stop clamping (hero titles, row
+  // captions, descriptions). The h1 below carries an inline
+  // display:-webkit-box belt-and-braces until the engine is fixed.
   const content = (
     <div className="group group/card relative w-full min-w-0 flex-shrink-0">
       <div
-        className={`relative w-full min-w-0 flex-shrink-0 overflow-hidden rounded-[6px] bg-[var(--surface)] shadow-[inset_0_0_0_1px_var(--border-strong)] ${width}`}
+        className={`relative w-full min-w-0 flex-shrink-0 overflow-hidden rounded-[6px] border border-[var(--border-strong)] bg-[var(--surface)] transition-colors duration-200 hover:z-10 hover:border-[color-mix(in_srgb,var(--text)_35%,transparent)] ${width}`}
       >
       <div className={`relative ${artAspect} w-full min-w-0 overflow-hidden bg-[var(--surface-elevated)]`}>
         <img

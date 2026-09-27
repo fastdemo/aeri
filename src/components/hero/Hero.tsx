@@ -337,7 +337,14 @@ export function HeroCarousel({
               : { animation: `aeri-hero-in ${CROSSFADE_MS}ms ease` }
           }
         >
-          <div className="flex w-full max-w-[560px] flex-col justify-end gap-2 px-5 pb-6 pt-16 sm:gap-3 sm:px-8 sm:pb-8 lg:justify-center lg:pb-0 lg:pl-12 lg:pr-0">
+          {/* Text column: right padding reserves room for the next-arrow
+              hitarea (right-2 + w-8), so long titles wrap BEFORE reaching
+              it instead of sliding underneath on sm–lg widths where the
+              column is still full-width. pr uses min(): full 56px clearance
+              on wide heroes, shrinking on narrow so the title keeps room —
+              a fixed pr-14 (56px) on a 390px hero steals 14% of the width
+              and forces needless wrapping. */}
+          <div className="flex w-full max-w-[560px] min-w-0 flex-col justify-end gap-2 px-5 pb-6 pr-[min(56px,7vw)] pt-16 sm:gap-3 sm:px-8 sm:pb-8 lg:justify-center lg:pb-0 lg:pl-12">
             {(() => {
               const titles = getTitleHierarchy(active)
               const metaParts = [
@@ -355,7 +362,15 @@ export function HeroCarousel({
                       primary + meta + pills the column overflows the
                       shorter hero and the dots pill collides with More
                       Info (see mobile screenshot). */}
-                  <h1 className="line-clamp-2 text-[22px] font-semibold leading-[1.05] tracking-[-0.03em] text-[var(--text)] sm:text-[30px] lg:text-[34px]">
+                  {/* clamp-2 (globals.css): Tailwind's line-clamp-* utilities
+                      emit display:-webkit-box, but this build's engine
+                      computes it to flow-root, so they silently never clamp
+                      (verified site-wide). Plain-CSS class carries the box
+                      outside the utility layer. sm:clamp-3 does not exist —
+                      use sm:[ -webkit-line-clamp:3 ] arbitrary instead. */}
+                  <h1
+                    className="clamp-2 overflow-hidden text-[22px] font-semibold leading-[1.15] tracking-[-0.03em] text-[var(--text)] sm:text-[26px] sm:[-webkit-line-clamp:3] lg:text-[34px] lg:leading-[1.05]"
+                  >
                     {titles.primary}
                   </h1>
                   {titles.native && <p className="-mt-1 hidden text-[12px] tracking-wide text-[var(--text-muted)] sm:block">{titles.native}</p>}
