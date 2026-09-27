@@ -32,7 +32,11 @@ export function Watch() {
   })()
 
   const { data: remote, loading: loadingAnime } = useAnimeDetail(realId)
-  const anime = trackingEntry?.anime ?? remote
+  // DISPLAY RECORD RULE (same root cause as AnimeDetail): the tracker's
+  // list copy is a THIN MediaListCollection record (no relations, no
+  // streamingEpisodes). It supplies tracking state only — all display
+  // data comes from the full Media record, or nothing renders yet.
+  const anime = remote ?? null
   const matchHints = {
     animeTitle: anime ? (anime.title.romaji || anime.title.english || null) : null,
     animeEnglish: anime?.title.english ?? null,

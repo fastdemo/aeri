@@ -39,18 +39,47 @@ export function AnimeDetail() {
     return id
   })()
 
+  // THE DISPLAY RECORD RULE (root cause of the "add-to-list wipes
+  // episodes/related" bug): this page resolves the SAME anime from TWO
+  // sources — the tracker's list copy (fromList: thin MediaListCollection
+  // record, NO relations, NO streamingEpisodes) and the full Media query
+  // (remote: relations + streamingEpisodes + trailer). The old code
+  // preferred `remote ?? fromList` — i.e. the THIN list copy won whenever
+  // it existed. Before adding Naruto the modal showed the full record;
+  // the moment the + write landed and loadList refetched, the thin list
+  // copy appeared and REPLACED the full record: related entries + episode
+  // thumbnails vanished. Fix: the list copy supplies ONLY tracking state
+  // (progress/status/score); ALL display data comes from the full Media
+  // record. While remote is loading we show the skeleton (never the thin
+  // copy as a stand-in), and if the Media query errors we keep showing
+  // the last good full record instead of downgrading to thin data.
   const { data: remote, loading, error } = useAnimeDetail(realId)
 
-  // Prefer real remote data when available, else fromList (no mock fallback in production)
-  const anime = remote ?? fromList
+  const anime = remote ?? null
+
+  // Tracking state comes from the list copy ONLY (progress/status for
+  // the Play/Resume affordance). Display data never comes from here.
+  const listProgress = fromList?.progress?.episode ?? 0
+  const listStatus = fromList?.listStatus ?? null
 
   // Each route id IS one AniList entry — no group resolution, no season
   // selection. The displayed anime is exactly the routed entry.
   const displayAnime = useMemo(() => {
     if (!anime) return null as any
     // sanitize standalone anime (sort, filter trailers, fix reverse, discard out-of-range)
-    return sanitizeAnimeForDisplay(anime)
-  }, [anime])
+    const clean = sanitizeAnimeForDisplay(anime)
+    // Overlay list tracking state onto the full record (the full Media
+    // query carries no progress/listStatus of its own).
+    if (listProgress > 0 || listStatus) {
+      const total = clean.episodes ?? 0
+      clean.progress = {
+        episode: listProgress,
+        percent: total > 0 ? Math.round((listProgress / total) * 100) : listProgress > 0 ? 50 : 0,
+      }
+      if (listStatus) clean.listStatus = listStatus
+    }
+    return clean
+  }, [anime, listProgress, listStatus])
   const titles = useMemo(() => {
     if (!displayAnime) return { primary: '' } as any
     return getTitleHierarchy(displayAnime)

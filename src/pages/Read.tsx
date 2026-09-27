@@ -94,7 +94,10 @@ export function Read() {
   })()
 
   const { data: remote, loading: loadingManga } = useMangaDetail(realId)
-  const manga = trackingEntry?.anime ?? remote
+  // DISPLAY RECORD RULE (same root cause as AnimeDetail): the tracker's
+  // list copy is thin (no relations/chapters detail). Display comes from
+  // the full MANGA Media record only.
+  const manga = remote ?? null
   const titles = useMemo(() => (manga ? getTitleHierarchy(manga) : { primary: '' } as any), [manga])
 
   const chapterParam = decodeURIComponent(chapter ?? 'first')
