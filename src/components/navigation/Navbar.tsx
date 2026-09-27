@@ -152,6 +152,10 @@ export function Navbar() {
 
   // Fit-based breakpoint: show the inline nav only when everything fits in
   // one row with ~30% breathing room; otherwise collapse to the mini menu.
+  // NOTE: the hidden measurer below MUST mirror the real left-cluster gap
+  // (gap-6): it measures the same links+input with the same classes, so a
+  // stale gap here would under-measure and stick inline nav where it
+  // overflows. State-independent measurement ⇒ no oscillation possible.
   // A hidden measurer renders the SAME links + search input with the SAME
   // classes, so the decision uses true widths — never an estimate that can
   // disagree with reality at some scales (the old estimate measured the
@@ -204,7 +208,7 @@ export function Navbar() {
     <div
       ref={measureRef}
       aria-hidden
-      className="pointer-events-none fixed left-0 top-0 -z-10 flex h-14 w-max items-center gap-5 opacity-0"
+      className="pointer-events-none fixed left-0 top-0 -z-10 flex h-14 w-max items-center gap-6 opacity-0"
       style={{ visibility: 'hidden' } as any}
     >
       <span className="text-[19px] font-semibold tracking-[-0.02em]" style={{ fontFamily: '"Cal Sans", sans-serif' } as any}>aeri</span>
@@ -234,7 +238,9 @@ export function Navbar() {
         {/* Left cluster: logo + menu share ONE gap (halved on the
             collapsed/mobile branch so the icon sits close to "aeri").
             The old gap-6 (24px) read as detached on phones. */}
-        <div className="flex items-center gap-3">
+        {/* Left cluster: logo + nav share ONE gap (gap-6). Desktop nav
+            links use px-2 -mx-2 (visual rhythm preserved). */}
+        <div className="flex items-center gap-6">
           {/* Logo — simple Aeri, unselectable */}
           {/* Logo — simple Aeri, unselectable */}
           <Link
