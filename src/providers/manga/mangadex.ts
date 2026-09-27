@@ -187,24 +187,36 @@ class MangaDexProvider implements MangaProvider {
 
 import { weebCentralProvider } from './weebcentral'
 import { mangaPillProvider } from './mangapill'
+import { mangaHereProvider, bato1Provider, kakalotFunProvider, mangaReadProvider } from './mirrors'
 
 export const mangaDexProvider = new MangaDexProvider()
 
-export const mangaProviders: MangaProvider[] = [mangaDexProvider, weebCentralProvider, mangaPillProvider]
+// FINAL MANGA PRIORITY (verified reliability first — 2026-09-27 live pass):
+// 1. MangaDex (Tier 1: official API, primary)
+// 2. WeebCentral (Tier 1: /images fragment, PNGs)
+// 3. MangaPill (Tier 1: server-rendered, JPEGs)
+// 4. MangaHere (Tier 2: packed-JS decode, JPEGs)
+// 5. Bato1 (Tier 2: working bato1.com mirror, WEBPs)
+// 6. MangaKakalot.fun (Tier 2: working .fun mirror, PNGs)
+// 7. MangaRead (Tier 2: MangaBuddy replacement, JPEGs)
+// Dead/broken (canonical mangabuddy/mangakakalot/bato.to, mangapark,
+// comick pages) are NOT in this array — zero requests, zero timeout spent.
+export const mangaProviders: MangaProvider[] = [mangaDexProvider, weebCentralProvider, mangaPillProvider, mangaHereProvider, bato1Provider, kakalotFunProvider, mangaReadProvider]
 
 /**
  * Registry of ALL manga provider instances (verified or not). Settings
  * derives its Manga section from this via verifiedMangaProviders() —
  * never a hardcoded list. Resolution priority follows the user's
  * Settings → Providers order (`mangaProviderOrder` pref) when set,
- * else the default priority: WeebCentral → MangaDex → MangaPill.
+ * else the default priority: MangaDex → WeebCentral → MangaPill →
+ * MangaHere → Bato1 → MangaKakalot.fun → MangaRead.
  */
 export function allMangaProviders(): MangaProvider[] {
   return [...mangaProviders]
 }
 
-/** Default resolution priority (best coverage first). */
-export const DEFAULT_MANGA_ORDER = ['weebcentral', 'mangadex', 'mangapill']
+/** Default resolution priority (verified reliability first — 2026-09-27). */
+export const DEFAULT_MANGA_ORDER = ['mangadex', 'weebcentral', 'mangapill', 'mangahere', 'bato1', 'kakalot', 'mangaread']
 
 /** Effective resolution order: user order first (valid ids only), then the rest in default priority. */
 export function orderedMangaProviders(): MangaProvider[] {
@@ -272,8 +284,9 @@ export async function resolveChaptersWithFallback(manga: Anime, signal?: AbortSi
   let lastError: string | undefined
   // Deterministic: verified + enabled only, user-configured priority first
   // (Settings → Providers ↑/↓, persisted as mangaProviderOrder), default
-  // WeebCentral → MangaDex → MangaPill. Disabled providers are never
-  // requested — zero requests, no fallback through them.
+  // MangaDex → WeebCentral → MangaPill → MangaHere → Bato1 → MangaKakalot.fun
+  // → MangaRead. Disabled providers are never requested — zero requests,
+  // no fallback through them.
   // IMPORTANT: every enabled provider is attempted even after one succeeds.
   // A short work (Kurapika, 2 ch) can match-correctly on provider A while a
   // LATER provider holds the fuller/correct series — first-non-empty-wins

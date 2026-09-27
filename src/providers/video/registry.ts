@@ -6,6 +6,8 @@ import { animePaheProvider } from './animepahe'
 import { aniKotoProvider } from './anikoto'
 import { aniWaveProvider } from './aniwave'
 import { megaPlayProvider } from './megaplay'
+import { megaVidProvider } from './megavid'
+import { animeGGProvider } from './animegg'
 import { animeParadiseProvider } from './animeparadise'
 import { aniNekoProvider } from './anineko'
 import { miruroProvider } from './miruro'
@@ -14,17 +16,23 @@ import { customProvider } from './custom'
 import { getPreferences, getEffectiveVideoApiUrl } from '../../storage/preferences'
 import { fetchWithTimeout } from './base'
 
-// Priority order: Aniwave first (real full-episode streams when a valid
-// source exists), then official trailer (honest fallback/option), custom
-// endpoint (user self-hosted full-episode) when configured, then miruro
-// alias, then stubs. Resolution is preferred-not-forced: the first provider
-// with episodes wins, and source fallback walks the same order.
-// Mock is last for episode list only (no video)
+// Priority order (verified reliability first — 2026-09-27 live pass):
+// 1. megavid (Tier 1: proven HLS sub+dub, MAL-keyed, highest priority)
+// 2. animegg (Tier 2: proven MP4 sub+dub, first fallback)
+// 3. official trailer (honest fallback/option — trailer only, by design)
+// 4. custom endpoint (user self-hosted) when configured
+// Dead/broken/stub providers (aniwave backend dead, allanime/pahe/koto/
+// paradise/neko crypto- or CF-gated, miruro trailer-alias) are NEVER in
+// the active chain: they are status!=verified so the verified-only pool
+// below excludes them — zero requests, zero timeout budget spent.
+// Mock is last for episode list only (no video).
 export const videoProviders: VideoProvider[] = [
-  aniWaveProvider,
+  megaVidProvider,
+  animeGGProvider,
   officialProvider,
   customProvider,
   miruroProvider,
+  aniWaveProvider,
   allAnimeProvider,
   animePaheProvider,
   aniKotoProvider,
@@ -85,14 +93,14 @@ export async function checkProviderHealth(signal?: AbortSignal): Promise<Record<
       if (res.ok) {
         // Health = worker reachable; per-provider truth comes from the
         // verified registry (Settings only lists verified providers, so
-        // the map only needs those two keys).
-        const baseMap: Record<string, 'available' | 'unavailable'> = { official: 'available', aniwave: 'available' }
+        // the map carries exactly those keys).
+        const baseMap: Record<string, 'available' | 'unavailable'> = { official: 'available', megavid: 'available', animegg: 'available' }
         return baseMap
       }
     } catch {}
-    return { official: 'available', aniwave: 'unavailable' } as any
+    return { official: 'available', megavid: 'unavailable', animegg: 'unavailable' } as any
   }
-  return { official: 'available', aniwave: 'unavailable' }
+  return { official: 'available', megavid: 'unavailable', animegg: 'unavailable' }
 }
 
 export function getProviderById(id: string): VideoProvider | undefined {

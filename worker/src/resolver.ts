@@ -944,9 +944,10 @@ export async function handleStream(request: Request, cors: Record<string, string
 // ---------- signed manga image relay ----------
 
 // Hosts allowed through /api/manga/img. Page images (planeptune, lowee,
-// mangapill CDN) + covers (compsci88) only — never an open proxy. Suffix
-// match covers rotation subdomains (hot./scans-hot./official./cdn.).
-const MANGA_IMG_SUFFIXES = ['planeptune.us', 'compsci88.com', 'lowee.us', 'readdetectiveconan.com']
+// mangapill CDN, mangahere CDN, bato1 CDN, kakalot CDN, mangaread uploads)
+// + covers (compsci88) only — never an open proxy. Suffix match covers
+// rotation subdomains (hot./scans-hot./official./cdn.).
+const MANGA_IMG_SUFFIXES = ['planeptune.us', 'compsci88.com', 'lowee.us', 'readdetectiveconan.com', 'mangahere.org', 'love4awalk.xyz', 'mghcdn.com', 'mangaread.org']
 
 function mangaHostAllowed(hostname: string): boolean {
   const h = String(hostname || '').toLowerCase()
@@ -989,10 +990,20 @@ export async function handleMangaImage(request: Request, cors: Record<string, st
   try {
     // Referer must match the image's own provider: the mangapill CDN
     // (readdetectiveconan) 403s unless Referer is mangapill.com; the
-    // planeptune/lowee hosts accept the weebcentral referer (or none).
+    // mangahere CDN (zjcdn) wants mangahere.cc; planeptune/lowee hosts
+    // accept the weebcentral referer (or none). Bato1/kakalot/mangaread
+    // CDNs accept their own site referer.
     const referer = /\.readdetectiveconan\.com$/i.test(host)
       ? 'https://mangapill.com/'
-      : 'https://weebcentral.com/'
+      : /\.mangahere\.org$/i.test(host)
+        ? 'https://www.mangahere.cc/'
+        : /\.love4awalk\.xyz$/i.test(host)
+          ? 'https://bato1.com/'
+          : /\.mghcdn\.com$/i.test(host)
+            ? 'https://mangakakalot.fun/'
+            : /mangaread\.org$/i.test(host)
+              ? 'https://www.mangaread.org/'
+              : 'https://weebcentral.com/'
     const up = await fetchUpstream(target, {
       headers: { Accept: 'image/*', Referer: referer },
       timeoutMs: 30000,

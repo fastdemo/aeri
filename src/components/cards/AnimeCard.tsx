@@ -58,7 +58,10 @@ function QuickMenu({ anime }: { anime: Anime }) {
           e.preventDefault()
           setOpen((v) => !v)
         }}
-        className="absolute right-1 top-1 z-20 grid h-6 w-6 place-items-center text-[var(--text)] drop-shadow-[0_1px_2px_var(--shadow)] transition hover:text-[var(--text)] focus-visible:opacity-100 md:opacity-0 md:group-hover/card:opacity-100 md:focus-within:opacity-100"
+        // Visible affordance: a blurred glass chip behind the dots so they
+        // read on bright artwork even before hover (was text-only with a
+        // drop-shadow, invisible on light thumbnails like the screenshot).
+        className="absolute right-1 top-1 z-20 grid h-6 w-6 place-items-center rounded-full border border-[var(--border)] bg-[color-mix(in_srgb,var(--bg)_55%,transparent)] text-[var(--text)] shadow-[0_2px_10px_var(--shadow)] backdrop-blur-md transition hover:bg-[color-mix(in_srgb,var(--bg)_75%,transparent)] hover:text-[var(--text)] focus-visible:opacity-100 md:opacity-0 md:group-hover/card:opacity-100 md:focus-within:opacity-100"
       >
         <Icon name="three-dots-vertical" size={12} />
       </button>
@@ -75,15 +78,19 @@ function QuickMenu({ anime }: { anime: Anime }) {
             }}
             className="fixed inset-0 z-20 cursor-default bg-transparent"
           />
+          {/* Same glass language as the profile popup (HeaderPopup):
+              translucent bg + backdrop-blur-2xl + deep shadow. The old
+              solid surface-elevated panel read as an opaque grey slab. */}
           <div
             role="menu"
             aria-label={`Actions for ${getPrimaryTitle(anime)}`}
-            className="anim-pop-in absolute right-1 top-7 z-30 w-44 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] py-1 shadow-xl"
+            className="anim-pop-in absolute right-1 top-7 z-30 w-44 overflow-hidden rounded-xl border border-[var(--border)] bg-[color-mix(in_srgb,var(--bg)_70%,transparent)] shadow-[0_16px_48px_var(--shadow)] backdrop-blur-2xl"
             onClick={(e) => {
               e.stopPropagation()
               e.preventDefault()
             }}
           >
+            <div className="p-1">
             <button
               type="button"
               role="menuitem"
@@ -92,7 +99,7 @@ function QuickMenu({ anime }: { anime: Anime }) {
                 else if (current > 0) await updateProgress(anime, current)
                 await updateStatus(anime, 'completed')
               })}
-              className="flex w-full items-center px-2.5 py-1.5 text-left text-[11px] text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)] hover:text-[var(--text)]"
+              className="flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)]"
             >
               Mark as watched
             </button>
@@ -100,10 +107,11 @@ function QuickMenu({ anime }: { anime: Anime }) {
               type="button"
               role="menuitem"
               onClick={() => run(async () => updateStatus(anime, 'on_hold'))}
-              className="flex w-full items-center px-2.5 py-1.5 text-left text-[11px] text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)] hover:text-[var(--text)]"
+              className="flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)]"
             >
               Remove from Continue Watching
             </button>
+            </div>
           </div>
         </>
       )}

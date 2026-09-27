@@ -12,6 +12,8 @@ import { setResolveContext, handleStream, handleDiag, handleMangaImage, signMang
 import { wcSearchAndMatch, wcGetChapters, wcGetPages, wcMatchCached, wcMatchStore } from './manga'
 import { mdxSearchAndMatch, mdxGetChapters, mdxGetPages, mdxMatchCached, mdxMatchStore, mdxChaptersCached, mdxChaptersStore } from './mangadex'
 import { mpSearchAndMatch, mpGetChapters, mpGetPages, mpMatchCached, mpMatchStore } from './mangapill'
+import { mhSearchAndMatch, mhGetChapters, mhGetPages, mhMatchCached, mhMatchStore } from './mangahere'
+import { batoSearchAndMatch, batoGetChapters, batoGetPages, kkSearchAndMatch, kkGetChapters, kkGetPages, mrSearchAndMatch, mrGetChapters, mrGetPages } from './mirrors'
 
 import {
   OfficialTrailerProvider,
@@ -431,7 +433,114 @@ export default {
       }
     }
 
-    const epMatch = url.pathname.match(/^\/(?:api\/)?(?:video\/)?episodes\/(\d+)$/)
+    // --- Manga (MangaHere; slug ids, slug::cNNN units) ---
+    // GET /api/manga/mh-match/:anilistId?title=&english=&native=
+    // GET /api/manga/mh-chapters/:slug
+    // GET /api/manga/mh-pages/:slug/:chapter
+    const mhMatch = url.pathname.match(/^\/(?:api\/)?manga\/mh-match\/(\d+)$/)
+    if (mhMatch) {
+      const anilistId = Number(mhMatch[1])
+      if (!Number.isFinite(anilistId) || anilistId <= 0) return json({ error: 'Invalid anilistId' }, 400, env, origin)
+      const cached = mhMatchCached(`mh:${anilistId}`)
+      if (cached) return json({ providerMangaId: cached.providerMangaId, providerTitle: cached.providerTitle, provider: 'mangahere', cached: true }, 200, env, origin, { 'Cache-Control': 'public, max-age=600' })
+      try {
+        const m = await withTimeout(mhSearchAndMatch(buildHint(), request.signal), 20000, request.signal)
+        mhMatchStore(`mh:${anilistId}`, m)
+        return json({ providerMangaId: m.providerMangaId, providerTitle: m.providerTitle, provider: 'mangahere', verified: true }, 200, env, origin, { 'Cache-Control': 'public, max-age=600' })
+      } catch (e) {
+        if ((e as any)?.name === 'AbortError') return json({ error: 'Aborted' }, 499, env, origin)
+        return json({ error: String((e as Error)?.message ?? e), provider: 'mangahere' }, 502, env, origin)
+      }
+    }
+
+    const mhChapters = url.pathname.match(/^\/(?:api\/)?manga\/mh-chapters\/([a-z0-9_-]{1,80})$/)
+    if (mhChapters) {
+      try {
+        const list = await withTimeout(mhGetChapters(mhChapters[1], request.signal), 20000, request.signal)
+        return json({ chapters: list, count: list.length, provider: 'mangahere' }, 200, env, origin, { 'Cache-Control': 'public, max-age=300' })
+      } catch (e) {
+        if ((e as any)?.name === 'AbortError') return json({ error: 'Aborted' }, 499, env, origin)
+        return json({ error: String((e as Error)?.message ?? e), chapters: [] }, 502, env, origin)
+      }
+    }
+
+    const mhPages = url.pathname.match(/^\/(?:api\/)?manga\/mh-pages\/([a-z0-9_-]{1,80})\/([a-z0-9]+)$/)
+    if (mhPages) {
+      try {
+        const pages = await withTimeout(mhGetPages(`${mhPages[1]}::${mhPages[2]}`, request.signal), 20000, request.signal)
+        const signed: string[] = []
+        for (const u of pages) {
+          try {
+            const s = await signMangaImageUrl(u)
+            signed.push(s ?? u)
+          } catch { signed.push(u) }
+        }
+        return json({ pages: signed, count: signed.length, provider: 'mangahere', proxied: true }, 200, env, origin, { 'Cache-Control': 'public, max-age=300' })
+      } catch (e) {
+        if ((e as any)?.name === 'AbortError') return json({ error: 'Aborted' }, 499, env, origin)
+        return json({ error: String((e as Error)?.message ?? e), pages: [] }, 502, env, origin)
+      }
+    }
+
+    // --- Manga mirrors (Bato1 / MangaKakalot.fun / MangaRead) ---
+    // GET /api/manga/bt-match|kk-match|mr-match/:anilistId
+    // GET /api/manga/bt-chapters|kk-chapters|mr-chapters/:slug
+    // GET /api/manga/bt-pages|kk-pages|mr-pages/:slug/:num
+    const mirrorDefs = [
+      { p: 'bt', name: 'bato1', match: batoSearchAndMatch, chapters: batoGetChapters, pages: batoGetPages, slugRe: '[a-z0-9-]{1,80}' },
+      { p: 'kk', name: 'kakalot', match: kkSearchAndMatch, chapters: kkGetChapters, pages: kkGetPages, slugRe: '[a-z0-9-]{1,80}' },
+      { p: 'mr', name: 'mangaread', match: mrSearchAndMatch, chapters: mrGetChapters, pages: mrGetPages, slugRe: '[a-z0-9-]{1,80}' },
+    ] as const
+    for (const def of mirrorDefs) {
+      const mm = url.pathname.match(new RegExp(`^\\/(?:api\\/)?manga\\/${def.p}-match\\/(\\d+)$`))
+      if (mm) {
+        const anilistId = Number(mm[1])
+        if (!Number.isFinite(anilistId) || anilistId <= 0) return json({ error: 'Invalid anilistId' }, 400, env, origin)
+        const cache = mirrorMatchCache.get(`${def.p}:${anilistId}`)
+        if (cache && Date.now() - cache.at < 60 * 60 * 1000) {
+          return json({ providerMangaId: cache.m.providerMangaId, providerTitle: cache.m.providerTitle, provider: def.name, cached: true }, 200, env, origin, { 'Cache-Control': 'public, max-age=600' })
+        }
+        try {
+          const m = await withTimeout(def.match(buildHint(), request.signal), 20000, request.signal)
+          mirrorMatchCache.set(`${def.p}:${anilistId}`, { at: Date.now(), m })
+          return json({ providerMangaId: m.providerMangaId, providerTitle: m.providerTitle, provider: def.name, verified: true }, 200, env, origin, { 'Cache-Control': 'public, max-age=600' })
+        } catch (e) {
+          if ((e as any)?.name === 'AbortError') return json({ error: 'Aborted' }, 499, env, origin)
+          return json({ error: String((e as Error)?.message ?? e), provider: def.name }, 502, env, origin)
+        }
+      }
+      const mc = url.pathname.match(new RegExp(`^\\/(?:api\\/)?manga\\/${def.p}-chapters\\/(${def.slugRe})$`))
+      if (mc) {
+        try {
+          const list = await withTimeout(def.chapters(mc[1], request.signal), 20000, request.signal)
+          return json({ chapters: list, count: list.length, provider: def.name }, 200, env, origin, { 'Cache-Control': 'public, max-age=300' })
+        } catch (e) {
+          if ((e as any)?.name === 'AbortError') return json({ error: 'Aborted' }, 499, env, origin)
+          return json({ error: String((e as Error)?.message ?? e), chapters: [] }, 502, env, origin)
+        }
+      }
+      const mpg = url.pathname.match(new RegExp(`^\\/(?:api\\/)?manga\\/${def.p}-pages\\/(${def.slugRe})\\/([\\w.]+)$`))
+      if (mpg) {
+        try {
+          const pages = await withTimeout(def.pages(`${mpg[1]}::${mpg[2]}`, request.signal), 20000, request.signal)
+          const signed: string[] = []
+          for (const u of pages) {
+            try {
+              const s = await signMangaImageUrl(u)
+              signed.push(s ?? u)
+            } catch { signed.push(u) }
+          }
+          return json({ pages: signed, count: signed.length, provider: def.name, proxied: true }, 200, env, origin, { 'Cache-Control': 'public, max-age=300' })
+        } catch (e) {
+          if ((e as any)?.name === 'AbortError') return json({ error: 'Aborted' }, 499, env, origin)
+          return json({ error: String((e as Error)?.message ?? e), pages: [] }, 502, env, origin)
+        }
+      }
+    }
+
+    const mirrorMatchCache = new Map<string, { at: number; m: { providerMangaId: string; providerTitle: string } }>()
+
+const epMatch = url.pathname.match(/^\/(?:api\/)?(?:video\/)?episodes\/(\d+)$/)
     if (epMatch) {
       const anilistId = Number(epMatch[1])
       if (!Number.isFinite(anilistId) || anilistId <= 0) return json({ error: 'Invalid anilistId' }, 400, env, origin)
