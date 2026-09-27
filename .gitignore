@@ -43,3 +43,6 @@ AGENTS.md
 agents/
 TODO.md
 context.md
+
+# Agent-related files (personal/local config — never track)
+context.md
