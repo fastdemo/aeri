@@ -70,8 +70,19 @@ export function Watch() {
   }, [sanitizedAnimeForWatch])
 
   // AniList progress sync — this entry's episode number, nothing else.
+  // FIRES ONCE per (entry, episode): updateProgress writes trigger
+  // context list updates (optimistic + refetch → new array identities →
+  // new updateProgress callback identity). Without the once-guard the
+  // effect re-fires on every callback identity change: an unbounded
+  // PUT → loadList → re-render → PUT storm (verified 2026-10-10: ~100
+  // req/s to the worker in tests). Progress is idempotent — one write
+  // per episode view is the entire contract.
+  const progressSyncedRef = useRef<string | null>(null)
   useEffect(() => {
     if (!isAuthenticated || !anime) return
+    const key = `${anime.identity.internalId}:${epNum}`
+    if (progressSyncedRef.current === key) return
+    progressSyncedRef.current = key
     updateProgress(anime, epNum).catch(() => {})
     try {
       localStorage.setItem(`aeri:progress:${anime.identity.internalId}`, String(epNum))
