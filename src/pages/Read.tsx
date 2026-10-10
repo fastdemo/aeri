@@ -200,7 +200,11 @@ export function Read() {
   const olderChapter = nextChapter
   const newerChapter = prevChapter
 
-  // Pages for the current unit (MangaDex data-saver by default).
+  // Pages for the current unit. Provider comes from the unit's own id
+  // prefix — merged lists carry units from several providers, so the merge
+  // winner must NOT dictate page resolution (a MangaDex-led merge serving
+  // cached WeebCentral pages would 404). activeMangaProvider is the
+  // fallback only when the prefix names an unknown/disabled provider.
   // NOTE: pages are keyed per chapter — do NOT clear on chapter change
   // (clearing causes a pages=null render that resets effects keyed on
   // pages.length and drops in-flight resume state).
@@ -228,6 +232,15 @@ export function Read() {
     let cancelled = false
     setPagesError(null)
     setPagesLoading(true)
+    // Cross-provider guard: the URL chapter param must belong to the
+    // resolved merged list. A raw id from another title/provider (stale
+    // bookmark, hand-typed URL) resolves pages against the WRONG series —
+    // fail closed instead.
+    if (chapters && !chapters.some(c => c.providerChapterId === currentChapter.providerChapterId && c.id === currentChapter.id)) {
+      setPagesError('Chapter not found in this title.')
+      setPagesLoading(false)
+      return
+    }
     const provider = getMangaProviderById(provId) ?? activeMangaProvider
     if (!provider) {
       setPagesError('No Manga providers are enabled.')
@@ -247,7 +260,7 @@ export function Read() {
         setPagesLoading(false)
       })
     return () => { cancelled = true; controller.abort() }
-  }, [currentChapter?.providerChapterId, activeMangaProvider])
+  }, [currentChapter?.providerChapterId, currentChapter?.id, chapters, activeMangaProvider])
 
   // Resume: stored read position. Identity = AniList Manga ID + provider +
   // provider unit ID — never a bare chapter number, never shared across
@@ -301,7 +314,9 @@ export function Read() {
       id: `read:${manga.identity.internalId}`,
       chapterId: currentChapter.providerChapterId,
       chapterLabel: unitDisplayLabel(currentChapter),
-      provider: 'mangadex',
+      // The serving provider (unit's own prefix), not the merge winner —
+      // resume must reopen the same pages, not the winner's equivalent.
+      provider: currentChapter.id.split('-')[0] || 'unknown',
       page: pageRef.current,
       maxPage: pages.length,
       updatedAt: now,
@@ -467,7 +482,10 @@ export function Read() {
           <h1 className="truncate text-[15px] font-semibold text-[var(--text)]">{titles.primary}</h1>
           <p className="truncate text-xs text-[var(--text-faint)]">{currentChapter ? unitDisplayLabel(currentChapter) : 'Loading chapters…'}</p>
         </div>
-        {/* Chapter selector (follows chapterOrder pref) */}
+        {/* Chapter selector (reader order: oldest-first) + source indicator.
+            The reader uses a per-unit source badge (below) — the dropdown
+            stays provider-agnostic; provenance lives on each chapter row
+            and the header badge, not in this control. */}
         {orderedChapters && orderedChapters.length > 0 && (
           <FilterSelect
             value={currentChapter?.providerChapterId ?? ''}
@@ -477,6 +495,17 @@ export function Read() {
           />
         )}
       </div>
+      {/* Source indicator: which provider serves THIS chapter's pages.
+          Merged lists mix providers, so the winner alone is misleading —
+          the unit's own id prefix is the truth. Unknown prefix (stale
+          cache) shows no badge rather than a guessed one. */}
+      {currentChapter && (() => {
+        const prov = currentChapter.id.split('-')[0] || ''
+        const provName = prov === 'mangadex' ? 'MangaDex' : prov === 'weebcentral' ? 'WeebCentral' : prov === 'mangapill' ? 'MangaPill' : prov === 'mangahere' ? 'MangaHere' : prov === 'bato1' ? 'Bato1' : prov === 'kakalot' ? 'Kakalot' : prov === 'mangaread' ? 'MangaRead' : ''
+        return provName ? (
+          <p className="pb-2 text-[11px] text-[var(--text-faint)]">Source: {provName} • pages load from this provider</p>
+        ) : null
+      })()}
 
       {chaptersError && !chapters && (
         <div className="rounded-lg border border-[var(--border)] bg-[var(--text)]/[0.03] px-4 py-6 text-center">

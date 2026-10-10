@@ -104,13 +104,14 @@ try {
   check('manga Solo Leveling external links', (ch.chapters?.length ?? 0) === 0 && (ch.external?.length ?? 0) > 0, `${ch.external?.length ?? 0} ext`)
 } catch (e) { check('manga Solo Leveling external links', false, String(e).slice(0, 100)) }
 
-// ---------- Anime (aniwave verified; official = trailer by design) ----------
+// ---------- Anime (verified-only chain — full episodes only; trailers
+// must never appear in this chain) ----------
 const ANIME_CASES = [
   { anilistId: 21, title: 'One Piece', minEps: 1000 },
   { anilistId: 20, title: 'Naruto', minEps: 200 },
   { anilistId: 1535, title: 'Death Note', minEps: 30 },
   { anilistId: 16498, title: 'Shingeki no Kyojin', english: 'Attack on Titan', minEps: 20 },
-  { anilistId: 11061, title: 'HUNTER x HUNTER', english: 'Hunter x Hunter', minEps: 0, allowZeroEps: true },
+  { anilistId: 11061, title: 'HUNTER x HUNTER', english: 'Hunter x Hunter', minEps: 0, allowZeroEps: true, diagNote: 'aniwave has no confident HxH match (2011 vs 1999 ambiguity fails closed) — zero is honest' },
   { anilistId: 154587, title: 'Sousou no Frieren', english: 'Frieren', minEps: 20 },
 ]
 for (const c of ANIME_CASES) {

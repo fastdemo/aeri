@@ -7,6 +7,19 @@ export interface AniListTitle {
   native?: string | null
 }
 
+/** AniList staff edge (manga catalogue: authors/artists). Roles are
+    free-text ("Story & Art", "Supervisor", ...); translators included. */
+export interface AniListStaffEdge {
+  role?: string | null
+  node?: { name?: { full?: string | null } | null } | null
+}
+
+/** AniList tag with spoiler-aware rank (lower rank = more relevant). */
+export interface AniListTag {
+  name?: string | null
+  rank?: number | null
+}
+
 export interface AniListMedia {
   id: number
   idMal?: number | null
@@ -30,6 +43,11 @@ export interface AniListMedia {
   popularity?: number | null
   streamingEpisodes?: { title?: string | null; thumbnail?: string | null; url?: string | null; site?: string | null }[] | null
   trailer?: { id?: string | null; site?: string | null } | null
+  /** Manga catalogue fields (staff/tags/endDate). Anime queries omit them;
+      absent = unknown, never fabricated. */
+  staff?: { edges?: AniListStaffEdge[] | null } | null
+  tags?: AniListTag[] | null
+  endDate?: { year?: number | null; month?: number | null; day?: number | null } | null
   nextAiringEpisode?: { airingAt: number; timeUntilAiring: number; episode: number } | null
   airingSchedule?: { nodes: { airingAt: number; episode: number }[] } | null
   isAdult?: boolean | null
@@ -181,6 +199,39 @@ export function mapAniListMediaToAnime(media: AniListMedia, mediaType?: 'ANIME' 
   // HxH manga). Callers pass the query's media type; the response's own
   // `type` field wins when present; format infers it otherwise
   // (MANGA/NOVEL/ONE_SHOT ⇒ MANGA, else ANIME).
+  // Manga catalogue metadata: staff (creators first), tags by rank,
+  // endDate. Absent when the query did not request them (anime surfaces)
+  // — never fabricated. Translators and other long-tail roles are dropped:
+  // catalogue shows creators, not full credits. Names AND roles both
+  // trimmed: AniList roles carry volume ranges ("Story & Art (vols 1-41)")
+  // that would overflow the sidebar row untrimmed.
+  const staff = (() => {
+    const edges = media.staff?.edges ?? []
+    if (!edges.length) return undefined
+    const clean = (s: string) => s.replace(/\s*\([^)]*\)\s*/g, '').trim()
+    const creatorRe = /story|art|author|illustrat|supervisor|original/i
+    const makers = edges
+      .filter(e => e?.node?.name?.full && creatorRe.test(e?.role ?? ''))
+      .map(e => ({ role: clean(e!.role ?? '') || null, name: e!.node!.name!.full!.trim() }))
+      .filter(e => e.name)
+    const seen = new Set(makers.map(m => m.name))
+    const rest = edges
+      .filter(e => e?.node?.name?.full && !seen.has(e.node.name.full.trim()))
+      .slice(0, Math.max(0, 6 - makers.length))
+      .map(e => ({ role: clean(e!.role ?? '') || null, name: e!.node!.name!.full!.trim() }))
+      .filter(e => e.name)
+    const all = [...makers, ...rest]
+    return all.length ? all : undefined
+  })()
+  const tags = (() => {
+    const list = (media.tags ?? [])
+      .filter(t => t?.name)
+      .map(t => ({ name: t!.name!, rank: t!.rank ?? null }))
+      .sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999))
+      .slice(0, 12)
+    return list.length ? list : undefined
+  })()
+  const endDate = media.endDate?.year ? { year: media.endDate.year, month: media.endDate.month ?? null, day: media.endDate.day ?? null } : undefined
   const responseType = (media.type ?? '').toUpperCase()
   const inferredType: 'ANIME' | 'MANGA' = responseType === 'ANIME' || responseType === 'MANGA' ? responseType
     : (mediaType ?? (
@@ -209,6 +260,9 @@ export function mapAniListMediaToAnime(media: AniListMedia, mediaType?: 'ANIME' 
     ratings: rating != null ? { anilist: rating } : undefined,
     genres: media.genres ?? [],
     studios,
+    staff,
+    tags,
+    endDate,
     format: media.format ?? undefined,
     popularity: media.popularity ?? undefined,
     streamingEpisodes,

@@ -131,87 +131,11 @@ function seriesYearOk(series: any, hint?: ProviderHint): boolean {
   return true
 }
 
-// --- Official Trailer Provider ---
-// Legitimate, authorized source: AniList trailer (YouTube) + Archive.org MP4 fallback.
-// No CAPTCHA, no DRM, no Cloudflare challenge, CORS * on AniList, YouTube embed cross-origin, Archive via Worker proxy.
-
-export class OfficialTrailerProvider implements VideoSourceProvider {
-  id = 'official'
-  capabilities: ProviderCapabilities = {
-    id: 'official',
-    displayName: 'Official Trailer',
-    languages: ['sub', 'dub'],
-    subtitles: false,
-    hls: false,
-    mp4: false,
-    embed: true,
-    search: false,
-    episodes: true,
-    sources: true,
-  }
-
-  private archiveFallbacks(_workerOrigin: string | null, _language: VideoLanguage): NormalizedSource[] {
-    // No unrelated Archive fallback in production — only anime-specific YouTube trailer is honest.
-    // Previously returned Gundam/Sintel MP4s which are unrelated to the requested anime and violate full-episode contract.
-    return []
-  }
-
-  async getEpisodes(anilistId: number, signal?: AbortSignal): Promise<{ number: number; title?: string; thumbnail?: string }[]> {
-    try {
-      const media = await fetchAnilistMedia(anilistId, signal)
-      if (!media) return []
-      const count: number = media.episodes ?? media.streamingEpisodes?.length ?? 0
-      if (!count) return []
-      const isEpisodesUnknown = media.episodes == null
-      return Array.from({ length: count || 0 }, (_, i) => {
-        const se = media.streamingEpisodes?.[i]
-        const rawTitle = se?.title?.trim()
-        const isGeneric = rawTitle ? /^Episode\s+\d+$/i.test(rawTitle) : true
-        // Don't use offset titles when episodes unknown (One Piece)
-        const title = (isEpisodesUnknown || !rawTitle || isGeneric) ? undefined : rawTitle
-        return {
-          number: i + 1,
-          title,
-          thumbnail: se?.thumbnail?.trim() || undefined,
-        }
-      })
-    } catch {
-      return []
-    }
-  }
-
-  async getSources(anilistId: number, episode: number, language: VideoLanguage, workerOrigin: string | null, signal?: AbortSignal): Promise<NormalizedSource[]> {
-    const sources: NormalizedSource[] = []
-    try {
-      const media = await fetchAnilistMedia(anilistId, signal)
-      const trailer = media?.trailer
-      if (trailer?.site === 'youtube' && trailer.id) {
-        const ytId = String(trailer.id).trim()
-        if (!ytId) { /* fall through */ } else {
-          sources.push({
-            provider: 'official',
-            url: `https://www.youtube-nocookie.com/embed/${ytId}?rel=0&modestbranding=1`,
-            type: 'embed',
-            language,
-            quality: '1080p',
-            embed: true,
-          })
-          sources.push({
-            provider: 'official',
-            url: `https://www.youtube.com/embed/${ytId}?rel=0`,
-            type: 'embed',
-            language,
-            quality: '720p',
-            embed: true,
-          })
-        }
-      }
-    } catch {}
-    const fallbacks = this.archiveFallbacks(workerOrigin, language)
-    sources.push(...fallbacks)
-    return sources
-  }
-}
+// --- Episode-count helper (AniList metadata only) ---
+// Returns the authoritative episode list shape (numbers + streaming titles)
+// WITHOUT any trailer-as-playback: sources must come from real episode
+// providers (megavid/animegg/...). Trailer metadata stays on the AniList
+// record for a future separate trailer feature, never in this chain.
 
 // --- Demo Provider (mux HLS) for regression / HLS path verification ---
 export class DemoProvider implements VideoSourceProvider {
@@ -670,7 +594,7 @@ export class AniwaveProvider implements VideoSourceProvider {
   }
 }
 
-export class MiruroAliasProvider extends OfficialTrailerProvider {
+export class MiruroAliasProvider implements VideoSourceProvider {
   id = 'miruro'
   capabilities: ProviderCapabilities = {
     id: 'miruro',
@@ -684,8 +608,16 @@ export class MiruroAliasProvider extends OfficialTrailerProvider {
     episodes: true,
     sources: true,
   }
-  async getSources(anilistId: number, episode: number, language: VideoLanguage, workerOrigin: string | null, signal?: AbortSignal): Promise<NormalizedSource[]> {
-    const srcs = await super.getSources(anilistId, episode, language, workerOrigin, signal)
-    return srcs.map(s => ({ ...s, provider: 'miruro' }))
+  // Disabled trailer-alias: full-episode Miruro resolution is unverified
+  // (needs a maintained Miruro API bridge — see agents/streaming.md). The
+  // old implementation inherited YouTube-trailer sources from
+  // OfficialTrailerProvider, which presented trailers as episode playback.
+  // Return empty until a real episode path is verified; the class stays so
+  // the worker provider table shape is unchanged.
+  async getEpisodes(_anilistId: number, _signal?: AbortSignal): Promise<{ number: number; title?: string; thumbnail?: string }[]> {
+    return []
+  }
+  async getSources(_anilistId: number, _episode: number, _language: VideoLanguage, _workerOrigin: string | null, _signal?: AbortSignal): Promise<NormalizedSource[]> {
+    return []
   }
 }

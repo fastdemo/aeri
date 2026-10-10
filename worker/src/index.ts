@@ -16,7 +16,6 @@ import { mhSearchAndMatch, mhGetChapters, mhGetPages, mhMatchCached, mhMatchStor
 import { batoSearchAndMatch, batoGetChapters, batoGetPages, kkSearchAndMatch, kkGetChapters, kkGetPages, mrSearchAndMatch, mrGetChapters, mrGetPages } from './mirrors'
 
 import {
-  OfficialTrailerProvider,
   MiruroAliasProvider,
   DemoProvider,
   AllAnimeStubProvider,
@@ -67,7 +66,6 @@ function json(data: any, status = 200, env: Env, origin: string | null, extraHea
   return new Response(JSON.stringify(data), { status, headers })
 }
 
-const officialProvider = new OfficialTrailerProvider()
 const miruroAliasProvider = new MiruroAliasProvider()
 const demoProvider = new DemoProvider()
 const allAnimeStub = new AllAnimeStubProvider()
@@ -79,7 +77,6 @@ const animeParadiseStub = new GenericStubProvider('animeparadise', 'AnimeParadis
 const aniNekoStub = new GenericStubProvider('anineko', 'AniNeko')
 
 const providers: VideoSourceProvider[] = [
-  officialProvider,
   anikotoProvider,
   aniwaveProvider,
   animePaheProvider,
@@ -90,7 +87,7 @@ const providers: VideoSourceProvider[] = [
   aniNekoStub,
   demoProvider,
 ]
-const priorityProviders = [officialProvider, miruroAliasProvider, demoProvider]
+const priorityProviders = [miruroAliasProvider, demoProvider]
 
 function getProviderById(id: string): VideoSourceProvider | undefined {
   return providers.find(p => p.id === id)
@@ -119,7 +116,7 @@ function parseSourceRequest(pathPart: string, searchParams: URLSearchParams): { 
       language: (watchMatch[3] as VideoLanguage) ?? language,
     }
   }
-  const dashMatch = pathPart.match(/^(?:(official|miruro|demo|allanime|animepahe|anikoto|megaplay|animeparadise|anineko)-)?(?:anilist-)?(\d+)-(\d+)$/)
+  const dashMatch = pathPart.match(/^(?:(miruro|demo|allanime|animepahe|anikoto|megaplay|animeparadise|anineko)-)?(?:anilist-)?(\d+)-(\d+)$/)
   if (dashMatch) {
     return {
       providerHint: providerHint ?? dashMatch[1] ?? null,
@@ -198,7 +195,7 @@ export default {
         version: '1.0.0',
         allowedOrigin: env.ALLOWED_ORIGIN || '*',
         providers: providers.map(p => ({ id: p.id, displayName: p.capabilities.displayName, capabilities: p.capabilities })),
-        note: 'official is the ONE real provider (AniList YouTube trailer + Archive MP4 via /proxy), others are stubs documenting viability.',
+        note: 'Episode providers resolve full episodes via the frontend registry (megavid/animegg); worker resolves explicit pins and diagnostics.',
       }, 200, env, origin, { 'Cache-Control': CACHE_CONTROL_HEALTH })
     }
 
@@ -243,7 +240,7 @@ export default {
           allanimeId = exact?._id ?? edges[0]?._id ?? null
         } catch {}
       }
-      return json({ providerAnimeId: String(anilistId), title, anilistId: String(anilistId), allanimeId, provider: 'official' }, 200, env, origin, { 'Cache-Control': 'public, max-age=3600' })
+      return json({ providerAnimeId: String(anilistId), title, anilistId: String(anilistId), allanimeId, provider: 'none' }, 200, env, origin, { 'Cache-Control': 'public, max-age=3600' })
     }
 
     // Caller-supplied identity hints (AniList metadata from the browser).
@@ -573,34 +570,13 @@ const epMatch = url.pathname.match(/^\/(?:api\/)?(?:video\/)?episodes\/(\d+)$/)
         }
       }
       try {
-        const eps = await withTimeout(officialProvider.getEpisodes(anilistId, signal), 5000, signal)
-        const episodes = eps.map(e => ({
-          id: `official-${anilistId}-${e.number}`,
-          number: e.number,
-          title: e.title,
-          thumbnail: e.thumbnail,
-          provider: 'official',
-          providerEpisodeId: `official-${anilistId}-${e.number}`,
-          language: 'sub' as const,
-          availableLanguages: ['sub', 'dub'] as const,
-        }))
-        if (episodes.length === 0) {
-          try {
-            const demoEps = await withTimeout(demoProvider.getEpisodes(anilistId, signal), 3000, signal)
-            const mapped = demoEps.map(e => ({
-              id: `demo-${anilistId}-${e.number}`,
-              number: e.number,
-              title: e.title,
-              thumbnail: e.thumbnail,
-              provider: 'demo',
-              providerEpisodeId: `demo-${anilistId}-${e.number}`,
-              language: 'sub' as const,
-              availableLanguages: ['sub'] as const,
-            }))
-            if (mapped.length) return json({ episodes: mapped, count: mapped.length, anilistId: String(anilistId), provider: 'demo' }, 200, env, origin, { 'Cache-Control': CACHE_CONTROL_EPISODES })
-          } catch {}
+        // Unpinned episode requests have no full-episode provider in the
+        // worker (megavid/animegg resolve browser-direct). Return an honest
+        // empty set with demo only on explicit request — never trailers.
+        if (false) {
+          void demoProvider
         }
-        return json({ episodes, count: episodes.length, anilistId: String(anilistId), provider: 'official' }, 200, env, origin, { 'Cache-Control': CACHE_CONTROL_EPISODES })
+        return json({ episodes: [], count: 0, anilistId: String(anilistId), provider: 'none' }, 200, env, origin, { 'Cache-Control': CACHE_CONTROL_EPISODES })
       } catch (e) {
         if ((e as any)?.name === 'AbortError') return json({ error: 'Aborted' }, 499, env, origin)
         return json({ episodes: [], error: String(e), anilistId: String(anilistId) }, 502, env, origin)
@@ -670,9 +646,10 @@ const epMatch = url.pathname.match(/^\/(?:api\/)?(?:video\/)?episodes\/(\d+)$/)
             if ((e as any)?.name === 'AbortError') break
             continue
           }
-          // If we've tried the 3 priority providers and all empty, don't waste 25s on 6 stubs that always empty — return early
-          if (tried.length === priorityProviders.length && tried.every(id => ['official','miruro','demo'].includes(id))) {
-            // If priority all tried and empty (unlikely for official), continue to stubs but they will also be empty — we still try for completeness but with shorter timeout inside getSources (they return [] instantly)
+          // If we've tried the priority providers and all are empty, the
+          // remaining stubs return [] instantly — no extra budget spent.
+          if (tried.length === priorityProviders.length && tried.every(id => ['miruro','demo'].includes(id))) {
+            // Continue to stubs (instant empties) for a complete tried list.
           }
         }
         return json({ sources: [], episodeId, language, tried, anilistId: String(anilistId), episode: episodeNum }, 200, env, origin, { 'Cache-Control': CACHE_CONTROL_SOURCES })

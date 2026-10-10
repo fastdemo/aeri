@@ -135,6 +135,15 @@ export function ChapterList({ manga }: { manga: Anime }) {
   }
 
   const nVolumes = ordered.filter(c => c.unitType === 'volume').length
+  // Catalogue-vs-availability line: AniList totals are catalogue metadata
+  // (not readable chapters). The unit count below is what providers
+  // actually host. Never imply the catalogue total is browsable.
+  const catalogueLine = (() => {
+    const parts: string[] = []
+    if (typeof manga.chapters === 'number' && manga.chapters > 0) parts.push(`${manga.chapters} published`)
+    if (typeof manga.volumes === 'number' && manga.volumes > 0) parts.push(`${manga.volumes} vol`)
+    return parts.length ? `AniList catalogue: ${parts.join(' • ')}` : null
+  })()
   return (
     <div className="space-y-1">
       <div className="mb-2 flex items-baseline justify-between gap-2">
@@ -151,15 +160,23 @@ export function ChapterList({ manga }: { manga: Anime }) {
           </button>
         </h3>
         <span className="shrink-0 text-[14px] text-[var(--text-faint)]">
-          {ordered.length} {ordered.length === 1 ? 'unit' : 'units'}{nVolumes ? ` • ${nVolumes} ${nVolumes === 1 ? 'volume' : 'volumes'}` : ''}{manga.volumes ? ` • ${manga.volumes} published` : ''}
+          {ordered.length} available{nVolumes ? ` • ${nVolumes} ${nVolumes === 1 ? 'volume' : 'volumes'}` : ''}
         </span>
       </div>
-      <div className="overflow-hidden rounded-lg border border-[var(--border)]">
+      {catalogueLine && (
+        <p className="mb-2 text-[11px] text-[var(--text-faint)]">{catalogueLine} — chapters below are what reading sources actually host.</p>
+      )}
+          <div className="overflow-hidden rounded-lg border border-[var(--border)]">
         {ordered.map((ch, idx) => {
           // No next-up highlight (same reason as episodes: on desc-sort it
           // tints the top rows and reads as a rendering bug).
           const isRead = progressCh > 0 && ch.number != null && ch.number <= progressCh
           const label = unitDisplayLabel(ch)
+          // Provenance: unit id prefix is `<provider>-…` (resolver preserves
+          // it). Unknown prefixes (stale caches, future providers) show no
+          // badge — never a raw id fragment as a label.
+          const prov = ch.id.split('-')[0] || ''
+          const provName = prov === 'mangadex' ? 'MangaDex' : prov === 'weebcentral' ? 'WeebCentral' : prov === 'mangapill' ? 'MangaPill' : prov === 'mangahere' ? 'MangaHere' : prov === 'bato1' ? 'Bato1' : prov === 'kakalot' ? 'Kakalot' : prov === 'mangaread' ? 'MangaRead' : ''
           return (
             <Link
               key={ch.id}
@@ -169,11 +186,14 @@ export function ChapterList({ manga }: { manga: Anime }) {
               }}
               className={`flex items-center gap-3 bg-[var(--surface)] px-3 py-3 text-left transition hover:bg-[var(--text)]/[0.04] ${idx !== ordered.length - 1 ? 'border-b border-[var(--border)]' : ''}`}
             >
-              <span className="w-24 shrink-0 text-[13px] font-medium text-[var(--text)]">{label}</span>
+              <span className="w-24 shrink-0 truncate text-[13px] font-medium text-[var(--text)]">{label}</span>
               <span className="min-w-0 flex-1 truncate text-[11px] text-[var(--text-faint)]">
                 {ch.publishedAt ? new Date(ch.publishedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : ''}
               </span>
-              <span className="hidden text-xs text-[var(--text-faint)] sm:block">{isRead ? 'Read' : ''}</span>
+              {provName && (
+                <span className="max-w-[110px] shrink-0 truncate rounded-full bg-[color-mix(in_srgb,var(--text)_8%,transparent)] px-2 py-0.5 text-[10px] font-medium text-[var(--text-muted)]">{provName}</span>
+              )}
+              <span className="hidden w-8 shrink-0 text-right text-xs text-[var(--text-faint)] sm:block">{isRead ? 'Read' : ''}</span>
             </Link>
           )
         })}

@@ -459,6 +459,16 @@ export function DetailModal({
 
 function SidebarMeta({ anime }: { anime: Anime }) {
   const displayAnime = anime
+  // Manga catalogue rows (AniList staff/tags/endDate). Catalogue display
+  // ONLY — these never imply readable chapters (see ChapterList header).
+  const isManga = ['MANGA', 'NOVEL', 'ONE_SHOT'].includes(displayAnime.format?.toUpperCase() ?? '')
+  const staffLine = isManga && displayAnime.staff?.length
+    ? displayAnime.staff.map(s => s.role && s.role.toLowerCase() !== s.name.toLowerCase() ? `${s.name} — ${s.role}` : s.name).join(', ')
+    : null
+  const tagsLine = isManga && displayAnime.tags?.length
+    ? displayAnime.tags.map(t => t.name).join(', ')
+    : null
+  const endYear = isManga ? displayAnime.endDate?.year : null
   return (
     <>
       {displayAnime.genres.length > 0 && (
@@ -467,10 +477,22 @@ function SidebarMeta({ anime }: { anime: Anime }) {
           <span className="no-scrollbar min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-[var(--text)] [scrollbar-width:none]">{displayAnime.genres.join(', ')}</span>
         </div>
       )}
+      {tagsLine && (
+        <div className="flex items-baseline gap-1.5">
+          <span className="shrink-0 text-[var(--text-faint)]">Tags: </span>
+          <span className="no-scrollbar min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-[var(--text)] [scrollbar-width:none]">{tagsLine}</span>
+        </div>
+      )}
       {displayAnime.studios && displayAnime.studios.length > 0 && (
         <div className="flex items-baseline gap-1.5">
           <span className="shrink-0 text-[var(--text-faint)]">Studios: </span>
           <span className="no-scrollbar min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-[var(--text)] [scrollbar-width:none]">{displayAnime.studios.join(', ')}</span>
+        </div>
+      )}
+      {staffLine && (
+        <div className="flex items-baseline gap-1.5">
+          <span className="shrink-0 text-[var(--text-faint)]">Authors: </span>
+          <span className="no-scrollbar min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-[var(--text)] [scrollbar-width:none]">{staffLine}</span>
         </div>
       )}
       {formatLabel(displayAnime.format) && (
@@ -488,7 +510,7 @@ function SidebarMeta({ anime }: { anime: Anime }) {
       {displayAnime.year && (
         <div className="flex items-baseline gap-1.5">
           <span className="shrink-0 text-[var(--text-faint)]">Year: </span>
-          <span className="no-scrollbar min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-[var(--text)] [scrollbar-width:none]">{displayAnime.year}{displayAnime.season ? ` • ${displayAnime.season.charAt(0) + displayAnime.season.slice(1).toLowerCase()}` : ''}</span>
+          <span className="no-scrollbar min-w-0 flex-1 overflow-x-auto whitespace-nowrap text-[var(--text)] [scrollbar-width:none]">{displayAnime.year}{displayAnime.season ? ` • ${displayAnime.season.charAt(0) + displayAnime.season.slice(1).toLowerCase()}` : ''}{endYear && endYear !== displayAnime.year ? ` – ${endYear}` : ''}</span>
         </div>
       )}
     </>

@@ -37,6 +37,15 @@ export interface Anime {
   genres: string[]
   studios?: string[]
   format?: string
+  /**
+   * Manga catalogue metadata from AniList (staff/tags/endDate). Present
+   * only when the Media query returned them (manga surfaces); absent =
+   * unknown. Catalogue display ONLY — never chapter/page data (AniList
+   * supplies totals, never individual readable chapters).
+   */
+  staff?: { role?: string | null; name: string }[]
+  tags?: { name: string; rank?: number | null }[]
+  endDate?: { year?: number | null; month?: number | null; day?: number | null }
   popularity?: number
   streamingEpisodes?: { title?: string; thumbnail?: string; url?: string; site?: string }[]
   trailer?: { id: string; site: string }

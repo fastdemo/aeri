@@ -93,6 +93,10 @@ function makeMirrorProvider(cfg: {
   id: string
   name: string
   blurb: string
+  /** Verify-first gate: only 'verified' enters the Settings list and the
+      resolution pool. New/uncertain providers pass status:'unverified' and
+      stay dark until a live match→units→pages→bytes probe promotes them. */
+  status?: 'verified' | 'unverified'
   matchPath: (anilistId: number, hints: string) => string
   chaptersPath: (providerMangaId: string) => string
   pagesPath: (providerChapterId: string) => string
@@ -102,8 +106,7 @@ function makeMirrorProvider(cfg: {
     id: cfg.id,
     name: cfg.name,
     kind: 'manga' as const,
-    // Verified 2026-09-27 via live probes (search→chapters→pages→200 bytes).
-    status: 'verified' as const,
+    status: cfg.status ?? 'verified',
     enabledByDefault: true,
     blurb: cfg.blurb,
     async resolveManga(manga: Anime, options?: MangaSourceOptions): Promise<MangaProviderMatch | null> {
@@ -159,6 +162,9 @@ export const mangaHereProvider = makeMirrorProvider({
   id: 'mangahere',
   name: 'MangaHere',
   blurb: 'Large catalog, packed-page decoding, signed relay',
+  // Verified 2026-10-10: mh-match Berserk + mh-chapters + mh-pages/c001 →
+  // 221KB image/jpeg with JFIF bytes (live worker probe).
+  status: 'verified' as const,
   matchPath: (anilistId, hints) => `/api/manga/mh-match/${anilistId}${hints}`,
   chaptersPath: (mid) => `/api/manga/mh-chapters/${encodeURIComponent(mid)}`,
   pagesPath: (pcid) => {
@@ -171,6 +177,11 @@ export const bato1Provider = makeMirrorProvider({
   id: 'bato1',
   name: 'Bato1',
   blurb: 'Working Bato mirror (bato1.com), WEBP pages',
+  // UNVERIFIED 2026-10-10: bt-match throws `error code: 1101` on the live
+  // worker (upstream Cloudflare-gates worker egress — /filter serves a
+  // challenge page, and the absolute-href markup broke the old relative
+  // parser). Dark in Settings, never requested, until a live probe passes.
+  status: 'unverified' as const,
   matchPath: (anilistId, hints) => `/api/manga/bt-match/${anilistId}${hints}`,
   chaptersPath: (mid) => `/api/manga/bt-chapters/${encodeURIComponent(mid)}`,
   pagesPath: (pcid) => {
@@ -183,6 +194,11 @@ export const kakalotFunProvider = makeMirrorProvider({
   id: 'kakalot',
   name: 'MangaKakalot.fun',
   blurb: 'Working Kakalot mirror (.fun), direct PNG pages',
+  // UNVERIFIED 2026-10-10: kk-match throws `error code: 1101` on the live
+  // worker (upstream serves the CF challenge-platform shell to worker
+  // egress — zero result markup). Dark in Settings, never requested,
+  // until a live probe passes.
+  status: 'unverified' as const,
   matchPath: (anilistId, hints) => `/api/manga/kk-match/${anilistId}${hints}`,
   chaptersPath: (mid) => `/api/manga/kk-chapters/${encodeURIComponent(mid)}`,
   pagesPath: (pcid) => {
@@ -195,6 +211,10 @@ export const mangaReadProvider = makeMirrorProvider({
   id: 'mangaread',
   name: 'MangaRead',
   blurb: 'WP-Manga family (MangaBuddy replacement), direct JPEGs',
+  // UNVERIFIED 2026-10-10: mr-match throws `error code: 1101` on the live
+  // worker alongside bt/kk (same egress-gating window). Dark in Settings,
+  // never requested, until a live probe passes.
+  status: 'unverified' as const,
   matchPath: (anilistId, hints) => `/api/manga/mr-match/${anilistId}${hints}`,
   chaptersPath: (mid) => `/api/manga/mr-chapters/${encodeURIComponent(mid)}`,
   pagesPath: (pcid) => {

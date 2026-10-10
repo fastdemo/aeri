@@ -11,7 +11,6 @@ import { animeGGProvider } from './animegg'
 import { animeParadiseProvider } from './animeparadise'
 import { aniNekoProvider } from './anineko'
 import { miruroProvider } from './miruro'
-import { officialProvider } from './official'
 import { customProvider } from './custom'
 import { getPreferences, getEffectiveVideoApiUrl } from '../../storage/preferences'
 import { fetchWithTimeout } from './base'
@@ -19,8 +18,9 @@ import { fetchWithTimeout } from './base'
 // Priority order (verified reliability first — 2026-09-27 live pass):
 // 1. megavid (Tier 1: proven HLS sub+dub, MAL-keyed, highest priority)
 // 2. animegg (Tier 2: proven MP4 sub+dub, first fallback)
-// 3. official trailer (honest fallback/option — trailer only, by design)
-// 4. custom endpoint (user self-hosted) when configured
+// 3. custom endpoint (user self-hosted) when configured
+// A trailer must never be presented as a full-episode playback source, so
+// no trailer provider exists in this chain (see agents/streaming.md).
 // Dead/broken/stub providers (aniwave backend dead, allanime/pahe/koto/
 // paradise/neko crypto- or CF-gated, miruro trailer-alias) are NEVER in
 // the active chain: they are status!=verified so the verified-only pool
@@ -29,7 +29,6 @@ import { fetchWithTimeout } from './base'
 export const videoProviders: VideoProvider[] = [
   megaVidProvider,
   animeGGProvider,
-  officialProvider,
   customProvider,
   miruroProvider,
   aniWaveProvider,
@@ -94,13 +93,13 @@ export async function checkProviderHealth(signal?: AbortSignal): Promise<Record<
         // Health = worker reachable; per-provider truth comes from the
         // verified registry (Settings only lists verified providers, so
         // the map carries exactly those keys).
-        const baseMap: Record<string, 'available' | 'unavailable'> = { official: 'available', megavid: 'available', animegg: 'available' }
+        const baseMap: Record<string, 'available' | 'unavailable'> = { megavid: 'available', animegg: 'available' }
         return baseMap
       }
     } catch {}
-    return { official: 'available', megavid: 'unavailable', animegg: 'unavailable' } as any
+    return { megavid: 'unavailable', animegg: 'unavailable' } as any
   }
-  return { official: 'available', megavid: 'unavailable', animegg: 'unavailable' }
+  return { megavid: 'unavailable', animegg: 'unavailable' }
 }
 
 export function getProviderById(id: string): VideoProvider | undefined {
@@ -177,11 +176,12 @@ export async function resolveSourcesWithFallback(
     try {
       const lang = options.preferredLanguage ?? 'sub'
       const possibleKeys = [
-        `video:official:sources:${episode.providerEpisodeId}:${lang}`,
         `video:miruro:sources:${episode.providerEpisodeId}:${lang}`,
         `video:custom:sources:${episode.providerEpisodeId}:${lang}`,
         `video:custom:episodes:${episode.animeId}`,
         `video:anikoto:sources:${episode.providerEpisodeId}:${lang}`,
+        `video:megavid:sources:${episode.providerEpisodeId}:${lang}`,
+        `video:animegg:sources:${episode.providerEpisodeId}:${lang}`,
       ]
       for (const k of possibleKeys) {
         try { const { deleteCache } = await import('../../storage/db'); await deleteCache(k) } catch {}

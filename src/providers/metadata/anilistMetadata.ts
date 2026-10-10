@@ -76,10 +76,21 @@ query ($id: Int) {
 }
 `
 
+// Manga catalogue extensions: staff (authors/artists), tags, endDate.
+// Requested ONLY on the manga detail query — page/search queries skip
+// them (same cache key shape, no extra requests on rails). Absent on
+// anime records by construction.
+const MANGA_CATALOGUE_FIELDS = `
+  staff { edges { role node { name { full } } } }
+  tags { name rank }
+  endDate { year month day }
+`
+
 const MEDIA_MANGA_QUERY = `
 query ($id: Int) {
   Media(id: $id, type: MANGA) {
     ${MEDIA_FIELDS}
+    ${MANGA_CATALOGUE_FIELDS}
   }
 }
 `

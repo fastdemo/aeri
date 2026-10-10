@@ -1,6 +1,7 @@
 /**
  * Playback Matrix — Phase 13 QA
- * Real streaming matrix for AniKoto + AnimePahe (+ official/demo controls).
+ * Real streaming matrix for AniKoto + AnimePahe (+ demo control; trailer
+ * controls retired with the playback-chain removal).
  * Distinguishes HTTP 200 from actual playback (readyState>=2, videoWidth>0, currentTime advances).
  * Spec: docs/PLAYBACK_MATRIX.md
  *
@@ -457,41 +458,12 @@ test.describe('Worker era — in-worker resolver smoke', () => {
 // If these fail, the harness itself is broken — not the providers.
 // ---------------------------------------------------------------------------
 
-test.describe('Controls — official (YouTube embed) and demo (HLS) must be PLAYABLE', () => {
-  test('official: Attack on Titan 16498 sub → YouTube embed playable (browser-direct)', async ({ page }) => {
-    test.setTimeout(20_000)
-    await page.goto('/aeri/', { waitUntil: 'domcontentloaded' }).catch(() => page.goto('/', { waitUntil: 'domcontentloaded' }))
-    await page.evaluate(() => {
-      try {
-        const raw = localStorage.getItem('aeri:prefs')
-        const p = raw ? JSON.parse(raw) : {}
-        p.preferredProvider = 'official'
-        p.preferredAudio = 'sub'
-        localStorage.setItem('aeri:prefs', JSON.stringify(p))
-      } catch {}
-    })
-    // Use 16498 (AOT S1) which has a real YouTube trailer with tab-trimmed id and was proven playable in anikoto fallback
-    await gotoWatch(page, 16498, 1)
-    await dismissResumeIfPresent(page)
-    await page.waitForTimeout(4500)
-    const state = await getWatchState(page)
-    if (state.body.includes('Too Many Requests') || state.body.includes('429')) {
-      test.skip(true, 'AniList 429 rate-limited — skipping official embed control')
-      return
-    }
-    // Official should yield embed, not no-source, for anime with trailer
-    // If trailer missing for this id, fallback is correctly unavailable — still not false success
-    if (state.hasNoSource) {
-      test.skip(true, 'No trailer for 16498 on this environment — correctly unavailable, not a harness failure')
-      return
-    }
-    expect(state.hasIframe, `official should produce iframe, body: ${state.body.slice(0, 600)}`).toBeTruthy()
-    await assertEmbedPlayback(page)
-    // iframe src must be youtube-nocookie
-    const src = await page.evaluate(() => (document.querySelector('iframe') as HTMLIFrameElement | null)?.src ?? '')
-    expect(src).toMatch(/youtube-nocookie\.com\/embed\//)
-    // Must NOT be a false 200 embed that is actually an error page — already covered by T2 boundingBox
-  })
+test.describe('Controls — demo (HLS) must be PLAYABLE', () => {
+  // Official-trailer control RETIRED 2026-10-10: trailers are never playback
+  // sources (Phase 1 removal). The demo HLS control below proves the
+  // harness detects real playback; trailer absence is covered by the
+  // no-source path (no playable source, no iframe masquerade).
+  test.skip('official trailer control retired — trailers removed from playback chain', async () => {})
 
   test('demo: Direct mux HLS manifest + VideoPlayer HLS wiring (proves HLS vs 200)', async ({ page }) => {
     test.setTimeout(24_000)
@@ -563,7 +535,10 @@ test.describe('Controls — official (YouTube embed) and demo (HLS) must be PLAY
 // ---------------------------------------------------------------------------
 
 test.describe('Source switching & fallback', () => {
-  test('fallback: preferred anikoto → falls back to official (tried includes anikoto)', async ({ page }) => {
+  // Trailer fallback retired 2026-10-10: no trailer provider exists in the
+  // chain. Fallback is between full-episode providers only (megavid →
+  // animegg); when all fail the honest state is "No playable source".
+  test('fallback: preferred anikoto → falls back within episode providers (no trailer masquerade)', async ({ page }) => {
     test.setTimeout(22_000)
     await page.goto('/aeri/', { waitUntil: 'domcontentloaded' }).catch(() => page.goto('/', { waitUntil: 'domcontentloaded' }))
     await page.evaluate(() => {
@@ -575,26 +550,29 @@ test.describe('Source switching & fallback', () => {
         localStorage.setItem('aeri:prefs', JSON.stringify(p))
       } catch {}
     })
-    await gotoWatch(page, 1, 1) // Cowboy Bebop has official trailer, so fallback should succeed
+    await gotoWatch(page, 1, 1) // Cowboy Bebop: dead-provider preferred → honest no-source or episode-provider fallback
     await dismissResumeIfPresent(page)
     await page.waitForTimeout(4500)
     const state = await getWatchState(page)
     // Must have tried anikoto at least
     const body = await page.evaluate(() => document.body.innerText)
     const triedHasAnikoto = /anikoto/i.test(body)
-    // On GH Pages without worker, official fallback still yields embed; check we didn't stop at anikoto alone
+    // No trailer fallback: success means a full-episode provider won; else
+    // the honest no-source state names what was tried.
     if (state.hasIframe || state.hasVideo) {
       expect(triedHasAnikoto || body.includes('Tried'), 'fallback should have tried anikoto before succeeding').toBeTruthy()
       if (state.hasVideo) await assertVideoElementPlayback(page)
       else await assertEmbedPlayback(page)
     } else {
-      // If no playable even after fallback, at least tried must include anikoto + official
       expect(body).toContain('Tried')
       expect(triedHasAnikoto).toBeTruthy()
+      // Trailers must never appear as the fallback: no YouTube iframe.
+      const src = await page.evaluate(() => (document.querySelector('iframe') as HTMLIFrameElement | null)?.src ?? '')
+      expect(src).not.toMatch(/youtube/)
     }
   })
 
-  test('fallback: animepahe dub → correctly no dub, falls back to official dub', async ({ page }) => {
+  test('fallback: animepahe dub → correctly no dub, honest no-source when episode providers fail', async ({ page }) => {
     test.setTimeout(22_000)
     await page.goto('/aeri/', { waitUntil: 'domcontentloaded' }).catch(() => page.goto('/', { waitUntil: 'domcontentloaded' }))
     await page.evaluate(() => {
@@ -610,11 +588,14 @@ test.describe('Source switching & fallback', () => {
     await dismissResumeIfPresent(page)
     await page.waitForTimeout(4500)
     const body = await page.evaluate(() => document.body.innerText)
-    // Must not claim dub success from pahe (sub-only); either correctly unavailable or fallback dub
+    // Must not claim dub success from pahe (sub-only); either an episode
+    // provider wins or the honest no-source state shows (never a trailer).
     const hasVideo = await page.evaluate(() => !!document.querySelector('video'))
     const hasIframe = await page.evaluate(() => !!document.querySelector('iframe'))
     if (hasVideo || hasIframe) {
-      // If playable, the source language fallback must be reflected (official supports dub)
+      // If playable, it must be a full-episode source — never a trailer.
+      const src = await page.evaluate(() => (document.querySelector('iframe') as HTMLIFrameElement | null)?.src ?? '')
+      expect(src).not.toMatch(/youtube/)
       // No strict assert on dub vs sub here — just that it's not a false pahe dub
       expect(body.toLowerCase()).not.toContain('an error')
     } else {
