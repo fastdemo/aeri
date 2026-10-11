@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { getMalToken, setMalTokens, clearMalTokens, isMalTokenExpired } from '../storage/mal'
 import { malProvider } from '../providers/mal/provider'
 import { handleMalOAuthCallback, parseMalManualToken, getMalRedirectUriForDisplay } from '../services/mal/auth'
@@ -41,6 +41,12 @@ export function MALProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(() => getMalToken())
   const [user, setUser] = useState<AniListUser | null>(null)
   const [animeList, setAnimeList] = useState<AnimeListEntry[] | null>(null)
+  // Current-list ref for stable callbacks. `animeList` state identity
+  // changes on every loadList/optimistic update; any useCallback closing
+  // over it churns identity in turn. Writers read through this ref so
+  // their identity stays stable across list updates (see resolveMalId).
+  const animeListRef = useRef<AnimeListEntry[] | null>(null)
+  animeListRef.current = animeList
   const [loadingUser, setLoadingUser] = useState(false)
   const [loadingList, setLoadingList] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -286,12 +292,48 @@ export function MALProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const resolveMalId = useCallback((id: string): string => {
+    // Read the CURRENT list through a ref, not the `animeList` closure:
+    // depending on `animeList` state here re-creates this callback (and
+    // every writer built on it) on every list update — updateProgress
+    // writes trigger loadList → new array → new callback identity →
+    // consumer effects re-fire → unbounded PUT → loadList → … storm
+    // (verified 2026-10-10: ~100 req/s on the deployed build, which lacks
+    // the Watch once-guard). The ref is assigned during render below.
+    const list = animeListRef.current
     if (!id.startsWith('anilist-')) return id
-    const found = animeList?.find(e => e.anime.identity.anilistId?.toString() === id.replace('anilist-', ''))
+    const found = list?.find(e => e.anime.identity.anilistId?.toString() === id.replace('anilist-', ''))
     return found?.anime.identity.malId ? `mal-${found.anime.identity.malId}` : id
-  }, [animeList])
+  }, [])
+
+  // In-flight write guard: one PUT per (op, entry) at a time. Concurrent
+  // writers for the same entry (mount effect + 80%-completion + ended +
+  // user taps) previously each fired their own PUT → loadList → list
+  // update cycle. The guard serializes them: the second caller awaits the
+  // first instead of duplicating it. Keyed per entry id so different
+  // entries never block each other; failures clear the slot so retries
+  // (episode change, Retry button) always work.
+  const inflightWritesRef = useRef(new Map<string, Promise<void>>())
+  // Join-or-run: concurrent writers for the same key share one attempt.
+  // Errors propagate to ALL joiners (same rejection), and the slot always
+  // clears on settle so retries get a fresh attempt.
+  const guardWrite = useCallback((key: string, run: () => Promise<void>): Promise<void> => {
+    const slot = inflightWritesRef.current
+    const prev = slot.get(key)
+    if (prev) return prev
+    const p: Promise<void> = run().then(
+      () => { if (slot.get(key) === p) slot.delete(key) },
+      (e) => { if (slot.get(key) === p) slot.delete(key); throw e },
+    )
+    slot.set(key, p)
+    // Attach a no-op catch immediately: joiners who already returned still
+    // observe the rejection via `p`, but an extra safety net avoids
+    // unhandled-rejection noise if a joiner detaches early.
+    p.catch(() => {})
+    return p
+  }, [])
 
   const updateProgress = useCallback(async (id: string, ep: number, isManga = false) => {
+    return guardWrite(`progress:${id}`, async () => {
     optimisticUpdate(id, { progress: ep })
     try {
       // For MAL, id may be mal- or anilist- mapped; try to resolve malId
@@ -306,9 +348,11 @@ export function MALProvider({ children }: { children: React.ReactNode }) {
       if (t) await loadList(t).catch(()=>{})
       throw e
     }
-  }, [optimisticUpdate, loadList, resolveMalId])
+    })
+  }, [optimisticUpdate, loadList, resolveMalId, guardWrite])
 
   const updateStatus = useCallback(async (id: string, status: AnimeStatus, isManga = false) => {
+    return guardWrite(`status:${id}`, async () => {
     optimisticUpdate(id, { status })
     try {
       const malId = resolveMalId(id)
@@ -321,9 +365,11 @@ export function MALProvider({ children }: { children: React.ReactNode }) {
       if (t) await loadList(t).catch(()=>{})
       throw e
     }
-  }, [optimisticUpdate, loadList, resolveMalId])
+    })
+  }, [optimisticUpdate, loadList, resolveMalId, guardWrite])
 
   const updateRating = useCallback(async (id: string, rating: number, isManga = false) => {
+    return guardWrite(`rating:${id}`, async () => {
     optimisticUpdate(id, { score: rating })
     try {
       const malId = resolveMalId(id)
@@ -336,9 +382,11 @@ export function MALProvider({ children }: { children: React.ReactNode }) {
       if (t) await loadList(t).catch(()=>{})
       throw e
     }
-  }, [optimisticUpdate, loadList, resolveMalId])
+    })
+  }, [optimisticUpdate, loadList, resolveMalId, guardWrite])
 
   const removeEntry = useCallback(async (id: string, isManga = false) => {
+    return guardWrite(`remove:${id}`, async () => {
     optimisticRemove(id)
     try {
       const malId = resolveMalId(id)
@@ -351,7 +399,8 @@ export function MALProvider({ children }: { children: React.ReactNode }) {
       if (t) await loadList(t).catch(()=>{})
       throw e
     }
-  }, [optimisticRemove, loadList, resolveMalId])
+    })
+  }, [optimisticRemove, loadList, resolveMalId, guardWrite])
 
   const value = useMemo<Ctx>(() => ({
     isAuthenticated, token, user, animeList, loadingUser, loadingList, error, authExpired, redirectUri, hasClientId, login, logout, setManualToken, refresh, updateProgress, updateStatus, updateRating, removeEntry,

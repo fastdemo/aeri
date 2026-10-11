@@ -21,11 +21,20 @@ import { fetchWithTimeout } from './base'
 // 3. custom endpoint (user self-hosted) when configured
 // A trailer must never be presented as a full-episode playback source, so
 // no trailer provider exists in this chain (see agents/streaming.md).
-// Dead/broken/stub providers (aniwave backend dead, allanime/pahe/koto/
-// paradise/neko crypto- or CF-gated, miruro trailer-alias) are NEVER in
-// the active chain: they are status!=verified so the verified-only pool
-// below excludes them — zero requests, zero timeout budget spent.
+// Dead/broken/stub providers (allanime/pahe/koto/paradise/neko crypto-
+// or CF-gated, miruro trailer-alias) are NEVER in the active chain: they
+// are status!=verified so the verified-only pool below excludes them —
+// zero requests, zero timeout budget spent. aniwave is VERIFIED and the
+// Tier-3 worker-resolver fallback (filter → episode list → sources → HLS,
+// proven 2026-09-27 through 2026-10-10: 1180ep One Piece, 220ep Naruto,
+// 37ep Death Note, 25ep AoT, 28ep Frieren with TS-sync bytes).
 // Mock is last for episode list only (no video).
+// NOTE (2026-10-10): AniDap was fully probed (anilistId→slug→chad servers→
+// sources→multivariant HLS+VTT, TS-sync bytes) but REJECTED for the
+// registry: no CORS headers (browser-direct impossible) AND worker egress
+// gets a 403 personality-block ("Guess what? ... YOUR GAY!"). Same class
+// as the HiAnime-API sidecar finding — viable only as a self-hosted
+// relay, not as a direct registry provider. See agents/streaming.md.
 export const videoProviders: VideoProvider[] = [
   megaVidProvider,
   animeGGProvider,

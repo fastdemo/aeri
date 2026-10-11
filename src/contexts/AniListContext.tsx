@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { getAnilistToken, setAnilistToken, clearAnilistToken, isAnilistTokenExpired } from '../storage/anilist'
 import { aniListProvider, type AniListUser } from '../providers/anilist/provider'
 import { handleAnilistOAuthCallback, parseManualToken, beginAnilistOAuth, getRedirectUriForDisplay } from '../services/anilist/auth'
@@ -304,7 +304,33 @@ export function AniListProvider({ children }: { children: React.ReactNode }) {
     })
   }, [])
 
+  // In-flight write guard (same contract as MALContext): one PUT per
+  // (op, entry) at a time. Concurrent writers for the same entry each
+  // fired their own PUT → loadList cycle; the guard serializes them so
+  // the second caller awaits the first instead of duplicating it.
+  // Failures clear the slot so retries always work.
+  const inflightWritesRef = useRef(new Map<string, Promise<void>>())
+  // Join-or-run: concurrent writers for the same key share one attempt.
+  // Errors propagate to ALL joiners (same rejection), and the slot always
+  // clears on settle so retries get a fresh attempt.
+  const guardWrite = useCallback((key: string, run: () => Promise<void>): Promise<void> => {
+    const slot = inflightWritesRef.current
+    const prev = slot.get(key)
+    if (prev) return prev
+    const p: Promise<void> = run().then(
+      () => { if (slot.get(key) === p) slot.delete(key) },
+      (e) => { if (slot.get(key) === p) slot.delete(key); throw e },
+    )
+    slot.set(key, p)
+    // Attach a no-op catch immediately: joiners who already returned still
+    // observe the rejection via `p`, but an extra safety net avoids
+    // unhandled-rejection noise if a joiner detaches early.
+    p.catch(() => {})
+    return p
+  }, [])
+
   const updateProgress = useCallback(async (id: string, ep: number) => {
+    return guardWrite(`progress:${id}`, async () => {
     optimisticUpdate(id, { progress: ep })
     try {
       await aniListProvider.updateProgress(id, ep)
@@ -316,9 +342,11 @@ export function AniListProvider({ children }: { children: React.ReactNode }) {
       if (t) await loadList(t).catch(() => {})
       throw e
     }
-  }, [optimisticUpdate, loadList])
+    })
+  }, [optimisticUpdate, loadList, guardWrite])
 
   const updateStatus = useCallback(async (id: string, status: AnimeStatus) => {
+    return guardWrite(`status:${id}`, async () => {
     optimisticUpdate(id, { status })
     try {
       await aniListProvider.updateStatus(id, status)
@@ -330,9 +358,11 @@ export function AniListProvider({ children }: { children: React.ReactNode }) {
       if (t) await loadList(t).catch(() => {})
       throw e
     }
-  }, [optimisticUpdate, loadList])
+    })
+  }, [optimisticUpdate, loadList, guardWrite])
 
   const updateRating = useCallback(async (id: string, rating: number) => {
+    return guardWrite(`rating:${id}`, async () => {
     optimisticUpdate(id, { score: rating })
     try {
       await aniListProvider.updateRating(id, rating)
@@ -344,9 +374,11 @@ export function AniListProvider({ children }: { children: React.ReactNode }) {
       if (t) await loadList(t).catch(() => {})
       throw e
     }
-  }, [optimisticUpdate, loadList])
+    })
+  }, [optimisticUpdate, loadList, guardWrite])
 
   const removeEntry = useCallback(async (id: string) => {
+    return guardWrite(`remove:${id}`, async () => {
     optimisticRemove(id)
     try {
       await aniListProvider.removeEntry(id)
@@ -358,7 +390,8 @@ export function AniListProvider({ children }: { children: React.ReactNode }) {
       if (t) await loadList(t).catch(() => {})
       throw e
     }
-  }, [optimisticRemove, loadList])
+    })
+  }, [optimisticRemove, loadList, guardWrite])
 
   const value = useMemo<Ctx>(() => ({
     isAuthenticated,

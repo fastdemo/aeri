@@ -195,6 +195,35 @@ test.describe('Authenticated entry — guards pass, episode grid works', () => {
     const hash = await page.evaluate(() => location.hash)
     expect(hash).toContain('/watch/anilist-20/5')
   })
+
+  test('Progress writes stay bounded during playback (no write storm)', async ({ page }) => {
+    // Regression for the 2026-10-10 progress-write storm: the mount
+    // progress effect re-fired on every updateProgress callback identity
+    // change (PUT → loadList → new array → new callback → re-fire),
+    // reaching ~100 PUT/s on builds without the once-guard. The root fix
+    // (stable writer identity via list ref + in-flight write guard in
+    // MAL/AniList contexts) must hold even under continuous playback.
+    // Bound: one mount write for the episode; the 80%-completion write
+    // may add at most one more. Anything above proves a refire loop.
+    test.setTimeout(180000)
+    await setPrefs(page, { preferredProvider: 'aniwave', preferredAudio: 'sub' })
+    let puts = 0
+    page.on('request', (r) => {
+      if (r.url().includes('my_list_status') && r.method() === 'PUT') puts++
+    })
+    await page.goto('/#/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
+    const s = await waitForDecision(page, 'progress-bounded')
+    expect(s.hash).toContain('/watch/anilist-20/1')
+    // Let playback run well past several 5s persist ticks + completion.
+    await page.waitForTimeout(60000)
+    expect(puts, `progress PUTs in 60s of playback must stay bounded (mount + completion), got ${puts}`).toBeLessThanOrEqual(2)
+    // Episode switch writes exactly one more (new key), then stays bounded.
+    const before = puts
+    await page.goto('/#/watch/anilist-20/2', { waitUntil: 'domcontentloaded' })
+    await waitForDecision(page, 'progress-ep-switch')
+    await page.waitForTimeout(30000)
+    expect(puts - before, `episode switch must add at most one progress write, got ${puts - before}`).toBeLessThanOrEqual(2)
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -369,5 +398,125 @@ test.describe('LIVE provider playback (real upstream bytes — may fail on outag
     // nothing — a no-op route also yields no-source).
     expect(blocked.length, `expected blocked upstream requests — got ${blocked.length}`).toBeGreaterThan(0)
     await page.unroute(/^https?:\/\//).catch(() => {})
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Suite B2 — watch-page interactivity during playback (desktop + mobile)
+// ---------------------------------------------------------------------------
+// Regression battery for the reported "page unresponsive once streaming
+// starts" issue. Investigation (2026-10-10, production build
+// index-V0TjG727.js vs local index-BNjnosOm.js) found NO main-thread or
+// overlay cause in current code: rAF deltas stay <12ms during storms,
+// clicks dispatch in <10ms, hit-testing reaches every control, and the
+// measured unresponsiveness traces to the pre-guard progress-write storm
+// (~100 PUT/s saturating the worker + re-render churn on the OLD bundle).
+// These tests pin the fixed behavior: every out-of-player control must
+// respond within tight budgets WHILE video is playing.
+test.describe('Watch interactivity during playback', () => {
+  test.beforeEach(async ({ page }) => {
+    await setupAuth(page)
+  })
+
+  async function gotoPlayingWatch(page: Page) {
+    await setPrefs(page, { preferredProvider: 'aniwave', preferredAudio: 'sub' })
+    await page.goto('/#/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
+    await page.waitForFunction(() => !!document.querySelector('video'), null, { timeout: 90000 })
+    await page.evaluate(() => { const v = document.querySelector('video') as HTMLVideoElement | null; if (v) { v.muted = true; v.play().catch(() => {}) } })
+    await page.waitForTimeout(8000)
+  }
+
+  test('Desktop: episode links, source selector, sub toggle respond during playback', async ({ page }) => {
+    test.setTimeout(240000)
+    await gotoPlayingWatch(page)
+    // Episode link click navigates fast.
+    let t0 = Date.now()
+    await page.locator('a[aria-label^="Watch E5"]').first().click({ timeout: 15000 })
+    const clickMs = Date.now() - t0
+    expect(clickMs, 'episode click must dispatch fast during playback').toBeLessThan(5000)
+    await page.waitForTimeout(2000)
+    expect(await page.evaluate(() => location.hash)).toContain('/watch/anilist-20/5')
+    // Back to E1, pause, then sub toggle + source selector must exist and respond.
+    await page.goto('/#/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
+    await page.waitForFunction(() => !!document.querySelector('video'), null, { timeout: 90000 })
+    await page.evaluate(() => (document.querySelector('video') as HTMLVideoElement)?.pause())
+    await expect(page.locator('select[aria-label="Select video source"]')).toBeVisible({ timeout: 15000 })
+    await page.locator('button', { hasText: /^Sub$/ }).first().click({ timeout: 15000 })
+    expect(await page.evaluate(() => (document.querySelector('video') as HTMLVideoElement)?.paused)).toBe(true)
+  })
+
+  test('Desktop: sidebar nav + header controls respond during playback', async ({ page }) => {
+    test.setTimeout(240000)
+    await gotoPlayingWatch(page)
+    // Sidebar/home link.
+    await page.locator('a[aria-label="aeri home"]').first().click({ timeout: 15000 })
+    await page.waitForTimeout(1500)
+    expect(await page.evaluate(() => location.hash)).toBe('#/')
+    // Return to watch, then profile menu opens and reaches Settings.
+    await page.goto('/#/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
+    await page.waitForFunction(() => !!document.querySelector('video'), null, { timeout: 90000 })
+    await page.getByRole('button', { name: 'Profile' }).click({ timeout: 15000 })
+    await expect(page.locator('[data-header-popup]')).toBeVisible({ timeout: 8000 })
+    await page.getByRole('menuitem', { name: 'Settings' }).first().click({ timeout: 15000 })
+    await page.waitForTimeout(1200)
+    expect(await page.evaluate(() => location.hash)).toContain('/settings')
+  })
+
+  test('Desktop: pause/resume + episode switch keep player coherent', async ({ page }) => {
+    test.setTimeout(240000)
+    await gotoPlayingWatch(page)
+    await page.evaluate(() => (document.querySelector('video') as HTMLVideoElement)?.pause())
+    await page.waitForTimeout(1000)
+    expect(await page.evaluate(() => (document.querySelector('video') as HTMLVideoElement)?.paused)).toBe(true)
+    // Episode switch while paused navigates; new episode resolves its own player.
+    await page.locator('a[aria-label^="Watch E2"]').first().click({ timeout: 15000 })
+    await page.waitForTimeout(2000)
+    expect(await page.evaluate(() => location.hash)).toContain('/watch/anilist-20/2')
+    await page.waitForFunction(() => !!document.querySelector('video'), null, { timeout: 90000 })
+  })
+
+  test('Mobile: taps + episode switch respond during playback', async ({ context }) => {
+    test.setTimeout(240000)
+    // Real touch pipeline (Pixel 5 emulation): tap dispatch, 300ms-delay
+    // absence, and touch scrolling only exist with hasTouch enabled.
+    // The desktop-chromium run of this file cannot provide that, so this
+    // test spins its own touch context instead of using the shared page.
+    const touchCtx = await context.browser()!.newContext({
+      viewport: { width: 375, height: 667 },
+      hasTouch: true,
+      isMobile: true,
+    })
+    const mpage = await touchCtx.newPage()
+    try {
+      await setupAuth(mpage)
+      await setPrefs(mpage, { preferredProvider: 'aniwave', preferredAudio: 'sub' })
+      await mpage.goto('/#/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
+      await mpage.waitForFunction(() => !!document.querySelector('video'), null, { timeout: 90000 })
+      await mpage.evaluate(() => { const v = document.querySelector('video') as HTMLVideoElement | null; if (v) { v.muted = true; v.play().catch(() => {}) } })
+      await mpage.waitForTimeout(8000)
+      const t0 = Date.now()
+      await mpage.locator('a[aria-label^="Watch E5"]').first().tap({ timeout: 15000 })
+      const tapMs = Date.now() - t0
+      expect(tapMs, 'mobile tap must dispatch fast during playback').toBeLessThan(8000)
+      await mpage.waitForTimeout(2000)
+      expect(await mpage.evaluate(() => location.hash)).toContain('/watch/anilist-20/5')
+      // Mobile menu opens and reaches the Anime browse page.
+      await mpage.locator('button[aria-label="Menu"]').first().tap({ timeout: 15000 }).catch(() => {})
+      await mpage.waitForTimeout(1000)
+      const animeLink = mpage.locator('a[href="#/anime"]').first()
+      if (await animeLink.isVisible().catch(() => false)) {
+        await animeLink.tap({ timeout: 15000 })
+        await mpage.waitForTimeout(1500)
+        expect(await mpage.evaluate(() => location.hash)).toContain('/anime')
+      }
+      // Sub toggle responds while paused.
+      await mpage.goto('/#/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
+      await mpage.waitForFunction(() => !!document.querySelector('video'), null, { timeout: 90000 })
+      await mpage.evaluate(() => (document.querySelector('video') as HTMLVideoElement)?.pause())
+      await mpage.locator('button', { hasText: /^Sub$/ }).first().tap({ timeout: 15000 })
+      expect(await mpage.evaluate(() => (document.querySelector('video') as HTMLVideoElement)?.paused)).toBe(true)
+    } finally {
+      await touchCtx.close()
+    }
   })
 })

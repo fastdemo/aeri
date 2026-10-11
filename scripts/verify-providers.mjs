@@ -8,15 +8,57 @@
 const LIVE = process.env.AERI_LIVE_URL ?? 'https://aeri.fastdemo.workers.dev'
 
 const failures = []
+const attempts = []
 const check = (name, ok, detail = '') => {
   console.log(`${ok ? 'ok' : 'FAIL'}  ${name}${detail ? ` — ${detail}` : ''}`)
   if (!ok) failures.push(name)
 }
 
-async function j(url) {
-  const res = await fetch(url)
-  if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  return res.json()
+// Pacing + bounded retries for transient upstream/worker errors. The live
+// worker 502s under back-to-back burst load (verified 2026-10-10: 5×200
+// then a 502 on identical requests) — hammering it without gaps measures
+// our own burst, not provider health. Every attempt is recorded; a final
+// report discloses intermittent failures even when a retry succeeds.
+const PACE_MS = 4000
+const sleep = (ms) => new Promise(r => setTimeout(r, ms))
+let lastReqAt = 0
+async function pacedFetch(url, opts) {
+  const wait = PACE_MS - (Date.now() - lastReqAt)
+  if (wait > 0) await sleep(wait)
+  try {
+    return await fetch(url, opts)
+  } finally {
+    lastReqAt = Date.now()
+  }
+}
+
+async function j(url, label) {
+  const maxTries = 3
+  for (let t = 1; t <= maxTries; t++) {
+    const res = await pacedFetch(url)
+    if (res.ok) {
+      if (t > 1) attempts.push(`${label ?? url}: ok on try ${t}`)
+      return res.json()
+    }
+    // Include the error body: the worker wraps match failures as 502 with
+    // e.g. {"error":"no confident match"} — that is a recorded provider
+    // gap, NOT a transient. Only bodyless/unknown 502/503/504 shapes retry.
+    const body = await res.text().catch(() => '')
+    const msg = `HTTP ${res.status}: ${body.slice(0, 120)}`
+    if (/no confident match|no search results|ambiguous match/.test(body)) {
+      attempts.push(`${label ?? url}: provider gap on try ${t} (${body.slice(0, 80)}), no retry`)
+      throw new Error(msg)
+    }
+    // Retry ONLY transient shapes (502/503/504 rate/egress flakes).
+    // Anything else (400/404/match errors) fails immediately — hiding a
+    // persistent defect behind retries would be worse than flaky red.
+    if (![502, 503, 504].includes(res.status) || t === maxTries) {
+      if (t > 1) attempts.push(`${label ?? url}: still failing after ${t} tries (${msg})`)
+      throw new Error(msg)
+    }
+    attempts.push(`${label ?? url}: transient HTTP ${res.status} on try ${t}, retrying`)
+  }
+  throw new Error('unreachable')
 }
 
 // ---------- Manga (MangaDex + WeebCentral + MangaPill) ----------
@@ -31,7 +73,7 @@ const MANGA_CASES = [
 ]
 
 async function checkImageBytes(url, tag) {
-  const r = await fetch(url, { headers: { Referer: `${LIVE}/` } })
+  const r = await pacedFetch(url, { headers: { Referer: `${LIVE}/` } })
   const buf = await r.arrayBuffer()
   const ct = r.headers.get('content-type') ?? ''
   return { ok: r.ok && buf.byteLength > 5000 && ct.startsWith('image/'), detail: `${ct} ${buf.byteLength}B` }
@@ -88,10 +130,11 @@ for (const c of MANGA_CASES) {
       check(`${tag} mp pages render`, urls.length > 0 && img.ok, `${urls.length}pp ${img.detail}`)
     }
   } catch (e) {
-    // 'no confident match' / 'no search results' = known provider gap (ok);
-    // anything else (crash-shape) fails.
-    const msg = String(e).slice(0, 100)
-    if (/no confident match|no search results|HTTP 502/.test(msg)) {
+    // 'no confident match' / 'no search results' (thrown by j() with the
+    // worker's error body attached) = known provider gap (ok); anything
+    // else (crash-shape, persistent 502 with no match body) fails.
+    const msg = String(e).slice(0, 160)
+    if (/no confident match|no search results|ambiguous match/.test(msg)) {
       check(`${tag} mp (no confident match — recorded gap)`, true, msg)
     } else check(`${tag} mp`, false, msg)
   }
@@ -127,17 +170,22 @@ for (const c of ANIME_CASES) {
       check(`anime ${c.title} sources (absent on provider — recorded gap)`, true, '0src, no wrong data')
     } else check(`anime ${c.title} sources`, urls.length > 0, `${urls.length}src`)
     if (urls.length && !(c.allowZeroEps && urls.length === 0)) {
-      // Walk relay: master playlist → media playlist → first TS segment, verify sync bytes
-      const master = await (await fetch(urls[0].url, { headers: { Referer: `${LIVE}/` } })).text()
+      // Walk relay: master playlist → media playlist → first TS segment, verify sync bytes.
+      // Segment fetch gets one retry: zero-byte/empty-segment flakes are a
+      // known upstream lottery behavior, recorded in `attempts`, never silent.
+      const master = await (await pacedFetch(urls[0].url, { headers: { Referer: `${LIVE}/` } })).text()
       const l2line = master.split('\n').find(l => l.includes('/api/stream'))
-      const media = l2line ? await (await fetch(l2line.trim(), { headers: { Referer: `${LIVE}/` } })).text() : ''
+      const media = l2line ? await (await pacedFetch(l2line.trim(), { headers: { Referer: `${LIVE}/` } })).text() : ''
       const segline = media.split('\n').find(l => l.includes('/api/stream'))
       let tsOk = false, n = 0
       if (segline) {
-        const r = await fetch(segline.trim(), { headers: { Referer: `${LIVE}/` } })
-        const buf = Buffer.from(await r.arrayBuffer())
-        n = buf.length
-        tsOk = r.ok && n > 50000 && buf[0] === 0x47 && buf[188] === 0x47
+        for (let t = 1; t <= 2 && !tsOk; t++) {
+          const r = await pacedFetch(segline.trim(), { headers: { Referer: `${LIVE}/` } })
+          const buf = Buffer.from(await r.arrayBuffer())
+          n = buf.length
+          tsOk = r.ok && n > 50000 && buf[0] === 0x47 && buf[188] === 0x47
+          if (!tsOk && t === 1) attempts.push(`anime ${c.title} stream bytes: ${n}B on try 1, retrying segment`)
+        }
       }
       check(`anime ${c.title} stream bytes`, tsOk, `${n}B TS`)
     }
@@ -146,6 +194,14 @@ for (const c of ANIME_CASES) {
 
 if (failures.length) {
   console.log(`\n${failures.length} FAILURES`)
+  if (attempts.length) {
+    console.log('transient attempts (retries/disclosed flakes):')
+    for (const a of attempts) console.log(`  ~ ${a}`)
+  }
   process.exit(1)
+}
+if (attempts.length) {
+  console.log('\ntransient attempts (retries that recovered — upstream flake, not clean):')
+  for (const a of attempts) console.log(`  ~ ${a}`)
 }
 console.log('\nall provider checks passed')
