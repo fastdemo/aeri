@@ -2,15 +2,11 @@ import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig, loadEnv } from 'vite'
 
-// Base path:
-// - Cloudflare Worker production: always '/' (https://aeri.fastdemo.workers.dev/)
-// - GitHub Pages legacy: '/aeri/' (only when explicitly building for Pages)
-// We must NOT derive Pages base from GITHUB_REPOSITORY during Worker builds, because
-// GitHub Actions always sets GITHUB_REPOSITORY even for Worker deploys.
-const isGhPagesBuild = process.env.AERI_DEPLOY_TARGET === 'gh-pages' || process.env.GITHUB_PAGES === 'true'
-const base = isGhPagesBuild
-  ? (process.env.AERI_BASE || (process.env.GITHUB_REPOSITORY ? `/${process.env.GITHUB_REPOSITORY.split('/')[1]}/` : '/aeri/'))
-  : (process.env.AERI_BASE || '/')
+// Base path: '/' — the site lives at the Cloudflare Worker origin root.
+// The GitHub Pages `/aeri/` era was removed entirely on 2026-10-17 (D096):
+// no GITHUB_PAGES / AERI_DEPLOY_TARGET switches remain. `AERI_BASE` stays as
+// an escape hatch.
+const base = process.env.AERI_BASE || '/'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
