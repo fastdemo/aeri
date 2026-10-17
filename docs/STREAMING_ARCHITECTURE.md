@@ -1,5 +1,7 @@
 # Streaming Architecture Research — Aeri
 
+> **Historical document (pre-Cloudflare-Worker streaming, 2026-08/09).** Its "static GH Pages, no backend" premises described that era. Current reality: the Cloudflare Worker serves `dist/` + same-origin `/api/*` (see `docs/DEPLOYMENT.md`); verified provider truth lives in `agents/streaming.md` and `src/providers/video/registry.ts`. Probe evidence below is dated and kept as-is.
+
 > Status: Research and planning only. No playback implementation in this commit beyond existing `VideoProvider` abstraction + `VITE_VIDEO_API_URL` hook. No scraping, no DRM bypass.
 
 ## Summary

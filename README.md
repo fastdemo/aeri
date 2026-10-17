@@ -4,7 +4,7 @@
 
 A minimal anime discovery and tracking app that feels like a streaming service, not a database. Browse, search, keep track of what you're watching, and pick up where you left off.
 
-**Live at:** https://aeri.fastdemo.workers.dev/
+**Status:** live at `https://aeri.fastdemo.workers.dev/` (briefly deleted by accident on 2026-10-17 and fully restored the same day — D095).
 
 ## Preview
 
@@ -97,11 +97,9 @@ serves the app at https://aeri.fastdemo.workers.dev/ — see
 
 ## Deployment
 
-Aeri is now hosted on **Cloudflare Workers** with assets.
+Aeri is hosted on **Cloudflare Workers** with assets; production was briefly deleted by accident on 2026-10-17 and fully restored the same day (D095).
 
-**Live:** https://aeri.fastdemo.workers.dev/
-
-The original plan was GitHub Pages at `fastdemo.github.io/aeri`, and some docs still mention it for historical context, but all current user flows, OAuth redirects, and API calls are on the Cloudflare origin. The redirect URL for both AniList and MAL is `https://aeri.fastdemo.workers.dev/` and must match exactly what is configured in each provider dashboard.
+The GitHub Pages era ended on 2026-10-17: `fastdemo.github.io/aeri` no longer exists (Pages site deleted via the API, `gh-pages` branch removed — D096). The redirect URL for both AniList and MAL must match exactly what is configured in each provider dashboard (`https://aeri.fastdemo.workers.dev/`).
 
 ```bash
 npm run build

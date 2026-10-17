@@ -1,5 +1,7 @@
 # MAL Browser/SPA Feasibility — Static GitHub Pages (Aeri)
 
+> **Historical document (pre-Worker MAL auth, 08/2026).** Written for the GH Pages era (`/aeri/` base, no backend). MAL auth now flows through the same-origin Worker token exchange (`docs/API.md`); this file remains as the dated CORS evidence record.
+
 **Date:** 2026-08-29  
 **Target origin:** `https://fastdemo.github.io/aeri/` (GH Pages, `vite base: '/aeri/'`, `getMalRedirectUri() => origin + BASE_URL` → `https://fastdemo.github.io/aeri/`)  
 **Sources:** Official MAL docs fetched 2026-08-29:

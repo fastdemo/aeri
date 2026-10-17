@@ -1,18 +1,20 @@
 # Aeri Video Worker
 
-Cloudflare Worker that provides the normalized video API for Aeri's static GitHub Pages frontend.
+Cloudflare Worker that provides the normalized video API for Aeri's static frontend. Production frontend and API share **one worker origin** (`https://aeri.fastdemo.workers.dev/` serving `dist/` + same-origin `/api/*`); the old split "GitHub Pages → external `VITE_VIDEO_API_URL` worker" is historical.
 
 ```
-GitHub Pages (https://fastdemo.github.io/aeri/)
-    ↓ VITE_VIDEO_API_URL=https://aeri-video.<you>.workers.dev
-Aeri Video API (this worker)
+Browser (https://aeri.fastdemo.workers.dev/, SPA bundle served from dist)
+    ↓ same-origin /api/* (this worker)
+Aeri Video API
     ↓
-Provider adapters (Official Trailer + stubs)
+Provider adapters + in-worker resolver
     ↓
 Normalized sources → VideoPlayer (HLS/MP4/embed)
 ```
 
 ## Implementation — ONE real provider end-to-end
+
+> **Historical section (2026-08 design era).** The `official`/`miruro` trailer provider described below has since been removed from the worker; the current worker serves the resolver-based registry (agents/streaming.md, `worker/src/resolver.ts`). Kept for design history only — the interface shape below is still the contract.
 
 `worker/src/providers.ts` implements a clean abstraction:
 
@@ -67,7 +69,7 @@ Detailed curl proofs in `worker/src/providers.ts` header comment and `worker/src
 - `GET /watch/:provider/:id/:lang/:ep` → alias for `/sources`
 - `GET /proxy?url=` → proxies HLS/MP4 with `Access-Control-Allow-Origin` + `Range` forwarding, `Cache-Control: public, max-age=3600`
 
-All routes send `Access-Control-Allow-Origin: https://fastdemo.github.io` (or `*` for preview) and handle `OPTIONS`. Every upstream fetch is abortable (`request.signal` + `withTimeout 4-5s` for episodes/sources, `8s` for proxy) and isolated.
+All routes send `Access-Control-Allow-Origin` derived from `ALLOWED_ORIGIN` (production: `https://aeri.fastdemo.workers.dev`; preview: `*`) and handle `OPTIONS`. Every upstream fetch is abortable (`request.signal` + `withTimeout 4-5s` for episodes/sources, `8s` for proxy) and isolated.
 
 ## Deploy
 
@@ -75,17 +77,13 @@ All routes send `Access-Control-Allow-Origin: https://fastdemo.github.io` (or `*
 cd worker
 npm install
 npx wrangler login
-# production (allowed origin = fastdemo.github.io)
+# production (allowed origin = https://aeri.fastdemo.workers.dev)
 npx wrangler deploy --env production
 # or preview
 npx wrangler deploy --env preview
 ```
 
-Then in GitHub repo: Settings → Secrets → `VITE_VIDEO_API_URL` = `https://aeri-video.<you>.workers.dev`
-
-`deploy.yml` already injects it at build: `VITE_VIDEO_API_URL: ${{ secrets.VITE_VIDEO_API_URL }}`
-
-Once set, frontend `officialProvider` (and legacy `miruroProvider` via alias) will produce episodes + MP4/embed via this worker without further frontend changes. Without `VITE_VIDEO_API_URL`, frontend `officialProvider` falls back to browser-direct AniList trailer (embed-only, CORS `*`).
+`VITE_VIDEO_API_URL`-style split-frontend wiring is historical — production serves the same-origin `/api/*` from this worker; nothing extra is configured in CI for it.
 
 ## Extending
 
@@ -108,10 +106,7 @@ npx wrangler dev --port 8787
 # frontend .env: VITE_VIDEO_API_URL=http://127.0.0.1:8787
 npm run dev
 # test worker directly:
-curl http://127.0.0.1:8787/health | jq
-curl http://127.0.0.1:8787/episodes/1 | jq
-curl "http://127.0.0.1:8787/sources/official-1-1?language=sub" | jq
-curl "http://127.0.0.1:8787/proxy?url=$(echo -n https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8 | jq -sRr @uri)" -I
+curl http://127.0.0.1:8787/api/health | jq
 ```
 
-Verify playback: open `http://localhost:5173/#/watch/1/1` (Cowboy Bebop EP1) — player should show YouTube embed (or MP4 if embed blocked) with source selector `Official Trailer 1080p/sub` and quality fallback.
+Note: endpoints follow the current resolver-based registry (`/api/health`, `/api/sources/...`, `docs/RELEASING.md` §4); the historical `official-1-1`-style examples below no longer apply.

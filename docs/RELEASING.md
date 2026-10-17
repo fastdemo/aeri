@@ -1,5 +1,13 @@
 # RELEASING — Aeri (how to ship without breaking login)
 
+> **Incident 2026-10-17 (D095):** production was deleted in error for ~30 min
+> and fully restored the same day (version `98daa425`, `verify:live` 8/8).
+> The checklist below is the live runbook again. One outstanding gap:
+> `MAL_CLIENT_SECRET` is not present on the worker since the incident — needed
+> only if the MAL app is confidential; if MAL login fails with
+> `invalid_client`, owner runs `npx wrangler secret put MAL_CLIENT_SECRET
+> --env production` (keychain).
+
 Read this before every production deploy. Two login outages (D049, 2026-09-06)
 had the same root cause: **a build that didn't bake the required `VITE_*` env
 vars**. The app cannot recover from that at runtime — it must be rebuilt.
