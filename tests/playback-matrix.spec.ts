@@ -7,7 +7,7 @@
  *
  * Run:
  *   npx playwright test tests/playback-matrix.spec.ts --project=chromium --reporter=list
- *   PLAYBACK_BASE_URL=https://fastdemo.github.io/aeri/ npx playwright test tests/playback-matrix.spec.ts
+ *   PLAYBACK_BASE_URL=https://aeri.fastdemo.workers.dev/ npx playwright test tests/playback-matrix.spec.ts
  */
 import { test, expect, type Page } from '@playwright/test'
 import { classifyFetchResponse, isHlsManifest, probeVideoElementEval, probeEmbedElementEval, verdictFromVideoProbe, verdictFromEmbedProbe } from '../src/lib/playback-verification'

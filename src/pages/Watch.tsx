@@ -334,7 +334,7 @@ export function Watch() {
                 </div>
                 <p className="mt-3 text-sm font-medium text-[var(--text)]">No playable source is currently available for this {isMovie ? 'title' : 'episode'}.</p>
                 <p className="mx-auto mt-1 text-xs leading-5 text-[var(--text-muted)]">
-                  This source isn&apos;t available right now. Try another source{isMovie ? '' : ' or episode'}. Aeri is static on GitHub Pages — most providers need a server proxy. Configure a video backend in Settings for playback.
+                  This source isn&apos;t available right now. Try another source{isMovie ? '' : ' or episode'}. Aeri resolves playback through its built-in server — you can set a custom video server URL in Settings.
                 </p>
                 {triedProviders.length > 0 && (
                   <p className="mt-2 text-[11px] text-[var(--text-faint)]">Tried: {triedProviders.join(' • ')}</p>
