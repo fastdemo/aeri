@@ -25,8 +25,19 @@ export interface TrackingProvider {
   getAnime(id: string): Promise<Anime>
   search(query: string): Promise<Anime[]>
   updateProgress(id: string, episode: number, isManga?: boolean): Promise<void>
-  updateStatus(id: string, status: AnimeStatus, isManga?: boolean): Promise<void>
+  updateStatus(id: string, status: AnimeStatus, isManga?: boolean, dates?: TrackerDates): Promise<void>
   updateRating(id: string, rating: number, isManga?: boolean): Promise<void>
+}
+
+/**
+ * Tracker date stamps (owner rule 2026-10-18): flipping a title to watching
+ * stamps its start date with today, completing stamps its finish date.
+ * 'YYYY-MM-DD' both providers normalize from; undefined keys leave the
+ * stored date untouched.
+ */
+export interface TrackerDates {
+  start?: string
+  finish?: string
 }
 
 // Queries
@@ -190,8 +201,8 @@ query ($search: String, $perPage: Int) {
 `
 
 const SAVE_MEDIA_LIST_ENTRY = `
-mutation ($mediaId: Int, $id: Int, $status: MediaListStatus, $progress: Int, $score: Float) {
-  SaveMediaListEntry(mediaId: $mediaId, id: $id, status: $status, progress: $progress, score: $score) {
+mutation ($mediaId: Int, $id: Int, $status: MediaListStatus, $progress: Int, $score: Float, $startedAt: FuzzyDateInput, $completedAt: FuzzyDateInput) {
+  SaveMediaListEntry(mediaId: $mediaId, id: $id, status: $status, progress: $progress, score: $score, startedAt: $startedAt, completedAt: $completedAt) {
     id
     status
     progress
@@ -199,6 +210,12 @@ mutation ($mediaId: Int, $id: Int, $status: MediaListStatus, $progress: Int, $sc
   }
 }
 `
+
+/** 'YYYY-MM-DD' → AniList FuzzyDateInput (month is 1-based there). */
+export function isoToFuzzyDate(iso: string): { year: number; month: number; day: number } {
+  const [y, m, d] = iso.split('-').map(Number)
+  return { year: y, month: m, day: d }
+}
 
 const DELETE_MEDIA_LIST_ENTRY = `
 mutation ($id: Int) {
@@ -338,12 +355,17 @@ export class AniListProvider implements TrackingProvider {
     try { await deleteCache(`anilist:list:${(await this.getUser(t).catch(() => null))?.id ?? ''}`).catch(() => {}) } catch {}
   }
 
-  async updateStatus(id: string, status: AnimeStatus): Promise<void> {
+  async updateStatus(id: string, status: AnimeStatus, _isManga?: boolean, dates?: TrackerDates): Promise<void> {
     const t = this.ensureToken()
     const anilistId = this.toAnilistId(id)
     const anilistStatus = aeriStatusToAnilist(status)
     const entryId = await this.findEntryIdForMedia(anilistId, t).catch(() => null)
     const vars: any = entryId ? { id: entryId, status: anilistStatus } : { mediaId: anilistId, status: anilistStatus }
+    // Date stamps (owner rule): watching → startedAt today, completed →
+    // completedAt today. Sent only when the caller detected a real status
+    // transition, so re-saving a status never rewrites the user's dates.
+    if (dates?.start) vars.startedAt = isoToFuzzyDate(dates.start)
+    if (dates?.finish) vars.completedAt = isoToFuzzyDate(dates.finish)
     await anilistGraphQL(SAVE_MEDIA_LIST_ENTRY, vars, { token: t, useCache: false })
     clearAnilistMemoryCache()
     try { await deleteCache(`anilist:list:${(await this.getUser(t).catch(() => null))?.id ?? ''}`).catch(() => {}) } catch {}

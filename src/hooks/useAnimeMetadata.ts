@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Anime } from '../types/anime'
 import { anilistMetadataProvider } from '../providers/metadata/anilistMetadata'
-import { ProviderError } from '../services/anilist/errors'
+import { ProviderError, type ProviderErrorCode } from '../services/anilist/errors'
 
 type State<T> = { data: T | null; loading: boolean; error: string | null }
 
@@ -203,45 +203,45 @@ export function useAnimeSearch(query: string, perPage = 12): State<Anime[]> {
   return state
 }
 
-export function useAnimeDetail(id: string | undefined): State<Anime> {
-  const [state, setState] = useState<State<Anime>>({ data: null, loading: !!id, error: null })
+export function useAnimeDetail(id: string | undefined, nonce = 0): State<Anime> & { errorCode: ProviderErrorCode | null } {
+  const [state, setState] = useState<{ data: Anime | null; loading: boolean; error: string | null; errorCode: ProviderErrorCode | null }>({ data: null, loading: !!id, error: null, errorCode: null })
   useEffect(() => {
-    if (!id) { setState({ data: null, loading: false, error: null }); return }
+    if (!id) { setState({ data: null, loading: false, error: null, errorCode: null }); return }
     const controller = new AbortController()
     let cancelled = false
-    setState(s => ({ data: s.data, loading: true, error: null }))
+    setState(s => ({ data: s.data, loading: true, error: null, errorCode: null }))
     anilistMetadataProvider.getAnime(id, controller.signal)
-      .then(d => { if (!cancelled && !controller.signal.aborted) setState({ data: d, loading: false, error: null }) })
+      .then(d => { if (!cancelled && !controller.signal.aborted) setState({ data: d, loading: false, error: null, errorCode: null }) })
       .catch(e => {
         if (cancelled || controller.signal.aborted || (e as any)?.name === 'AbortError') return
         if (e instanceof ProviderError && e.code === 'THROTTLED') {
-          if (!cancelled) setState(s => (s.data ? { data: s.data, loading: false, error: null } : { data: s.data, loading: false, error: friendlyError(e, 'Not found') }))
+          if (!cancelled) setState(s => (s.data ? { data: s.data, loading: false, error: null, errorCode: null } : { data: s.data, loading: false, error: friendlyError(e, 'Not found'), errorCode: 'THROTTLED' }))
           return
         }
         const msg = friendlyError(e, 'Not found')
-        if (!cancelled) setState(s => ({ data: s.data, loading: false, error: msg }))
+        if (!cancelled) setState(s => ({ data: s.data, loading: false, error: msg, errorCode: e instanceof ProviderError ? e.code : null }))
       })
     return () => { cancelled = true; controller.abort() }
-  }, [id])
+  }, [id, nonce])
   return state
 }
 
 /** Manga detail — same lifecycle as useAnimeDetail but queries type: MANGA. */
-export function useMangaDetail(id: string | undefined): State<Anime> {
-  const [state, setState] = useState<State<Anime>>({ data: null, loading: !!id, error: null })
+export function useMangaDetail(id: string | undefined, nonce = 0): State<Anime> & { errorCode: ProviderErrorCode | null } {
+  const [state, setState] = useState<{ data: Anime | null; loading: boolean; error: string | null; errorCode: ProviderErrorCode | null }>({ data: null, loading: !!id, error: null, errorCode: null })
   useEffect(() => {
-    if (!id) { setState({ data: null, loading: false, error: null }); return }
+    if (!id) { setState({ data: null, loading: false, error: null, errorCode: null }); return }
     const controller = new AbortController()
     let cancelled = false
-    setState(s => ({ data: s.data, loading: true, error: null }))
+    setState(s => ({ data: s.data, loading: true, error: null, errorCode: null }))
     anilistMetadataProvider.getManga(id, controller.signal)
-      .then(d => { if (!cancelled && !controller.signal.aborted) setState({ data: d, loading: false, error: null }) })
+      .then(d => { if (!cancelled && !controller.signal.aborted) setState({ data: d, loading: false, error: null, errorCode: null }) })
       .catch(e => {
         if (cancelled || controller.signal.aborted || (e as any)?.name === 'AbortError') return
         const msg = friendlyError(e, 'Not found')
-        if (!cancelled) setState(s => ({ data: s.data, loading: false, error: msg }))
+        if (!cancelled) setState(s => ({ data: s.data, loading: false, error: msg, errorCode: e instanceof ProviderError ? e.code : null }))
       })
     return () => { cancelled = true; controller.abort() }
-  }, [id])
+  }, [id, nonce])
   return state
 }

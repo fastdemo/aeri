@@ -5,7 +5,7 @@ import { handleMalOAuthCallback, parseMalManualToken, getMalRedirectUriForDispla
 import { MalProviderError } from '../services/mal/client'
 import { clearMalMemoryCache } from '../services/mal/client'
 import type { AnimeListEntry, AnimeStatus } from '../types/anime'
-import type { AniListUser } from '../providers/anilist/provider'
+import type { AniListUser, TrackerDates } from '../providers/anilist/provider'
 
 type Ctx = {
   isAuthenticated: boolean
@@ -23,7 +23,7 @@ type Ctx = {
   setManualToken: (raw: string) => boolean
   refresh: () => Promise<void>
   updateProgress: (id: string, ep: number, isManga?: boolean) => Promise<void>
-  updateStatus: (id: string, status: AnimeStatus, isManga?: boolean) => Promise<void>
+  updateStatus: (id: string, status: AnimeStatus, isManga?: boolean, dates?: TrackerDates) => Promise<void>
   updateRating: (id: string, rating: number, isManga?: boolean) => Promise<void>
   /** Remove the entry from the list entirely (MAL DELETE my_list_status). */
   removeEntry: (id: string, isManga?: boolean) => Promise<void>
@@ -351,12 +351,12 @@ export function MALProvider({ children }: { children: React.ReactNode }) {
     })
   }, [optimisticUpdate, loadList, resolveMalId, guardWrite])
 
-  const updateStatus = useCallback(async (id: string, status: AnimeStatus, isManga = false) => {
+  const updateStatus = useCallback(async (id: string, status: AnimeStatus, isManga = false, dates?: TrackerDates) => {
     return guardWrite(`status:${id}`, async () => {
     optimisticUpdate(id, { status })
     try {
       const malId = resolveMalId(id)
-      await malProvider.updateStatus(malId, status, isManga)
+      await malProvider.updateStatus(malId, status, isManga, dates)
       const t = getMalToken()
       if (t) await loadList(t).catch(()=>{})
     } catch (e) {

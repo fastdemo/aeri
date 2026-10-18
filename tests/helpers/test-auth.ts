@@ -83,6 +83,13 @@ function malEntry(e: TestListEntry) {
  * getMalToken()/isMalTokenExpired() path.
  */
 export async function seedTestAuth(page: Page): Promise<void> {
+  // Localhost runs (vite preview) have no same-origin worker: point the
+  // MAL bridge at the production worker so routeTestMalIdentity's
+  // worker-shaped doubles own the /api/mal/* calls (as other localhost
+  // probes do), never letting the fake token reach the real upstream.
+  await page.addInitScript(() => {
+    try { localStorage.setItem('aeri:prefs', JSON.stringify({ customVideoApiUrl: 'https://aeri.fastdemo.workers.dev' })) } catch {}
+  })
   await page.addInitScript((token: string) => {
     try {
       localStorage.setItem('aeri:mal:access_token', token)
@@ -252,14 +259,17 @@ export async function unrouteTestDoubles(page: Page): Promise<void> {
 
 /**
  * Assert the signed-out redirect contract IN the app: visiting a protected
- * route with an empty context must land back on `/` (Home). The caller
- * must use a FRESH context (no seedTestAuth, no routed identity).
+ * route with an empty context must land back on `/` (Home). Path-based
+ * URLs (BrowserRouter): Home is pathname `/` — transiently `/?signin=1`
+ * while the sign-in popup hint is being stripped; either is a pass. The
+ * caller must use a FRESH context (no seedTestAuth, no routed identity).
  */
-export async function expectSignedOutRedirect(page: Page, hashPath: string): Promise<void> {
-  await page.goto(`/#${hashPath}`, { waitUntil: 'domcontentloaded' })
+export async function expectSignedOutRedirect(page: Page, path: string): Promise<void> {
+  await page.goto(path, { waitUntil: 'domcontentloaded' })
   await page.waitForTimeout(1500)
-  const hash = await page.evaluate(() => location.hash)
-  if (hash !== '#/' && hash !== '' && !hash.startsWith('#/?')) {
-    throw new Error(`expected signed-out redirect to Home for ${hashPath}, stayed at ${hash}`)
+  const landed = await page.evaluate(() => ({ path: location.pathname, search: location.search }))
+  const backHome = landed.path === '/' && (landed.search === '' || landed.search.startsWith('?'))
+  if (!backHome) {
+    throw new Error(`expected signed-out redirect to Home for ${path}, stayed at ${landed.path}${landed.search}`)
   }
 }

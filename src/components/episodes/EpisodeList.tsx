@@ -166,9 +166,12 @@ export function EpisodeList({ anime, hideHeader }: { anime: Anime; hideHeader?: 
           // first paint (fetch not yet settled); treat as loading then.
           const titleLoading = !providerDone ? (ep.fieldState?.title !== 'resolved') : ep.fieldState?.title === 'loading'
           const thumbLoading = !providerDone ? (ep.fieldState?.thumbnail !== 'resolved') : ep.fieldState?.thumbnail === 'loading'
+          // PLACEHOLDER RULE (owner 2026-10-18): an episode without its own
+          // thumbnail shows the SHOW's artwork — never a bare tile. The
+          // skeleton only runs when there is no artwork at all yet.
           const thumb = ep.thumbnail || fallbackThumb
-          const showThumbSkeleton = thumbLoading && !ep.thumbnail
-          const showRealThumb = !!ep.thumbnail
+          const showThumbSkeleton = thumbLoading && !thumb
+          const showRealThumb = !!thumb
           const epLabel = `${String(ep.number).padStart(2, '0')}`
           const watchEp = ep.number
           return (
@@ -184,30 +187,31 @@ export function EpisodeList({ anime, hideHeader }: { anime: Anime; hideHeader?: 
                 {showThumbSkeleton ? (
                   <div className="h-full w-full animate-pulse bg-[color-mix(in_srgb,var(--text)_8%,transparent)]" aria-label="Loading episode thumbnail" />
                 ) : showRealThumb ? (
-                  <img
-                    key={`${seasonKey}-${ep.number}-${thumb}`}
-                    src={thumb}
-                    alt=""
-                    className="h-full w-full object-cover"
-                    loading="lazy"
-                    decoding="async"
-                    onError={(e) => {
-                      const img = e.currentTarget as HTMLImageElement
-                      img.style.display = 'none'
-                      const fallback = img.nextElementSibling as HTMLElement | null
-                      if (fallback) fallback.style.display = 'grid'
-                    }}
-                  />
-                ) : null}
-                {!showRealThumb && !showThumbSkeleton && (
+                  <>
+                    <img
+                      key={`${seasonKey}-${ep.number}-${thumb}`}
+                      src={thumb}
+                      alt=""
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                      decoding="async"
+                      onError={(e) => {
+                        const img = e.currentTarget as HTMLImageElement
+                        img.style.display = 'none'
+                        const fallback = img.nextElementSibling as HTMLElement | null
+                        if (fallback) fallback.style.display = 'grid'
+                      }}
+                    />
+                    {/* fallback tile when the artwork fails to load */}
+                    <div className="hidden h-full w-full place-items-center bg-[var(--text)]/[0.04] text-[10px] font-medium text-[color-mix(in_srgb,var(--text)_30%,transparent)]">
+                      {epLabel}
+                    </div>
+                  </>
+                ) : (
                   <div className="grid h-full w-full place-items-center bg-[var(--text)]/[0.04] text-[10px] font-medium text-[color-mix(in_srgb,var(--text)_30%,transparent)]">
                     {epLabel}
                   </div>
                 )}
-                {/* fallback placeholder when img fails */}
-                <div className="hidden h-full w-full place-items-center bg-[var(--text)]/[0.04] text-[10px] font-medium text-[color-mix(in_srgb,var(--text)_30%,transparent)]" style={{display: showRealThumb ? undefined : 'grid'}}>
-                  {epLabel}
-                </div>
                 {isWatched && (
                   <span className="absolute inset-0 grid place-items-center bg-[color-mix(in_srgb,var(--bg)_40%,transparent)] text-[var(--text)]">
                     <Icon name="check-lg" size={14} />

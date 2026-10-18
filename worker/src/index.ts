@@ -583,7 +583,7 @@ const epMatch = url.pathname.match(/^\/(?:api\/)?(?:video\/)?episodes\/(\d+)$/)
       }
     }
 
-    const srcMatch = url.pathname.match(/^\/(?:api\/)?(?:video\/)?(?:sources|watch)\/(.+)$/)
+    const srcMatch = url.pathname.match(/^\/(?:api\/)?(?:video\/)?sources\/(.+)$/)
     if (srcMatch) {
       try {
         const rawPart = srcMatch[1].replace(/^\/+/, '')

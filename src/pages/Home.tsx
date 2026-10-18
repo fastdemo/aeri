@@ -2,13 +2,13 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { HeroCarousel } from '../components/hero/Hero'
 import { AnimeCard } from '../components/cards/AnimeCard'
 import { ContentRow } from '../components/rows/ContentRow'
-import { DetailModal } from '../components/detail/DetailModal'
 import { SignInModal } from '../components/auth/SignInModal'
 import type { Anime, AnimeListEntry } from '../types/anime'
 import { useTracking } from '../contexts/TrackingContext'
 import { RowSkeleton } from '../components/ui/Skeleton'
 import { useTrending, usePopular, useAiring, useNewReleases } from '../hooks/useAnimeMetadata'
-import { useLocation } from 'react-router-dom'
+import { useLocation, useNavigate } from 'react-router-dom'
+import { useDetailOpen } from '../hooks/useDetailOpen'
 import { getRecommendations } from '../recommendations/engine'
 
 function Section({
@@ -139,20 +139,29 @@ function ensureMinRow(primary: Anime[], fallback: Anime[], min: number, used?: S
 }
 
 export function Home() {
-  const [selected, setSelected] = useState<Anime | null>(null)
   const [signInOpen, setSignInOpen] = useState(false)
   const mountSalt = useRef(Math.floor(Math.random() * 1e9))
   const { isAuthenticated, trackingProvider, combinedList, loading, error, authExpired } = useTracking()
   const location = useLocation()
+  const navigate = useNavigate()
+  const openDetail = useDetailOpen()
 
-  // Close modal on navigation (fixes navbar Home click while modal open)
-  useEffect(() => { setSelected(null) }, [location.pathname, location.hash, location.search])
-
+  // Card taps push a detail URL (/anime/<id> or /manga/<id>) — the floating
+  // card renders as an overlay route on top of this page, so component
+  // state (rows, scroll) survives open/close.
   const handleSelect = (a: Anime) => {
     // Signed-out users get the sign-in gate, not the preview card.
     if (!isAuthenticated) { setSignInOpen(true); return }
-    setSelected(a)
+    openDetail(a)
   }
+
+  // Signed-out deep link landing: /?signin=1 arrives from the detail route's
+  // members-only redirect — pop the sign-in popup once, then strip the hint.
+  useEffect(() => {
+    if (!location.search.includes('signin=1')) return
+    setSignInOpen(true)
+    navigate('/', { replace: true })
+  }, [location.search, navigate])
 
   // Fetch larger pools so varied sampling has room to vary
   const trending = useTrending(24)
@@ -407,7 +416,7 @@ export function Home() {
               </div>
             </div>
           ) : heroes.length ? (
-            <HeroCarousel animes={heroes} onMoreInfo={(a) => { if (!isAuthenticated) setSignInOpen(true); else setSelected(a) }} trackingProvider={trackingProvider} />
+            <HeroCarousel animes={heroes} onMoreInfo={(a) => { if (!isAuthenticated) setSignInOpen(true); else openDetail(a) }} trackingProvider={trackingProvider} />
           ) : (
             <div className="flex aspect-[21/9] w-full items-center justify-center rounded-xl bg-[var(--text)]/[0.03] lg:min-h-[460px]">
               <p className="text-sm text-[var(--text-faint)]">No hero available</p>
@@ -472,7 +481,6 @@ export function Home() {
         ) : null}
       </div>
 
-      {selected && <DetailModal key={selected.identity.internalId} anime={selected} onClose={() => setSelected(null)} onSelectRelated={setSelected} />}
       {signInOpen && <SignInModal onClose={() => setSignInOpen(false)} />}
     </div>
   )

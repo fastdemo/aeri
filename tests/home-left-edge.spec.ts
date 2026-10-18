@@ -13,7 +13,7 @@ for (const vw of WIDTHS) {
   test(`home left edge aligned at ${vw}px (images blocked)`, async ({ page }) => {
     await page.setViewportSize({ width: vw, height: 844 })
     await page.route('**.{jpg,jpeg,png,webp,avif}', r => r.abort())
-    await page.goto('/#/', { waitUntil: 'domcontentloaded' })
+    await page.goto('/', { waitUntil: 'domcontentloaded' })
     await page.waitForTimeout(8000)
     const rows = await page.evaluate(() => {
       const hero = document.querySelector('main section')

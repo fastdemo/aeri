@@ -1,11 +1,10 @@
 import { useState, useEffect, useRef } from 'react'
 import { AnimeCard } from '../components/cards/AnimeCard'
-import { DetailModal } from '../components/detail/DetailModal'
 import { FilterSelect } from '../components/ui/FilterSelect'
 import type { Anime } from '../types/anime'
 import { useMangaBrowse } from '../hooks/useAnimeMetadata'
 import { useTracking } from '../contexts/TrackingContext'
-import { useLocation } from 'react-router-dom'
+import { useDetailOpen } from '../hooks/useDetailOpen'
 import { ANILIST_GENRES } from '../lib/genres'
 import { SignInModal } from '../components/auth/SignInModal'
 
@@ -59,14 +58,13 @@ function shuffle<T>(arr: T[]): T[] {
 const PAGE_SIZE = 30
 
 export function Manga() {
-  const [selected, setSelected] = useState<Anime | null>(null)
   const [signInOpen, setSignInOpen] = useState(false)
   // Same gate as anime Browse: signed-out card clicks prompt onboarding
-  // signup instead of opening the detail modal.
+  // signup instead of opening the detail card. Card taps push /manga/<id>
+  // — the floating card is an overlay route on top of this page.
   const { isAuthenticated } = useTracking()
   const [category, setCategory] = useState<(typeof categories)[number]['id']>('popular')
-  const location = useLocation()
-  useEffect(() => { setSelected(null) }, [location.pathname, location.hash, location.search])
+  const openDetail = useDetailOpen()
   const [genre, setGenre] = useState('All')
   const [yearKey, setYearKey] = useState('All Years')
   const [format, setFormat] = useState<(typeof formats)[number]>('All')
@@ -231,7 +229,7 @@ export function Manga() {
           <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {visible.map(a => (
               <div key={a.identity.internalId} className="min-w-0">
-                <AnimeCard anime={a} mediaKind="manga" onSelect={(picked) => { if (!isAuthenticated) setSignInOpen(true); else setSelected(picked) }} fullWidth />
+                <AnimeCard anime={a} mediaKind="manga" onSelect={(picked) => { if (!isAuthenticated) setSignInOpen(true); else openDetail(picked) }} fullWidth />
               </div>
             ))}
           </div>
@@ -256,7 +254,6 @@ export function Manga() {
         </>
       )}
 
-      {selected && <DetailModal key={selected.identity.internalId} anime={selected} onClose={() => setSelected(null)} onSelectRelated={setSelected} />}
       {signInOpen && <SignInModal onClose={() => setSignInOpen(false)} />}
     </div>
   )

@@ -38,6 +38,18 @@ export const THEMES: ThemeDef[] = [
     '#ffffff', '#a3a3a3', '#6e6e6e', '#000000',
     '#ffffff', '#d4d4d4', '#fbbf24', '#4ade80',
     'rgba(0,0,0,0.75)', 'rgba(0,0,0,0.6)') },
+  // Light twin of Aeri Dark: the same neutral-gray ramp inverted. Ramp
+  // direction mirrors Gruvbox/Solarized light themes (emphasis steps get
+  // progressively deeper) so elevation reads correctly on white. Accent
+  // mirrors --text (the "ink" color) like Aeri Dark does; warn/ok switch to
+  // darker hues (amber-600 / green-600) because the bright variants fail
+  // contrast on white.
+  { id: 'aeri-light', name: 'Aeri Light', vars: t(
+    '#fafafa', '#ffffff', '#f0f0f0', '#fafafa', '#e3e3e3', '#dcdcdc',
+    'rgba(0,0,0,0.10)', 'rgba(0,0,0,0.20)',
+    '#1a1a1a', '#5f5f5f', '#8a8a8a', '#ffffff',
+    '#1a1a1a', '#414141', '#d97706', '#16a34a',
+    'rgba(0,0,0,0.45)', 'rgba(0,0,0,0.18)') },
   { id: 'catppuccin-latte', name: 'Catppuccin Latte', vars: t(
     '#eff1f5', '#e6e9ef', '#ccd0da', '#eff1f5', '#bcc0cc', '#acb0be',
     'rgba(76,79,105,0.16)', 'rgba(76,79,105,0.3)',

@@ -216,7 +216,7 @@ export async function handleAnilistOAuthCallback(): Promise<string | null> {
     url.searchParams.delete('error')
     url.searchParams.delete('error_description')
     const base = (import.meta as any).env?.BASE_URL as string || '/'
-    const clean = `${window.location.origin}${base}#/`
+    const clean = `${window.location.origin}${base}`
     window.history.replaceState(null, '', clean)
     throw new Error(`AniList authorization failed: ${error}${errorDesc ? ` — ${errorDesc}` : ''}`)
   }
@@ -230,7 +230,7 @@ export async function handleAnilistOAuthCallback(): Promise<string | null> {
     url.searchParams.delete('code')
     url.searchParams.delete('state')
     const base = (import.meta as any).env?.BASE_URL as string || '/'
-    const clean = `${window.location.origin}${base}#/`
+    const clean = `${window.location.origin}${base}`
     window.history.replaceState(null, '', clean)
     return existing
   }
@@ -241,7 +241,7 @@ export async function handleAnilistOAuthCallback(): Promise<string | null> {
     url.searchParams.delete('code')
     url.searchParams.delete('state')
     const base = (import.meta as any).env?.BASE_URL as string || '/'
-    const clean = `${window.location.origin}${base}#/`
+    const clean = `${window.location.origin}${base}`
     window.history.replaceState(null, '', clean)
     throw new Error('AniList state mismatch — possible CSRF. Try again.')
   }
@@ -265,7 +265,7 @@ export async function handleAnilistOAuthCallback(): Promise<string | null> {
       u.searchParams.delete('code')
       u.searchParams.delete('state')
       const base = (import.meta as any).env?.BASE_URL as string || '/'
-      window.history.replaceState(null, '', `${window.location.origin}${base}#/`)
+      window.history.replaceState(null, '', `${window.location.origin}${base}`)
     } catch {}
     throw e
   })
@@ -278,7 +278,7 @@ export async function handleAnilistOAuthCallback(): Promise<string | null> {
   url.searchParams.delete('code')
   url.searchParams.delete('state')
   const base = (import.meta as any).env?.BASE_URL as string || '/'
-  const clean = `${window.location.origin}${base}#/`
+  const clean = `${window.location.origin}${base}`
   window.history.replaceState(null, '', clean)
   return token
 }

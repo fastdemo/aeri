@@ -76,8 +76,10 @@ export function TrackingProvider({ children }: { children: React.ReactNode }) {
       persistTrackingProvider(null)
       setExplicitTracker(null)
       try {
-        const hash = window.location.hash || '#/'
-        if (!/^#\/?(\?.*)?$/.test(hash)) navigate('/')
+        // Leave protected surfaces when the last account disconnects. The
+        // pathname check runs on window because this context sits inside
+        // the router but only needs the current entry.
+        if (window.location.pathname !== '/') navigate('/')
       } catch {}
     }
   }, [anyConnected, navigate])
@@ -151,17 +153,35 @@ export function TrackingProvider({ children }: { children: React.ReactNode }) {
 
   const updateStatus = useCallback(async (anime: Anime, status: AnimeStatus) => {
     const isManga = isMangaObj(anime)
+    // DATE STAMPS (owner rule 2026-10-18): flipping a title to watching
+    // stamps its start date with today; completing stamps its finish date.
+    // Detected as a real TRANSITION against the current list copy — a
+    // no-op re-save of the same status never rewrites stored dates.
+    const selfManga = isManga
+    const prevStatus = (combinedList ?? []).find((e) => {
+      if (selfManga !== ['MANGA', 'NOVEL', 'ONE_SHOT'].includes((e.anime.format ?? '').toUpperCase())) return false
+      if (anime.identity.malId && e.anime.identity.malId === anime.identity.malId) return true
+      if (anime.identity.anilistId && e.anime.identity.anilistId === anime.identity.anilistId) return true
+      return e.anime.identity.internalId === anime.identity.internalId
+    })?.status ?? null
+    const dates: { start?: string; finish?: string } = {}
+    if (prevStatus !== status) {
+      const now = new Date()
+      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+      if (status === 'watching') dates.start = today
+      if (status === 'completed') dates.finish = today
+    }
     if (active === 'anilist' && ani.isAuthenticated && isSyncEnabled('anilist', 'status')) {
       const anilistId = anime.identity.anilistId?.toString() ?? (anime.identity.internalId.startsWith('anilist-') ? anime.identity.internalId.replace('anilist-', '') : null)
-      if (anilistId) { await ani.updateStatus(anilistId, status).catch(() => {}); return }
-      if (anime.identity.anilistId) { await ani.updateStatus(`anilist-${anime.identity.anilistId}`, status).catch(() => {}); return }
+      if (anilistId) { await ani.updateStatus(anilistId, status, undefined, dates).catch(() => {}); return }
+      if (anime.identity.anilistId) { await ani.updateStatus(`anilist-${anime.identity.anilistId}`, status, undefined, dates).catch(() => {}); return }
     }
     if (active === 'mal' && mal.isAuthenticated && isSyncEnabled('mal', 'status')) {
       const malId = anime.identity.malId ? `mal-${anime.identity.malId}` : (anime.identity.internalId.startsWith('mal-') ? anime.identity.internalId : null)
-      if (malId) { await mal.updateStatus(malId, status, isManga).catch(() => {}); return }
-      if (anime.identity.malId) { await mal.updateStatus(`mal-${anime.identity.malId}`, status, isManga).catch(() => {}); return }
+      if (malId) { await mal.updateStatus(malId, status, isManga, dates).catch(() => {}); return }
+      if (anime.identity.malId) { await mal.updateStatus(`mal-${anime.identity.malId}`, status, isManga, dates).catch(() => {}); return }
     }
-  }, [active, ani.isAuthenticated, ani.updateStatus, mal.isAuthenticated, mal.updateStatus])
+  }, [active, ani.isAuthenticated, ani.updateStatus, mal.isAuthenticated, mal.updateStatus, combinedList])
 
   const updateRating = useCallback(async (anime: Anime, rating: number) => {
     const isManga = isMangaObj(anime)

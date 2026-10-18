@@ -2,11 +2,11 @@
 
 ## Overview
 
-Aeri is a React SPA (Vite + HashRouter) served by the Cloudflare Worker `aeri` at `https://aeri.fastdemo.workers.dev/`, which serves `dist` assets and same-origin `/api/*` (video, MAL proxy, AniList token proxy). A standalone `auth-proxy/` Node service on non-Cloudflare hosting handles AniList token exchange because AniList 403-blocks all Cloudflare Worker IPs (see D041).
+Aeri is a React SPA (Vite + BrowserRouter) served by the Cloudflare Worker `aeri` at `https://aeri.fastdemo.workers.dev/`, which serves `dist` assets, SPA-fallbacks every non-asset GET to `index.html`, and hosts same-origin `/api/*` (video, MAL proxy, AniList token proxy). A standalone `auth-proxy/` Node service on non-Cloudflare hosting handles AniList token exchange because AniList 403-blocks all Cloudflare Worker IPs (see D041).
 
 ```
 User Browser
-  ├─ React SPA (Vite, HashRouter #/)
+  ├─ React SPA (Vite, BrowserRouter paths + legacy-hash shim)
   ├─ IndexedDB / localStorage (progress, cache, tokens, prefs)
   ├─ AniList GraphQL direct from browser (CORS OK, https://graphql.anilist.co)
   │    ├─ TrackingProvider (auth Authorization Code via auth-proxy/Worker, Viewer, MediaListCollection, SaveMediaListEntry)
@@ -18,9 +18,11 @@ User Browser
 
 ## Routing
 
-- `HashRouter` (`react-router-dom`). Paths: `#/`, `#/anime`, `#/anime/:id`, `#/watch/:id/:episode`, `#/list`, `#/search`, `#/settings`.
-- Why hash: refresh and deep links work without server rewrites on any static host.
-- AniList Authorization Code flow returns `?code=` + `?state=` (search params, survive HashRouter); handled in `AniListContext` effect (exchange via auth-proxy/Worker), never in the hash. MAL `?code=` likewise parsed in `MALContext` effect. Each context ignores the other's callback by matching URL `state` against its own stored state (D042).
+- `BrowserRouter` (D098 — path URLs are canonical). Paths: `/`, `/anime`, `/anime/:id` (overlay detail route), `/watch/:id/:episode`, `/list`, `/search`, `/settings`, `/manga`, `/manga/:id` (overlay detail route).
+- Why it's safe here: the Worker serves the SPA shell for every non-asset GET (`assets.binding: ASSETS` + `not_found_handling: "single-page-application"` in `wrangler.jsonc`; the Worker's own fallback block returns index.html for extension-less non-API paths). Refresh and deep links work natively; no `404.html` copy is involved.
+- **Legacy-hash shim (D098):** URLs shared before the swap (`/#/anime/123`, `/#/search?q=x`) are translated to their path form in `main.tsx` — at boot and again on `hashchange` (solely a same-document fragment edit while the app is open). A post-mount translation re-dispatches `popstate` so the mounted router syncs to the new path immediately. The fragment is then REMOVED from the address bar (one-time normalization, not a redirect).
+- **Detail overlay (D097):** `/anime/:id` + `/manga/:id` exist ONLY as overlay routes rendering `DetailRoute` (floating card via `DetailModal`) ON TOP of the page the card was opened from — `location.state.background` carries that page; bare deep links default to Home behind. The standalone `AnimeDetail` page is deleted. Every preview card / suggestion pick pushes the show's canonical URL; browser Back, Esc, ✕ or backdrop close it (Back hands the history entry back). Signed-out deep links redirect to Home with the sign-in popup (`/?signin=1` hop; members-only per pre-existing policy). Scroll reset is keyed on the background surface so open/close never yanks the page behind the card.
+- AniList Authorization Code flow returns `?code=` + `?state=` (search params); handled in `AniListContext` effect (exchange via auth-proxy/Worker). MAL `?code=` likewise parsed in `MALContext` effect (plus the pre-router early handler in `main.tsx`, which only cleans error params). Each context ignores the other's callback by matching URL `state` against its own stored state (D042). All OAuth URL cleanups (`history.replaceState`) target the basename root — no `#/` anywhere.
 
 ## Data Flow
 
@@ -76,7 +78,7 @@ Canonical `internalId` (`anilist-<id>` / `mal-<id>` for real, slug for mock). Op
 
 ## App Wiring
 
-`src/App.tsx`: `HashRouter → AniListProvider → MALProvider → TrackingProvider → Layout`. `src/components/anilist/AniListConnect.tsx` + `src/components/mal/MALConnect.tsx` in Settings/MyList; navbar `SearchSuggestions` picks open `DetailModal` (state lifted to `Navbar`, never `/anime/:id` navigation); `Navbar` shows avatar when authenticated, else Connect button; `Home` `Continue Watching`/`My List` use `combinedList`.
+`src/App.tsx`: `HashRouter → AniListProvider → MALProvider → TrackingProvider → Layout`. `src/components/anilist/AniListConnect.tsx` + `src/components/mal/MALConnect.tsx` in Settings/MyList; navbar `SearchSuggestions` picks push the show's canonical `/anime/<id>` or `/manga/<id>` URL and the floating card overlays (D097); `Navbar` shows avatar when authenticated, else Connect button; `Home` `Continue Watching`/`My List` use `combinedList`.
 
 ## Sync Strategy
 

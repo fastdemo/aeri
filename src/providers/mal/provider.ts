@@ -1,4 +1,4 @@
-import type { TrackingProvider, AniListUser } from '../anilist/provider'
+import type { TrackingProvider, AniListUser, TrackerDates } from '../anilist/provider'
 import type { Anime, AnimeListEntry, AnimeStatus } from '../../types/anime'
 import { malFetch, clearMalMemoryCache, MalProviderError } from '../../services/mal/client'
 import { deleteCache } from '../../storage/db'
@@ -147,11 +147,16 @@ export class MALProvider implements TrackingProvider {
     try { await deleteCache('mal:list').catch(() => {}); await deleteCache('mal:list:manga').catch(() => {}) } catch {}
   }
 
-  async updateStatus(id: string, status: AnimeStatus, isManga = false): Promise<void> {
+  async updateStatus(id: string, status: AnimeStatus, isManga = false, dates?: TrackerDates): Promise<void> {
     const malId = this.toMalId(id)
     const malStatus = aeriStatusToMal(status, isManga)
     const body = new URLSearchParams()
     body.set('status', malStatus)
+    // Date stamps (owner rule 2026-10-18): watching → start_date today,
+    // completed → finish_date today. MAL API v2 takes list dates as
+    // 'YYYY-MM-DD' (same shape it returns them in).
+    if (dates?.start) body.set('start_date', dates.start)
+    if (dates?.finish) body.set('finish_date', dates.finish)
     // When moving to completed, MAL may require num_watched_episodes = num_episodes; but we leave as is
     await malFetch(`/${isManga ? 'manga' : 'anime'}/${malId}/my_list_status`, {
       method: 'PUT',

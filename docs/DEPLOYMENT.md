@@ -35,9 +35,13 @@ Production base is `/` — the only base now. D096 (2026-10-17) removed the GitH
 
 ## Routing
 
-HashRouter (`#/`). No server rewrite needed. Refresh and deep links work natively.
+Path URLs (BrowserRouter, D098). The Worker serves the SPA shell for every
+non-asset GET (`assets.binding` + `not_found_handling:
+single-page-application`), so refresh and deep links work natively. Legacy
+`#/…` links are translated to paths in `main.tsx` (boot + `hashchange`,
+D098).
 
-If BrowserRouter were used, a `404.html` copy of `index.html` and `spa-github-pages` script would be required — we avoid this.
+Test: `/`, `/anime`, `/anime/<id>`, `/manga/<id>`, `/watch/<id>/1`, `/list`.
 
 ## GitHub Pages — fully removed (D096, 2026-10-17)
 
@@ -55,10 +59,10 @@ Never re-enable Pages in repo Settings or recreate the `gh-pages` branch. Histor
 ```bash
 npm run build
 npm run preview -- --port 4173
-# open http://localhost:4173/#/   (base /, matches production)
+# open http://localhost:4173/   (base /, matches production)
 ```
 
-Test: `#/`, `#/anime`, `#/anime/<id>`, `#/watch/<id>/1`, `#/list`.
+Test: `/`, `/anime`, `/anime/<id>`, `/manga/<id>`, `/watch/<id>/1`, `/list`.
 
 Note: `vite preview` has no Worker — video/provider paths need Settings →
 Custom video server pointed at `https://aeri.fastdemo.workers.dev`

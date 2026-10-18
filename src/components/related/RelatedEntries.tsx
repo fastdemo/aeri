@@ -1,6 +1,31 @@
+import { useLocation, useNavigate } from 'react-router-dom'
 import { AnimeCard } from '../cards/AnimeCard'
 import type { RelatedEntry } from '../../hooks/useRelatedEntries'
 import { formatLabel } from '../../lib/mediaLabels'
+
+/** Router-navigating anchor: real href (a11y, middle-click, file:// dev),
+ * left click pushed via the router with `background` so the floating
+ * detail card opens above the current page (D097). Plain-href hash links
+ * died with the HashRouter era. */
+function RelatedAnchor({ href, label, children }: { href: string; label: string; children: React.ReactNode }) {
+  const navigate = useNavigate()
+  const location = useLocation()
+  return (
+    <a
+      href={href}
+      aria-label={label}
+      onClick={(e) => {
+        const modified = e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0
+        if (modified) return
+        e.preventDefault()
+        navigate(href, { state: { background: { pathname: location.pathname, search: location.search } } })
+      }}
+      className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)]"
+    >
+      {children}
+    </a>
+  )
+}
 
 function relationLabel(relationType: string): string {
   switch (relationType) {
@@ -39,7 +64,7 @@ function RelatedGrid({
         if (!id) return null
         // Type-safe destination: manga relations MUST resolve as manga.
         // The /manga page queries type: MANGA; /anime queries type: ANIME.
-        const href = isMangaFormat(anime.format) ? `#/manga` : `#/anime/anilist-${id}`
+        const href = isMangaFormat(anime.format) ? `/manga` : `/anime/anilist-${id}`
         const meta = [
           relationLabel(relationType),
           formatLabel(anime.format) ?? anime.format,
@@ -62,13 +87,12 @@ function RelatedGrid({
             {onSelect ? (
               inner
             ) : (
-              <a
+              <RelatedAnchor
                 href={href}
-                aria-label={`Open related entry ${anime.title.english ?? anime.title.romaji}`}
-                className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)]"
+                label={`Open related entry ${anime.title.english ?? anime.title.romaji}`}
               >
                 {inner}
-              </a>
+              </RelatedAnchor>
             )}
           </div>
         )
@@ -83,17 +107,17 @@ function RelatedGrid({
  * directly to its own AniList id; nothing mutates the current entry, groups
  * identities, or transfers progress. Reuses the shared AnimeCard.
  *
- * Media-type routing: manga relations link to `#/manga` (which resolves
- * type: MANGA) and anime relations to `#/anime/...` (type: ANIME). The
+ * Media-type routing: manga relations link to `/manga` (which resolves
+ * type: MANGA) and anime relations to `/anime/...` (type: ANIME). The
  * numeric id alone is NOT sufficient — HxH anime vs HxH manga share
  * nothing but digits. onSelect callers receive the full Anime (with
  * identity.mediaType) so in-place modal swaps preserve the type.
  *
- * NOTE: Related links must NOT go through react-router <Link>: the parent
- * DetailModal closes on ANY hashchange (including same-hash route swaps),
- * which would kill the modal before the new entry's modal can open. A plain
- * anchor performs the hash navigation natively; the page-level modal host
- * (Search/Browse/Home) then opens the new entry's modal from the route.
+ * NOTE: these anchor fallbacks (Watch/Read pages — no onSelect host) keep a
+ * REAL href for accessibility and middle/new-tab, but route through the
+ * router on left click, carrying the current location as background so the
+ * floating detail card opens above this page (D097), same as every other
+ * surface. plain-href hash links died with the HashRouter era.
  */
 export function RelatedEntries({
   entries,
@@ -176,7 +200,7 @@ function RelatedGridContents({
       {entries.map(({ anime, relationType }) => {
         const id = anime.identity.anilistId
         if (!id) return null
-        const href = isMangaFormat(anime.format) ? `#/manga` : `#/anime/anilist-${id}`
+        const href = isMangaFormat(anime.format) ? `/manga` : `/anime/anilist-${id}`
         const meta = [
           relationLabel(relationType),
           formatLabel(anime.format) ?? anime.format,
@@ -199,13 +223,12 @@ function RelatedGridContents({
             {onSelect ? (
               inner
             ) : (
-              <a
+              <RelatedAnchor
                 href={href}
-                aria-label={`Open related entry ${anime.title.english ?? anime.title.romaji}`}
-                className="block focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)]"
+                label={`Open related entry ${anime.title.english ?? anime.title.romaji}`}
               >
                 {inner}
-              </a>
+              </RelatedAnchor>
             )}
           </div>
         )

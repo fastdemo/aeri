@@ -6,10 +6,9 @@ import { useTracking } from '../../contexts/TrackingContext'
 import { SearchSuggestions } from '../search/SearchSuggestions'
 import { SchedulePanel } from './SchedulePanel'
 import { HeaderPopup } from './HeaderPopup'
-import { DetailModal } from '../detail/DetailModal'
 import { SignInModal } from '../auth/SignInModal'
 import { Icon } from '../ui/Icon'
-import type { Anime } from '../../types/anime'
+import { useDetailOpen } from '../../hooks/useDetailOpen'
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false)
@@ -17,8 +16,6 @@ export function Navbar() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [showSuggestions, setShowSuggestions] = useState(false)
-  // Preview popup for suggestion picks (same DetailModal as Home/Browse cards)
-  const [previewAnime, setPreviewAnime] = useState<Anime | null>(null)
   const [signInOpen, setSignInOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [scheduleOpen, setScheduleOpen] = useState(false)
@@ -28,6 +25,9 @@ export function Navbar() {
   const mobileSearchRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
   const location = useLocation()
+  // Suggestion picks push the show's canonical URL — the floating card is
+  // the overlay detail route on top of the page behind it.
+  const openDetail = useDetailOpen()
   const { user: anilistUser, isAuthenticated: anilistAuth } = useAniList()
   const { user: malUser, isAuthenticated: malAuth } = useMAL()
   const { trackingProvider } = useTracking()
@@ -41,12 +41,13 @@ export function Navbar() {
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
-  // Reset mobile transient UI on any route change (prevents overlay persisting and intercepting clicks)
+  // Reset mobile transient UI on any route change (prevents overlay persisting and intercepting clicks).
+  // NOTE: the detail card is now the overlay route — it must NOT be cleared
+  // here; opening/closing a card is itself a route change.
   useEffect(() => {
     setMobileNavOpen(false)
     setMobileSearchOpen(false)
     setShowSuggestions(false)
-    setPreviewAnime(null)
     setSignInOpen(false)
     setProfileOpen(false)
     setScheduleOpen(false)
@@ -109,15 +110,7 @@ export function Navbar() {
 
   const dispatchNavigate = (to?: string) => {
     try { window.dispatchEvent(new CustomEvent('aeri:navigate')) } catch {}
-    if (to) {
-      const expected = `#${to}`;
-      try {
-        if (window.location.hash !== expected) {
-          const isHome = to === '/' && (window.location.hash === '#/' || window.location.hash === '' || window.location.hash === '#');
-          if (!isHome) window.location.hash = to;
-        }
-      } catch {}
-    }
+    if (to) navigate(to)
   }
 
   const onSearch = (e: React.FormEvent) => {
@@ -126,7 +119,6 @@ export function Navbar() {
     if (!q) return
     const target = `/search?q=${encodeURIComponent(q)}`;
     navigate(target)
-    try { if (window.location.hash !== `#${target}`) window.location.hash = target; } catch {}
     try { window.dispatchEvent(new CustomEvent('aeri:navigate')) } catch {}
     setMobileSearchOpen(false)
     setShowSuggestions(false)
@@ -313,7 +305,7 @@ export function Navbar() {
               </svg>
               {showSuggestions && query.trim().length >= 2 && (
                 <HeaderPopup anchorRef={searchInputRef} align="left" width={240} ariaLabel="Search suggestions" role="listbox">
-                  <SearchSuggestions query={query} onClose={() => setShowSuggestions(false)} onPreview={(a) => { if (!isAuthenticated) setSignInOpen(true); else setPreviewAnime(a) }} />
+                  <SearchSuggestions query={query} onClose={() => setShowSuggestions(false)} onPreview={(a) => { if (!isAuthenticated) setSignInOpen(true); else openDetail(a) }} />
                 </HeaderPopup>
               )}
             </div>
@@ -435,7 +427,7 @@ export function Navbar() {
           </form>
           {showSuggestions && query.trim().length >= 2 && (
             <div className="relative mt-2">
-              <SearchSuggestions query={query} onClose={() => { setShowSuggestions(false); setMobileSearchOpen(false) }} onPreview={(a) => { setMobileSearchOpen(false); if (!isAuthenticated) setSignInOpen(true); else setPreviewAnime(a) }} />
+              <SearchSuggestions query={query} onClose={() => { setShowSuggestions(false); setMobileSearchOpen(false) }} onPreview={(a) => { setMobileSearchOpen(false); if (!isAuthenticated) setSignInOpen(true); else openDetail(a) }} />
             </div>
           )}
         </div>
@@ -472,7 +464,6 @@ export function Navbar() {
           </div>
         </nav>
       )}
-      {previewAnime && <DetailModal key={previewAnime.identity.internalId} anime={previewAnime} onClose={() => setPreviewAnime(null)} onSelectRelated={setPreviewAnime} />}
       {signInOpen && <SignInModal onClose={() => setSignInOpen(false)} />}
     </header>
     </>

@@ -30,6 +30,13 @@ export function getAnilistStats() {
   return { ...stats, cooldownUntil: rateLimitedUntil }
 }
 
+/** True while the shared 429 cooldown is armed. Decorative fetches (related
+ * second-hop enrichment) check this and defer to cache-only behavior so a
+ * throttle window is never spent on non-critical requests. */
+export function isAnilistCooling(): boolean {
+  return Date.now() < rateLimitedUntil
+}
+
 function memKey(query: string, vars: any): string {
   return `${query.slice(0, 120)}::${JSON.stringify(vars ?? {})}`
 }

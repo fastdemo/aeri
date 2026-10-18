@@ -2,7 +2,7 @@
   "name": "Aeri",
   "short_name": "Aeri",
   "description": "Minimal anime discovery, tracking, and watching.",
-  "start_url": "./#/",
+  "start_url": "./",
   "scope": "./",
   "display": "standalone",
   "background_color": "#070708",

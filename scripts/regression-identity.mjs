@@ -31,7 +31,7 @@ page.on('pageerror', e => console.log('PAGEERR:', e.message.slice(0, 120)))
 await page.addInitScript(() => { try { localStorage.setItem('aeri:mal:access_token', 'test-fake-mal-token'); } catch {} })
 
 async function openMangaCard(title) {
-  await nav(`${BASE}/#/manga`)
+  await nav(`${BASE}/manga`)
   await page.waitForTimeout(10000)
   await page.evaluate((t) => [...document.querySelectorAll('button')].find(b => (b.getAttribute('aria-label') || '') === `Open ${t}`)?.click(), title)
   await page.waitForTimeout(15000)
@@ -61,7 +61,7 @@ const modalInfo = () => page.evaluate(() => {
 // 1-3. HxH manga stays manga; HxH anime stays anime
 await openMangaCard('Hunter x Hunter')
 let info = await modalInfo()
-check('hxh manga modal (rows>300, read route, related both)', !!info && info.rows > 300 && info.href.startsWith('#/read/anilist-30026/') && info.relM > 0 && info.relS > 0, JSON.stringify(info))
+check('hxh manga modal (rows>300, read route, related both)', !!info && info.rows > 300 && info.href.startsWith('/read/anilist-30026/') && info.relM > 0 && info.relS > 0, JSON.stringify(info))
 await page.evaluate(() => [...document.querySelectorAll('[role="dialog"] a[href*="/read/"]')].filter(a => !a.textContent?.match(/^Read$/))[0]?.click())
 await page.waitForTimeout(18000)
 let rd = { url: await page.evaluate(() => location.hash.slice(0, 60)), loaded: 0 }
@@ -72,7 +72,7 @@ try {
 check('hxh manga reader (manga route, pages render)', rd.url.includes('/read/anilist-30026/') && rd.loaded > 0, JSON.stringify(rd))
 await closeModal().catch(() => {})
 
-await nav(`${BASE}/#/search?q=Hunter+x+Hunter`)
+await nav(`${BASE}/search?q=Hunter+x+Hunter`)
 await page.waitForTimeout(8000)
 await page.evaluate(() => [...document.querySelectorAll('button')].find(b => (b.getAttribute('aria-label') || '') === 'Open Hunter x Hunter (2011)')?.click())
 await page.waitForTimeout(12000)
@@ -86,13 +86,13 @@ try {
   })
   ad = found
 } catch { ad = null }
-check('hxh anime modal (watch route, episodes)', !!ad && ad.eps > 100 && ad.href.startsWith('#/watch/anilist-11061/'), JSON.stringify(ad))
+check('hxh anime modal (watch route, episodes)', !!ad && ad.eps > 100 && ad.href.startsWith('/watch/anilist-11061/'), JSON.stringify(ad))
 
 // 4. Default priority: weebcentral first, zero mdx/mp requests
 // (fresh page load: clearing IDB mid-session leaves in-memory caches warm,
 // so navigate to a title not yet resolved this session)
 await page.evaluate(() => { localStorage.removeItem('aeri:prefs') })
-await nav(`${BASE}/#/manga`)
+await nav(`${BASE}/manga`)
 await page.waitForTimeout(10000)
 const seenDefault = []
 page.on('request', r => { if (/api\/manga\//.test(r.url())) seenDefault.push(r.url().match(/manga\/([^?]+)/)[1]) })
@@ -138,7 +138,7 @@ await closeModal()
 
 // 7. Related entries: AOT seasons + manga
 for (const id of [16498, 20958, 99147]) {
-  await nav(`${BASE}/#/anime/anilist-${id}`)
+  await nav(`${BASE}/anime/anilist-${id}`)
   await page.waitForTimeout(12000)
   const r = await page.evaluate(() => {
     const secs = [...document.querySelectorAll('section[aria-label="Related Anime"]')]
@@ -152,7 +152,7 @@ check('berserk manga related both', !!info && info.relM > 0 && info.relS > 0, JS
 await closeModal()
 
 // 8. Bogus manga id fails closed (never anime)
-await nav(`${BASE}/#/read/anilist-999999999/first`)
+await nav(`${BASE}/read/anilist-999999999/first`)
 await page.waitForTimeout(12000)
 const bogus = await page.evaluate(() => document.body.innerText.slice(0, 200).replace(/\n+/g, '|'))
 check('bogus manga fails closed', /Manga not found/i.test(bogus) && !/Episodes/i.test(bogus), bogus.slice(0, 80))

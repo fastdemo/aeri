@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { getAnilistToken, setAnilistToken, clearAnilistToken, isAnilistTokenExpired } from '../storage/anilist'
-import { aniListProvider, type AniListUser } from '../providers/anilist/provider'
+import { aniListProvider, type AniListUser, type TrackerDates } from '../providers/anilist/provider'
 import { handleAnilistOAuthCallback, parseManualToken, beginAnilistOAuth, getRedirectUriForDisplay } from '../services/anilist/auth'
 import { ProviderError } from '../services/anilist/errors'
 import { clearAnilistMemoryCache } from '../services/anilist/client'
@@ -22,7 +22,7 @@ type Ctx = {
   setManualToken: (raw: string) => boolean | Promise<boolean>
   refresh: () => Promise<void>
   updateProgress: (id: string, ep: number, isManga?: boolean) => Promise<void>
-  updateStatus: (id: string, status: AnimeStatus, isManga?: boolean) => Promise<void>
+  updateStatus: (id: string, status: AnimeStatus, isManga?: boolean, dates?: TrackerDates) => Promise<void>
   updateRating: (id: string, rating: number, isManga?: boolean) => Promise<void>
   /** Remove the entry from the list entirely (AniList DeleteMediaListEntry). */
   removeEntry: (id: string) => Promise<void>
@@ -345,11 +345,11 @@ export function AniListProvider({ children }: { children: React.ReactNode }) {
     })
   }, [optimisticUpdate, loadList, guardWrite])
 
-  const updateStatus = useCallback(async (id: string, status: AnimeStatus) => {
+  const updateStatus = useCallback(async (id: string, status: AnimeStatus, _isManga?: boolean, dates?: TrackerDates) => {
     return guardWrite(`status:${id}`, async () => {
     optimisticUpdate(id, { status })
     try {
-      await aniListProvider.updateStatus(id, status)
+      await aniListProvider.updateStatus(id, status, undefined, dates)
       const t = getAnilistToken()
       if (t) await loadList(t).catch(() => {})
     } catch (e) {

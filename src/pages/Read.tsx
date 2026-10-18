@@ -71,7 +71,7 @@ function ChapterNavButtons({
 }
 
 /**
- * Manga reader (`#/read/:id/:chapter`). Architectural sibling of Watch:
+ * Manga reader (`/read/:id/:chapter`). Architectural sibling of Watch:
  * same route-convention shape, same loading/error shell, same progress
  * persistence pattern — but manga-native behavior:
  * - vertical continuous scroll (default; `readerMode` reserves single/double)

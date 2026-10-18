@@ -20,13 +20,13 @@ export function Docs() {
       <P>Aeri is an anime and manga discovery frontend: browse what's popular, keep a personal list, track episode/chapter progress, watch via resolved third-party sources, and read manga chapter pages. There is no owned catalog of uploaded files — Aeri resolves public metadata (AniList) and external sources, relaying some media requests through its Worker.</P>
 
       <H>How the site works</H>
-      <P>Home rails (Trending, Popular, Airing, themed picks) → detail pages/modals → Watch (<Code>#/watch/:id/:episode</Code>) or Reader (<Code>#/read/:id/:chapter</Code>). Progress persists locally (IndexedDB) and syncs to your tracker. Every AniList media ID is an independent entity — no season grouping.</P>
+      <P>Home rails (Trending, Popular, Airing, themed picks) → detail pages/modals → Watch (<Code>/watch/:id/:episode</Code>) or Reader (<Code>/read/:id/:chapter</Code>). Progress persists locally (IndexedDB) and syncs to your tracker. Every AniList media ID is an independent entity — no season grouping.</P>
 
       <H>Anime discovery</H>
-      <P>Browse (<Code>#/anime</Code>) filters by category, genre, year, season, and format. Search covers anime, manga, and OVAs with grouped suggestions. Detail pages show episodes (with per-field title/thumbnail states), Related Anime, and tracking controls.</P>
+      <P>Browse (<Code>/anime</Code>) filters by category, genre, year, season, and format. Search covers anime, manga, and OVAs with grouped suggestions. Detail pages show episodes (with per-field title/thumbnail states), Related Anime, and tracking controls.</P>
 
       <H>Manga discovery</H>
-      <P>Manga lives at <Code>#/manga</Code> with the same category/filter pattern. Detail modals show chapters (units, oldest-first default, ↑/↓ toggle) plus Related Manga. The reader is vertical-continuous with chapter+page resume.</P>
+      <P>Manga lives at <Code>/manga</Code> with the same category/filter pattern. Detail modals show chapters (units, oldest-first default, ↑/↓ toggle) plus Related Manga. The reader is vertical-continuous with chapter+page resume.</P>
 
       <H>Tracking</H>
       <P>An episode counts as watched at 80% watched (or video end); a chapter counts as read at 80% of pages reached. Opening alone never marks anything. The preview card's compact tracker (status pill → expands to status + score) updates immediately via the same contexts — no reload.</P>

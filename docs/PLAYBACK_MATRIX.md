@@ -180,7 +180,7 @@ PLAYBACK_BASE_URL=https://fastdemo.github.io/aeri/ npx playwright test tests/pla
 ## 5. Files
 
 - `src/lib/playback-verification.ts` — pure helpers `isRealVideoResponse`, `isHlsManifest`, `probeVideoElement`, `probeEmbedElement`, `assertCurrentTimeAdvances`. Unit-tested, no DOM dependency beyond types.
-- `tests/playback-matrix.spec.ts` — Playwright spec generating the 37 cells via `for` loops, using helpers plus live `Watch` navigation `/#/watch/<id>/<ep>`.
+- `tests/playback-matrix.spec.ts` — Playwright spec generating the 37 cells via `for` loops, using helpers plus live `Watch` navigation `/watch/<id>/<ep>`.
 - `playwright.config.ts` — (if missing, fallback config in spec) three projects, `webServer` auto-start.
 
 ---

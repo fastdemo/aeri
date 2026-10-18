@@ -1,10 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { AnimeCard } from '../components/cards/AnimeCard'
-import { DetailModal } from '../components/detail/DetailModal'
 import { FilterSelect } from '../components/ui/FilterSelect'
 import type { Anime } from '../types/anime'
 import { useBrowse } from '../hooks/useAnimeMetadata'
-import { useLocation } from 'react-router-dom'
+import { useDetailOpen } from '../hooks/useDetailOpen'
 import { ANILIST_GENRES } from '../lib/genres'
 import { useTracking } from '../contexts/TrackingContext'
 import { SignInModal } from '../components/auth/SignInModal'
@@ -62,12 +61,12 @@ function shuffle<T>(arr: T[]): T[] {
 const PAGE_SIZE = 30 // theoretical max: 6 cols x 5 full rows
 
 export function Browse() {
-  const [selected, setSelected] = useState<Anime | null>(null)
   const [signInOpen, setSignInOpen] = useState(false)
   const { isAuthenticated } = useTracking()
   const [category, setCategory] = useState<(typeof categories)[number]['id']>('popular')
-  const location = useLocation()
-  useEffect(() => { setSelected(null) }, [location.pathname, location.hash, location.search])
+  // Card taps push detail URLs — the floating card is an overlay route on
+  // top of this page, not local component state.
+  const openDetail = useDetailOpen()
   const [genre, setGenre] = useState('All')
   const [yearKey, setYearKey] = useState('All Years')
   const [season, setSeason] = useState<(typeof seasons)[number]>('All')
@@ -259,7 +258,7 @@ export function Browse() {
           <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {visible.map(a => (
               <div key={a.identity.internalId} className="min-w-0">
-                <AnimeCard anime={a} onSelect={(picked) => { if (!isAuthenticated) setSignInOpen(true); else setSelected(picked) }} fullWidth />
+                <AnimeCard anime={a} onSelect={(picked) => { if (!isAuthenticated) setSignInOpen(true); else openDetail(picked) }} fullWidth />
               </div>
             ))}
           </div>
@@ -284,7 +283,6 @@ export function Browse() {
         </>
       )}
 
-      {selected && <DetailModal key={selected.identity.internalId} anime={selected} onClose={() => setSelected(null)} onSelectRelated={setSelected} />}
       {signInOpen && <SignInModal onClose={() => setSignInOpen(false)} />}
     </div>
   )

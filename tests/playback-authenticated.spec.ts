@@ -37,7 +37,7 @@ async function watchState(page: Page) {
     const v = document.querySelector('video') as HTMLVideoElement | null
     return {
       body: body.slice(0, 2000),
-      hash: location.hash,
+      path: location.pathname,
       hasVideo: !!v,
       hasIframe: !!document.querySelector('iframe'),
       hasNoSource: body.includes('No playable source'),
@@ -166,34 +166,34 @@ test.describe('Authenticated entry — guards pass, episode grid works', () => {
   test('Watch loads for the test user (no redirect to Home)', async ({ page }) => {
     test.setTimeout(120000)
     await setPrefs(page, { preferredProvider: 'aniwave', preferredAudio: 'sub' })
-    await page.goto('/#/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
+    await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
     const s = await waitForDecision(page, 'watch-loads')
-    expect(s.hash).toContain('/watch/anilist-20/1')
+    expect(s.path).toContain('/watch/anilist-20/1')
     // A decision must be reached: video, iframe, or honest no-source.
     expect(s.hasVideo || s.hasIframe || s.hasNoSource, `must reach a player decision — ${s.body.slice(0, 300)}`).toBeTruthy()
   })
 
   test('AnimeDetail loads without redirect', async ({ page }) => {
     test.setTimeout(90000)
-    await page.goto('/#/anime/anilist-20', { waitUntil: 'domcontentloaded' })
+    await page.goto('/anime/anilist-20', { waitUntil: 'domcontentloaded' })
     await page.waitForTimeout(6000)
-    const hash = await page.evaluate(() => location.hash)
-    expect(hash).toContain('/anime/anilist-20')
+    const path = await page.evaluate(() => location.pathname)
+    expect(path).toContain('/anime/anilist-20')
     await expect(page.locator('body')).toContainText('Naruto', { timeout: 15000 })
   })
 
   test('Episode selection navigates the grid', async ({ page }) => {
     test.setTimeout(120000)
     await setPrefs(page, { preferredProvider: 'aniwave', preferredAudio: 'sub' })
-    await page.goto('/#/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
+    await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
     await waitForDecision(page, 'ep-grid')
     // Episode grid renders from AniList metadata (220 eps for Naruto).
     const ep5 = page.locator('a[aria-label^="Watch E5"]').first()
     await expect(ep5).toBeVisible({ timeout: 15000 })
     await ep5.click()
     await page.waitForTimeout(2000)
-    const hash = await page.evaluate(() => location.hash)
-    expect(hash).toContain('/watch/anilist-20/5')
+    const path = await page.evaluate(() => location.pathname)
+    expect(path).toContain('/watch/anilist-20/5')
   })
 
   test('Progress writes stay bounded during playback (no write storm)', async ({ page }) => {
@@ -211,15 +211,15 @@ test.describe('Authenticated entry — guards pass, episode grid works', () => {
     page.on('request', (r) => {
       if (r.url().includes('my_list_status') && r.method() === 'PUT') puts++
     })
-    await page.goto('/#/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
+    await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
     const s = await waitForDecision(page, 'progress-bounded')
-    expect(s.hash).toContain('/watch/anilist-20/1')
+    expect(s.path).toContain('/watch/anilist-20/1')
     // Let playback run well past several 5s persist ticks + completion.
     await page.waitForTimeout(60000)
     expect(puts, `progress PUTs in 60s of playback must stay bounded (mount + completion), got ${puts}`).toBeLessThanOrEqual(2)
     // Episode switch writes exactly one more (new key), then stays bounded.
     const before = puts
-    await page.goto('/#/watch/anilist-20/2', { waitUntil: 'domcontentloaded' })
+    await page.goto('/watch/anilist-20/2', { waitUntil: 'domcontentloaded' })
     await waitForDecision(page, 'progress-ep-switch')
     await page.waitForTimeout(30000)
     expect(puts - before, `episode switch must add at most one progress write, got ${puts - before}`).toBeLessThanOrEqual(2)
@@ -246,7 +246,7 @@ test.describe('Deterministic playback — provider resolves, player advances', (
     // advances. No byte doubles anywhere in this path.
     test.setTimeout(180000)
     await setPrefs(page, { preferredProvider: 'aniwave', preferredAudio: 'sub' })
-    await page.goto('/#/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
+    await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
     const s = await waitForDecision(page, 'aniwave-e1')
     expect(s.hasNoSource, `Aniwave must resolve (upstream live?) — ${s.tried || s.body.slice(0, 200)}`).toBeFalsy()
     expect(s.hasVideo, `expected a video element — ${s.body.slice(0, 300)}`).toBeTruthy()
@@ -262,7 +262,7 @@ test.describe('Deterministic playback — provider resolves, player advances', (
     // attempted, so "Tried: X • Y" is first-party proof of what was (and
     // was not) requested. Dead/unverified ids must never appear there.
     await setPrefs(page, { preferredProvider: 'aniwave', preferredAudio: 'sub' })
-    await page.goto('/#/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
+    await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
     const s = await waitForDecision(page, 'dead-never-requested')
     // The tried-list renders ONLY in the no-source box. On success the
     // equivalent proof is the Source selector: every option names its
@@ -283,7 +283,7 @@ test.describe('Deterministic playback — provider resolves, player advances', (
   test('YouTube trailers never appear as episode playback', async ({ page }) => {
     test.setTimeout(180000)
     await setPrefs(page, { preferredProvider: 'aniwave', preferredAudio: 'sub' })
-    await page.goto('/#/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
+    await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
     await waitForDecision(page, 'no-trailer')
     const src = await page.evaluate(() => (document.querySelector('iframe') as HTMLIFrameElement | null)?.src ?? '')
     expect(src).not.toMatch(/youtube/)
@@ -308,7 +308,7 @@ test.describe('HLS wiring — app player advances on live relay bytes', () => {
   test('App VideoPlayer advances on aniwave relay bytes', async ({ page }) => {
     test.setTimeout(180000)
     await setPrefs(page, { preferredProvider: 'aniwave', preferredAudio: 'sub' })
-    await page.goto('/#/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
+    await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
     const s = await waitForDecision(page, 'app-player-hls')
     expect(s.hasVideo, `expected the app player — ${s.body.slice(0, 300)}`).toBeTruthy()
     await assertAdvancingPlayback(page, 'app-player-hls')
@@ -328,7 +328,7 @@ test.describe('LIVE provider playback (real upstream bytes — may fail on outag
   test('LIVE: MegaVid Naruto E1 sub resolves and advances', async ({ page }) => {
     test.setTimeout(180000)
     await setPrefs(page, { preferredProvider: 'aniwave', preferredAudio: 'sub' })
-    await page.goto('/#/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
+    await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
     const s = await waitForDecision(page, 'live-megavid')
     expect(s.hasNoSource, `provider must resolve live — ${s.tried || s.body.slice(0, 200)}`).toBeFalsy()
     expect(s.hasVideo, `expected a video element — ${s.body.slice(0, 300)}`).toBeTruthy()
@@ -351,7 +351,7 @@ test.describe('LIVE provider playback (real upstream bytes — may fail on outag
     test.setTimeout(180000)
     await page.route('**://aeri.fastdemo.workers.dev/api/stream**', r => r.abort('blockedbyclient'))
     await setPrefs(page, { preferredProvider: 'aniwave', preferredAudio: 'sub' })
-    await page.goto('/#/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
+    await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
     const s = await waitForDecision(page, 'live-fallback')
     expect(s.hasVideo || s.hasNoSource, 'must reach a decision with relay blocked').toBeTruthy()
     if (s.hasVideo) {
@@ -385,7 +385,7 @@ test.describe('LIVE provider playback (real upstream bytes — may fail on outag
     const blocked: string[] = []
     await blockUpstreamMedia(page, blocked)
     await setPrefs(page, { preferredProvider: 'aniwave', preferredAudio: 'sub' })
-    await page.goto('/#/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
+    await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
     const s = await waitForDecision(page, 'live-fail-closed')
     // Guards still pass (auth + metadata fixtures are test-scoped and live);
     // with every upstream blocked, the honest state is no-source — never a
@@ -420,7 +420,7 @@ test.describe('Watch interactivity during playback', () => {
 
   async function gotoPlayingWatch(page: Page) {
     await setPrefs(page, { preferredProvider: 'aniwave', preferredAudio: 'sub' })
-    await page.goto('/#/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
+    await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
     await page.waitForFunction(() => !!document.querySelector('video'), null, { timeout: 90000 })
     await page.evaluate(() => { const v = document.querySelector('video') as HTMLVideoElement | null; if (v) { v.muted = true; v.play().catch(() => {}) } })
     await page.waitForTimeout(8000)
@@ -435,9 +435,9 @@ test.describe('Watch interactivity during playback', () => {
     const clickMs = Date.now() - t0
     expect(clickMs, 'episode click must dispatch fast during playback').toBeLessThan(5000)
     await page.waitForTimeout(2000)
-    expect(await page.evaluate(() => location.hash)).toContain('/watch/anilist-20/5')
+    expect(await page.evaluate(() => location.pathname)).toContain('/watch/anilist-20/5')
     // Back to E1, pause, then sub toggle + source selector must exist and respond.
-    await page.goto('/#/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
+    await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
     await page.waitForFunction(() => !!document.querySelector('video'), null, { timeout: 90000 })
     await page.evaluate(() => (document.querySelector('video') as HTMLVideoElement)?.pause())
     await expect(page.locator('select[aria-label="Select video source"]')).toBeVisible({ timeout: 15000 })
@@ -451,15 +451,15 @@ test.describe('Watch interactivity during playback', () => {
     // Sidebar/home link.
     await page.locator('a[aria-label="aeri home"]').first().click({ timeout: 15000 })
     await page.waitForTimeout(1500)
-    expect(await page.evaluate(() => location.hash)).toBe('#/')
+    expect(await page.evaluate(() => location.pathname)).toBe('/')
     // Return to watch, then profile menu opens and reaches Settings.
-    await page.goto('/#/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
+    await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
     await page.waitForFunction(() => !!document.querySelector('video'), null, { timeout: 90000 })
     await page.getByRole('button', { name: 'Profile' }).click({ timeout: 15000 })
     await expect(page.locator('[data-header-popup]')).toBeVisible({ timeout: 8000 })
     await page.getByRole('menuitem', { name: 'Settings' }).first().click({ timeout: 15000 })
     await page.waitForTimeout(1200)
-    expect(await page.evaluate(() => location.hash)).toContain('/settings')
+    expect(await page.evaluate(() => location.pathname)).toContain('/settings')
   })
 
   test('Desktop: pause/resume + episode switch keep player coherent', async ({ page }) => {
@@ -471,7 +471,7 @@ test.describe('Watch interactivity during playback', () => {
     // Episode switch while paused navigates; new episode resolves its own player.
     await page.locator('a[aria-label^="Watch E2"]').first().click({ timeout: 15000 })
     await page.waitForTimeout(2000)
-    expect(await page.evaluate(() => location.hash)).toContain('/watch/anilist-20/2')
+    expect(await page.evaluate(() => location.pathname)).toContain('/watch/anilist-20/2')
     await page.waitForFunction(() => !!document.querySelector('video'), null, { timeout: 90000 })
   })
 
@@ -490,7 +490,7 @@ test.describe('Watch interactivity during playback', () => {
     try {
       await setupAuth(mpage)
       await setPrefs(mpage, { preferredProvider: 'aniwave', preferredAudio: 'sub' })
-      await mpage.goto('/#/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
+      await mpage.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
       await mpage.waitForFunction(() => !!document.querySelector('video'), null, { timeout: 90000 })
       await mpage.evaluate(() => { const v = document.querySelector('video') as HTMLVideoElement | null; if (v) { v.muted = true; v.play().catch(() => {}) } })
       await mpage.waitForTimeout(8000)
@@ -499,18 +499,18 @@ test.describe('Watch interactivity during playback', () => {
       const tapMs = Date.now() - t0
       expect(tapMs, 'mobile tap must dispatch fast during playback').toBeLessThan(8000)
       await mpage.waitForTimeout(2000)
-      expect(await mpage.evaluate(() => location.hash)).toContain('/watch/anilist-20/5')
+      expect(await mpage.evaluate(() => location.pathname)).toContain('/watch/anilist-20/5')
       // Mobile menu opens and reaches the Anime browse page.
       await mpage.locator('button[aria-label="Menu"]').first().tap({ timeout: 15000 }).catch(() => {})
       await mpage.waitForTimeout(1000)
-      const animeLink = mpage.locator('a[href="#/anime"]').first()
+      const animeLink = mpage.locator('a[href="/anime"]').first()
       if (await animeLink.isVisible().catch(() => false)) {
         await animeLink.tap({ timeout: 15000 })
         await mpage.waitForTimeout(1500)
-        expect(await mpage.evaluate(() => location.hash)).toContain('/anime')
+        expect(await mpage.evaluate(() => location.pathname)).toContain('/anime')
       }
       // Sub toggle responds while paused.
-      await mpage.goto('/#/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
+      await mpage.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
       await mpage.waitForFunction(() => !!document.querySelector('video'), null, { timeout: 90000 })
       await mpage.evaluate(() => (document.querySelector('video') as HTMLVideoElement)?.pause())
       await mpage.locator('button', { hasText: /^Sub$/ }).first().tap({ timeout: 15000 })

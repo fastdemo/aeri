@@ -1,15 +1,15 @@
-import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AnimeCard } from '../components/cards/AnimeCard'
-import { DetailModal } from '../components/detail/DetailModal'
 import type { Anime } from '../types/anime'
 import { useAnimeSearch } from '../hooks/useAnimeMetadata'
+import { useDetailOpen } from '../hooks/useDetailOpen'
 
 export function Search() {
   const [params] = useSearchParams()
   const q = params.get('q') ?? ''
-  const [selected, setSelected] = useState<Anime | null>(null)
-  useEffect(() => { setSelected(null) }, [params.toString()])
+  // Card taps push detail URLs — the floating card is an overlay route on
+  // top of the results page.
+  const openDetail = useDetailOpen()
 
   // Query comes from the URL (navbar search); live results debounced in hook
   const liveQuery = q.trim()
@@ -54,7 +54,7 @@ export function Search() {
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                   {list.map((a) => (
                     <div key={a.identity.internalId} className="min-w-0">
-                      <AnimeCard anime={a} onSelect={setSelected} mediaKind={isMangaFmt(a.format) ? 'manga' : 'anime'} fullWidth />
+                      <AnimeCard anime={a} onSelect={openDetail} mediaKind={isMangaFmt(a.format) ? 'manga' : 'anime'} fullWidth />
                     </div>
                   ))}
                 </div>
@@ -86,7 +86,6 @@ export function Search() {
         )}
       </div>
 
-      {selected && <DetailModal key={selected.identity.internalId} anime={selected} onClose={() => setSelected(null)} onSelectRelated={setSelected} />}
     </div>
   )
 }

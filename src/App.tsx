@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { HashRouter, Routes, Route, Link, useLocation } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom'
 import { Navbar } from './components/navigation/Navbar'
 import { Home } from './pages/Home'
 import { Browse } from './pages/Browse'
@@ -7,7 +7,8 @@ import { Search } from './pages/Search'
 import { MyList } from './pages/MyList'
 import { Watch } from './pages/Watch'
 import { Read } from './pages/Read'
-import { AnimeDetail } from './pages/AnimeDetail'
+import { DetailRoute } from './components/detail/DetailRoute'
+import type { DetailNavState } from './hooks/useDetailOpen'
 import { Settings } from './pages/Settings'
 import { NotFound, ProfilePlaceholder } from './pages/NotFound'
 import { Manga } from './pages/Manga'
@@ -41,26 +42,45 @@ function FaviconGuard() {
   return null
 }
 
+// Detail overlay routes: /anime/:id + /manga/:id render the floating card
+// ON TOP of the page it was opened from. React Router's location prop does
+// the layering — the base <Routes> keeps rendering the background page
+// (carried in history state; Home for plain deep links) while the overlay
+// <Routes> matches the detail path. Browser Back closes the card.
+const DETAIL_ROUTE_RE = /^\/(anime|manga)\/([^/]+)$/
+
 function Layout() {
-  const { pathname } = useLocation()
-  // Every route change starts at the top (search typing only replaces ?q=,
-  // which keeps the pathname — no disruptive jumps while typing)
+  const location = useLocation()
+  const { pathname } = location
+  const detailMatch = DETAIL_ROUTE_RE.exec(pathname)
+  // Background page the card was opened from: explicit when pushed from a
+  // list page (history state rides along); Home for bare show URLs.
+  const navState = (location.state ?? null) as DetailNavState | null
+  const bgLocation = detailMatch ? (navState?.background ?? { pathname: '/' }) : location
+
+  // Scroll reset keyed on the SURFACE, not the raw path: opening or closing
+  // the floating card must not yank the page behind it to the top (detail
+  // URLs collapse onto the page they were opened from, or Home).
+  const scrollKey = detailMatch ? (navState?.background?.pathname ?? '/') : pathname
   useEffect(() => {
     try { window.scrollTo({ top: 0, behavior: 'instant' as ScrollBehavior }) } catch {
       try { window.scrollTo(0, 0) } catch {}
     }
-  }, [pathname])
+  }, [scrollKey])
   return (
     <div className="flex min-h-screen flex-col bg-[var(--bg)]">
       <FaviconGuard />
       <Navbar />
       <main className="flex-1 pt-14">
-        <Routes>
+        {/* Base surface: keeps the background page mounted under the card
+            (own location while a detail URL is active). /anime/:id and
+            /manga/:id are intentionally NOT here — they exist only as the
+            overlay routes below. */}
+        <Routes location={detailMatch ? bgLocation : undefined}>
           <Route path="/" element={<Home />} />
           <Route path="/anime" element={<Browse />} />
           <Route path="/search" element={<Search />} />
           <Route path="/list" element={<MyList />} />
-          <Route path="/anime/:id" element={<AnimeDetail />} />
           <Route path="/watch/:id/:episode" element={<Watch />} />
           <Route path="/read/:id/:chapter" element={<Read />} />
           <Route path="/settings" element={<Settings />} />
@@ -70,6 +90,12 @@ function Layout() {
           <Route path="/profile" element={<ProfilePlaceholder />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
+        {detailMatch && (
+          <Routes>
+            <Route path="/anime/:id" element={<DetailRoute kind="anime" />} />
+            <Route path="/manga/:id" element={<DetailRoute kind="manga" />} />
+          </Routes>
+        )}
       </main>
       <footer className="border-t border-[var(--border)]">
         <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-3 px-4 py-5 text-[11px] sm:px-6 lg:px-12">
@@ -95,9 +121,12 @@ function Layout() {
   )
 }
 
+// App served for every non-asset path: the Worker's SPA fallback hands out
+// this document for deep links like /anime/123 (BrowserRouter owns routing).
+// Legacy #/ hash links are translated to paths in main.tsx before mount.
 export default function App() {
   return (
-    <HashRouter>
+    <BrowserRouter>
       <AniListProvider>
         <MALProvider>
           <TrackingProvider>
@@ -105,6 +134,6 @@ export default function App() {
           </TrackingProvider>
         </MALProvider>
       </AniListProvider>
-    </HashRouter>
+    </BrowserRouter>
   )
 }

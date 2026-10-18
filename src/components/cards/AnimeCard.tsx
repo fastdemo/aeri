@@ -181,11 +181,15 @@ export function AnimeCard({
   // Home/Profile — the chop), a real border can never extend past the
   // box, so it stays fully visible on every row at every viewport.
   // Visible by design: --border-strong on dark surfaces.
-  // FIX-ME (root cause, Chromium ≤ headless-shell-1234?): `display:
-  // -webkit-box` computes to `flow-root` in this build, so ALL
-  // line-clamp-* utilities silently stop clamping (hero titles, row
-  // captions, descriptions). The h1 below carries an inline
-  // display:-webkit-box belt-and-braces until the engine is fixed.
+  // FIX-ME (engine, 2026-10-18 re-verified): `display: -webkit-box`
+  // computes to `flow-root` engine-wide, which kills the LEGACY box
+  // renderer, but Chromium 130+ still clamps via the unprefixed
+  // -webkit-line-clamp on normal blocks — silently (no ellipsis) unless
+  // the new-model `line-clamp: N ellipsis` is ALSO declared and the
+  // authored display chain is -webkit-box (plain block aliases the
+  // ellipsis off). globals.css .clamp-* carries both; the line-clamp-*
+  // utilities below only work because the plain classes won the cascade
+  // or nothing overrides them — see globals.css for the full mechanism.
   const content = (
     <div className="group group/card relative w-full min-w-0 flex-shrink-0">
       <div
@@ -248,7 +252,9 @@ export function AnimeCard({
       </div>
 
       {/* Captions ONLY on Continue Watching (clean rows everywhere else).
-          Manga continue cards show the provider unit label; anime shows E number.
+          Manga continue cards show the provider unit label; anime shows
+          the episode NAME when one exists — bare "Episode N" fallback only
+          for unnamed episodes (no "Episode N • <name>" duplication).
           Caption uses --surface-0 (the page-background step): Mocha Base
           #1E1E2E, so the rectangle melts into the page exactly. Token
           (not hex) so every theme renders its own background step. */}
@@ -260,7 +266,7 @@ export function AnimeCard({
           <p className="truncate text-[11px] text-[var(--text-muted)]">
             {isManga
               ? (mangaUnitLabel ?? `Chapter ${displayEp || progressEp}`)
-              : (<>Episode {displayEp}{epTitle ? ` • ${epTitle}` : ''}</>)}
+              : (epTitle ? epTitle : `Episode ${displayEp}`)}
           </p>
         </div>
       )}

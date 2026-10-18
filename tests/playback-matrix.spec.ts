@@ -56,10 +56,10 @@ const PROVIDERS: ProviderId[] = ['anikoto', 'animepahe']
 // ---------------------------------------------------------------------------
 
 async function gotoWatch(page: Page, anilistId: number, ep: number) {
-  // Aeri uses HashRouter: /#/watch/:id/:episode ; id may be anilist-<id>
+  // Aeri uses path URLs (BrowserRouter): /watch/:id/:episode ; id may be anilist-<id>
   // Watch.tsx resolves anilist-<id> | mal-<id> | raw numeric. Use anilist-<id> for determinism.
   const id = `anilist-${anilistId}`
-  await page.goto(`/#/watch/${id}/${ep}`, { waitUntil: 'domcontentloaded' })
+  await page.goto(`/watch/${id}/${ep}`, { waitUntil: 'domcontentloaded' })
   // shell must render in <100ms
   await expect(page.locator('text=Episode').first().or(page.locator('text=No playable source')).first()).toBeVisible({ timeout: 8000 })
 }
@@ -219,12 +219,12 @@ test.describe('Anime mapping — provider episode mapping sanity', () => {
   for (const anime of ANIMES) {
     test(`${anime.label} (${anime.anilistId}) — normalizeEpisodes titles are not picsum/poster/offset polluted`, async ({ page }) => {
       // Go to detail, not watch, to inspect episode list via DOM or anilist fetch
-      await page.goto(`/#/anime/anilist-${anime.anilistId}`, { waitUntil: 'domcontentloaded' })
+      await page.goto(`/anime/anilist-${anime.anilistId}`, { waitUntil: 'domcontentloaded' })
       // Detail should show real titles, not generic picsum; allow 5s for AniList fetch
       await expect(page.locator('body')).toContainText(anime.label.split(' ')[0].slice(0, 4), { timeout: 8000 })
       // For One Piece, assert generic Episode not Episode 130
       if (anime.anilistId === 21) {
-        await page.goto(`/#/watch/anilist-21/1`, { waitUntil: 'domcontentloaded' })
+        await page.goto(`/watch/anilist-21/1`, { waitUntil: 'domcontentloaded' })
         await expect(page.locator('text=Episode 1').first()).toBeVisible({ timeout: 8000 })
         // Should NOT contain 130 on EP1 card
         const body = await page.evaluate(() => document.body.innerText)
@@ -716,7 +716,7 @@ test.describe('VideoProvider cache & abort', () => {
     await gotoWatch(page, 1, 1)
     await page.waitForTimeout(4500)
     const first = anilistCount
-    await page.goto(`/#/`, { waitUntil: 'domcontentloaded' })
+    await page.goto(`/`, { waitUntil: 'domcontentloaded' })
     await page.waitForTimeout(400)
     await gotoWatch(page, 1, 1)
     await page.waitForTimeout(2500)

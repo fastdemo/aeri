@@ -11,6 +11,7 @@ import { displayRating, formatRating } from '../../lib/rating'
 import { getTitleHierarchy } from '../../lib/titles'
 import { Icon } from '../ui/Icon'
 import { sanitizeAnimeForDisplay } from '../../lib/episodes'
+import { resolveDisplayRecord } from '../../lib/records'
 import { formatLabel, statusLabel } from '../../lib/mediaLabels'
 
 function ScoreBadge({ anime, trackingProvider }: { anime: Anime; trackingProvider?: 'anilist' | 'mal' | null }) {
@@ -38,8 +39,6 @@ export function DetailModal({
   const { isAuthenticated, combinedList, updateStatus, updateRating, updateProgress, removeEntry, error: trackingError, trackingProvider } = useTracking()
   const [syncing, setSyncing] = useState<string | null>(null)
   const [localError, setLocalError] = useState<string | null>(null)
-  const [showStatusPicker, setShowStatusPicker] = useState(false)
-
   // Base entry: prop-only match, available before grouping resolves.
   // TYPE-SAFE: malId namespaces collide across MAL anime/manga (same digits,
   // different works), so a malId hit is accepted ONLY when the media kinds
@@ -60,20 +59,38 @@ export function DetailModal({
   })()
 
   const currentScore = baseEntry?.score ?? null
-  const baseAnime = baseEntry?.anime ?? anime
-
-  // No season grouping: the modal shows exactly the entry it was opened
-  // with. Manga bypasses sanitize (episode validation throws on manga data).
+  // RICHER-WINS DISPLAY (owner rule 2026-10-18: nothing renders until the
+  // metadata is final). `baseEntry?.anime ?? anime` used to swap the list
+  // copy in UNCONDITIONALLY — a MAL-lite row (no relations/season/streaming)
+  // downgraded a complete AniList record the card already held, and the
+  // enrichment drip only upgraded it again seconds later: the sparse-card-
+  // then-fill flip the owner reported. Now the complete record wins the
+  // display; the list entry still owns tracking truth; identity ids are
+  // unioned so tracker writes resolve through either provider.
   const displayAnime = useMemo(() => {
-    if (['MANGA', 'NOVEL', 'ONE_SHOT'].includes(baseAnime.format?.toUpperCase() ?? '')) {
-      return baseAnime
+    const merged = resolveDisplayRecord(anime, baseEntry)
+    if (['MANGA', 'NOVEL', 'ONE_SHOT'].includes(merged.format?.toUpperCase() ?? '')) {
+      return merged
     }
-    return sanitizeAnimeForDisplay(baseAnime)
-  }, [baseAnime])
+    return sanitizeAnimeForDisplay(merged)
+  }, [anime, baseEntry])
   const displayKey = displayAnime.identity.anilistId ? `anilist:${displayAnime.identity.anilistId}` : displayAnime.identity.internalId
   const titles = getTitleHierarchy(displayAnime)
   const isMovie = displayAnime.format?.toUpperCase() === 'MOVIE'
   const isMangaKind = ['MANGA', 'NOVEL', 'ONE_SHOT'].includes(displayAnime.format?.toUpperCase() ?? '')
+
+  // Mobile-stack related data. Hoisted to the top level (one hook call,
+  // never conditionally invoked) because the divider below it must know
+  // whether related content actually follows: empty results hide the
+  // divider and the block entirely; loading shows skeletons WITHOUT the
+  // divider so a resolved-empty title never leaves a line above nothing.
+  // Same scope key ("modal-mobile:<id>") the inline block used, so cache
+  // behavior is unchanged.
+  const mobileRelated = useRelatedEntries(
+    displayAnime.identity.anilistId ? `modal-mobile:${displayAnime.identity.anilistId}` : null,
+    displayAnime.relations,
+    isMangaKind ? 'MANGA' : 'ANIME',
+  )
 
   // Tracking: this entry's own progress only. Related entries never share.
   // Same malId-kind guard as baseEntry above.
@@ -144,28 +161,14 @@ export function DetailModal({
   // New modal always opens at the very top: reset the overlay scroller on
   // mount (it persists across opens) and focus the dialog without scrolling
   // the page underneath (preventScroll — the background is body-locked).
+  // In-card related swaps reuse this instance (same route element), so the
+  // identity key also re-runs this: the swapped record starts at the top
+  // and receives focus, like a freshly opened card.
   const scrollerRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
     scrollerRef.current?.scrollTo({ top: 0 })
     dialogRef.current?.focus({ preventScroll: true })
-  }, [])
-
-  // Close on any navigation — must not prevent HashRouter's hashchange.
-  // Listeners are passive; they only react AFTER route has changed.
-  // Use ref so we don't re-subscribe on every onClose identity change (avoids flicker that could swallow click).
-  const onCloseRef = useRef(onClose)
-  useEffect(() => { onCloseRef.current = onClose }, [onClose])
-  useEffect(() => {
-    const close = () => onCloseRef.current()
-    window.addEventListener('hashchange', close, { passive: true } as any)
-    window.addEventListener('popstate', close, { passive: true } as any)
-    window.addEventListener('aeri:navigate' as any, close, { passive: true } as any)
-    return () => {
-      window.removeEventListener('hashchange', close)
-      window.removeEventListener('popstate', close)
-      window.removeEventListener('aeri:navigate' as any, close)
-    }
-  }, [])
+  }, [displayKey])
 
   const metaParts = [formatLabel(displayAnime.format), displayAnime.year ? String(displayAnime.year) : null, displayAnime.season ? displayAnime.season.charAt(0) + displayAnime.season.slice(1).toLowerCase() : null, !isMovie && !isMangaKind && displayAnime.episodes ? `${displayAnime.episodes} Episodes` : null, isMangaKind && displayAnime.chapters ? `${displayAnime.chapters} Chapters` : null, isMangaKind && displayAnime.volumes ? `${displayAnime.volumes} Volumes` : null, statusLabel(displayAnime.status)].filter(Boolean).join(' • ')
 
@@ -240,69 +243,44 @@ export function DetailModal({
               </span>
             )}
 
-            {/* SINGLE list control: + adds as Plan to Watch / Plan to Read,
-                tick opens the status picker. The old second button (far
-                right, its own ml-auto group) duplicated the + affordance —
-                two plus buttons, two different writes. One button, two
-                states, tick = "in list, tap to change status". */}
+            {/* SINGLE list control, plain two-way toggle: not in list → +
+                adds as Plan to Watch / Plan to Read; in list → ✓ removes the
+                entry entirely. No inline menu: the Status pill below the hero
+                (TrackerCompact) already owns every status change AND removal —
+                the old popup duplicated those writes one tap away. One button,
+                two functions: add, remove. */}
             <div className="ml-auto flex items-center gap-2">
-              <div className="relative">
-                <button
-                  aria-label={currentStatus ? `Status: ${currentStatus}` : 'Add to My List'}
-                  onClick={async () => {
-                    if (!isAuthenticated) {
-                      setLocalError('Sign in with AniList or connect MyAnimeList in Settings to track.')
-                      setTimeout(() => setLocalError(null), 2500)
-                      return
-                    }
-                    if (!currentStatus) {
-                      setSyncing('status')
-                      try {
-                        await updateStatus(displayAnime, 'planned')
-                      } catch (e) {
-                        setLocalError(e instanceof Error ? e.message : 'Couldn’t update status')
-                      } finally {
-                        setSyncing(null)
-                      }
+              <button
+                aria-label={currentStatus ? 'Remove from My List' : 'Add to My List'}
+                onClick={async () => {
+                  if (!isAuthenticated) {
+                    setLocalError('Sign in with AniList or connect MyAnimeList in Settings to track.')
+                    setTimeout(() => setLocalError(null), 2500)
+                    return
+                  }
+                  setSyncing('status')
+                  try {
+                    if (currentStatus) {
+                      await removeEntry(displayAnime)
                     } else {
-                      setShowStatusPicker((v) => !v)
+                      await updateStatus(displayAnime, 'planned')
                     }
-                  }}
-                  className={`grid h-8 w-8 place-items-center rounded-full border border-[var(--border-strong)] bg-[color-mix(in_srgb,var(--bg)_30%,transparent)] text-[var(--text)] backdrop-blur hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)] ${currentStatus ? 'bg-[color-mix(in_srgb,var(--text)_10%,transparent)]' : ''}`}
-                >
-                  {syncing === 'status' ? (
-                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--border-strong)] border-t-[var(--text)]" />
-                  ) : currentStatus ? (
-                    <Icon name="check-lg" size={14} />
-                  ) : (
-                    <Icon name="plus-lg" size={14} />
-                  )}
-                </button>
-                {showStatusPicker && (
-                  <div className="absolute right-0 top-9 z-10 w-40 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--surface-elevated)] shadow-xl anim-pop-in">
-                    {(['watching', 'completed', 'planned', 'on_hold', 'dropped'] as AnimeStatus[]).map((s) => (
-                      <button
-                        key={s}
-                        onClick={async () => {
-                          setSyncing('status')
-                          setShowStatusPicker(false)
-                          try {
-                            await updateStatus(displayAnime, s)
-                          } catch (e) {
-                            setLocalError(e instanceof Error ? e.message : 'Couldn’t update status')
-                          } finally {
-                            setSyncing(null)
-                          }
-                        }}
-                        className={`flex w-full items-center justify-between px-3 py-2 text-xs hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)] ${currentStatus === s ? 'bg-[color-mix(in_srgb,var(--text)_10%,transparent)] text-[var(--text)]' : 'text-[var(--text-muted)]'}`}
-                      >
-                        <span className="capitalize">{s.replace('_', ' ')}</span>
-                        {currentStatus === s && <span className="text-[10px]">●</span>}
-                      </button>
-                    ))}
-                  </div>
+                  } catch (e) {
+                    setLocalError(e instanceof Error ? e.message : 'Couldn’t update My List')
+                  } finally {
+                    setSyncing(null)
+                  }
+                }}
+                className={`grid h-8 w-8 place-items-center rounded-full border border-[var(--border-strong)] bg-[color-mix(in_srgb,var(--bg)_30%,transparent)] text-[var(--text)] backdrop-blur hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)] ${currentStatus ? 'bg-[color-mix(in_srgb,var(--text)_10%,transparent)]' : ''}`}
+              >
+                {syncing === 'status' ? (
+                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--border-strong)] border-t-[var(--text)]" />
+                ) : currentStatus ? (
+                  <Icon name="check-lg" size={14} />
+                ) : (
+                  <Icon name="plus-lg" size={14} />
                 )}
-              </div>
+              </button>
             </div>
           </div>
         </div>
@@ -426,28 +404,23 @@ export function DetailModal({
             </div>
           )}
           {/* Mobile stack: metadata, then related in normal flow.
-              Separate mobile-only instance (no shared state). */}
+              Separate mobile-only instance (no shared state). The divider
+              between metadata rows and Related (stacked layout only)
+              renders ONLY while content follows it: loading skeletons
+              appear without the divider, final emptiness hides divider
+              and block — never a line above nothing. */}
           <div className="min-w-0 space-y-2 border-t border-[var(--border)] pt-4 text-xs leading-5 lg:hidden">
             <SidebarMeta anime={displayAnime} />
-            {displayAnime.identity.anilistId && (
-              <div>
-                {isMangaKind ? (
-                  <MangaRelatedEntriesBlock
-                    key={`m-${displayKey}`}
-                    anilistId={displayAnime.identity.anilistId}
-                    relations={displayAnime.relations}
-                    onSelectManga={onSelectRelated}
-                    scope="modal-mobile"
-                  />
-                ) : (
-                  <RelatedEntriesBlock
-                    key={`m-${displayKey}`}
-                    anilistId={displayAnime.identity.anilistId}
-                    relations={displayAnime.relations}
-                    onSelectAnime={onSelectRelated}
-                    scope="modal-mobile"
-                  />
-                )}
+            {mobileRelated && (mobileRelated.loading || (mobileRelated.entries?.length ?? 0) > 0) && (
+              <div className={mobileRelated.loading ? '' : 'mt-4 border-t border-[var(--border)] pt-4'}>
+                <RelatedEntries
+                  entries={mobileRelated.entries}
+                  loading={mobileRelated.loading}
+                  onSelect={onSelectRelated ? (id) => {
+                    const found = mobileRelated.entries?.find(e => e.anime.identity.anilistId === id)
+                    if (found) onSelectRelated(found.anime)
+                  } : undefined}
+                />
               </div>
             )}
           </div>

@@ -1,12 +1,12 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { AnimeCard } from '../components/cards/AnimeCard'
-import { DetailModal } from '../components/detail/DetailModal'
 import type { Anime, AnimeListEntry, AnimeStatus } from '../types/anime'
-import { useLocation, Navigate } from 'react-router-dom'
+import { Navigate } from 'react-router-dom'
 import { useTracking } from '../contexts/TrackingContext'
 import { RowSkeleton } from '../components/ui/Skeleton'
 import { useAniList } from '../contexts/AniListContext'
 import { useMAL } from '../contexts/MALContext'
+import { useDetailOpen } from '../hooks/useDetailOpen'
 
 const tabs: { id: AnimeStatus | 'all'; label: string }[] = [
   { id: 'all', label: 'All' },
@@ -18,12 +18,12 @@ const tabs: { id: AnimeStatus | 'all'; label: string }[] = [
 
 export function MyList() {
   const [tab, setTab] = useState<AnimeStatus | 'all'>('all')
-  const [selected, setSelected] = useState<Anime | null>(null)
   const { isAuthenticated, trackingProvider, combinedList, loading, error, authExpired } = useTracking()
-  const location = useLocation()
-  useEffect(() => { setSelected(null) }, [location.pathname, location.hash, location.search])
   const ani = useAniList()
   const mal = useMAL()
+  // Card taps push detail URLs — the floating card is an overlay route on
+  // top of this page, not local component state.
+  const openDetail = useDetailOpen()
   // Same header language as the Anime/Manga browse tabs: title + 1-line
   // "Discover … • <tracker>" description (text-xs faint). The tracker is
   // the active provider (AniList/MyAnimeList) — metadata is AniList either
@@ -110,7 +110,7 @@ export function MyList() {
           <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
             {filtered.map((a) => (
               <div key={a.identity.internalId} className="min-w-0">
-                <AnimeCard anime={a} variant={a.progress ? 'continue' : 'default'} onSelect={setSelected} fullWidth />
+                <AnimeCard anime={a} variant={a.progress ? 'continue' : 'default'} onSelect={openDetail} fullWidth />
               </div>
             ))}
           </div>
@@ -123,7 +123,6 @@ export function MyList() {
         </>
       ) : null}
 
-      {selected && <DetailModal key={selected.identity.internalId} anime={selected} onClose={() => setSelected(null)} onSelectRelated={setSelected} />}
     </div>
   )
 }

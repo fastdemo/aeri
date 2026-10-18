@@ -136,18 +136,50 @@ img.img-fade { opacity: 0; transition: opacity 0.35s ease; }
 img.img-fade.is-loaded { opacity: 0.96; }
 img.img-fade.is-loaded:hover { opacity: 1; }
 
-/* Multi-line clamp that actually clamps. The Tailwind v4 line-clamp-*
-   utilities in this repo's build compute `display` to flow-root (verified
-   across every line-clamp node), so they never clamp. These plain-CSS
-   classes pair the legacy -webkit-box clamp with an explicit max-height
-   fallback (line-height × lines), so even where -webkit-box is dropped
-   the text still cannot exceed N lines — the overflow is hidden either
-   way. Single-line truncation (truncate) is unaffected. */
+/* Multi-line clamp that actually clamps. Engines compute the legacy
+   `display:-webkit-box` to flow-root on these nodes (verified site-wide),
+   which kills the legacy box renderer, but Chromium 130+ still honors the
+   UNPREFIXED line-clamp on normal block containers — silently (no
+   ellipsis) unless the new-model shorthand is also present. These plain-
+   CSS classes therefore carry BOTH: the legacy -webkit-line-clamp (for
+   engines still running the legacy path) and `line-clamp: N ellipsis`
+   (painted ellipsis on modern engines; invalid declarations are dropped
+   harmlessly by engines without support). max-height is the final belt:
+   even where the clamp is entirely inert the text cannot exceed N lines.
+   The primary belt is `Nlh` (the element's own line-height × N — an
+   exact N-line box, never a mid-glyph shave, regardless of the leading
+   each node uses); the older em value stays first as the fallback for
+   engines without the lh unit (and assumes generous 1.6 leading).
+   Single-line truncation (truncate) is unaffected. NOTE: plain-CSS (unlayered) rules WIN over Tailwind
+   utility-layer rules at equal specificity — never pair a .clamp-* class
+   with a line-clamp-* utility on the same node; switch variants via the
+   later-declared plain classes (clamp-2 → sm:clamp-3) so source order
+   resolves the override. */
 .clamp-1, .clamp-2, .clamp-3 {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
-.clamp-1 { -webkit-line-clamp: 1; max-height: 1.6em; }
-.clamp-2 { -webkit-line-clamp: 2; max-height: 3.2em; }
-.clamp-3 { -webkit-line-clamp: 3; max-height: 4.8em; }
+.clamp-1 { -webkit-line-clamp: 1; line-clamp: 1 ellipsis; max-height: 1.6em; max-height: 1lh; }
+.clamp-2 { -webkit-line-clamp: 2; line-clamp: 2 ellipsis; max-height: 3.2em; max-height: 2lh; }
+.clamp-3 { -webkit-line-clamp: 3; line-clamp: 3 ellipsis; max-height: 4.8em; max-height: 3lh; }
+
+/* Sm variant for the plain clamp classes. Tailwind does NOT generate CSS
+   for `sm:clamp-3` (not a known utility), so the ≥640px rule ships from
+   here; unlayered + later in source than .clamp-2, source order resolves
+   the override. Use only with .clamp-* on the same node. */
+@media (min-width: 640px) {
+  .sm\:clamp-3 { -webkit-line-clamp: 3; line-clamp: 3 ellipsis; max-height: 4.8em; max-height: 3lh; }
+}
+
+/* Description visibility pair (hero): hidden at base, clamped box at
+   sm+ — display must be -webkit-box (NOT plain block) at ≥640: the
+   legacy box chain is what lets the engine paint the new-model clamp's
+   ellipsis (verified: plain block + same clamp declarations = silent
+   cut; -webkit-box + same declarations = ellipsis paints, both engines).
+   Declared after the clamp classes so `display` resolves by source order
+   among unlayered rules (none < 640 wins, box ≥ 640 wins). */
+.hero-desc { display: none; }
+@media (min-width: 640px) {
+  .hero-desc { display: -webkit-box; }
+}

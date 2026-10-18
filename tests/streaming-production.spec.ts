@@ -17,7 +17,7 @@ for (const c of CASES) {
     test.setTimeout(120000)
     const errors: string[] = []
     page.on('pageerror', (e) => errors.push(String(e).slice(0, 120)))
-    await page.goto(`${BASE}#/watch/anilist-${c.id}/${c.ep}`, { waitUntil: 'domcontentloaded' })
+    await page.goto(`${BASE}/watch/anilist-${c.id}/${c.ep}`, { waitUntil: 'domcontentloaded' })
     await page.waitForSelector('video', { timeout: 60000 })
     await page.evaluate(() => {
       const v = document.querySelector('video') as HTMLVideoElement | null

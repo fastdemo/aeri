@@ -164,28 +164,70 @@ export function filterAndSortStreamingEpisodes(
 }
 
 /**
+ * SEASON-POLLUTION GUARD (owner report 2026-10-18: "some shows have an
+ * identity crisis between season 1 and 2, showing the same episodes, like
+ * code geass or eighty six"). AniList frequently attaches ANOTHER season's
+ * crunchyroll listing to a sequel entry — verified upstream: Code Geass R2
+ * (2904) carries S1's full 25-row list (identical titles AND crunchyroll
+ * urls), and 86: Part 2 (131586) carries Part 1's 11 rows over its own 12.
+ * There is no local way to re-derive the correct titles, so when the
+ * pollution signals fire the list is dropped entirely: clean "Episode N"
+ * rows with the show's own cover as the thumbnail are always correct —
+ * wrong-season titles never are. Only FINISHED/CANCELLED entries are
+ * tested: airing shows legitimately grow their lists week by week.
+ *
+ * (i) Row-count mismatch on a finished entry (streaming rows ≠ the entry's
+ *     own episode count).
+ * (ii) Finished entry with a prequel of the SAME episode count and an
+ *     equally long streaming list — the exact shape AniList's
+ *     first-season copies take (CG R2). Trade-off (documented): a
+ *     correct same-length sequel loses its titles too; generic-but-correct
+ *     rows beat detailed-but-wrong ones.
+ */
+function seasonPollutedStreaming(anime: Anime): boolean {
+  const status = (anime.status ?? '').toUpperCase()
+  if (status !== 'FINISHED' && status !== 'CANCELLED') return false
+  const count = anime.episodes
+  if (typeof count !== 'number' || count <= 0) return false
+  const ses = anime.streamingEpisodes
+  if (!ses || !ses.length) return false
+  if (ses.length !== count) return true
+  const prequel = anime.relations?.edges?.find((e) => e.relationType === 'PREQUEL')?.node
+  if (prequel && typeof prequel.episodes === 'number' && prequel.episodes === count) return true
+  return false
+}
+
+/** Pure display-time guard: strips season-polluted streaming lists. */
+export function discardSeasonPollutedStreaming(anime: Anime): Anime {
+  if (!seasonPollutedStreaming(anime)) return anime
+  return { ...anime, streamingEpisodes: undefined }
+}
+
+/**
  * Sanitize anime streaming for display (standalone entry — no group model).
+ * - strips season-polluted lists (see discardSeasonPollutedStreaming)
  * - filters trailers
  * - sorts ascending
  * - local range validation: if majority of parsed numbers exceed the
  *   episode count, discard (likely another entry's global numbering).
  */
 export function sanitizeAnimeForDisplay(anime: Anime): Anime {
-  const sorted = filterAndSortStreamingEpisodes(anime.streamingEpisodes)
+  const guarded = discardSeasonPollutedStreaming(anime)
+  const sorted = filterAndSortStreamingEpisodes(guarded.streamingEpisodes)
   if (!sorted) {
-    return { ...anime, streamingEpisodes: undefined }
+    return { ...guarded, streamingEpisodes: undefined }
   }
-  const count = anime.episodes
+  const count = guarded.episodes
   if (typeof count === 'number' && count > 0) {
     const parsed = sorted.map(e => parseEpisodeNumber(typeof e.title === 'string' ? e.title : '')).filter(n => n !== null) as number[]
     if (parsed.length >= 2) {
       const outOfRange = parsed.filter(n => n > count + 0.6 || n < 0.5).length
       if (outOfRange / parsed.length > 0.7) {
-        return { ...anime, streamingEpisodes: undefined }
+        return { ...guarded, streamingEpisodes: undefined }
       }
     }
   }
-  return { ...anime, streamingEpisodes: sorted }
+  return { ...guarded, streamingEpisodes: sorted }
 }
 
 /**
@@ -246,9 +288,11 @@ export function normalizeEpisodes(
   providerEpisodes?: VideoEpisode[] | null
 ): AnimeEpisode[] {
   // Ensure streaming is filtered/sorted for standalone usage (without group)
-  const sortedAnime: Anime = filterAndSortStreamingEpisodes(anime.streamingEpisodes)
-    ? { ...anime, streamingEpisodes: filterAndSortStreamingEpisodes(anime.streamingEpisodes) }
-    : anime
+  const sortedAnime: Anime = discardSeasonPollutedStreaming(
+    filterAndSortStreamingEpisodes(anime.streamingEpisodes)
+      ? { ...anime, streamingEpisodes: filterAndSortStreamingEpisodes(anime.streamingEpisodes) }
+      : anime
+  )
   // Apply local mismatch discard before index mapping?
   let effectiveAnime = sortedAnime
   let preDiscardCount: number | null = null

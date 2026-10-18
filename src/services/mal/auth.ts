@@ -187,7 +187,7 @@ export async function handleMalOAuthCallback(): Promise<string | null> {
     url.searchParams.delete('error')
     url.searchParams.delete('error_description')
     const base = import.meta.env.BASE_URL as string
-    const clean = `${window.location.origin}${base}#/`
+    const clean = `${window.location.origin}${base}`
     window.history.replaceState(null, '', clean)
     throw new Error(`MAL authorization failed: ${error}${errorDesc ? ` — ${errorDesc}` : ''}`)
   }
@@ -201,7 +201,7 @@ export async function handleMalOAuthCallback(): Promise<string | null> {
     url.searchParams.delete('code')
     url.searchParams.delete('state')
     const base = import.meta.env.BASE_URL as string
-    const clean = `${window.location.origin}${base}#/`
+    const clean = `${window.location.origin}${base}`
     window.history.replaceState(null, '', clean)
     return existing
   }
@@ -213,7 +213,7 @@ export async function handleMalOAuthCallback(): Promise<string | null> {
     url.searchParams.delete('code')
     url.searchParams.delete('state')
     const base = import.meta.env.BASE_URL as string
-    const clean = `${window.location.origin}${base}#/`
+    const clean = `${window.location.origin}${base}`
     window.history.replaceState(null, '', clean)
     throw new Error('MAL state mismatch — possible CSRF. Try again.')
   }
@@ -223,7 +223,7 @@ export async function handleMalOAuthCallback(): Promise<string | null> {
     url.searchParams.delete('code')
     url.searchParams.delete('state')
     const base = import.meta.env.BASE_URL as string
-    const clean = `${window.location.origin}${base}#/`
+    const clean = `${window.location.origin}${base}`
     window.history.replaceState(null, '', clean)
     throw new Error('MAL code verifier missing. Try login again.')
   }
@@ -246,7 +246,7 @@ export async function handleMalOAuthCallback(): Promise<string | null> {
     url.searchParams.delete('code')
     url.searchParams.delete('state')
     const base = import.meta.env.BASE_URL as string
-    const clean = `${window.location.origin}${base}#/`
+    const clean = `${window.location.origin}${base}`
     window.history.replaceState(null, '', clean)
     if (/invalid_grant|invalid_client|invalid_code|expired|already used/i.test(msg)) {
       // Dead code (expired, already used, or client mismatch) — a fresh
@@ -264,7 +264,7 @@ export async function handleMalOAuthCallback(): Promise<string | null> {
   url.searchParams.delete('code')
   url.searchParams.delete('state')
   const base = import.meta.env.BASE_URL as string
-  const clean = `${window.location.origin}${base}#/`
+  const clean = `${window.location.origin}${base}`
   window.history.replaceState(null, '', clean)
   return tokenRes.access_token
 }
