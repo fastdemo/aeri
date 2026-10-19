@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
-import { Link, useParams, useNavigate, Navigate } from 'react-router-dom'
+import { Link, useParams, useNavigate, useLocation, Navigate } from 'react-router-dom'
 import { useTracking } from '../contexts/TrackingContext'
 import { useAnimeDetail } from '../hooks/useAnimeMetadata'
+import { useAeriTitle } from '../hooks/useAeriTitle'
 import { VideoPlayer } from '../components/player/VideoPlayer'
 import { resolveEpisodesWithFallback, resolveSourcesWithFallback } from '../providers/video/registry'
 import type { VideoEpisode, VideoSourceEnhanced } from '../providers/video/types'
@@ -14,11 +15,14 @@ import { Icon } from '../components/ui/Icon'
 import { FilterSelect } from '../components/ui/FilterSelect'
 import { useRelatedEntries } from '../hooks/useRelatedEntries'
 import { RelatedEntries } from '../components/related/RelatedEntries'
+import { detailPath } from '../hooks/useDetailOpen'
 
 export function Watch() {
   const { id, episode } = useParams<{ id: string; episode: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const { isAuthenticated, combinedList, updateProgress } = useTracking()
+
   // URL is the episode number of THIS entry. No season offsets, no global
   // numbering: entry owns its episodes 1..N.
   const epNum = Number(episode ?? 1)
@@ -37,6 +41,22 @@ export function Watch() {
   // streamingEpisodes). It supplies tracking state only — all display
   // data comes from the full Media record, or nothing renders yet.
   const anime = remote ?? null
+  // TAB TITLE (owner 2026-10-18): the show's own name, e.g. "Naruto - Aeri".
+  // HOOK PLACEMENT RULE: this call MUST sit above the component's early
+  // returns (redirect/skeleton/not-found) — hooks are called on EVERY
+  // render, and a call added after an early return crashes React with
+  // "Rendered more hooks than during the previous render" the moment the
+  // record resolves (verify: /watch/anilist-20/21 emptied #root in the
+  // headless probe until this was hoisted).
+  useAeriTitle(anime ? (getTitleHierarchy(anime).primary || null) : null, 'override')
+  // CARD ≠ PAGE CONTROLS (2026-10-18): the Episodes/Details buttons open the
+  // floating detail card WITH the nav state (this page as background + the
+  // record when held) so the card floats over the watch page and closing
+  // returns here intact. A bare Link would swap the background to Home and
+  // remount the page on close — the "refresh" the owner reported.
+  const detailNav = anime
+    ? { to: detailPath(anime), state: { background: { pathname: location.pathname, search: location.search }, anime } }
+    : { to: `/anime/${id}`, state: { background: { pathname: location.pathname, search: location.search } } }
   const matchHints = {
     animeTitle: anime ? (anime.title.romaji || anime.title.english || null) : null,
     animeEnglish: anime?.title.english ?? null,
@@ -363,7 +383,7 @@ export function Watch() {
                   <Link to="/settings" className="rounded-full bg-[color-mix(in_srgb,var(--text)_15%,transparent)] px-4 py-1.5 text-xs font-medium text-[var(--text)] backdrop-blur hover:bg-[color-mix(in_srgb,var(--text)_20%,transparent)]">
                     Change source
                   </Link>
-                  <Link to={`/anime/${id}`} className="rounded-full bg-[color-mix(in_srgb,var(--text)_15%,transparent)] px-4 py-1.5 text-xs font-medium text-[var(--text)] backdrop-blur hover:bg-[color-mix(in_srgb,var(--text)_20%,transparent)]">
+                  <Link to={detailNav.to} state={detailNav.state} className="rounded-full bg-[color-mix(in_srgb,var(--text)_15%,transparent)] px-4 py-1.5 text-xs font-medium text-[var(--text)] backdrop-blur hover:bg-[color-mix(in_srgb,var(--text)_20%,transparent)]">
                     {isMovie ? 'Details' : 'Episodes'}
                   </Link>
                 </div>
@@ -486,7 +506,8 @@ export function Watch() {
               )}
 
               <Link
-                to={`/anime/${id}`}
+                to={detailNav.to}
+                state={detailNav.state}
                 className="rounded-full bg-[var(--text)] px-4 py-1.5 text-xs font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]"
               >
                 Episodes
@@ -508,7 +529,8 @@ export function Watch() {
           )}
           {!isMovie && (
             <Link
-              to={`/anime/${id}`}
+              to={detailNav.to}
+              state={detailNav.state}
               className={`mt-4 ${isMovie ? 'hidden' : 'inline-flex'} rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-4 py-1.5 text-xs font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)] sm:hidden`}
             >
               Details

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
-import { Link, useParams, useNavigate, Navigate } from 'react-router-dom'
+import { Link, useParams, useNavigate, useLocation, Navigate } from 'react-router-dom'
 import { useTracking } from '../contexts/TrackingContext'
 import { useMangaDetail } from '../hooks/useAnimeMetadata'
+import { useAeriTitle } from '../hooks/useAeriTitle'
 import { getReadPos, putReadPos } from '../storage/db'
 import { getPreferences } from '../storage/preferences'
 import { sortProviderUnits, unitDisplayLabel } from '../providers/manga/types'
@@ -83,6 +84,7 @@ function ChapterNavButtons({
 export function Read() {
   const { id, chapter } = useParams<{ id: string; chapter: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
   const { isAuthenticated, combinedList, updateProgress } = useTracking()
 
   const trackingEntry = isAuthenticated && id ? combinedList?.find((e) => e.anime.identity.internalId === id || e.anime.identity.anilistId?.toString() === id || e.anime.identity.malId?.toString() === id) : null
@@ -99,6 +101,9 @@ export function Read() {
   // the full MANGA Media record only.
   const manga = remote ?? null
   const titles = useMemo(() => (manga ? getTitleHierarchy(manga) : { primary: '' } as any), [manga])
+  // TAB TITLE (owner 2026-10-18): the manga's own name; route fallback
+  // ("Read") until the record resolves.
+  useAeriTitle(titles.primary || null, 'override')
 
   const chapterParam = decodeURIComponent(chapter ?? 'first')
 
@@ -201,10 +206,11 @@ export function Read() {
   const newerChapter = prevChapter
 
   // Pages for the current unit. Provider comes from the unit's own id
-  // prefix — merged lists carry units from several providers, so the merge
-  // winner must NOT dictate page resolution (a MangaDex-led merge serving
-  // cached WeebCentral pages would 404). activeMangaProvider is the
-  // fallback only when the prefix names an unknown/disabled provider.
+  // prefix — the list is single-source (one winning provider, OWNER
+  // 2026-10-18), but pages still serve by the unit's own prefix as a
+  // safety net (a stale cached list from another provider must not 404).
+  // activeMangaProvider is the fallback only when the prefix names an
+  // unknown/disabled provider.
   // NOTE: pages are keyed per chapter — do NOT clear on chapter change
   // (clearing causes a pages=null render that resets effects keyed on
   // pages.length and drops in-flight resume state).
@@ -233,7 +239,7 @@ export function Read() {
     setPagesError(null)
     setPagesLoading(true)
     // Cross-provider guard: the URL chapter param must belong to the
-    // resolved merged list. A raw id from another title/provider (stale
+    // resolved list. A raw id from another title/provider (stale
     // bookmark, hand-typed URL) resolves pages against the WRONG series —
     // fail closed instead.
     if (chapters && !chapters.some(c => c.providerChapterId === currentChapter.providerChapterId && c.id === currentChapter.id)) {
@@ -314,7 +320,7 @@ export function Read() {
       id: `read:${manga.identity.internalId}`,
       chapterId: currentChapter.providerChapterId,
       chapterLabel: unitDisplayLabel(currentChapter),
-      // The serving provider (unit's own prefix), not the merge winner —
+      // The serving provider (unit's own prefix), not the resolver winner —
       // resume must reopen the same pages, not the winner's equivalent.
       provider: currentChapter.id.split('-')[0] || 'unknown',
       page: pageRef.current,
@@ -462,7 +468,7 @@ export function Read() {
       <div className="mx-auto grid max-w-[800px] place-items-center px-4 py-24 text-center">
         <div>
           <p className="text-sm font-medium text-[var(--text)]">This entry is an anime, not a manga.</p>
-          <Link to={`/anime/${id}`} className="mt-6 inline-block rounded-full bg-[var(--text)] px-5 py-2 text-sm font-semibold text-[var(--on-text)]">Open anime page</Link>
+          <Link to={`/anime/${id}`} state={{ background: { pathname: location.pathname, search: location.search } }} className="mt-6 inline-block rounded-full bg-[var(--text)] px-5 py-2 text-sm font-semibold text-[var(--on-text)]">Open anime page</Link>
         </div>
       </div>
     )

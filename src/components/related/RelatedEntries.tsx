@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 import { AnimeCard } from '../cards/AnimeCard'
 import type { RelatedEntry } from '../../hooks/useRelatedEntries'
+import { detailPath } from '../../hooks/useDetailOpen'
 import { formatLabel } from '../../lib/mediaLabels'
 
 /** Router-navigating anchor: real href (a11y, middle-click, file:// dev),
@@ -63,8 +64,12 @@ function RelatedGrid({
         const id = anime.identity.anilistId
         if (!id) return null
         // Type-safe destination: manga relations MUST resolve as manga.
-        // The /manga page queries type: MANGA; /anime queries type: ANIME.
-        const href = isMangaFormat(anime.format) ? `/manga` : `/anime/anilist-${id}`
+        // Same numeric id under ANIME vs MANGA is a DIFFERENT entity, so
+        // the /manga/:id route (not the /manga BROWSE page — the old
+        // `/manga` bare href navigated away from the current card/page
+        // entirely; 2026-10-18 fix). detailPath resolves the mediaType/
+        // format boundary and builds canonical `/manga/anilist-<id>`.
+        const href = detailPath(anime)
         const meta = [
           relationLabel(relationType),
           formatLabel(anime.format) ?? anime.format,
@@ -200,7 +205,9 @@ function RelatedGridContents({
       {entries.map(({ anime, relationType }) => {
         const id = anime.identity.anilistId
         if (!id) return null
-        const href = isMangaFormat(anime.format) ? `/manga` : `/anime/anilist-${id}`
+        // Canonical detail URL (manga relations → /manga/:id, never the
+        // bare /manga BROWSE page — 2026-10-18 fix; see the first grid).
+        const href = detailPath(anime)
         const meta = [
           relationLabel(relationType),
           formatLabel(anime.format) ?? anime.format,

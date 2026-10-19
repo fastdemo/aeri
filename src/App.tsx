@@ -1,5 +1,7 @@
 import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-dom'
+import { useAeriTitle } from './hooks/useAeriTitle'
+import { routeDefaultTitle } from './lib/pageTitle'
 import { Navbar } from './components/navigation/Navbar'
 import { Home } from './pages/Home'
 import { Browse } from './pages/Browse'
@@ -53,9 +55,27 @@ function Layout() {
   const location = useLocation()
   const { pathname } = location
   const detailMatch = DETAIL_ROUTE_RE.exec(pathname)
+  // TAB TITLE — route fallback ("Home - Aeri", "Manga - Aeri", the quoted
+  // live search term …). Mapped centrally from the pathname/search so no
+  // page component has to wire a static title; live-data names (show
+  // titles on detail overlays, Watch/Read pages) layer an 'override' on
+  // top via the same hook and restore on close. See useAeriTitle.
+  useAeriTitle(routeDefaultTitle(pathname, location.search), 'base')
   // Background page the card was opened from: explicit when pushed from a
   // list page (history state rides along); Home for bare show URLs.
   const navState = (location.state ?? null) as DetailNavState | null
+  // CARD ≠ PAGE CONTROLS (owner 2026-10-18): the base <Routes> must ALWAYS
+  // receive an explicit `location` prop. react-router's useRoutesImpl
+  // returns matched elements BARE when location is undefined but wraps them
+  // in a LocationContext.Provider when it is set (dist line
+  // `if (locationArg && renderedMatches)`) — passing undefined while a
+  // detail URL is active changes the ELEMENT TREE SHAPE between the two
+  // states, and React unmounts + remounts the whole background page on
+  // every card open/close (proved via Home mount/salt logs + a connected
+  // node probe: the pre-open "Continue Watching" heading was replaced by an
+  // identical twin). With a location prop ALWAYS set, the tree shape is
+  // constant and the background page RECONCILES — no remount, no reshuffle
+  // of the seeded rows, no scroll jump: Netflix-open behavior.
   const bgLocation = detailMatch ? (navState?.background ?? { pathname: '/' }) : location
 
   // Scroll reset keyed on the SURFACE, not the raw path: opening or closing
@@ -75,8 +95,10 @@ function Layout() {
         {/* Base surface: keeps the background page mounted under the card
             (own location while a detail URL is active). /anime/:id and
             /manga/:id are intentionally NOT here — they exist only as the
-            overlay routes below. */}
-        <Routes location={detailMatch ? bgLocation : undefined}>
+            overlay routes below. `location` is ALWAYS explicit (see comment
+            above): an undefined↔object flip changes the element tree shape
+            inside useRoutesImpl and remounts the background page. */}
+        <Routes location={bgLocation}>
           <Route path="/" element={<Home />} />
           <Route path="/anime" element={<Browse />} />
           <Route path="/search" element={<Search />} />
@@ -97,7 +119,12 @@ function Layout() {
           </Routes>
         )}
       </main>
-      <footer className="border-t border-[var(--border)]">
+      {/* OWNER 2026-10-18: hidden below the `sm` boundary (640px) — the
+          same scaling where the hero carousel dots-pill moves to the
+          top-right (Hero.tsx comment: "<640"): on the tightest layouts
+          the footer is noise. KEEP THE BREAKPOINT IN SYNC with the hero
+          pill placement if either changes. */}
+      <footer className="hidden border-t border-[var(--border)] sm:block">
         <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-3 px-4 py-5 text-[11px] sm:px-6 lg:px-12">
           <div className="flex min-w-0 items-center gap-2">
             {/* Hover rolls the tagline up and out while the credit rolls

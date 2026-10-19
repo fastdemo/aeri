@@ -9,10 +9,12 @@ import { useRelatedEntries } from '../../hooks/useRelatedEntries'
 import { RelatedEntries } from '../related/RelatedEntries'
 import { displayRating, formatRating } from '../../lib/rating'
 import { getTitleHierarchy } from '../../lib/titles'
+import { useAeriTitle } from '../../hooks/useAeriTitle'
 import { Icon } from '../ui/Icon'
-import { sanitizeAnimeForDisplay } from '../../lib/episodes'
+import { sanitizeAnimeForDisplay, getStreamingEpisodeTitle } from '../../lib/episodes'
 import { resolveDisplayRecord } from '../../lib/records'
 import { formatLabel, statusLabel } from '../../lib/mediaLabels'
+import { resolveChaptersWithFallback } from '../../providers/manga/mangadex'
 
 function ScoreBadge({ anime, trackingProvider }: { anime: Anime; trackingProvider?: 'anilist' | 'mal' | null }) {
   const text = formatRating(displayRating(anime, trackingProvider))
@@ -76,6 +78,10 @@ export function DetailModal({
   }, [anime, baseEntry])
   const displayKey = displayAnime.identity.anilistId ? `anilist:${displayAnime.identity.anilistId}` : displayAnime.identity.internalId
   const titles = getTitleHierarchy(displayAnime)
+  // TAB TITLE (owner 2026-10-18): the overlay carries the ENTRY's name —
+  // "Assassination Classroom - Aeri" — and the stack restores the page
+  // beneath ("Home - Aeri") when the card closes.
+  useAeriTitle(titles.primary || null, 'override')
   const isMovie = displayAnime.format?.toUpperCase() === 'MOVIE'
   const isMangaKind = ['MANGA', 'NOVEL', 'ONE_SHOT'].includes(displayAnime.format?.toUpperCase() ?? '')
 
@@ -109,7 +115,24 @@ export function DetailModal({
   const currentStatus: AnimeStatus | null = trackedStatus
   const numEp = entry?.progress ?? 0
   const hasWatched = numEp > 0
-  const resumeEp = numEp
+  // RESUME = NEXT (owner 2026-10-18): "if I watched 20 episodes, the resume
+  // button is episode 21." One past the last-completed unit, clamped to the
+  // known total; the metric line below still reports what WAS watched.
+  const resumeEpisodeNumber = (() => {
+    if (!hasWatched) return 1
+    const total = isMangaKind
+      ? (displayAnime.chapters && displayAnime.chapters > 0 ? displayAnime.chapters : 0)
+      : (displayAnime.episodes && displayAnime.episodes > 0 ? displayAnime.episodes : 0)
+    return total > 0 ? Math.min(numEp + 1, total) : numEp + 1
+  })()
+  const resumeEp = resumeEpisodeNumber
+  // Manga "fully caught up" — the Ch-line hides when nothing is left to read
+  // (same rule as the E-line for anime with progress == episodes total).
+  const caughtUpManga = (() => {
+    if (!isMangaKind) return false
+    const total = displayAnime.chapters && displayAnime.chapters > 0 ? displayAnime.chapters : 0
+    return numEp > 0 && total > 0 && numEp >= total
+  })()
   // Finished entries always render a full bar even when no percent survived mapping
   const barPercent = (() => {
     if (!entry) return 0
@@ -119,17 +142,45 @@ export function DetailModal({
     return 0
   })()
 
-  // E-line (E1 • title) renders only when there is progress/aired content
-  // to show — NEVER a placeholder.
+  // E-line (E1 • title) — ALWAYS the episode Resume/continue will open: the
+  // NEXT episode (owner 2026-10-18: "I watched episode 20, it should be
+  // displaying info of the next episode which is e21 on top of
+  // description"). 1 for an unstarted show, clamped to the known total,
+  // hidden entirely when fully caught up. The show description paragraph
+  // below stays the SHOW's description — never a placeholder.
+  // The NAME comes from the ANILIST record (owner rule: AniList owns all
+  // names). The record reaching the modal rarely carries streamingEpisodes
+  // (pool/list copies don't), so resolve it eagerly — same AniList-first
+  // record the cards mount-fetch (shared IDB cache + inflight dedupe +
+  // patient 429 retry, so bursts can starve it only temporarily).
+  const [nextEpName, setNextEpName] = useState<string | null>(null)
+  useEffect(() => {
+    setNextEpName(null)
+    if (isMovie || isMangaKind) return
+    const aid = displayAnime.identity.anilistId
+    const mid = displayAnime.identity.malId
+    if (!(aid && !Number.isNaN(aid)) && !mid) return
+    const metaId = aid && !Number.isNaN(aid) ? `anilist-${aid}` : `mal-${mid}`
+    let cancelled = false
+    void import('../../providers/metadata/anilistMetadata')
+      .then(m => m.getAnimePatient(metaId))
+      .then(full => {
+        if (cancelled || !full) return
+        const t = getStreamingEpisodeTitle(full, resumeEpisodeNumber)
+        if (t) setNextEpName(t)
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [isMovie, isMangaKind, displayAnime.identity.anilistId, displayAnime.identity.malId, resumeEpisodeNumber])
   const epline = (() => {
     if (isMovie || isMangaKind) return null
-    const norm = getEpisodes(displayAnime)
-    const epNum = numEp > 0 ? numEp : (displayAnime.progress?.episode ?? 1)
-    const target = norm.find(e => e.number === epNum) ?? norm[0]
-    if (!target) return null
-    const epTitle = target.title
-    if (!epTitle && !hasWatched && !displayAnime.progress) return null
-    return { number: target.displayNumber, title: epTitle }
+    const showTotal = displayAnime.episodes && displayAnime.episodes > 0 ? displayAnime.episodes : 0
+    if (numEp > 0 && showTotal > 0 && numEp >= showTotal) return null
+    const next = resumeEpisodeNumber
+    const target = getEpisodes(displayAnime).find(e => e.number === next) ?? null
+    const title = nextEpName ?? target?.title ?? null
+    if (!title && numEp <= 0 && !displayAnime.progress) return null
+    return { number: target?.displayNumber ?? next, title }
   })()
   const hasEpline = !!epline
   const eplineNumber = epline?.number ?? 0
@@ -218,7 +269,7 @@ export function DetailModal({
 
             {isMangaKind ? (
               <Link
-                to={`/read/${displayAnime.identity.internalId}/${hasWatched ? `ch-${resumeEp}` : 'first'}`}
+                to={`/read/${displayAnime.identity.internalId}/${hasWatched ? `ch-${resumeEpisodeNumber}` : 'first'}`}
                 className="inline-flex h-8 items-center gap-1.5 rounded-full bg-[var(--text)] px-4 text-[13px] font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]"
               >
                 <Icon name="book" size={14} />
@@ -226,7 +277,7 @@ export function DetailModal({
               </Link>
             ) : (
               <Link
-                to={`/watch/${displayAnime.identity.internalId}/${hasWatched ? resumeEp : 1}`}
+                to={`/watch/${displayAnime.identity.internalId}/${resumeEpisodeNumber}`}
                 className="inline-flex h-8 items-center gap-1.5 rounded-full bg-[var(--text)] px-4 text-[13px] font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]"
               >
                 <Icon name="play-fill" size={14} />
@@ -353,6 +404,13 @@ export function DetailModal({
                 E{eplineNumber} {eplineTitle ? `• ${eplineTitle}` : ''}
               </p>
             )}
+            {/* Manga mirror of the E-line (owner 2026-10-18: "the same
+                behavior also applied to manga"): the NEXT chapter's info
+                above the description — Ch <next> + the provider unit's own
+                title when it carries one. */}
+            {isMangaKind && !caughtUpManga && (
+              <MangaNextLine manga={displayAnime} next={resumeEpisodeNumber} watched={numEp} />
+            )}
             <p className="mt-1 line-clamp-3 text-[13px] leading-6 text-[var(--text-muted)]">
               {displayAnime.description || 'No description available.'}
             </p>
@@ -427,6 +485,47 @@ export function DetailModal({
         </div>
       </div>
     </div>
+  )
+}
+
+// Manga mirror of the E-line: `Ch <next>` of the chapter Resume will open —
+// progress+1 (clamped, computed by the parent's resumeEpisodeNumber) — with
+// the provider unit's own title when that unit carries a distinguishing
+// name (the provider label IS the chapter name; a bare "Chapter N" adds
+// nothing after "Ch N"). Resolution shares ChapterList's resolver and its
+// Worker caching. Degradation is honest: the tracker-derived next number is
+// a real fact and always shown while reading; with no tracker progress and
+// no unit title the line stays hidden (never noise), mirroring the anime
+// E-line gate.
+function MangaNextLine({ manga, next, watched }: { manga: Anime; next: number; watched: number }) {
+  const [unitExtra, setUnitExtra] = useState<string | null>(null)
+  useEffect(() => {
+    const ctrl = new AbortController()
+    let cancelled = false
+    resolveChaptersWithFallback(manga, ctrl.signal, {
+      mangaTitle: manga.title.romaji,
+      mangaEnglish: manga.title.english,
+      mangaNative: manga.title.native,
+    })
+      .then((r) => {
+        const u = r.chapters.find(c => c.unitType !== 'volume' && c.number === next)
+        let extra: string | null = null
+        if (u) {
+          const label = (u.label ?? '').trim()
+          extra = label && !/^chapter\s*\d*\s*[-–—:.]?\s*$/i.test(label)
+            ? label.replace(/^chapter\s*\d*\s*[-–—:.]?\s*/i, '').trim() || null
+            : null
+        }
+        if (!cancelled) setUnitExtra(extra)
+      })
+      .catch(() => {})
+    return () => { cancelled = true; ctrl.abort() }
+  }, [manga.identity.internalId, next])
+  if (!watched && !unitExtra) return null
+  return (
+    <p className="mt-2 text-[12px] font-semibold text-[var(--text)]">
+      Ch{next} {unitExtra ? `• ${unitExtra}` : ''}
+    </p>
   )
 }
 

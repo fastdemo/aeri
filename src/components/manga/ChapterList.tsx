@@ -135,15 +135,6 @@ export function ChapterList({ manga }: { manga: Anime }) {
   }
 
   const nVolumes = ordered.filter(c => c.unitType === 'volume').length
-  // Catalogue-vs-availability line: AniList totals are catalogue metadata
-  // (not readable chapters). The unit count below is what providers
-  // actually host. Never imply the catalogue total is browsable.
-  const catalogueLine = (() => {
-    const parts: string[] = []
-    if (typeof manga.chapters === 'number' && manga.chapters > 0) parts.push(`${manga.chapters} published`)
-    if (typeof manga.volumes === 'number' && manga.volumes > 0) parts.push(`${manga.volumes} vol`)
-    return parts.length ? `AniList catalogue: ${parts.join(' • ')}` : null
-  })()
   return (
     <div className="space-y-1">
       <div className="mb-2 flex items-baseline justify-between gap-2">
@@ -163,10 +154,7 @@ export function ChapterList({ manga }: { manga: Anime }) {
           {ordered.length} available{nVolumes ? ` • ${nVolumes} ${nVolumes === 1 ? 'volume' : 'volumes'}` : ''}
         </span>
       </div>
-      {catalogueLine && (
-        <p className="mb-2 text-[11px] text-[var(--text-faint)]">{catalogueLine} — chapters below are what reading sources actually host.</p>
-      )}
-          <div className="overflow-hidden rounded-lg border border-[var(--border)]">
+      <div className="overflow-hidden rounded-lg border border-[var(--border)]">
         {ordered.map((ch, idx) => {
           // No next-up highlight (same reason as episodes: on desc-sort it
           // tints the top rows and reads as a rendering bug).
@@ -186,14 +174,21 @@ export function ChapterList({ manga }: { manga: Anime }) {
               }}
               className={`flex items-center gap-3 bg-[var(--surface)] px-3 py-3 text-left transition hover:bg-[var(--text)]/[0.04] ${idx !== ordered.length - 1 ? 'border-b border-[var(--border)]' : ''}`}
             >
+              {/* OWNER LAYOUT (2026-10-18 rethink): name left; the date is
+                  gone — read-chapters carry the anime episode tick (check-lg)
+                  + "Read" in its place, right-aligned immediately before the
+                  source tag (which stays outermost right). */}
               <span className="w-24 shrink-0 truncate text-[13px] font-medium text-[var(--text)]">{label}</span>
-              <span className="min-w-0 flex-1 truncate text-[11px] text-[var(--text-faint)]">
-                {ch.publishedAt ? new Date(ch.publishedAt).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) : ''}
-              </span>
+              <span className="min-w-0 flex-1" />
+              {isRead && (
+                <span className="flex shrink-0 items-center gap-1 text-[11px] font-medium text-[var(--text-muted)]">
+                  <Icon name="check-lg" size={14} />
+                  <span>Read</span>
+                </span>
+              )}
               {provName && (
                 <span className="max-w-[110px] shrink-0 truncate rounded-full bg-[color-mix(in_srgb,var(--text)_8%,transparent)] px-2 py-0.5 text-[10px] font-medium text-[var(--text-muted)]">{provName}</span>
               )}
-              <span className="hidden w-8 shrink-0 text-right text-xs text-[var(--text-faint)] sm:block">{isRead ? 'Read' : ''}</span>
             </Link>
           )
         })}

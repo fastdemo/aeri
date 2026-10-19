@@ -2,6 +2,7 @@
 // Source: bootstrap-icons npm package (MIT). Icons render at the given size
 // with currentColor; pass className for theme text colors.
 import bookSvg from 'bootstrap-icons/icons/book.svg?raw'
+import bookFillSvg from 'bootstrap-icons/icons/book-fill.svg?raw'
 import playFillSvg from 'bootstrap-icons/icons/play-fill.svg?raw'
 import playCircleSvg from 'bootstrap-icons/icons/play-circle.svg?raw'
 import threeDotsVerticalSvg from 'bootstrap-icons/icons/three-dots-vertical.svg?raw'
@@ -25,6 +26,7 @@ import arrowDownShortSvg from 'bootstrap-icons/icons/arrow-down-short.svg?raw'
 
 const PATHS: Record<string, string> = {
   book: bookSvg,
+  'book-fill': bookFillSvg,
   'play-fill': playFillSvg,
   'play-circle': playCircleSvg,
   'three-dots-vertical': threeDotsVerticalSvg,

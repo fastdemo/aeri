@@ -141,6 +141,7 @@ function ensureMinRow(primary: Anime[], fallback: Anime[], min: number, used?: S
 export function Home() {
   const [signInOpen, setSignInOpen] = useState(false)
   const mountSalt = useRef(Math.floor(Math.random() * 1e9))
+
   const { isAuthenticated, trackingProvider, combinedList, loading, error, authExpired } = useTracking()
   const location = useLocation()
   const navigate = useNavigate()
@@ -267,7 +268,12 @@ export function Home() {
       if (!first) return 0
       return allPool.filter(a => !listIds.has(a.identity.internalId) && a.genres[0]?.toLowerCase() === first).length
     }
-    const eligible = combinedList.filter(e => e.anime.genres?.length && matchCount(e.anime.genres) >= 2)
+    // OWNER (2026-10-18): "because you watched on the home screen should
+    // only take ANIMES" — the reference entry (the title in the row header)
+    // must be an anime; manga entries never become the reference. (The row
+    // items always were pool-anime; it was the header that went manga.)
+    const isAnimeEntry = (f?: string) => !['MANGA', 'NOVEL', 'ONE_SHOT'].includes(f?.toUpperCase() ?? '')
+    const eligible = combinedList.filter(e => e.anime.genres?.length && isAnimeEntry(e.anime.format) && matchCount(e.anime.genres) >= 2)
     if (!eligible.length) return null
     // Deterministic: most-recently-updated eligible entry. No randomness,
     // so the row is identical on every render for the same list+pool.
@@ -277,7 +283,7 @@ export function Home() {
     const items = allPool
       .filter(a => !listIds.has(a.identity.internalId) && a.identity.internalId !== ref.anime.identity.internalId && a.genres[0]?.toLowerCase() === first)
       .sort((a, b) => ((b.rating ?? 0) - (a.rating ?? 0)) || ((b.popularity ?? 0) - (a.popularity ?? 0)))
-      .slice(0, 10)
+      .slice(0, 12)
     if (items.length < 2) return null
     const refTitle = ref.anime.title.english?.trim() || ref.anime.title.romaji
     const subtitle = ref.anime.genres.slice(0, 2).join(' • ')
@@ -291,19 +297,19 @@ export function Home() {
     // For each derived, take a larger candidate set then shuffle sample, to keep relevance but allow variation
     // Targets are 10+ with fallback filling so rows never look cut off
     const highlyRatedBase = [...pool].filter(a => (a.rating ?? 0) >= 8.0).sort((a,b) => (b.rating ?? 0) - (a.rating ?? 0)).slice(0, 24)
-    const highlyRated = highlyRatedBase.length ? ensureMinRow(sampleVaried(highlyRatedBase, Math.min(16, highlyRatedBase.length), undefined, 'highly', stableOrder), pool, 10, undefined, 'highly', stableOrder) : []
+    const highlyRated = highlyRatedBase.length ? ensureMinRow(sampleVaried(highlyRatedBase, Math.min(16, highlyRatedBase.length), undefined, 'highly', stableOrder), pool, 12, undefined, 'highly', stableOrder) : []
 
     const shortBase = pool.filter(a => a.episodes != null && a.episodes >= 1 && a.episodes <= 12)
-    const shortShuffled = shortBase.length ? ensureMinRow(sampleVaried(shortBase, Math.min(16, shortBase.length), undefined, 'short', stableOrder), pool, 10, undefined, 'short', stableOrder) : []
+    const shortShuffled = shortBase.length ? ensureMinRow(sampleVaried(shortBase, Math.min(16, shortBase.length), undefined, 'short', stableOrder), pool, 12, undefined, 'short', stableOrder) : []
 
     const actionBase = pool.filter(a => a.genres.includes('Action'))
-    const actionPicks = actionBase.length ? ensureMinRow(sampleVaried(actionBase, Math.min(18, actionBase.length), undefined, 'action', stableOrder), pool, 10, undefined, 'action', stableOrder) : []
+    const actionPicks = actionBase.length ? ensureMinRow(sampleVaried(actionBase, Math.min(18, actionBase.length), undefined, 'action', stableOrder), pool, 12, undefined, 'action', stableOrder) : []
 
     const romanceBase = pool.filter(a => a.genres.includes('Romance'))
-    const romancePicks = romanceBase.length ? ensureMinRow(sampleVaried(romanceBase, Math.min(16, romanceBase.length), undefined, 'romance', stableOrder), pool, 10, undefined, 'romance', stableOrder) : []
+    const romancePicks = romanceBase.length ? ensureMinRow(sampleVaried(romanceBase, Math.min(16, romanceBase.length), undefined, 'romance', stableOrder), pool, 12, undefined, 'romance', stableOrder) : []
 
     const hiddenBase = pool.filter(a => (a.rating ?? 0) >= 7.8 && (a.popularity ?? 0) < 60000 && (a.popularity ?? 0) > 0)
-    const hiddenGems = hiddenBase.length ? ensureMinRow(sampleVaried(hiddenBase, Math.min(16, hiddenBase.length), undefined, 'gems', stableOrder), pool, 10, undefined, 'gems', stableOrder) : []
+    const hiddenGems = hiddenBase.length ? ensureMinRow(sampleVaried(hiddenBase, Math.min(16, hiddenBase.length), undefined, 'gems', stableOrder), pool, 12, undefined, 'gems', stableOrder) : []
     // If hidden gems pool is tiny (e.g. 5 in 96), ensureMinRow pads from allPool to 10
 
     // Top Picks for You — based on user's top genres across list, varied
@@ -318,7 +324,7 @@ export function Home() {
         const cands = pool.filter(a => !listIds.has(a.identity.internalId))
         const recs = getRecommendations(topGenres, cands)
         // vary: top 20 then ensure 10
-        topPicks = recs.length ? ensureMinRow(stableOrder('toppicks', recs.slice(0, 20)), pool, 10, undefined, 'toppicks', stableOrder) : null
+        topPicks = recs.length ? ensureMinRow(stableOrder('toppicks', recs.slice(0, 20)), pool, 12, undefined, 'toppicks', stableOrder) : null
       }
     }
     return { highlyRated, shortShuffled, actionPicks, romancePicks, hiddenGems, topPicks, topGenres }
@@ -328,12 +334,18 @@ export function Home() {
   // never reshuffled by background refetches mid-session)
   const middleSections = useMemo(() => {
     const used = new Set<string>()
+    // OWNER (2026-10-18): EVERY home row shows at least 10 shows — more
+    // when data allows. After under-12 sampling from a category page and
+    // cross-row dedupe, ensureMinRow pads any thin line-up from the full
+    // pool (used-aware) so no row ends visibly short.
     const pushVaried = (key: string, title: string, data: Anime[] | null | undefined, subtitle?: string, count = 12) => {
       if (!data || !data.length) return null
       const varied = sampleVaried(data, Math.min(count, data.length), used, `sec:${key}`, stableOrder)
       if (!varied.length) return null
-      for (const a of varied) used.add(a.identity.internalId)
-      return { key, title, subtitle, data: varied }
+      const padded = ensureMinRow(varied, allPool, 12, used, `pad:${key}`, stableOrder)
+      if (!padded.length) return null
+      for (const a of padded) used.add(a.identity.internalId)
+      return { key, title, subtitle, data: padded }
     }
 
     // Stable slices for API categories — same lineup until data changes
@@ -354,35 +366,38 @@ export function Home() {
     if (n) sections.push(n)
 
     if (derived?.highlyRated?.length) {
-      const v = ensureMinRow(derived.highlyRated, allPool, 10, used, 'sec:highly', stableOrder)
+      const v = ensureMinRow(derived.highlyRated, allPool, 12, used, 'sec:highly', stableOrder)
       if (v.length) { for (const x of v) used.add(x.identity.internalId); sections.push({ key: 'highly', title: 'Highly Rated', subtitle: 'Critics love these', data: v }) }
     }
     if (derived?.shortShuffled?.length) {
-      const v = ensureMinRow(derived.shortShuffled, allPool, 10, used, 'sec:short', stableOrder)
+      const v = ensureMinRow(derived.shortShuffled, allPool, 12, used, 'sec:short', stableOrder)
       if (v.length) { for (const x of v) used.add(x.identity.internalId); sections.push({ key: 'short', title: 'Short & Sweet', subtitle: 'Under 12 episodes', data: v }) }
     }
     if (derived?.actionPicks?.length) {
-      const v = ensureMinRow(derived.actionPicks, allPool, 10, used, 'sec:action', stableOrder)
+      const v = ensureMinRow(derived.actionPicks, allPool, 12, used, 'sec:action', stableOrder)
       if (v.length) { for (const x of v) used.add(x.identity.internalId); sections.push({ key: 'action', title: 'Action Picks', subtitle: 'For adrenaline', data: v }) }
     }
     if (derived?.romancePicks?.length) {
-      const v = ensureMinRow(derived.romancePicks, allPool, 10, used, 'sec:romance', stableOrder)
+      const v = ensureMinRow(derived.romancePicks, allPool, 12, used, 'sec:romance', stableOrder)
       if (v.length) { for (const x of v) used.add(x.identity.internalId); sections.push({ key: 'romance', title: 'Romance Picks', subtitle: 'Heartfelt stories', data: v }) }
     }
     if (derived?.hiddenGems?.length) {
-      const v = ensureMinRow(derived.hiddenGems, allPool, 10, used, 'sec:gems', stableOrder)
+      const v = ensureMinRow(derived.hiddenGems, allPool, 12, used, 'sec:gems', stableOrder)
       if (v.length) { for (const x of v) used.add(x.identity.internalId); sections.push({ key: 'gems', title: 'Hidden Gems', subtitle: 'Low-key favorites', data: v }) }
     }
 
     // personalized sections near bottom but before My List — keep them together, also varied but not deduped aggressively
     const personalized: typeof sections = []
     if (derived?.topPicks?.length) {
-      const v = ensureMinRow(derived.topPicks, allPool, 10, undefined, 'sec:toppicks', stableOrder)
+      const v = ensureMinRow(derived.topPicks, allPool, 12, undefined, 'sec:toppicks', stableOrder)
       if (v.length) personalized.push({ key: 'toppicks', title: 'Top Picks for You', subtitle: derived.topGenres?.length ? derived.topGenres.join(' • ') : undefined, data: v })
     }
     // Because row: ONE reference show + right-side genre subheading.
     if (becauseRecommendations && becauseRecommendations.items.length >= 2) {
-      personalized.push({ key: 'because', title: `Because you watched ${becauseRecommendations.refTitle}`, subtitle: becauseRecommendations.subtitle, data: becauseRecommendations.items })
+      // Pad to the row minimum from the pool when the true genre matches
+      // run short (owner 2026-10-18: every home row ≥ 10).
+      const padded = ensureMinRow(becauseRecommendations.items, allPool, 12, used, 'pad:because', stableOrder)
+      if (padded.length) personalized.push({ key: 'because', title: `Because you watched ${becauseRecommendations.refTitle}`, subtitle: becauseRecommendations.subtitle, data: padded })
     }
 
     // Section order: Trending first, rest in mount-stable varied order (fresh

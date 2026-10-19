@@ -227,12 +227,11 @@ export function Navbar() {
       aria-label="Primary"
     >
       <div ref={barRef} data-navbar-bar="true" className="mx-auto flex h-full max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-12 lg:gap-6">
-        {/* Left cluster: logo + menu share ONE gap (halved on the
-            collapsed/mobile branch so the icon sits close to "aeri").
-            The old gap-6 (24px) read as detached on phones. */}
-        {/* Left cluster: logo + nav share ONE gap (gap-6). Desktop nav
-            links use px-2 -mx-2 (visual rhythm preserved). */}
-        <div className="flex items-center gap-6">
+        {/* Left cluster: logo + nav/menu share ONE gap. The mobile (menu
+            collapsed) branch halves it — owner 2026-10-18: "half the
+            distance from aeri to the menu button" — the old gap-6 (24px)
+            read as detached on phones. Desktop keeps gap-6. */}
+        <div className={navFits ? 'flex items-center gap-6' : 'flex items-center gap-3'}>
           {/* Logo — simple Aeri, unselectable */}
           {/* Logo — simple Aeri, unselectable */}
           <Link
@@ -324,7 +323,11 @@ export function Navbar() {
           </button>
           )}
 
-          {isAuthenticated && navFits && (
+          {/* BELL + DIVIDER STAY AT EVERY SCALING (owner 2026-10-19: "dont
+              make the notification button and small | disappear on small
+              scalings") — they used to be gated by navFits and vanished
+              exactly when the lane collapsed. */}
+          {isAuthenticated && (
             <div ref={scheduleRef}>
               <button
                 ref={bellRef}
@@ -347,7 +350,7 @@ export function Navbar() {
             </div>
           )}
 
-          {isAuthenticated && navFits && <div className="h-6 w-px bg-[color-mix(in_srgb,var(--text)_10%,transparent)]" />}
+          {isAuthenticated && <div className="h-6 w-px bg-[color-mix(in_srgb,var(--text)_10%,transparent)]" />}
 
           {!isAuthenticated ? (
             <button

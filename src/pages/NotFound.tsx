@@ -1,13 +1,17 @@
-import { Link, Navigate, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useNavigate, useLocation } from 'react-router-dom'
 import { useMemo } from 'react'
 import { useTracking } from '../contexts/TrackingContext'
 import { useAniList } from '../contexts/AniListContext'
 import { useMAL } from '../contexts/MALContext'
+import { useAeriTitle } from '../hooks/useAeriTitle'
 import { AnimeCard } from '../components/cards/AnimeCard'
 import { ContentRow } from '../components/rows/ContentRow'
 import { formatRating } from '../lib/rating'
+import { detailPath } from '../hooks/useDetailOpen'
 
 export function NotFound() {
+  // TAB TITLE (owner 2026-10-18): unknown routes read "Not Found - Aeri".
+  useAeriTitle('Not Found', 'override')
   return (
     <div className="mx-auto grid max-w-[1200px] place-items-center px-4 py-24 text-center sm:px-6">
       <div>
@@ -51,6 +55,7 @@ export function ProfilePlaceholder() {
   const { user: anilistUser } = useAniList()
   const { user: malUser } = useMAL()
   const navigate = useNavigate()
+  const location = useLocation()
   // Avatar + name follow the ACTIVE tracker (switching MAL/AniList swaps
   // both). combinedList + stats below already derive from the same source.
   const user = trackingProvider === 'mal' ? (malUser ?? anilistUser) : (anilistUser ?? malUser)
@@ -129,7 +134,7 @@ export function ProfilePlaceholder() {
           <ContentRow title="Currently watching" subtitle={`${stats.watching} titles`}>
             {stats.watchingList.slice(0, 12).map(e => (
               <div key={e.anime.identity.internalId} className="w-[200px] shrink-0 snap-start sm:w-[240px]">
-                <AnimeCard anime={e.anime} onSelect={(a) => navigate(`/anime/${a.identity.anilistId ? `anilist-${a.identity.anilistId}` : a.identity.internalId}`)} variant="continue" />
+                <AnimeCard anime={e.anime} onSelect={(a) => navigate(detailPath(a), { state: { background: { pathname: location.pathname, search: location.search }, anime: a } })} variant="continue" />
               </div>
             ))}
           </ContentRow>

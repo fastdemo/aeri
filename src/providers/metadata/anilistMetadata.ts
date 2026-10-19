@@ -1,4 +1,4 @@
-import { anilistGraphQL } from '../../services/anilist/client'
+import { anilistGraphQL, getAnilistStats } from '../../services/anilist/client'
 import { mapAniListMediaToAnime, type AniListMedia } from '../../services/anilist/mapper'
 import { matchKnownGenre } from '../../lib/genres'
 import { rankSearchResults } from '../../lib/searchRank'
@@ -360,3 +360,28 @@ export class AniListMetadataProvider implements AnimeMetadataProvider {
 }
 
 export const anilistMetadataProvider = new AniListMetadataProvider()
+
+/**
+ * Patient anime lookup — the reliability upgrade for NAME surfaces (owner
+ * 2026-10-18: "it only works half the time and i want reliability" about
+ * next-episode names). Same provider `getAnime`, but THROTTLED attempts
+ * (AniList 429 / burst cooldown) retry after the shared cooldown lifts,
+ * up to `maxAttempts`. Other error kinds never retry (404, AUTH…). Late
+ * names beat bare captions, so this is deliberately long-limbed; it is
+ * for small single-record lookups ONLY (cards, modal E-line), never list
+ * pages — the shared client already parks those during cooldown.
+ */
+export async function getAnimePatient(id: string, maxAttempts = 4): Promise<import('../../types/anime').Anime | null> {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      return await anilistMetadataProvider.getAnime(id)
+    } catch (e: any) {
+      if (e?.code !== 'THROTTLED' || attempt === maxAttempts - 1) return null
+      const remain = (() => {
+        try { return Math.max(0, getAnilistStats().cooldownUntil - Date.now()) } catch { return 0 }
+      })()
+      await new Promise<void>(r => setTimeout(r, Math.min(remain + 1500, 90_000) || 4000))
+    }
+  }
+  return null
+}

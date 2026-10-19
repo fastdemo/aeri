@@ -44,9 +44,16 @@ export interface TestListEntry {
   numEpisodes: number
   status?: string
   mediaType?: string
+  /**
+   * Seeded tracker progress. Anime entries read num_episodes_watched;
+   * manga entries read num_chapters_read (the MAL mapper's manga
+   * progress source). Omitted → zero progress.
+   */
+  progress?: number
 }
 
 function malNode(e: TestListEntry) {
+  const isManga = e.mediaType === 'manga'
   return {
     id: e.malId,
     title: e.title,
@@ -55,7 +62,11 @@ function malNode(e: TestListEntry) {
     start_date: '2000-01-01',
     synopsis: `${e.title} (test fixture)`,
     mean: 8,
-    num_episodes: e.numEpisodes,
+    // MAL nodes are kind-scoped: anime nodes carry num_episodes; manga
+    // nodes carry num_chapters (+ num_volumes). Never both.
+    ...(isManga
+      ? { num_chapters: e.numEpisodes, num_volumes: Math.ceil(e.numEpisodes / 12) }
+      : { num_episodes: e.numEpisodes }),
     status: 'finished_airing',
     genres: [],
     studios: [],
@@ -65,12 +76,19 @@ function malNode(e: TestListEntry) {
 }
 
 function malEntry(e: TestListEntry) {
+  const isManga = e.mediaType === 'manga'
   return {
     node: malNode(e),
     list_status: {
-      status: e.status ?? 'watching',
+      status: e.status ?? (isManga ? 'reading' : 'watching'),
       score: 0,
-      num_episodes_watched: 0,
+      // One progress field per kind (MAL splits them). The mapper reads
+      // `num_chapters_read ?? num_episodes_watched` — and `??` does NOT
+      // skip 0 — so the cross-kind field must be OMITTED (undefined, which
+      // JSON drops) exactly like the real MAL API does. Zeroing it made
+      // anime progress always read 0 and broke every anime-seeded probe.
+      num_episodes_watched: isManga ? undefined : (e.progress ?? 0),
+      num_chapters_read: isManga ? (e.progress ?? 0) : undefined,
       updated_at: new Date().toISOString(),
     },
   }
@@ -140,10 +158,15 @@ export async function routeTestMalIdentity(page: Page, entries: TestListEntry[] 
   await page.route('**/api.myanimelist.net/v2/users/@me**', async (route) => {
     const url = route.request().url()
     if (url.includes('/animelist') || url.includes('/mangalist')) {
+      // Kind-faithful like the real MAL API: each list endpoint returns ONLY
+      // entries of its own kind — serving everything on both endpoints made
+      // the combined list contain kindless duplicates.
+      const kind = url.includes('/mangalist') ? 'manga' : 'anime'
+      const scoped = entries.filter((e) => (e.mediaType === 'manga' ? kind === 'manga' : kind === 'anime'))
       await route.fulfill({
         status: 200,
         contentType: 'application/json',
-        body: JSON.stringify({ data: entries.map(malEntry), paging: {} }),
+        body: JSON.stringify({ data: scoped.map(malEntry), paging: {} }),
       })
       return
     }
@@ -205,11 +228,19 @@ export async function routeTestMalIdentity(page: Page, entries: TestListEntry[] 
   // paths. The app tries these FIRST when customVideoApiUrl is set; the
   // fake token must never reach the real upstream (it would 401 → the app
   // would clear tokens and sign the test user OUT mid-test).
+  // Kind-faithful like the real MAL API: each list endpoint returns ONLY
+  // entries of its own kind, on BOTH the worker-bridge path and the direct
+  // path. Everything else made the combined list carry kindless duplicates.
+  const scopedListBody = (url: string) => {
+    const kind = url.includes('/mangalist') ? 'manga' : 'anime'
+    const scoped = entries.filter((e) => (e.mediaType === 'manga' ? kind === 'manga' : kind === 'anime'))
+    return JSON.stringify({ data: scoped.map(malEntry), paging: {} })
+  }
   const malListBody = () => JSON.stringify({ data: entries.map(malEntry), paging: {} })
   await page.route('https://aeri.fastdemo.workers.dev/api/mal/users/@me**', async (route) => {
     const url = route.request().url()
     if (url.includes('/animelist') || url.includes('/mangalist')) {
-      await route.fulfill({ status: 200, contentType: 'application/json', body: malListBody() })
+      await route.fulfill({ status: 200, contentType: 'application/json', body: scopedListBody(url) })
       return
     }
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ id: 424242, name: 'aeri-test-user' }) })

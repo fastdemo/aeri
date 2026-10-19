@@ -263,9 +263,11 @@ export interface ChapterResolveResult {
   error?: string
   /**
    * Per-provider attempt ledger (verified+enabled providers only, in the
-   * order attempted). Lets callers distinguish "all providers failed"
-   * from "a provider matched but hosts nothing" and surface honest
-   * per-provider states. Never includes disabled providers.
+   * order attempted; STOPS at the first provider that returned units —
+   * single-source rule, no later requests). Lets callers distinguish
+   * "all providers failed" from "a provider matched but hosts nothing"
+   * and surface honest per-provider states. Never includes disabled
+   * providers.
    */
   attempts?: { providerId: string; units: number; error?: string }[]
 }
@@ -282,25 +284,26 @@ export async function resolveChaptersWithFallback(manga: Anime, signal?: AbortSi
   }
   const opts = { ...options, signal }
   let lastError: string | undefined
-  // Deterministic: verified + enabled only, user-configured priority first
-  // (Settings → Providers ↑/↓, persisted as mangaProviderOrder), default
-  // MangaDex → WeebCentral → MangaPill → MangaHere → Bato1 → MangaKakalot.fun
-  // → MangaRead. Disabled providers are never requested — zero requests,
-  // no fallback through them.
-  // IMPORTANT: every enabled provider is attempted even after one succeeds.
-  // A short work (Kurapika, 2 ch) can match-correctly on provider A while a
-  // LATER provider holds the fuller/correct series — first-non-empty-wins
-  // would freeze the wrong result. All results merge below (dedupe by
-  // chapter identity); the richest verified result leads.
+  // Single-source rule (OWNER 2026-10-18): ONE source per manga — the
+  // highest-priority ENABLED provider wins outright. The next enabled
+  // provider is attempted only when the first hosts NOTHING (no match,
+  // zero units, or a request error). No cross-provider merging: every row
+  // in the list belongs to the winner, so the provenance is one source the
+  // user can reason about. Disabled providers are never requested — zero
+  // requests, no fallback through them.
   const enabled = orderedMangaProviders().filter(p => p.status === 'verified' && mangaEnabled(p.id))
   const attempts: { providerId: string; units: number; error?: string }[] = []
-  const byProvider = new Map<string, MangaChapter[]>()
   for (const p of enabled) {
     try {
       const chapters = await p.getChapters(manga, opts)
       attempts.push({ providerId: p.id, units: chapters.length })
-      if (chapters.length) byProvider.set(p.id, chapters)
-      else lastError = `no readable units via ${p.id}`
+      if (chapters.length) {
+        // First enabled provider holding units ends resolution — later
+        // providers stay untouched (this is a feature: resolution cost is
+        // the winner's cost alone).
+        return { chapters, providerId: p.id, attempts }
+      }
+      lastError = `no readable units via ${p.id}`
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       attempts.push({ providerId: p.id, units: 0, error: msg })
@@ -308,28 +311,5 @@ export async function resolveChaptersWithFallback(manga: Anime, signal?: AbortSi
     }
     if (signal?.aborted) break
   }
-  if (!byProvider.size) {
-    return { chapters: [], providerId: null, error: enabled.length ? lastError : 'No Manga providers are enabled.', attempts }
-  }
-  // Merge: the PRIORITY winner leads (user's configured order), NOT the
-  // richest result. Richest-leads would let a wrong-but-long series absorb
-  // a correct short work (Kurapika: WC-fail-closed + MP-correct-2u would
-  // lose to MDX-wrong-417u HxH-main). Other providers contribute only units
-  // whose chapter numbers are absent from the leader (licensed-gap fill).
-  // Dedup key = normalized (kind, number); unnumbered units always kept
-  // (can't prove duplication). Provider provenance preserved per unit id
-  // prefix (`<provider>-…`); the leader's providerId is reported.
-  const orderedIds = enabled.map(p => p.id)
-  const ranked = [...byProvider.entries()].sort((a, b) => orderedIds.indexOf(a[0]) - orderedIds.indexOf(b[0]))
-  const [leadId, lead] = ranked[0]
-  const seen = new Set(lead.map(u => `${u.kind ?? ''}:${u.number ?? 'null'}`))
-  const merged = [...lead]
-  for (const [, units] of ranked.slice(1)) {
-    for (const u of units) {
-      if (u.number == null) { merged.push(u); continue }
-      const k = `${u.kind ?? ''}:${u.number}`
-      if (!seen.has(k)) { seen.add(k); merged.push(u) }
-    }
-  }
-  return { chapters: merged, providerId: leadId, attempts }
+  return { chapters: [], providerId: null, error: enabled.length ? lastError : 'No Manga providers are enabled.', attempts }
 }
