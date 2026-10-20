@@ -12,7 +12,8 @@ import { Read } from './pages/Read'
 import { DetailRoute } from './components/detail/DetailRoute'
 import type { DetailNavState } from './hooks/useDetailOpen'
 import { Settings } from './pages/Settings'
-import { NotFound, ProfilePlaceholder } from './pages/NotFound'
+import { NotFound } from './pages/NotFound'
+import { Profile } from './pages/Profile'
 import { Manga } from './pages/Manga'
 import { Docs } from './pages/Docs'
 import { Legal } from './pages/Legal'
@@ -109,7 +110,7 @@ function Layout() {
           <Route path="/manga" element={<Manga />} />
           <Route path="/docs" element={<Docs />} />
           <Route path="/legal" element={<Legal />} />
-          <Route path="/profile" element={<ProfilePlaceholder />} />
+          <Route path="/profile" element={<Profile />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
         {detailMatch && (

@@ -80,9 +80,11 @@ export function EpisodeList({ anime, hideHeader }: { anime: Anime; hideHeader?: 
     return (
       <div className="space-y-1">
         {!hideHeader && (
-          <div className="mb-2 flex items-baseline justify-between gap-2">
-            <h3 className="text-[14px] font-semibold text-[var(--text)]">Episodes</h3>
-            <span className="shrink-0 text-[14px] text-[var(--text-faint)]">{anime.episodes && anime.episodes > 0 ? `${anime.episodes} episodes` : 'Loading episodes...'}</span>
+          // Same fixed 20px header geometry as the Related columns — see
+          // the 2026-10-19 owner note in this file's main header.
+          <div className="mb-2 flex h-5 items-center justify-between gap-2">
+            <h3 className="text-[14px] font-semibold leading-5 text-[var(--text)]">Episodes</h3>
+            <span className="shrink-0 leading-5 text-[14px] text-[var(--text-faint)]">{anime.episodes && anime.episodes > 0 ? `${anime.episodes} episodes` : 'Loading episodes...'}</span>
           </div>
         )}
         <div className="overflow-hidden rounded-lg border border-[var(--border)]">
@@ -135,8 +137,13 @@ export function EpisodeList({ anime, hideHeader }: { anime: Anime; hideHeader?: 
   return (
     <div className="space-y-1">
       {!hideHeader && (
-        <div className="mb-2 flex items-baseline justify-between gap-2">
-          <h3 className="flex min-w-0 flex-1 items-baseline gap-1.5 text-[14px] font-semibold text-[var(--text)]">
+        // FIXED-HEIGHT HEADER ROW (owner 2026-10-19: the Episodes/count line
+        // and Related's header sat a few px apart — the h5 sort button threw
+        // the baseline row to 22px vs Related's natural 20px line). Both
+        // header rows are now h-5 (20px) items-center, so Episodes/count and
+        // Related Anime/Related Manga start at the SAME y across columns.
+        <div className="mb-2 flex h-5 items-center justify-between gap-2">
+          <h3 className="flex min-w-0 flex-1 items-center gap-1.5 text-[14px] font-semibold leading-5 text-[var(--text)]">
             <span className="truncate">Episodes</span>
             <button
               type="button"
@@ -148,7 +155,7 @@ export function EpisodeList({ anime, hideHeader }: { anime: Anime; hideHeader?: 
               <Icon name="arrow-down-up" size={12} />
             </button>
           </h3>
-          <span className="shrink-0 text-[14px] text-[var(--text-faint)]">{anime.episodes && anime.episodes > 0 ? `${anime.episodes} episodes` : `${episodes.length} episodes`}</span>
+          <span className="shrink-0 leading-5 text-[14px] text-[var(--text-faint)]">{anime.episodes && anime.episodes > 0 ? `${anime.episodes} episodes` : `${episodes.length} episodes`}</span>
         </div>
       )}
 

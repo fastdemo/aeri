@@ -61,10 +61,24 @@ function QuickMenu({ anime }: { anime: Anime }) {
         }}
         // OWNER (2026-10-18, same style as the play/read glyphs): bare
         // dots — no glass chip, no border — with a DOUBLE drop-shadow for
-        // contrast on bright thumbnails, and the same hover-gating as the
-        // glyphs (permanently visible on touch widths; hover/focus only at
-        // pointer widths). 24px box as restored.
-        className={`absolute right-1 top-1 z-20 grid h-6 w-6 place-items-center rounded-full text-[var(--text)] opacity-100 md:opacity-0 md:group-hover/card:opacity-100 md:group-focus-within/card:opacity-100 md:focus-visible:opacity-100 transition duration-200 hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)] [filter:drop-shadow(0_1px_3px_rgba(0,0,0,1))_drop-shadow(0_3px_18px_rgba(0,0,0,0.9))]`}
+        // contrast on bright thumbnails. 24px box as restored.
+        // OWNER (2026-10-19): "play button and 3 dots menu shall only
+        // appear on hover. that should always be the case, also on mobile.
+        // hovering on mobile just doesnt exist at all fyi" — the glyphs
+        // and dots are hover/focus-only at EVERY width now; touch never
+        // shows them (tapping a card opens its preview instead).
+        // OWNER (2026-10-20): the ⋮ stays OUTSIDE the frame (menu + shadow
+        // must not clip), so its ART-hover reveal is driven from
+        // globals.css: `.group\/card:has(.group\/art:hover)
+        // .card-dots-trigger` — the card ROOT carries `group/card`, the
+        // art div carries `group/art`, and hovering that (the thumbnail)
+        // reveals the ⋮. Hovering the bottom caption block never does.
+        // `aria-expanded:opacity-100` keeps the trigger visible while its
+        // own menu is open (the pointer often moves down onto the menu,
+        // which rests outside the art hover region). Keyboard: the
+        // `:focus-within` branch in globals.css reveals regardless of
+        // caption/art geometry.
+        className={`absolute right-1 top-1 z-20 grid h-6 w-6 place-items-center rounded-full card-dots-trigger text-[var(--text)] opacity-0 group-focus-within/card:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100 transition duration-200 hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)] [filter:drop-shadow(0_1px_3px_rgba(0,0,0,1))_drop-shadow(0_3px_18px_rgba(0,0,0,0.9))]`}
       >
         <Icon name="three-dots-vertical" size={12} />
       </button>
@@ -213,19 +227,26 @@ export function AnimeCard({
   // OWNER (2026-10-18 evening): one overlay language for EVERY card on
   // EVERY surface (home rows, /anime, /manga browse, My List, Search,
   // profile, related tiles — they all render AnimeCard). A background-free
-  // glyph — play for anime, book for manga — 30px (owner: "+25%"). The
-  // DOUBLE drop-shadow is bigger and softer than the first pass (owner: it
-  // was "too much"): a tight dark contact layer that keeps legibility on
-  // bright art, plus a wide, much more transparent halo. Hover-gated at
-  // pointer widths (md+), permanently visible on touch where hover does
-  // not exist and the tap IS the affordance. A tap goes straight through:
-  // play → /watch/<next episode>, book → /read/<next chapter>; every
-  // other part of the card still opens the floating preview.
+  // glyph — play for anime, book for manga — 30px (owner: "+25%").
+  // 2026-10-19 (owner): NO shadow on the glyphs ("remove the shadow for
+  // the read and play icon") and no self-scale ("when i hover over
+  // play/read button dont make it bigger just let it still") — the
+  // hover:scale-110 and the double drop-shadow filter are gone. The dark
+  // ~50% card scrim + 8px blur behind them (the hover treatment above)
+  // now carries legibility on bright art. HOVER/FOCUS-ONLY AT EVERY
+  // WIDTH (owner later same day: "play button and 3 dots menu shall only
+  // appear on hover. that should always be the case, also on mobile.
+  // hovering on mobile just doesnt exist at all fyi"): no md: gate and no
+  // touch fallback — the glyph is invisible until the card is hovered or
+  // focus is within it, on desktop and phone alike. Tap still opens the
+  // preview card; play/read live in the preview on touch. 2026-10-20: the
+  // hover trigger is the ART div (`group-hover/art` — hovering a continue
+  // card's bottom caption must not reveal the treatment); the card ROOT
+  // carries `group/card`, whose focus-within keeps keyboard reveal.
   const HOVER_GLYPH =
     'absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 grid place-items-center text-[var(--text)] ' +
-    'opacity-100 md:opacity-0 md:group-hover/card:opacity-100 md:group-focus-within/card:opacity-100 md:focus-visible:opacity-100 ' +
-    'transition duration-200 hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)] ' +
-    '[filter:drop-shadow(0_1px_3px_rgba(0,0,0,0.85))_drop-shadow(0_4px_30px_rgba(0,0,0,0.6))]'
+    'opacity-0 group-hover/art:opacity-100 group-focus-within/card:opacity-100 focus-visible:opacity-100 ' +
+    'transition duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)]'
   const GLYPH_ICON_PX = 30
   // INK PARITY (owner 2026-10-18: "make sure the read icon filled is the
   // same size as the play icon"; 2026-10-19: the FILLED art was reverted
@@ -273,15 +294,22 @@ export function AnimeCard({
   // utilities below only work because the plain classes won the cascade
   // or nothing overrides them — see globals.css for the full mechanism.
   const content = (
-    // NOTE: the hover GROUP for the overlay glyphs (play/read + ⋮) lives on
-    // the card ROOT (button/link/div below) — `group/card` — because the ⋮
-    // QuickMenu is a sibling of this content div, not a descendant, and a
-    // group only matches its descendants.
-    <div className="group relative w-full min-w-0 flex-shrink-0">
+    // OWNER (2026-10-20, continue cards): the hover treatment must trigger
+    // from the THUMBNAIL only — hovering the bottom caption block of a
+    // continue card never reveals the scrim/glyph/⋮. So the hover trigger
+    // is the ART div via `group/art` (the thumbnail), NOT the card root;
+    // the root keeps `group/card` for the FOCUS reveal (keyboard focus on
+    // the card must still surface the controls: group-focus-within/card)
+    // and as the has() ancestor for the ⋮ — the ⋮ QuickMenu stays a
+    // content-level sibling of the frame (outside overflow-hidden, so its
+    // dropdown + shadow never clip) and reveals through the
+    // `.card-dots-trigger` rule in globals.css (pure-CSS `:has()`
+    // bridging the sibling gap).
+    <div className="relative w-full min-w-0 flex-shrink-0">
       <div
         className={`relative w-full min-w-0 flex-shrink-0 overflow-hidden rounded-[6px] border border-[var(--border-strong)] bg-[var(--surface)] transition-colors duration-200 hover:z-10 hover:border-[color-mix(in_srgb,var(--text)_35%,transparent)] ${width}`}
       >
-      <div className={`relative ${artAspect} w-full min-w-0 overflow-hidden bg-[var(--surface-elevated)]`}>
+      <div className={`group/art relative ${artAspect} w-full min-w-0 overflow-hidden bg-[var(--surface-elevated)]`}>
         <img
           src={fallbackSrc}
           alt={primaryTitle}
@@ -296,11 +324,18 @@ export function AnimeCard({
           onLoad={(e) => {
             e.currentTarget.classList.add('is-loaded')
           }}
-          className="img-fade h-full w-full object-cover opacity-[0.96] transition group-hover:opacity-100"
+          className="img-fade h-full w-full object-cover opacity-[0.96] transition group-hover/art:opacity-100"
         />
 
-        {/* subtle inner gradient for text legibility if needed */}
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[color-mix(in_srgb,var(--bg)_55%,transparent)] via-transparent to-transparent opacity-60 group-hover:opacity-70 transition-opacity" />
+        {/* HOVER TREATMENT (owner 2026-10-19): the old bottom-up gradient
+            is REPLACED by a uniform whole-card treatment — the card
+            darkens (~50% of the theme bg) and frosts (backdrop-blur
+            ~8px) on hover, with the centered play/read glyph staying on
+            top. Fades in via opacity so the blur eases rather than
+            snapping. Same on EVERY card — it lives in the shared card.
+            2026-10-20: triggered by the ART group only (continue cards'
+            caption hover must not trigger it). */}
+        <div className="pointer-events-none absolute inset-0 bg-[color-mix(in_srgb,var(--bg)_50%,transparent)] opacity-0 backdrop-blur-[8px] transition-opacity duration-200 group-hover/art:opacity-100" />
 
         {/* Hover affordance — UNIFIED (owner 2026-10-18): play for anime,
             book for manga, on EVERY card (default + continue + compact).
@@ -352,7 +387,7 @@ export function AnimeCard({
             audits and can paint during scroll. can-hover gate renders it
             only where a real hover exists (see globals.css). */}
         {variant !== 'continue' && (
-          <div className="absolute inset-x-0 bottom-0 hidden translate-y-1 bg-gradient-to-t from-[color-mix(in_srgb,var(--bg)_75%,transparent)] to-transparent p-2 opacity-0 transition can-hover:block group-hover:translate-y-0 group-hover:opacity-100">
+          <div className="absolute inset-x-0 bottom-0 hidden translate-y-1 bg-gradient-to-t from-[color-mix(in_srgb,var(--bg)_75%,transparent)] to-transparent p-2 opacity-0 transition can-hover:block group-hover/art:translate-y-0 group-hover/art:opacity-100">
             <p className="line-clamp-1 text-[11px] font-medium leading-tight text-[var(--text)]">
               {primaryTitle}
             </p>
@@ -396,6 +431,12 @@ export function AnimeCard({
         </div>
       )}
       </div>
+      {/* OWNER (2026-10-20): the ⋮ QuickMenu stays a SIBLING of the frame
+          (content-level) on purpose — its dropdown + 48px shadow must not
+          clip inside the frame's overflow-hidden. Its REVEAL is driven
+          from the thumbnail via the `.card-dots-trigger` globals.css rule
+          (root `group/card` :has(art `group/art` :hover)) so hovering the
+          bottom caption block NEVER opens the controls. */}
       {variant === 'continue' && <QuickMenu anime={anime} />}
     </div>
   )

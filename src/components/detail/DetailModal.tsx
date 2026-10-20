@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { Anime, AnimeStatus } from '../../types/anime'
 import { EpisodeList, getEpisodes } from '../episodes/EpisodeList'
@@ -41,6 +41,20 @@ export function DetailModal({
   const { isAuthenticated, combinedList, updateStatus, updateRating, updateProgress, removeEntry, error: trackingError, trackingProvider } = useTracking()
   const [syncing, setSyncing] = useState<string | null>(null)
   const [localError, setLocalError] = useState<string | null>(null)
+  // EXIT ANIMATION (owner 2026-10-19): "ensure however you close the
+  // preview cards it does the reverse animation of when it opens". Every
+  // dismiss path — ✕, click-outside, Esc — funnels through dismiss():
+  // run the reverse keyframes on the card (scale/fade out, mirroring
+  // aeri-pop-in) and on the scrim, THEN commit the real close. 190ms ≈
+  // the out duration; the guard keeps double-escapes single-flight.
+  const [closing, setClosing] = useState(false)
+  const closingRef = useRef(false)
+  const dismiss = useCallback(() => {
+    if (closingRef.current) return
+    closingRef.current = true
+    setClosing(true)
+    setTimeout(() => onClose(), 190)
+  }, [onClose])
   // Base entry: prop-only match, available before grouping resolves.
   // TYPE-SAFE: malId namespaces collide across MAL anime/manga (same digits,
   // different works), so a malId hit is accepted ONLY when the media kinds
@@ -188,11 +202,11 @@ export function DetailModal({
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (e.key === 'Escape') dismiss()
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [dismiss])
 
   // Body lock — must not delay navigation. Save/restore overflow synchronously on mount/unmount;
   // hashchange/popstate will unmount this modal AFTER route has already changed (HashRouter push is sync).
@@ -221,25 +235,38 @@ export function DetailModal({
     dialogRef.current?.focus({ preventScroll: true })
   }, [displayKey])
 
-  const metaParts = [formatLabel(displayAnime.format), displayAnime.year ? String(displayAnime.year) : null, displayAnime.season ? displayAnime.season.charAt(0) + displayAnime.season.slice(1).toLowerCase() : null, !isMovie && !isMangaKind && displayAnime.episodes ? `${displayAnime.episodes} Episodes` : null, isMangaKind && displayAnime.chapters ? `${displayAnime.chapters} Chapters` : null, isMangaKind && displayAnime.volumes ? `${displayAnime.volumes} Volumes` : null, statusLabel(displayAnime.status)].filter(Boolean).join(' • ')
+  // OWNER 2026-10-19: "in the tv-2026-fall-airing line i dont want it to
+  // show like that i wanna combine 2026 and fall so it should be showing
+  // 'TV - Fall 2026 - Airing' just join them" — season+year collapse into
+  // ONE segment ("Fall 2026") in the year's slot; everything else stays.
+  const seasonYear = displayAnime.season && displayAnime.year
+    ? `${displayAnime.season.charAt(0)}${displayAnime.season.slice(1).toLowerCase()} ${displayAnime.year}`
+    : (displayAnime.year ? String(displayAnime.year) : null)
+  const metaParts = [formatLabel(displayAnime.format), seasonYear, !isMovie && !isMangaKind && displayAnime.episodes ? `${displayAnime.episodes} Episodes` : null, isMangaKind && displayAnime.chapters ? `${displayAnime.chapters} Chapters` : null, isMangaKind && displayAnime.volumes ? `${displayAnime.volumes} Volumes` : null, statusLabel(displayAnime.status)].filter(Boolean).join(' • ')
 
   return (
-    <div ref={scrollerRef} className="fixed inset-x-0 bottom-0 top-14 z-40 flex items-start justify-center overflow-y-auto bg-[color-mix(in_srgb,var(--bg)_75%,transparent)] p-2 backdrop-blur-[2px] anim-fade-in sm:p-6 lg:p-8">
-      <button aria-label="Close" onClick={onClose} className="fixed inset-0 top-14 cursor-default" tabIndex={-1} />
+    <div ref={scrollerRef} className={`fixed inset-x-0 bottom-0 top-14 z-40 flex items-start justify-center overflow-y-auto bg-[color-mix(in_srgb,var(--bg)_75%,transparent)] p-2 backdrop-blur-[2px] sm:p-6 lg:p-8 ${closing ? 'anim-fade-out' : 'anim-fade-in'}`}>
+      <button aria-label="Close" onClick={dismiss} className="fixed inset-0 top-14 cursor-default" tabIndex={-1} />
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label={titles.primary}
         tabIndex={-1}
-        className="relative my-2 flex max-h-none w-full max-w-[980px] flex-col overflow-visible rounded-xl bg-[var(--bg-soft)] shadow-[0_24px_64px_var(--shadow)] outline-none anim-pop-in-center sm:my-6"
+        className={`relative my-2 flex max-h-none w-full max-w-[980px] flex-col overflow-visible rounded-xl bg-[var(--bg-soft)] shadow-[0_24px_64px_var(--shadow)] outline-none sm:my-6 ${closing ? 'anim-pop-out-center' : 'anim-pop-in-center'}`}
       >
+        {/* OWNER 2026-10-19: bare ✕ — the circular dark bg is REMOVED ("remove
+            the background (the circle)"), the glyph is CONSIDERABLE now
+            (14 → 20), and a soft shadow in the THEME's own shadow color
+            keeps it legible over bright art ("add a bit of shadow of the
+            same color as the theme"). No scale/motion on hover — a quiet
+            opacity ease only. */}
         <button
-          onClick={onClose}
+          onClick={dismiss}
           aria-label="Close"
-          className="absolute right-3 top-3 z-20 grid h-8 w-8 place-items-center rounded-full bg-[color-mix(in_srgb,var(--bg)_60%,transparent)] text-[var(--text)] backdrop-blur hover:bg-[color-mix(in_srgb,var(--bg)_80%,transparent)]"
+          className="absolute right-3 top-3 z-20 grid h-9 w-9 place-items-center rounded-full text-[var(--text)] transition-opacity duration-150 hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)] [filter:drop-shadow(0_2px_6px_var(--shadow))]"
         >
-          <Icon name="x" size={14} />
+          <Icon name="x" size={20} />
         </button>
 
         <div className="relative h-[360px] w-full overflow-hidden rounded-t-xl sm:h-[420px]">

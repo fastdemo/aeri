@@ -114,10 +114,20 @@ button.rounded-full:focus-visible {
   from { opacity: 0; transform: translateY(-8px); }
   to { opacity: 1; transform: translateY(0); }
 }
+@keyframes aeri-pop-out {
+  from { opacity: 1; transform: scale(1) translateY(0); }
+  to { opacity: 0; transform: scale(0.96) translateY(4px); }
+}
+@keyframes aeri-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
 .anim-fade-in { animation: aeri-fade-in 160ms ease-out both; }
+.anim-fade-out { animation: aeri-fade-out 160ms ease-in forwards; }
 .anim-hero-fade { animation: aeri-fade-in 500ms ease-out both; }
 .anim-pop-in { animation: aeri-pop-in 180ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both; transform-origin: top right; }
 .anim-pop-in-center { animation: aeri-pop-in 200ms cubic-bezier(0.2, 0.9, 0.3, 1.05) both; transform-origin: center; }
+.anim-pop-out-center { animation: aeri-pop-out 180ms ease-in forwards; transform-origin: center; }
 .anim-slide-down { animation: aeri-slide-down 180ms ease-out both; }
 
 /* Card hover overlay gate: renders only where a real hover exists.
@@ -182,4 +192,17 @@ img.img-fade.is-loaded:hover { opacity: 1; }
 .hero-desc { display: none; }
 @media (min-width: 640px) {
   .hero-desc { display: -webkit-box; }
+}
+
+/* OWNER (2026-10-20): thumbnail-only hover for the ⋮ trigger. The ⋮
+   (QuickMenu trigger) must stay a frame-level sibling so its dropdown
+   + shadow never clip inside the frame's overflow-hidden, and small
+   cards would cut it under the art region — so a plain group-hover
+   can't reach it. `:has()` bridges the sibling gap: reveal when the
+   art div (the ONLY `.group\/art` in the card) is hovered, or when
+   the card holds keyboard focus. Specificity beats Tailwind's
+   `.opacity-0`; the button's own transition rides the fade. */
+.group\/card:has(.group\/art:hover) .card-dots-trigger,
+.group\/card:focus-within .card-dots-trigger {
+  opacity: 1;
 }

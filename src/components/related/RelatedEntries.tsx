@@ -160,8 +160,10 @@ export function RelatedEntries({
       {(!mangaOnly) && ((!loading && !shows.length && manga.length) ? null : (
         <section aria-label="Related Anime" className="mt-0">
           {!hideHeader && shows.length > 0 && (
-            <div className="mb-2 flex items-baseline justify-between gap-2">
-              <h3 className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--text)]">
+            // Same fixed 20px header geometry as Episodes/Chapters (2026-10-19
+            // owner note: headers must share one line, entries share one top).
+            <div className="mb-2 flex h-5 items-center justify-between gap-2">
+              <h3 className="min-w-0 flex-1 truncate text-[14px] font-semibold leading-5 text-[var(--text)]">
                 Related Anime
               </h3>
             </div>
@@ -179,8 +181,8 @@ export function RelatedEntries({
       ))}
       {(!showsOnly) && manga.length > 0 && (
         <section aria-label="Related Manga" className="mt-4">
-          <div className="mb-2 flex items-baseline justify-between gap-2">
-            <h3 className="min-w-0 flex-1 truncate text-[14px] font-semibold text-[var(--text)]">
+          <div className="mb-2 flex h-5 items-center justify-between gap-2">
+            <h3 className="min-w-0 flex-1 truncate text-[14px] font-semibold leading-5 text-[var(--text)]">
               Related Manga
             </h3>
           </div>

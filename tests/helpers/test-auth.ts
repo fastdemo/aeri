@@ -50,6 +50,8 @@ export interface TestListEntry {
    * progress source). Omitted → zero progress.
    */
   progress?: number
+  /** Seeded user score (0–10 as MAL carries it). Omitted → 0 (unscored). */
+  score?: number
 }
 
 function malNode(e: TestListEntry) {
@@ -81,7 +83,7 @@ function malEntry(e: TestListEntry) {
     node: malNode(e),
     list_status: {
       status: e.status ?? (isManga ? 'reading' : 'watching'),
-      score: 0,
+      score: e.score ?? 0,
       // One progress field per kind (MAL splits them). The mapper reads
       // `num_chapters_read ?? num_episodes_watched` — and `??` does NOT
       // skip 0 — so the cross-kind field must be OMITTED (undefined, which

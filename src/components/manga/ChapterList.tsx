@@ -108,9 +108,9 @@ export function ChapterList({ manga }: { manga: Anime }) {
   if (!done && !chapters) {
     return (
       <div className="space-y-1" aria-label="Loading chapters">
-        <div className="mb-2 flex items-baseline justify-between gap-2">
-          <h3 className="text-[14px] font-semibold text-[var(--text)]">Chapters</h3>
-          <span className="shrink-0 text-[14px] text-[var(--text-faint)]">Loading chapters...</span>
+        <div className="mb-2 flex h-5 items-center justify-between gap-2">
+          <h3 className="text-[14px] font-semibold leading-5 text-[var(--text)]">Chapters</h3>
+          <span className="shrink-0 leading-5 text-[14px] text-[var(--text-faint)]">Loading chapters...</span>
         </div>
         {[1, 2, 3, 4, 5].map(i => (
           <div key={i} className={`flex items-center gap-3 bg-[var(--surface)] px-3 py-3 ${i !== 5 ? 'border-b border-[var(--border)]' : ''} animate-pulse`}>
@@ -137,8 +137,9 @@ export function ChapterList({ manga }: { manga: Anime }) {
   const nVolumes = ordered.filter(c => c.unitType === 'volume').length
   return (
     <div className="space-y-1">
-      <div className="mb-2 flex items-baseline justify-between gap-2">
-        <h3 className="flex min-w-0 flex-1 items-baseline gap-1.5 text-[14px] font-semibold text-[var(--text)]">
+      {/* Same fixed 20px header geometry as the Related columns (2026-10-19). */}
+      <div className="mb-2 flex h-5 items-center justify-between gap-2">
+        <h3 className="flex min-w-0 flex-1 items-center gap-1.5 text-[14px] font-semibold leading-5 text-[var(--text)]">
           <span className="truncate">Chapters</span>
           <button
             type="button"
@@ -150,7 +151,7 @@ export function ChapterList({ manga }: { manga: Anime }) {
             <Icon name="arrow-down-up" size={12} />
           </button>
         </h3>
-        <span className="shrink-0 text-[14px] text-[var(--text-faint)]">
+        <span className="shrink-0 leading-5 text-[14px] text-[var(--text-faint)]">
           {ordered.length} available{nVolumes ? ` • ${nVolumes} ${nVolumes === 1 ? 'volume' : 'volumes'}` : ''}
         </span>
       </div>
