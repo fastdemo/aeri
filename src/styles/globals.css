@@ -141,10 +141,23 @@ button.rounded-full:focus-visible {
   }
 }
 
+/* Hover-only controls (owner 2026-10-23: hover features DO NOT EXIST on
+   touch — no tap-to-reveal workaround). A control that is invisible on a
+   non-hover device must not keep hit-testing either, or it silently
+   swallows taps meant for the card beneath it. Keyboard focus still
+   reaches these (pointer-events never affects keyboard). */
+@media (hover: none) {
+  .hover-only-control {
+    pointer-events: none;
+  }
+}
+
 /* Card image fade-in on load (class added via onLoad — no re-render) */
 img.img-fade { opacity: 0; transition: opacity 0.35s ease; }
 img.img-fade.is-loaded { opacity: 0.96; }
-img.img-fade.is-loaded:hover { opacity: 1; }
+@media (hover: hover) {
+  img.img-fade.is-loaded:hover { opacity: 1; }
+}
 
 /* Multi-line clamp that actually clamps. Engines compute the legacy
    `display:-webkit-box` to flow-root on these nodes (verified site-wide),
@@ -202,7 +215,8 @@ img.img-fade.is-loaded:hover { opacity: 1; }
    art div (the ONLY `.group\/art` in the card) is hovered, or when
    the card holds keyboard focus. Specificity beats Tailwind's
    `.opacity-0`; the button's own transition rides the fade. */
-.group\/card:has(.group\/art:hover) .card-dots-trigger,
-.group\/card:focus-within .card-dots-trigger {
-  opacity: 1;
+@media (hover: hover) {
+  .group\/card:has(.group\/art:hover) .card-dots-trigger {
+    opacity: 1;
+  }
 }

@@ -357,3 +357,368 @@ Owner directives: "make it so only when i hover over the thumbnail of the contin
 Follow-up to D107's fresh profile rows. Owner directive (overnight): the right-side description on Currently Watching ("the one with the # MAL titles") becomes **"Shows I'm binging"**, Highest Rated's becomes **"Shows I enjoyed"**, Lowest Rated's becomes **"Shows I hated"** — the count/tracker text is REPLACED, row titles keep the functional names (My List's "N titles • tracker" deliberately untouched). And the ranked rows must hold **at least 10 titles**, absorbed in WHOLE score tiers from the relevant end: "8×10 stars + 2×9 stars → 10 shows; 11×10 stars → 11; 1×10 star + 13×9 stars → 14"; mirrored from the bottom for Lowest Rated. Implementation (`src/pages/Profile.tsx`, `tierFill`): sort scored anime-only entries desc/asc by normalized score (recency as tier-internal tiebreak), then walk tier by tier (tier = every title sharing one exact score — MAL integers and AniList-decimal scores alike) until the running total crosses 10; the crossing tier is included whole and the walk stops. Fewer than 10 scored titles in total → all of them render (hiding rows would contradict "at least 10 more than it should"). No cap beyond the crossing tier — 14, 23, etc. are all valid outcomes by design.
 
 **Verified** — pure-logic re-run of the owner's own arithmetic AND mirror: 8×10+2×9 → 10; 11×10 → 11; 1×10+13×9 → 14; 6×10+6×9 → 12; 9-scored-total → 9; 10×10 → 10; 10 distinct scores → 10; lowest 5×1★+7×2★ → 12. New probe test pins the shape in-browser with tiers 5×10★ + 7×9★ + 3×8★ + 4×1★ + 6×2★ + 5×3★ + 2 unscored: Highest = exactly [Ten 1–5, Nine 1–7] (12, no Eight), Lowest = exactly [One 1–4, Two 1–6] (10, no Three), unscored absent, My List still "32 titles • MyAnimeList"; the D107 fixture test now also asserts the three labels verbatim. Local 3/3 (6.0s). Deployed Worker `aeri` version `7a0531ed-5892-48a4-abae-b5e45645dfc5`, bundle `index-CRdzxcPx.js`, `verify:live` 8/8; live profile 3/3 (6.0s). Visual record refreshed with the tier fixture (`OpenCode/scratch/shots/profile-live-1440.png`; placeholder art is expected under test doubles).
+
+## D109 — Click-out closes the preview card from EVERYWHERE on the veil, at every scroll position (2026-10-20)
+
+Owner: "when i click out the preview card it only closes on the top part and i want it so if you just click out anywhere even the bottom part it would still close."
+
+**Root cause** (`src/components/detail/DetailModal.tsx` + the same pattern in `DetailRoute.tsx`'s `DetailPanel`): the outside-click target was a giant `<button aria-label="Close" className="fixed inset-0 top-14">` rendered inside the overlay scroller. That scroller carries `backdrop-blur-[2px]` — and blur, like filter, makes it a **containing block for fixed descendants** — so the button was NOT viewport-fixed but laid out in scroller CONTENT coordinates (`top-14 …bottom-0` from the box origin). It only ever intersected the visible area while near the top of the content; once the tall card scrolled (or below a tall unscrolled card beyond its length) the button scrolled away with the content and bottom-band clicks landed on the scroller itself, which had no handler. Exactly the owner's "only the top part closes".
+
+**Fix**: the veil is the click target directly — `onClick={dismiss}` on the overlay scroller and `onClick={(e) => e.stopPropagation()}` on the dialog card root (so card content never dismisses), in BOTH `DetailModal.tsx` and `DetailRoute.tsx`. The phantom fixed backdrop button is removed (a11y keeps the in-card ✕ + Esc; the dismiss funnel is unchanged — ✕ / Esc / outside all run `dismiss()` with the same 190ms reverse animation). Scrollbar drag remains the one capture-click edge, same as the old full-area button; selecting text and releasing on the veil also behaved that way before.
+
+**Evidence**: the scroller does scroll in the fixture (fixture sanity asserted in-probe). detail-align N5 extended with the owner's two dead zones — a top padding-band click (100,70) and a bottom-band click (100,855) AFTER driving the scroller to its very bottom — both fire the reverse animation and commit the close, alongside the pre-existing middle-band (30,480) ✕ / Esc checks. Local: detail-align 3/3 (23.6s), card-refresh 6 passed + P7 environment-skip. Deployed Worker `aeri` version `94dd75fc-e4c9-4e0d-9a79-50cd7589c206`, `verify:live` 8/8. Live on the production bundle: detail-align 3/3 (23.4s), card-refresh 7/7 (33.0s — ✕, Esc, related-tile-in-card, watch-page overlay all regressed-checked), manga-card 4/4 (14.2s).
+
+## D110 — AniList is the sole metadata renderer; MAL-fallback paint deleted (identity-crisis fix) (2026-10-20)
+
+Owner: "anilist for metadata, ALWAYS. no mal metadata alright. mal or anilist can be
+configured for the tracker. some shows have an identity crisis and changes names /
+thumbnails at random times, even when i dont reload the page like blue lock season 2
+or code geass". Screenshots showed Continue Watching cards swapping identity between
+paints: "Blue Box" (sky-deck art) ↔ "Blue Box Season 2" (MAL's own poster art),
+Code Geass stable, "The Ramparts of Ice Season 2" (AniList 213805 cover) alongside.
+
+**Root cause** — the tracker=MAL path painted MAL-fallback records live:
+`combinedList = enrichedMalList ?? rawList`, and `enrichedMalList` reset to `null`
+on every `mal.animeList` re-fire (any loadList). Every card therefore flipped
+between its RAW MAL record (MAL art `cdn.myanimelist.net`, MAL alt-English title —
+e.g. MAL 61323's alt.en "Blue Box Season 2" + its girl-in-snow poster) and its
+AniList-enriched record (AniList cover + AniList English) as enrichment batches /
+429s landed — mixed subsets within one row, permuting mid-session without a reload.
+Art verified against the real sources: AniList 189123 cover crops to the sky-deck
+scene, MAL 61323's poster is exactly shot 2's girl-in-snow, AniList 213805's cover
+is exactly the classroom art; AniList's own idMal mapping (54865→163146 etc.) is
+correct, and CG's "Stage 23 - At Least with Sorrow" caption is AniList's own
+streamingEpisodes format ("Episode 23 - Stage 23 - At Least with Sorrow").
+
+**Rule** ( enforced in three layers):
+1. `contexts/TrackingContext.tsx` — for tracker=MAL, `combinedList` carries ONLY
+   AniList-resolved entries (`identity.anilistId != null`), never `rawList`, and
+   the enriched array stays resident across re-fires (no reset-to-null): a
+   mid-pass re-render can never regress to a MAL record. Unresolved entries are
+   held back and appear when a later pass resolves them. MAL remains the
+   tracker-write source only. Tracker choice (Settings) is untouched.
+2. `services/mal/enrichment.ts` — kind-dispatched lookups: anime entries resolve
+   `Media(idMal, type: ANIME)`, manga entries resolve the new `Media(idMal,
+   type: MANGA)` query (`getMangaByMalId`). Units follow AniList ONLY (anime
+   episodes / manga chapters; an unset AniList count yields 0, not the MAL
+   number — e.g. unaired S2 entries). The tail drip now paces real network
+   spend only: cache-resolved entries (memory/IDB) skip the 2.5s sleep, so
+   warm lists converge fast.
+3. `providers/metadata/anilistMetadata.ts` — by-MAL lookups AND cache keys are
+   kind-scoped end to end (`anilist:bymal:anime:<id>` / `anilist:bymal:manga:<id>`):
+   the same numeric id is a valid MAL id in both anime and manga spaces, and a
+   shared key could satisfy one kind with the other kind's record.
+
+**Probe** — `continue-card.probe.spec.ts` K (D110 contract, fixture-doubles): a
+MAL seed whose AniList record has a different title/art renders the ANILIST
+identity only; a seed with NO AniList record never displays; no
+`cdn.myanimelist.net` art or MAL-side title text exists anywhere on the page;
+row labels are stable across a focus-churn window. `test-auth.ts` gained
+`TestListEntry.picture` so doubles carry MAL-side art to discriminate.
+`profile.probe.spec.ts` updated to the new contract: its graphql double now
+answers Media(idMal:) per seed (same titles → same deterministic labels), and
+row reads gate on UNIQUE resolved labels (`rowFilled` — during progressive
+fill each resolved entry renders in several rows at once, so a DOM-node count
+lies; a mid-fill read was caught showing an 11-card Lowest row).
+
+**Evidence**: local — profile 3/3, continue A+C+G+K green (serial-file runs
+rotate the known shared-AniList 429 victim; standalone/subset reruns green).
+Deployed Worker `aeri` version `dd8a8366-ab69-464c-af94-e3e6d4e2b0cd`, live
+bundle `index-yjf5WYO_.js`, `verify:live` 8/8. Live: profile 3/3, continue
+K+A 2/2, G+C 2/2.
+
+**Known trade-offs** (owner-aligned): entries whose MAL id has no AniList
+mapping stay hidden until mapped (wrong-but-MAL is not an option per the
+rule); a cold first visit fills rows progressively over the enrichment
+schedule, repeating visits resolve from the 24h IDB cache near-instantly.
+
+## D111 — Batch-first by-MAL resolution + show-everything rule (fixes the D110 regressions) (2026-10-21)
+
+Owner: "the continue watching row would just appear immediately. Now it takes
+some time and it doesn't even show all the shows... it didn't show all of my
+MyAnimeList shows completed and stuff... address this issue for both
+MyAnimeList and AniList tracker... a permanent patch." D110's per-entry gate
+had two real defects: (a) one request per entry — a long list crawled through
+the shared 30/min budget under the 2.5s tail drip, so the row took minutes and
+throttled ids simply never arrived; (b) any lookup failure (429 rotation, a
+genuinely unmapped MAL id) hid the show forever — "missing shows".
+
+**Endpoint baseline (proven live, before this machine's later 403-block)**:
+AniList supports batched by-MAL lookups — `Page(perPage: 50) { media(idMal_in:
+$ids, type: ANIME|MANGA) }` returns every mapped record in ONE request (verified
+for both kinds: MAL 1/20/5114/16498 → their AniList ids;MAL 1/2/21 → 30001/
+30002/30021), and an id with no mapping is simply ABSENT from the completed
+response — a definitive negative, not a failure.
+
+**Rule** (enforced in three layers):
+
+1. `providers/metadata/anilistMetadata.ts` — `getBatchByMalIds(ids, kind)`:
+   ≤50 ids per chunked request, patient retry ladder on THROTTLED (4 attempts,
+   cooldown-aware waits — unlike per-entry calls, one throttled chunk here
+   gates the whole list), field parity with the per-id queries (anime carry
+   trailer, manga carry the catalogue extension), and it SEEDS every per-id
+   cache key — positives as exact `data.Media` shapes under the existing
+   kind-scoped keys, negatives as `{ Media: null }` (24h, like every cache) —
+   so later single lookups and detail opens are zero-network. A new
+   `anilistCachePut` on the shared client publishes into both layers (memory
+   + IDB).
+2. `services/mal/enrichment.ts` — batch-first: phase A resolves the ENTIRE
+   list per kind in ≤⌈N/50⌉ requests and commits after each chunk; phase B
+   (the old priority-burst + pacing tail, kept as fallback) runs only for
+   kinds whose batch died on a throttle. A NOT_FOUND (batch-absent or single-
+   lookup-null) marks the entry `noAniListRecord: true`. Throttle/network
+   errors never mark — they leave the entry for a later pass.
+3. `contexts/TrackingContext.tsx` + `types/anime.ts` — the D110 filter gains
+   one term: display when `identity.anilistId != null` OR `noAniListRecord ===
+   true`. Proven-unmapped entries therefore DISPLAY with their MAL-side record
+   — a stable identity that cannot flip (there is no AniList counterpart to
+   late-arrive) — while still-unresolved entries stay held back. This reads
+   the D110 "no MAL metadata" rule as "no MAL metadata for shows AniList has",
+   subordinated to the owner's NEW rule "every show must be visible".
+
+**Probes rewritten to the D111 contract.** `continue-card.probe.spec.ts` K:
+mapped seeds render only the AniList identity; a seed the batch proves unmapped
+now displays PROMPTLY (one request, no drip) with its MAL-side identity and
+never flips; all seeded entries visible. All suites that paint tracker rows now
+install `routeTestAnilistMedia` (batch branch answering from fixtures — kind
+aware, `tests/fixtures/anilist-media.ts`): the real-AniList dependency made
+serial suite runs rotate shared-429 victims; they are now deterministic AND
+~6-40× faster (continue-card full serial run 2min+ → 21s; profile 1.4m → 6.5s).
+The fixture carries one deterministic streaming name for Naruto ep 21
+(`FIXTURE_EP_NAME_21`) so caption/E-line asserts stopped riding the real
+upstream, plus a manga fixture (Berserk AniList 30002 / MAL 2, kind-scoped,
+with cover + one related-manga edge) for the manga-card battery. New
+`profile.probe.spec.ts` AniList-tracker test locks the both-trackers rule:
+Viewer + MediaListCollection doubles (both kinds), all statuses visible, real
+id-addressed AniList profile link. My List/Profile rows stay anime-only by
+design (manga surfaces are reader/Manga Browse) — the seeded manga entry
+correctly does not count into the row.
+
+**Evidence**: AniList batch verified against the real endpoint for both kinds
+before implementation. Local: continue-card 13/13 serial (21s), profile 4/4,
+card-refresh 5+2 skips, detail-align green, manga-playwright battery green.
+Deployed Worker `aeri` version `7fd1eb8a-cc3a-491b-bd2f-ce1c6742bc30`, live
+bundle `index-CFLFZ3Tm.js`, `verify:live` 8/8. Live (deterministic doubles): 
+profile 4/4, continue-card 12 passed + G flaky-then-green standalone 3.2s.
+
+**Environment note (2026-10-21)**: this machine's direct egress to
+graphql.anilist.co became 403-blocked (WAF, no rate-limit headers — same class
+as the D066 Cloudflare-egress block) mid-session, and api.mangadex.org entered
+a 503 outage while weebcentral.com 403s the IP. Local probes that require the
+real upstream (manga-card A/B/C's MangaDex legs) are environmentally broken and
+the fixture-doubles carry them instead; the production worker's MangaDex relay
+returned 200 all day (owner browsing unaffected).
+→ **CORRECTED 2026-10-22 (D112, authoritative)**: the 403 is NOT a
+machine/IP/WAF block — AniList globally disabled its API ("temporarily
+disabled due to severe stability issues", 403 on every query, served by
+cloudflare from any origin; anilist.co main site stayed up). The
+misdiagnosis stands only as a historical record; D112's telemetry treats this
+403 as a global outage, not an egress block.
+
+**Known trade-offs** (owner-aligned): an unmapped entry shows its MAL-side
+record (the only identity it can have); if AniList later adds a mapping, the
+next session upgrades the paint (a one-time improve, not a flicker — negatives
+are cached per-id for 24h). A throttled batch falls back to the per-entry
+drip, so a cold visit under sustained throttling fills progressively instead
+of instantly — but the batch's patient ladder makes that the rare case, and
+repeat visits ride the 24h cache.
+
+## D112 — Simple service-down page, route-scoped (2026-10-21→22)
+
+Owner: "when anilist or mal is down, i want aeri to have like a down page like
+that too. a simple one like the mal/anilsit website." — while AniList's global
+API-off outage runs (403 "temporarily disabled due to severe stability
+issues", re-verified by curl on both days), the app painted broken rails and
+error boxes on every surface.
+
+**Structure (three pieces):**
+
+1. **Client telemetry** (`services/anilist/client.ts`, `services/mal/client.ts`):
+   counts TRUE unreachability only — TypeError/timeout, server 5xx, or
+   AniList's own global-off 403. NOT counted: throttles (429/cooldown fast
+   path), auth failures, GraphQL errors. A live success resets the streak; a
+   stale-cache rescue is neutral (a fully warm cache during an outage is the
+   GOOD case — the app works, no page). Thresholds: AniList 2 consecutive;
+   MAL 1 — every `malFetch` retries through three transport layers
+   (worker `/api/mal` → legacy `/mal/api` → direct api.myanimelist.net) before
+   it classifies, so ONE counted MAL failure is already compound evidence.
+   Emits `aeri:service-down`/`aeri:service-up` window events (once per
+   transition, `{ service, reason? }`); `anilistServiceProbe()` /
+   `malServiceProbe()` export one tiny live call each for self-heal.
+2. **`contexts/ServiceStatusContext.tsx`**: holds `{ anilist, mal }` down
+   state, listens for the events, self-heals via probe cadence — 15s first,
+   then 30s → 1m → 2m → 5m → 8m hold — plus immediate probe on the page's
+   "Reconnect now". Recovery needs no reload: the up event lifts the gate and
+   the base routes remount and refetch.
+3. **Route-scoped gate** (`App.tsx requiredServices` +
+   `components/status/ServiceDown.tsx`): a surface is replaced by the down
+   page ONLY when one of its real dependencies is down — never a blanket app
+   replacement. Map: `/`, `/anime*`, `/search*`, `/watch*`, `/manga*`, detail
+   overlays → anilist; `/list`/`/profile` → the active tracker's service
+   (+ anilist when the tracker is MAL — the D110/D111 display backbone);
+   overlay needs are UNIONed with the background page's; `/read*` → nothing
+   (MangaDex-side reader stays open); `/settings`, `/docs`, `/legal` → never
+   gated. The navbar and footer stay (nav to unaffected surfaces still
+   works); the page offers "Reconnect now" + a secondary link — signed-in →
+   Settings, signed-out → "Learn more" → /docs (Settings requires an account
+   and would bounce the visitor straight back to the gated Home).
+
+**403 semantics fixed in the same change (the outage-proofing lesson):** the
+old `401||403 → clear token + throw AUTH` catch-all would have signed users
+OUT mid-outage had the 403 ever been CORS-readable. Now 401 and auth-message
+403s stay AUTH; 403-without-auth-message → OUTAGE: hard-fail counted, token
+preserved, NETWORK-classed throw ("a service-side outage, not a problem on
+your end"). Browser reality: the outage 403 carries no ACAO header, so fetch
+sessions usually see it as a CORS-blocked TypeError — that path counts too
+(proved by the live pass below).
+
+**Test-double hermeticity (required by the new telemetry):** K's and the
+shared `routeTestAnilistMedia` unknown-query tails used `route.continue()` →
+the REAL upstream; under an outage those leaks both pollute and would fire
+the down-gate mid-suite. Both tails now answer a failing GraphQL envelope
+(200 + `errors`) — loud if a suite depends on it, hermetic, and classified
+UNKNOWN so it never feeds the down counter.
+
+**Evidence.** Local (deterministic doubles): service-down probe 3/3 —
+AniList-down → Home IS the down page (navbar survives, "Learn more" SPA-passes
+to /docs); recovery — fixtures re-armed + "Reconnect now" lifts the gate; MAL
+aborted on all three layers → Home (AniList-backed) stays up while /list gates
+"MyAnimeList is down". Regressions: continue-card 13/13 (21s), profile 4/4 +
+card-refresh 5+2 skips, detail-align 3/3, visual-check 1/1; the
+production-based suites (detail-overlay, related-divider, cg-diag,
+reliability-*, manga-card live) stay outage-blocked regardless of this change.
+Live: deploy Worker `aeri` version `a45227e8-64ea-4a1f-89c1-8b0afdd9d602`,
+bundle `index-CwfkrjYH.js`, `verify:live` 8/8 — and because AniList was still
+globally down, production ITSELF showed the down page at 1440 and 375
+(`OpenCode/scratch/shots/live-down-375.png`), Reconnect-now + /docs
+passthrough verified in the same live pass, `/list` gated live, and the
+console held ONLY the outage's own CORS-blocked fetch errors (no app errors).
+
+**Trade-offs (deliberate):** two consecutive transport failures anywhere arm
+the AniList page for ~15s minimum until the first probe — a double wifi blip
+briefly gates Home; acceptable (rare, honest, self-heals, manual probe
+immediate). A MAL session klient probe exists only where MALContext is
+signed-in; MAL down-state surfaces only on tracker surfaces, matching where
+MAL failure is even possible.
+
+## D113 — Related-tile hover geometry: container-query lift (2026-10-23)
+
+Owner: on the Related Anime grid's small tiles, the hover play glyph and the
+title band overlap (screenshot: triangle sitting on "The Ramparts of Ice").
+Measured inside a real detail card (deterministic local double): related tile
+art is ~149×84 and the dead-center glyph box (y 84–114) intersected the
+bottom title band (y 95–145) by **18.8px**; on standard cards (≥168px wide →
+94–133px tall art) the same geometry clears by 15px+ — the collision exists
+only under ~160px.
+
+**Fix (final, after owner revision below — band-only):** the art div
+registers a container (`@container`); at ≤160px container widths AND anime
+kind only, the hover band tightens (`@max-[160px]:py-1`) and the in-art meta
+line (year • format • genre) hides (`@max-[160px]:hidden`) because related
+grids already print relation/format/episodes UNDER the card — keeping it only
+lengthened the hover band upward into the glyph. The glyph itself never moves:
+dead center at every size and kind. Manga tiles (portrait, tall art) keep the
+original band entirely. Every other surface keeps the owner-gated dead-center
+30px glyph and full hover band untouched (container queries select by REAL
+art size, never by which page rendered the card). An interim version lifted
+the glyph to 36% on narrow containers — superseded same day by the owner's
+"dead center" rule; see Revision.
+
+**Evidence**: rect measurement pre-fix 18.8px overlap → post-fix 0 (glyph
+72–102 vs band 115+; ~13px clearance) with after-screenshot; hover-glyph
+opacity behavior unchanged (detail-hover T-FACTS's related-glyph intent).
+Regressions: continue-card 13/13, detail-align 3/3, visual-check 1/1.
+
+**Revision (same day, owner):** the glyph must stay **dead center on every
+tile** and the small-tile treatment must apply to **anime only** (portrait
+MANGA art is tall enough that the collision never existed — it keeps the
+original band untouched). The glyph lift was removed entirely; the fix is now
+purely band geometry, gated by kind AND size:
+
+- `@max-[160px]` on the hover band applies only when `!isManga` — padding
+  tightens to `py-1` and the in-art meta line hides. Banner: dead-center
+  30px glyph box (27–57 in an 84px art) vs tightened band top (84−21=63) →
+  **0 overlap, 6px box clearance / 12px ink clearance**; measured 1440:
+  anime 149×84 → glyphCenterOffset 0, overlap 0, padTop 4, meta none;
+  MANGA 149×199 → offset 0, overlap 0, padTop 8 (original), meta visible.
+- At 768 the related tiles render in the mobile flow at 323px wide — above
+  the 160px container threshold, so both kinds keep the original band
+  (padTop 8, meta visible) and the dead-center glyph: overlap 0.
+- Regressions re-run on the revised build: continue-card 13/13,
+  detail-align 3/3, visual-check 1/1.
+Deployed Worker `aeri` version `74e48a86-903c-4e9b-9b96-f811863e923c`, bundle
+`index-tv6uASKX.js`, `verify:live` 8/8 (interim lift deploy
+`cb455c98`/`index-VrQDtoTe.js` superseded the same day). Live product check on the real
+related tiles requires a signed-in session (deep-link detail is
+members-only; real accounts are never touched by automation) — the owner
+sees the fix in their next hover. Same deploy window: AniList's API came BACK
+(200 after two days of the 403 outage) and production Home healed on arrival
+— 109 rail images, zero false down-gate (D112 recovery behavior as designed).
+
+**Final (same day, owner):** Related ANIME tiles now show **no hover caption
+at all** — the name is hidden too (`hideHoverCaption` prop set by
+RelatedEntries for non-manga relations; the grid's meta line below the card
+plus the card aria-label carry the name). Related MANGA tiles keep the full
+caption. Measured on the same dialog: anime 149×84 → caption band absent,
+glyph offset 0; manga 149×199 → band present with name, glyph offset 0.
+
+## D114 — Touch devices have no hover affordances at all (2026-10-23)
+
+Owner: "on mobile, all the hover features that you would usually do with a
+mouse cursor will NOT EXIST … it jsut not exist, dont build a workaround."
+No tap-to-reveal fallback. Tailwind v4 already wraps `hover:`/`group-hover:`
+in `@media (hover: hover)`; the remaining gaps were custom:
+
+- The plain-CSS ⋮ reveal (`.group\/card:has(.group\/art:hover)`) now lives
+  inside `@media (hover: hover)`; the `:focus-within` branch was dropped —
+  keyboard reveal comes from `group-focus-visible` + own `focus-visible` +
+  `aria-expanded`.
+- New `.hover-only-control` (globals.css): under `@media (hover: none)` it
+  sets `pointer-events: none`. Applied to the card glyph, the ⋮ trigger and
+  the row scroll arrows — an invisible hover control must not swallow taps
+  (before this, tapping a continue card's center hit the invisible play
+  button and jumped straight to /watch).
+- Card glyph/⋮ focus reveal switched `group-focus-within` →
+  `group-focus-visible`: pointer focus (tap) never matches, so tapping no
+  longer flashes hover UI; keyboard reveal is unchanged.
+- `img.img-fade:hover` brightening gated behind hover; SearchSuggestions
+  hover highlight only runs when `matchMedia('(hover: hover)')` matches.
+
+Evidence (390×844, isMobile + hasTouch): `(hover: none)` true; glyph/⋮
+computed opacity 0 with `pointer-events: none`; caption band `display:none`;
+tapping a continue card's center opens the floating preview
+(`/anime/mal-20`), never /watch, and the glyph stays invisible after the tap.
+Desktop battery 17/17 (continue-card 13, detail-align 3, visual-check 1).
+
+## D115 — Incognito mode (2026-10-23)
+
+Owner: a profile-menu item below Settings, on/off only; while ON, watching or
+reading never updates the tracker, manual tracker edits still work, and every
+tab reads "Incognito - Aeri".
+
+- Stored as `incognito` in preferences (persistent). Read synchronously via
+  `isIncognitoEnabled()` at the write choke point.
+- `TrackingContext.updateProgress` gains `{ manual?: true }`: without it the
+  write returns early while incognito is on. Automatic flows (Watch effects,
+  Read threshold, EpisodeList/ChapterList click-through) pass nothing and are
+  suppressed; the DetailModal progress stepper and QuickMenu "Mark as
+  watched" pass `{ manual: true }` and still sync. `updateStatus` / rating /
+  remove are inherently manual and unchanged. Local watch/read history is
+  intentionally NOT suppressed.
+- Tab title: `useAeriTitle.apply()` short-circuits to exactly
+  "Incognito - Aeri" (no route or show-name suffix);
+  `refreshAeriTitle()` re-applies it on toggle.
+- Menu item is `role="menuitemcheckbox"` with an On/Off pill; the menu stays
+  open on toggle.
+
+Evidence (deterministic doubles, never real accounts): incognito watch
+`/watch/mal-20/21` → 0 writes; the identical control run → 1 PUT
+`/api/mal/anime/20/my_list_status`; QuickMenu "Mark as watched" while
+incognito → 2 PUTs (progress + completed). Menu toggle flips "Home - Aeri" ↔
+"Incognito - Aeri" and survives navigation to /docs (pref persisted). Live
+production (same deploy): a seeded pref yields tab "Incognito - Aeri"; the
+search header reads `3 results for “code geass”` + "Fetched from AniList."
+with real AniList data.
+
+Deployed Worker `aeri` version `d04b97d5-916e-4960-87de-bfed74906bff`, bundle
+`index-CgMEGOjF.js`, `verify:live` 8/8.

@@ -78,7 +78,7 @@ function QuickMenu({ anime }: { anime: Anime }) {
         // which rests outside the art hover region). Keyboard: the
         // `:focus-within` branch in globals.css reveals regardless of
         // caption/art geometry.
-        className={`absolute right-1 top-1 z-20 grid h-6 w-6 place-items-center rounded-full card-dots-trigger text-[var(--text)] opacity-0 group-focus-within/card:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100 transition duration-200 hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)] [filter:drop-shadow(0_1px_3px_rgba(0,0,0,1))_drop-shadow(0_3px_18px_rgba(0,0,0,0.9))]`}
+        className={`absolute right-1 top-1 z-20 grid h-6 w-6 place-items-center rounded-full card-dots-trigger hover-only-control text-[var(--text)] opacity-0 group-focus-visible/card:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100 transition duration-200 hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)] [filter:drop-shadow(0_1px_3px_rgba(0,0,0,1))_drop-shadow(0_3px_18px_rgba(0,0,0,0.9))]`}
       >
         <Icon name="three-dots-vertical" size={12} />
       </button>
@@ -112,8 +112,8 @@ function QuickMenu({ anime }: { anime: Anime }) {
               type="button"
               role="menuitem"
               onClick={() => run(async () => {
-                if (total) await updateProgress(anime, total)
-                else if (current > 0) await updateProgress(anime, current)
+                if (total) await updateProgress(anime, total, { manual: true })
+                else if (current > 0) await updateProgress(anime, current, { manual: true })
                 await updateStatus(anime, 'completed')
               })}
               className="flex w-full items-center rounded-lg px-2.5 py-1.5 text-left text-xs font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)]"
@@ -143,6 +143,7 @@ export function AnimeCard({
   fullWidth,
   mediaKind,
   disableLink,
+  hideHoverCaption,
 }: {
   anime: Anime
   variant?: Variant
@@ -154,6 +155,10 @@ export function AnimeCard({
       (e.g. RelatedEntries grids) where a nested anchor would be invalid HTML
       and cause hydration errors + ambiguous taps on mobile. */
   disableLink?: boolean
+  /** D113 (owner 2026-10-23): Related ANIME tiles show no hover caption at
+      all — name and meta both live outside the art (name in the aria-label
+      and the grid's meta line below). Manga tiles keep their caption. */
+  hideHoverCaption?: boolean
 }) {
   const kind = kindOf(anime, mediaKind)
   const isManga = kind === 'manga'
@@ -243,12 +248,23 @@ export function AnimeCard({
   // hover trigger is the ART div (`group-hover/art` — hovering a continue
   // card's bottom caption must not reveal the treatment); the card ROOT
   // carries `group/card`, whose focus-within keeps keyboard reveal.
+  // D113 (owner-revised 2026-10-23): the glyph is DEAD CENTER on every
+  // card, at every size, for both kinds — no exceptions. The narrow-tile
+  // overlap fix lives in the hover band instead (bottom gradient gets
+  // tighter, meta line drops) and applies to ANIME tiles only: portrait
+  // manga art is tall enough that the collision never existed there.
+  // TOUCH POLICY (owner 2026-10-23): hover affordances DO NOT EXIST on
+  // devices without hover — no tap fallback, no reveal. Tailwind v4 already
+  // media-gates `group-hover/*` reveal; `hover-only-control` (globals.css)
+  // also removes pointer hit-testing there, so the invisible glyph can
+  // never intercept a tap meant for the card. `group-focus-visible` keeps
+  // KEYBOARD reveal working; pointer focus (tap) never matches it, so
+  // tapping a card no longer flashes the hover treatment on phones.
   const HOVER_GLYPH =
-    'absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 grid place-items-center text-[var(--text)] ' +
-    'opacity-0 group-hover/art:opacity-100 group-focus-within/card:opacity-100 focus-visible:opacity-100 ' +
+    'absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 grid place-items-center text-[var(--text)] hover-only-control ' +
+    'opacity-0 group-hover/art:opacity-100 group-focus-visible/card:opacity-100 focus-visible:opacity-100 ' +
     'transition duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)]'
-  const GLYPH_ICON_PX = 30
-  // INK PARITY (owner 2026-10-18: "make sure the read icon filled is the
+  const GLYPH_ICON_PX = 30  // INK PARITY (owner 2026-10-18: "make sure the read icon filled is the
   // same size as the play icon"; 2026-10-19: the FILLED art was reverted
   // to the hollow `book` — the MEASUREMENTS hold for both arts): both
   // icons share the 16-unit viewBox, but their DRAWN ink differs wildly
@@ -309,7 +325,7 @@ export function AnimeCard({
       <div
         className={`relative w-full min-w-0 flex-shrink-0 overflow-hidden rounded-[6px] border border-[var(--border-strong)] bg-[var(--surface)] transition-colors duration-200 hover:z-10 hover:border-[color-mix(in_srgb,var(--text)_35%,transparent)] ${width}`}
       >
-      <div className={`group/art relative ${artAspect} w-full min-w-0 overflow-hidden bg-[var(--surface-elevated)]`}>
+      <div className={`group/art relative ${artAspect} w-full min-w-0 overflow-hidden bg-[var(--surface-elevated)] @container`}>
         <img
           src={fallbackSrc}
           alt={primaryTitle}
@@ -386,12 +402,19 @@ export function AnimeCard({
             getBoundingClientRect().left = 0, which trips overflow/clip
             audits and can paint during scroll. can-hover gate renders it
             only where a real hover exists (see globals.css). */}
-        {variant !== 'continue' && (
-          <div className="absolute inset-x-0 bottom-0 hidden translate-y-1 bg-gradient-to-t from-[color-mix(in_srgb,var(--bg)_75%,transparent)] to-transparent p-2 opacity-0 transition can-hover:block group-hover/art:translate-y-0 group-hover/art:opacity-100">
+        {variant !== 'continue' && !hideHoverCaption && (
+          <div
+            className={`absolute inset-x-0 bottom-0 hidden translate-y-1 bg-gradient-to-t from-[color-mix(in_srgb,var(--bg)_75%,transparent)] to-transparent p-2 opacity-0 transition can-hover:block group-hover/art:translate-y-0 group-hover/art:opacity-100 ${!isManga ? '@max-[160px]:py-1' : ''}`}
+          >
             <p className="line-clamp-1 text-[11px] font-medium leading-tight text-[var(--text)]">
               {primaryTitle}
             </p>
-            {hoverMeta && <p className="truncate text-[10px] text-[var(--text-muted)]">{hoverMeta}</p>}
+            {/* D113 (owner-revised): on NARROW ANIME tiles this meta line
+                only lengthens the band toward the dead-center glyph — and
+                related grids already print relation/format/episodes UNDER
+                the card. Manga bands are untouched (portrait art never
+                collides). */}
+            {hoverMeta && <p className={`truncate text-[10px] text-[var(--text-muted)] ${!isManga ? '@max-[160px]:hidden' : ''}`}>{hoverMeta}</p>}
           </div>
         )}
 

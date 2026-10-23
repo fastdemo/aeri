@@ -4,6 +4,7 @@ import { useAniList } from './AniListContext'
 import { useMAL } from './MALContext'
 import {
   isSyncEnabled,
+  isIncognitoEnabled,
   getTrackingProvider,
   setTrackingProvider as persistTrackingProvider,
   getPreferences,
@@ -26,7 +27,13 @@ type UnifiedTracking = {
   loading: boolean
   error: string | null
   authExpired: boolean
-  updateProgress: (anime: Anime, ep: number) => Promise<void>
+  /**
+   * Tracker progress write. `manual` marks USER-INITIATED edits (progress
+   * stepper, QuickMenu "Mark as watched") — those still sync while
+   * Incognito is on. Automatic writes (watch/read flows, episode/chapter
+   * clicks) omit it and are suppressed by Incognito.
+   */
+  updateProgress: (anime: Anime, ep: number, opts?: { manual?: boolean }) => Promise<void>
   updateStatus: (anime: Anime, status: AnimeStatus) => Promise<void>
   updateRating: (anime: Anime, rating: number) => Promise<void>
   /** Remove the entry from the list entirely ("–" in the Status pill). */
@@ -91,25 +98,36 @@ export function TrackingProvider({ children }: { children: React.ReactNode }) {
     : trackingProvider === 'mal' ? mal.animeList
     : null
 
-  // MAL tracker: upgrade entries to AniList display metadata in the
-  // background (cached; failures keep MAL fallbacks per entry).
+  // MAL tracker (owner 2026-10-20 "anilist for metadata, ALWAYS. no mal
+  // metadata" + 2026-10-21 show-everything rule): the combined list renders
+  // AniList-backed records and entries the batch PROVED have no AniList
+  // record (`noAniListRecord` — stable MAL identity, nothing to flip to)
+  // while the batch is in flight. The enrichment array stays RESIDENT
+  // across re-fires (never reset to raw MAL): every fresh pass re-commits
+  // AniList-backed records, so a re-render can never regress a card to its
+  // MAL-titled/MAL-art state — that regression WAS the "identity crisis".
+  // Still-hidden: only entries whose lookups haven't answered yet (a
+  // throttle turn); they appear without a reload when a later pass (or the
+  // resident context's own retry ladder) resolves them. MAL remains the
+  // tracker-write source — never a rendering source for mapped entries.
   const [enrichedMalList, setEnrichedMalList] = useState<AnimeListEntry[] | null>(null)
   useEffect(() => {
-    setEnrichedMalList(null)
     if (trackingProvider !== 'mal' || !mal.animeList) return
     const ctrl = new AbortController()
     let cancelled = false
+    const commit = (all: AnimeListEntry[]) => {
+      if (cancelled) return
+      setEnrichedMalList(all.filter((e) => e.anime.identity.anilistId != null || e.noAniListRecord === true))
+    }
     enrichMalEntriesWithAnilist(mal.animeList, {
       signal: ctrl.signal,
-      onBatch: (next) => { if (!cancelled) setEnrichedMalList(next) },
-    }).then((final) => {
-      if (!cancelled) setEnrichedMalList(final)
-    }).catch(() => {})
+      onBatch: commit,
+    }).then(commit).catch(() => {})
     return () => { cancelled = true; ctrl.abort() }
   }, [trackingProvider, mal.animeList])
 
   const combinedList = trackingProvider === 'mal'
-    ? (enrichedMalList ?? rawList)
+    ? (enrichedMalList ?? [])
     : rawList
 
   const isAuthenticated = trackingProvider !== null
@@ -137,7 +155,11 @@ export function TrackingProvider({ children }: { children: React.ReactNode }) {
   const isMangaObj = (anime: Anime) =>
     anime.identity.mediaType === 'MANGA' ||
     ['MANGA', 'NOVEL', 'ONE_SHOT'].includes((anime.format ?? '').toUpperCase())
-  const updateProgress = useCallback(async (anime: Anime, ep: number) => {
+  const updateProgress = useCallback(async (anime: Anime, ep: number, opts?: { manual?: boolean }) => {
+    // INCOGNITO GATE (owner 2026-10-23): automatic progress writes from
+    // watching/reading never reach the tracker while incognito is on.
+    // Manual, user-initiated edits pass `{ manual: true }` and still sync.
+    if (!opts?.manual && isIncognitoEnabled()) return
     const isManga = isMangaObj(anime)
     if (active === 'anilist' && ani.isAuthenticated && isSyncEnabled('anilist', 'progress')) {
       const anilistId = anime.identity.anilistId?.toString() ?? (anime.identity.internalId.startsWith('anilist-') ? anime.identity.internalId.replace('anilist-', '') : null)

@@ -16,6 +16,7 @@ import searchSvg from 'bootstrap-icons/icons/search.svg?raw'
 import bellSvg from 'bootstrap-icons/icons/bell.svg?raw'
 import personSvg from 'bootstrap-icons/icons/person.svg?raw'
 import gearSvg from 'bootstrap-icons/icons/gear.svg?raw'
+import eyeSlashSvg from 'bootstrap-icons/icons/eye-slash.svg?raw'
 import chevronDownSvg from 'bootstrap-icons/icons/chevron-down.svg?raw'
 import chevronLeftSvg from 'bootstrap-icons/icons/chevron-left.svg?raw'
 import chevronRightSvg from 'bootstrap-icons/icons/chevron-right.svg?raw'
@@ -40,6 +41,7 @@ const PATHS: Record<string, string> = {
   bell: bellSvg,
   person: personSvg,
   gear: gearSvg,
+  'eye-slash': eyeSlashSvg,
   'chevron-down': chevronDownSvg,
   'chevron-left': chevronLeftSvg,
   'chevron-right': chevronRightSvg,

@@ -245,10 +245,20 @@ export function DetailModal({
   const metaParts = [formatLabel(displayAnime.format), seasonYear, !isMovie && !isMangaKind && displayAnime.episodes ? `${displayAnime.episodes} Episodes` : null, isMangaKind && displayAnime.chapters ? `${displayAnime.chapters} Chapters` : null, isMangaKind && displayAnime.volumes ? `${displayAnime.volumes} Volumes` : null, statusLabel(displayAnime.status)].filter(Boolean).join(' • ')
 
   return (
-    <div ref={scrollerRef} className={`fixed inset-x-0 bottom-0 top-14 z-40 flex items-start justify-center overflow-y-auto bg-[color-mix(in_srgb,var(--bg)_75%,transparent)] p-2 backdrop-blur-[2px] sm:p-6 lg:p-8 ${closing ? 'anim-fade-out' : 'anim-fade-in'}`}>
-      <button aria-label="Close" onClick={dismiss} className="fixed inset-0 top-14 cursor-default" tabIndex={-1} />
+    // CLICK-OUT ANYWHERE (owner 2026-10-20: "if you just click out anywhere
+    // even the bottom part it would still close"): the VEIL itself is the
+    // close target. The old `<button fixed inset-0>` backdrop was trapped
+    // by this scroller's `backdrop-blur` — blur (like filter) makes the
+    // scroller the containing block for fixed descendants, so the button
+    // laid out in CONTENT coordinates and scrolled away with the card:
+    // only clicks near the top of an unscrolled overlay reached it. A
+    // scroller onClick + stopPropagation on the card closes at EVERY
+    // scroll position, from any band, with the same dismiss() funnel
+    // (✕ / Esc / outside) and the same reverse animation.
+    <div ref={scrollerRef} onClick={dismiss} className={`fixed inset-x-0 bottom-0 top-14 z-40 flex items-start justify-center overflow-y-auto bg-[color-mix(in_srgb,var(--bg)_75%,transparent)] p-2 backdrop-blur-[2px] sm:p-6 lg:p-8 ${closing ? 'anim-fade-out' : 'anim-fade-in'}`}>
       <div
         ref={dialogRef}
+        onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
         aria-label={titles.primary}
@@ -396,7 +406,8 @@ export function DetailModal({
             }}
             onProgress={async (n) => {
               setSyncing('progress')
-              try { await updateProgress(displayAnime, n) }
+              // Manual edit — still syncs while Incognito is on.
+              try { await updateProgress(displayAnime, n, { manual: true }) }
               catch (e) { setLocalError(e instanceof Error ? e.message : 'Couldn’t update progress') }
               finally { setSyncing(null) }
             }}

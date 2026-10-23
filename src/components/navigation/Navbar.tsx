@@ -9,6 +9,8 @@ import { HeaderPopup } from './HeaderPopup'
 import { SignInModal } from '../auth/SignInModal'
 import { Icon } from '../ui/Icon'
 import { useDetailOpen } from '../../hooks/useDetailOpen'
+import { refreshAeriTitle } from '../../hooks/useAeriTitle'
+import { isIncognitoEnabled, setIncognitoEnabled } from '../../storage/preferences'
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false)
@@ -19,6 +21,14 @@ export function Navbar() {
   const [signInOpen, setSignInOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [scheduleOpen, setScheduleOpen] = useState(false)
+  // Incognito (owner 2026-10-23): profile-menu toggle, persisted pref.
+  const [incognito, setIncognitoState] = useState(() => isIncognitoEnabled())
+  const toggleIncognito = () => {
+    const next = !incognito
+    setIncognitoEnabled(next)
+    setIncognitoState(next)
+    refreshAeriTitle()
+  }
   const profileRef = useRef<HTMLDivElement>(null)
   const scheduleRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLDivElement>(null)
@@ -405,6 +415,26 @@ export function Navbar() {
                       </span>
                       <span className="text-xs font-medium text-[var(--text)]">Settings</span>
                     </Link>
+                    {/* Incognito (owner 2026-10-23): a plain on/off mode —
+                        automatic tracker writes stop and every tab reads
+                        "Incognito - Aeri". Manual edits still sync. */}
+                    <button
+                      type="button"
+                      role="menuitemcheckbox"
+                      aria-checked={incognito}
+                      aria-label="Incognito mode"
+                      onClick={toggleIncognito}
+                      className="flex w-full touch-manipulation items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)]"
+                      style={{ touchAction: 'manipulation' } as any}
+                    >
+                      <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)]" aria-hidden>
+                        <Icon name="eye-slash" size={12} className="text-[var(--text)]" />
+                      </span>
+                      <span className="flex-1 text-xs font-medium text-[var(--text)]">Incognito</span>
+                      <span className={`text-[10px] font-semibold uppercase tracking-wide ${incognito ? 'text-[var(--text)]' : 'text-[var(--text-faint)]'}`} aria-hidden>
+                        {incognito ? 'On' : 'Off'}
+                      </span>
+                    </button>
                   </div>
                 </HeaderPopup>
               )}

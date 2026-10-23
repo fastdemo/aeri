@@ -40,10 +40,14 @@ export function Search() {
           <p className="text-center text-sm text-[var(--text-muted)]">No results for “{liveQuery}”.</p>
         ) : (
           <>
-            <h1 className="mb-1 text-center text-[17px] font-semibold tracking-tight text-[var(--text)]">
+            {/* Header/description mirror the Anime tab's header block
+                (owner 2026-10-23): left-aligned 18px title + 12px faint
+                subline, same classes as Browse's h1/p. */}
+            <h1 className="text-[18px] font-semibold tracking-tight text-[var(--text)]">
               {results.length} result{results.length === 1 ? '' : 's'} for “{liveQuery}”
             </h1>
-            <p className="mb-4 text-center text-xs text-[var(--text-faint)]">from AniList.</p>
+            <p className="text-xs text-[var(--text-faint)]">Fetched from AniList.</p>
+            <div className="mt-4">
             {(() => {
               const isMangaFmt = (f?: string | null) => ['MANGA', 'NOVEL', 'ONE_SHOT'].includes((f ?? '').toUpperCase())
               const isOvaFmt = (f?: string | null) => ['OVA', 'ONA', 'SPECIAL', 'MUSIC'].includes((f ?? '').toUpperCase())
@@ -82,6 +86,7 @@ export function Search() {
                 </>
               )
             })()}
+            </div>
           </>
         )}
       </div>

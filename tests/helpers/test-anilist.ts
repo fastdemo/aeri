@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { mediaFixtureByVariables } from '../fixtures/anilist-media'
+import { mediaFixtureByVariables, mediaBatchFixtureByResponse } from '../fixtures/anilist-media'
 
 /**
  * Route the app's AniList metadata fetch to local fixtures (metadata
@@ -33,6 +33,17 @@ export async function routeTestAnilistMedia(page: Page): Promise<void> {
     }
     const q = parsed.query ?? ''
     const vars = parsed.variables ?? {}
+    // Batched by-MAL list resolution (enrichment D111): one query per ≤50
+    // ids, answer from the anime fixtures (unmapped-specific ids compose
+    // their responses in their own spec doubles).
+    if (/idMal_in/.test(q) && Array.isArray(vars.ids)) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(mediaBatchFixtureByResponse(vars.ids as number[], String(vars.type ?? 'ANIME'))),
+      })
+      return
+    }
     // Detail Media query (anime or manga): answer from fixtures.
     if (/Media\s*\(/.test(q) && (vars.id != null || vars.idMal != null || vars.malId != null)) {
       await route.fulfill({
@@ -72,8 +83,14 @@ export async function routeTestAnilistMedia(page: Page): Promise<void> {
       })
       return
     }
-    // Unknown query shape: let it through (fail loudly, not silently).
-    await route.continue()
+    // Unknown query shape: answer with a failing GraphQL envelope — LOUD
+    // (suites depending on it get dead rows, not silently swallowed data)
+    // and hermetic. It used to route.continue() to the REAL upstream,
+    // which leaks test traffic and (during an AniList outage, 2026-10-21)
+    // lets the app's own service-down telemetry fire mid-test. The
+    // GraphQL-errors envelope maps to UNKNOWN — a per-caller failure, NOT
+    // a counted service-down hard fail.
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ errors: [{ message: 'test-double: unhandled query shape' }] }) })
   })
 }
 

@@ -11,6 +11,14 @@ type Props = {
   onPreview?: (anime: Anime) => void
 }
 
+/** Owner 2026-10-23: hover features do not exist on touch — pointer/mouse
+ *  hover must never drive the active-row highlight there (a tap would flash
+ *  it). Keyboard arrows and clicks are unaffected. */
+const CAN_HOVER =
+  typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+    ? window.matchMedia('(hover: hover)').matches
+    : false
+
 export function SearchSuggestions({ query, onClose, onPreview }: Props) {
   const [results, setResults] = useState<Anime[] | null>(null)
   const [loading, setLoading] = useState(false)
@@ -127,8 +135,8 @@ export function SearchSuggestions({ query, onClose, onPreview }: Props) {
           type="button"
           role="option"
           aria-selected={idx === activeIdx}
-          onPointerEnter={() => setActiveIdx(idx)}
-          onMouseEnter={() => setActiveIdx(idx)}
+          onPointerEnter={() => { if (CAN_HOVER) setActiveIdx(idx) }}
+          onMouseEnter={() => { if (CAN_HOVER) setActiveIdx(idx) }}
           onClick={() => openPreview(anime)}
           className={`flex w-full touch-manipulation items-center gap-3 px-3 py-2 text-left hover:bg-[color-mix(in_srgb,var(--text)_5%,transparent)] ${idx === activeIdx ? 'bg-[color-mix(in_srgb,var(--text)_10%,transparent)]' : ''}`}
           style={{ touchAction: 'manipulation' } as any}

@@ -51,6 +51,14 @@ export interface Preferences {
   // (explicit pick wins when that account is connected, else AniList when
   // connected, else MAL). AniList remains the metadata backbone either way.
   trackingProvider?: 'anilist' | 'mal' | null
+  /**
+   * Incognito (owner 2026-10-23): while on, AUTOMATIC tracker writes are
+   * suppressed — watching an episode / reading a chapter never updates the
+   * active tracker. Manual edits (progress stepper, status menus, ratings)
+   * still sync, and the tab title reads "Incognito - Aeri" everywhere.
+   * Local watch/read history is intentionally unaffected.
+   */
+  incognito?: boolean
 }
 
 const defaults: Preferences = {
@@ -149,6 +157,22 @@ export function setTrackingProvider(p: TrackingProviderId | null) {
   const next = { ...getPreferences(), trackingProvider: p }
   localStorage.setItem(KEY, JSON.stringify(next))
   return next
+}
+
+/** Incognito mode (owner 2026-10-23). Read synchronously at the write
+ *  choke points (TrackingContext progress gate, tab-title apply) — no
+ *  provider plumbing needed. Persists like any other preference. */
+export function isIncognitoEnabled(): boolean {
+  try { return getPreferences().incognito === true } catch { return false }
+}
+
+export function setIncognitoEnabled(enabled: boolean) {
+  setPreferences({ incognito: enabled })
+  // Cross-surface signal: the tab-title coordinator re-applies its title,
+  // and the profile menu re-reads the pill state.
+  try {
+    window.dispatchEvent(new CustomEvent('aeri:incognito-changed', { detail: enabled }))
+  } catch { /* non-browser (tests/SSR) — preference is still written */ }
 }
 
 export function isSyncEnabled(provider: SyncProvider, field: SyncField): boolean {

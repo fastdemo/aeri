@@ -60,7 +60,7 @@ export function ContentRow({
           <button
             aria-label="Scroll left"
             onClick={() => scroll(-1)}
-            className="absolute left-0 top-1/2 z-10 hidden h-full -translate-y-1/2 items-center justify-center bg-gradient-to-r from-[color-mix(in_srgb,var(--bg)_60%,transparent)] to-transparent px-2 text-[var(--text)] opacity-0 transition hover:opacity-100 focus-visible:opacity-100 group-hover/row:opacity-100 md:flex"
+            className="hover-only-control absolute left-0 top-1/2 z-10 hidden h-full -translate-y-1/2 items-center justify-center bg-gradient-to-r from-[color-mix(in_srgb,var(--bg)_60%,transparent)] to-transparent px-2 text-[var(--text)] opacity-0 transition hover:opacity-100 focus-visible:opacity-100 group-hover/row:opacity-100 md:flex"
             style={{ width: 56 }}
           >
             <span className="grid h-8 w-8 place-items-center rounded-full bg-[color-mix(in_srgb,var(--bg)_60%,transparent)] text-[var(--text)] backdrop-blur">‹</span>
@@ -70,7 +70,7 @@ export function ContentRow({
           <button
             aria-label="Scroll right"
             onClick={() => scroll(1)}
-            className="absolute right-0 top-1/2 z-10 hidden h-full -translate-y-1/2 items-center justify-center bg-gradient-to-l from-[color-mix(in_srgb,var(--bg)_60%,transparent)] to-transparent px-2 text-[var(--text)] opacity-0 transition hover:opacity-100 focus-visible:opacity-100 group-hover/row:opacity-100 md:flex"
+            className="hover-only-control absolute right-0 top-1/2 z-10 hidden h-full -translate-y-1/2 items-center justify-center bg-gradient-to-l from-[color-mix(in_srgb,var(--bg)_60%,transparent)] to-transparent px-2 text-[var(--text)] opacity-0 transition hover:opacity-100 focus-visible:opacity-100 group-hover/row:opacity-100 md:flex"
             style={{ width: 56 }}
           >
             <span className="grid h-8 w-8 place-items-center rounded-full bg-[color-mix(in_srgb,var(--bg)_60%,transparent)] text-[var(--text)] backdrop-blur">›</span>

@@ -26,6 +26,67 @@ const stats = {
   cooldownUntil: 0,
 }
 
+// --- Service-status telemetry (D112, owner 2026-10-21: "when anilist or mal
+// is down, aeri should have a down page") — counted classes are TRUE
+// unreachability only: network refused/timed out, server errors, or
+// AniList's own global API-off 403. Throttles (429/cooldown fast path),
+// auth failures and GraphQL errors do NOT mean the service is down. A live
+// success resets the streak; a stale-cache rescue is neutral — a fully warm
+// cache during an outage is the good case (app working, no down page), and
+// uncacheable misses arm the page within two failing requests.
+let consecutiveHardFails = 0
+let serviceDownNotified = false
+const HARD_FAIL_THRESHOLD = 2
+export const ANILIST_OUTAGE_RE = /temporarily disabled due to severe stability|temporarily disabled/i
+
+function noteAnilistHardFail(outageReason?: string | null): void {
+  consecutiveHardFails += 1
+  if (serviceDownNotified) return
+  if (consecutiveHardFails < HARD_FAIL_THRESHOLD && !outageReason) return
+  serviceDownNotified = true
+  if (typeof window !== 'undefined') {
+    try {
+      window.dispatchEvent(new CustomEvent('aeri:service-down', { detail: { service: 'anilist', reason: outageReason ?? null } }))
+    } catch {}
+  }
+}
+
+function noteAnilistOk(): void {
+  consecutiveHardFails = 0
+  if (!serviceDownNotified) return
+  serviceDownNotified = false
+  if (typeof window !== 'undefined') {
+    try { window.dispatchEvent(new CustomEvent('aeri:service-up', { detail: { service: 'anilist' } })) } catch {}
+  }
+}
+
+export function isAnilistServiceDown(): boolean {
+  return serviceDownNotified
+}
+
+/** Self-heal probe: one tiny live query. True = AniList's API answers with
+ *  real data again (the success path resets the streak and lifts the app's
+ *  down state); false = still down (the caller keeps its page). */
+export async function anilistServiceProbe(): Promise<boolean> {
+  try {
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 8000)
+    const res = await fetch(ANILIST_GRAPHQL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ query: 'query { Page(perPage: 1) { media(sort: TRENDING_DESC) { id } } }', variables: {} }),
+      signal: controller.signal,
+    })
+    clearTimeout(timeoutId)
+    const json = await res.json().catch(() => null as any)
+    const alive = res.ok && json?.data != null && !json?.errors && !ANILIST_OUTAGE_RE.test(String(json?.errors?.[0]?.message ?? ''))
+    if (alive) noteAnilistOk()
+    return alive
+  } catch {
+    return false
+  }
+}
+
 export function getAnilistStats() {
   return { ...stats, cooldownUntil: rateLimitedUntil }
 }
@@ -160,10 +221,12 @@ export async function anilistGraphQL<T>(
         // controller): serve stale before failing.
         const stale = await readStale()
         if (stale !== null) return stale
+        noteAnilistHardFail()
         throw new ProviderError('NETWORK', 'AniList is taking too long to respond. Showing cached content where available.', true)
       }
       const stale = await readStale()
       if (stale !== null) return stale
+      noteAnilistHardFail()
       throw new ProviderError('NETWORK', 'Couldn’t reach AniList. Check your connection.', true)
     } finally {
       clearTimeout(timeoutId)
@@ -188,14 +251,28 @@ export async function anilistGraphQL<T>(
       // AniList sometimes returns 200 with errors: { message: "Something went horribly wrong", status: 500 }
       // Treat any 500 as transient network, not UNKNOWN
       const isServerError = status >= 500 || errStatus === 500 || errStatus === '500' || /horribly wrong/i.test(msg) || /internal server/i.test(msg)
-      if (status === 401 || status === 403 || (msg && /unauthorized|forbidden|invalid token/i.test(msg))) {
+      if (status === 401 || (msg && /unauthorized|invalid token|not authorized/i.test(msg))) {
         clearAnilistToken()
         throw new ProviderError('AUTH', 'Session expired. Reconnect to AniList.', false)
+      }
+      if (status === 403 || (msg && ANILIST_OUTAGE_RE.test(msg))) {
+        // AniList's global API-off outage answers 403 with
+        // "The AniList API has been temporarily disabled due to severe
+        // stability issues." (cloudflare-served, origin-independent). That is
+        // a SERVICE outage — not the user's session — so the token stays.
+        // Counted as a hard fail; an explicit operator message arms the app's
+        // down state immediately (single request, no threshold needed).
+        const explicit = ANILIST_OUTAGE_RE.test(msg)
+        noteAnilistHardFail(explicit ? 'AniList’s API is temporarily disabled by its operator (severe stability issues).' : null)
+        const stale = await readStale()
+        if (stale !== null) return stale
+        throw new ProviderError('NETWORK', 'AniList’s API is offline right now — a service-side outage, not a problem on your end.', true)
       }
       if (status === 404) {
         throw new ProviderError('NOT_FOUND', 'We couldn’t find that anime.', false)
       }
       if (isServerError) {
+        noteAnilistHardFail()
         throw new ProviderError('NETWORK', 'AniList is temporarily unavailable. Please try again in a moment.', true)
       }
       if (status === 429) {
@@ -239,6 +316,7 @@ export async function anilistGraphQL<T>(
         putCache(cacheKey, data).catch(() => {})
       }
     }
+    noteAnilistOk()
     return data
   })()
 
@@ -255,4 +333,21 @@ export async function anilistGraphQL<T>(
 export function clearAnilistMemoryCache() {
   memoryCache.clear()
   inflight.clear()
+}
+
+/** Publish a response into BOTH cache layers (memory + IDB) under a key, so
+ *  later per-key reads (e.g. `anilist:bymal:anime:<id>`) resolve from cache
+ *  with zero network. Value must be the exact shape callers read back.
+ *  D111: the batched by-MAL lookup uses this — one request resolves the
+ *  whole tracker list and every per-id key carries its answer (positive or
+ *  definitive negative), so per-entry lookups become cache hits instantly
+ *  and repeat visits never re-ask. */
+export async function anilistCachePut(key: string, value: unknown): Promise<void> {
+  if (!key) return
+  memoryCache.set(key, { value, expiry: Date.now() + MEMORY_TTL })
+  if (memoryCache.size > MEMORY_MAX) {
+    const oldest = memoryCache.keys().next().value as string | undefined
+    if (oldest !== undefined) memoryCache.delete(oldest)
+  }
+  try { await putCache(key, value) } catch {}
 }

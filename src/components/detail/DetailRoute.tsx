@@ -225,9 +225,11 @@ function DetailSkeleton() {
  */
 function DetailPanel({ children, onClose }: { children: ReactNode; onClose: () => void }) {
   return (
-    <div className="fixed inset-x-0 bottom-0 top-14 z-40 flex items-start justify-center overflow-y-auto bg-[color-mix(in_srgb,var(--bg)_75%,transparent)] p-2 backdrop-blur-[2px] anim-fade-in sm:p-6 lg:p-8">
-      <button aria-label="Close" onClick={onClose} className="fixed inset-0 top-14 cursor-default" tabIndex={-1} />
-      <div className="relative my-2 w-full max-w-[980px] overflow-hidden rounded-xl bg-[var(--bg-soft)] shadow-[0_24px_64px_var(--shadow)] anim-pop-in-center sm:my-6">
+    // Same click-out-anywhere mechanics as DetailModal (owner 2026-10-20):
+    // the veil closes the card directly instead of a fixed backdrop button
+    // that the scroller's backdrop-filter traps in content coordinates.
+    <div onClick={onClose} className="fixed inset-x-0 bottom-0 top-14 z-40 flex items-start justify-center overflow-y-auto bg-[color-mix(in_srgb,var(--bg)_75%,transparent)] p-2 backdrop-blur-[2px] anim-fade-in sm:p-6 lg:p-8">
+      <div onClick={(e) => e.stopPropagation()} className="relative my-2 w-full max-w-[980px] overflow-hidden rounded-xl bg-[var(--bg-soft)] shadow-[0_24px_64px_var(--shadow)] anim-pop-in-center sm:my-6">
         <button
           onClick={onClose}
           aria-label="Close"

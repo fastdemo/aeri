@@ -83,6 +83,10 @@ function RelatedGrid({
               mediaKind={isMangaFormat(anime.format) ? 'manga' : 'anime'}
               fullWidth
               disableLink={!onSelect}
+              // D113 (owner 2026-10-23): Related ANIME tiles carry NO hover
+              // caption (name + meta already exist outside the art); the
+              // Related MANGA portrait tiles keep their caption untouched.
+              hideHoverCaption={!isMangaFormat(anime.format)}
             />
             {meta && <p className="mt-1 truncate px-0.5 text-[11px] text-[var(--text-faint)]">{meta}</p>}
           </>
@@ -223,6 +227,10 @@ function RelatedGridContents({
               mediaKind={isMangaFormat(anime.format) ? 'manga' : 'anime'}
               fullWidth
               disableLink={!onSelect}
+              // D113 (owner 2026-10-23): Related ANIME tiles carry NO hover
+              // caption (name + meta already exist outside the art); the
+              // Related MANGA portrait tiles keep their caption untouched.
+              hideHoverCaption={!isMangaFormat(anime.format)}
             />
             {meta && <p className="mt-1 truncate px-0.5 text-[11px] text-[var(--text-faint)]">{meta}</p>}
           </>

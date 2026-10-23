@@ -104,4 +104,12 @@ export interface AnimeListEntry {
   score?: number
   /** Last list activity, unix seconds (AniList updatedAt / MAL updated_at). Absent = unknown, sorts last. */
   updatedAt?: number
+  /**
+   * D111: a successful AniList by-MAL lookup PROVED this MAL id has no
+   * AniList record (definitive negative, cached like every response). The
+   * show-everything rule (owner 2026-10-21) displays it with its MAL-side
+   * record — a stable identity, never flippable, since there is no AniList
+   * counterpart — instead of hiding it forever like the D110 gate did.
+   */
+  noAniListRecord?: boolean
 }

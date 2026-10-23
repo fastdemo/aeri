@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { aeriTitle } from '../lib/pageTitle'
+import { isIncognitoEnabled } from '../storage/preferences'
 
 /**
  * Tab-title system (owner 2026-10-18): EVERY page's tab reads
@@ -27,7 +28,18 @@ const overrideStack: StackEntry[] = []
 
 function apply(): void {
   const top = overrideStack.length ? overrideStack[overrideStack.length - 1].name : null
-  try { document.title = aeriTitle(top ?? baseName) } catch { /* no document (SSR/tests) — ignore */ }
+  try {
+    // Incognito (owner 2026-10-23): EVERY page's tab reads exactly
+    // "Incognito - Aeri" while the mode is on — the incognito signal is
+    // the whole title, no route/show names leak into it.
+    document.title = isIncognitoEnabled() ? 'Incognito - Aeri' : aeriTitle(top ?? baseName)
+  } catch { /* no document (SSR/tests) — ignore */ }
+}
+
+/** Re-apply the current tab title (used by the Incognito toggle: the mode
+ *  changes the title without any route or data change). */
+export function refreshAeriTitle(): void {
+  apply()
 }
 
 export function useAeriTitle(name: string | null | undefined, level: 'base' | 'override' = 'override'): void {

@@ -52,6 +52,12 @@ export interface TestListEntry {
   progress?: number
   /** Seeded user score (0–10 as MAL carries it). Omitted → 0 (unscored). */
   score?: number
+  /**
+   * MAL-side cover URL (node main_picture.large). Seeded so display tests
+   * can discriminate art SOURCES: after the AniList-metadata rule (owner
+   * 2026-10-20) a MAL-tracker card must carry AniList art, never this URL.
+   */
+  picture?: string
 }
 
 function malNode(e: TestListEntry) {
@@ -59,7 +65,7 @@ function malNode(e: TestListEntry) {
   return {
     id: e.malId,
     title: e.title,
-    main_picture: { large: '', medium: '' },
+    main_picture: { large: e.picture ?? '', medium: '' },
     alternative_titles: { en: e.title, ja: e.title },
     start_date: '2000-01-01',
     synopsis: `${e.title} (test fixture)`,

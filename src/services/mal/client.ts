@@ -69,8 +69,56 @@ async function ensureFreshToken(): Promise<string | null> {
   }
 }
 
-export async function malFetch<T>(path: string, opts: RequestInit & { cacheKey?: string; useCache?: boolean; method?: string } = {}): Promise<T> {
-  const useCache = opts.useCache ?? (opts.method === undefined || opts.method === 'GET')
+// --- Service-status telemetry (D112) — mirrors the AniList client: only
+// TRUE unreachability counts (timeouts, CORS-fail-through, lost connection,
+// 5xx from MAL). Throttles and session/auth failures do NOT mean MAL is
+// down, and any live success resets the streak. A MAL "hard fail" is itself
+// compound evidence: every malFetch retries through THREE transport layers
+// (worker /api/mal → legacy /mal/api → direct) before classifying, so ONE
+// counted failure already means all three transports failed — threshold 1.
+// The down event is raised once; the up event fires via noteMalOk() on the
+// next live success.
+let malHardFails = 0
+let malDownNotified = false
+const MAL_HARD_FAIL_THRESHOLD = 1
+
+function noteMalHardFail(): void {
+  malHardFails += 1
+  if (malDownNotified || malHardFails < MAL_HARD_FAIL_THRESHOLD) return
+  malDownNotified = true
+  if (typeof window !== 'undefined') {
+    try {
+      window.dispatchEvent(new CustomEvent('aeri:service-down', { detail: { service: 'mal', reason: null } }))
+    } catch {}
+  }
+}
+
+function noteMalOk(): void {
+  malHardFails = 0
+  if (!malDownNotified) return
+  malDownNotified = false
+  if (typeof window !== 'undefined') {
+    try { window.dispatchEvent(new CustomEvent('aeri:service-up', { detail: { service: 'mal' } })) } catch {}
+  }
+}
+
+export function isMalServiceDown(): boolean {
+  return malDownNotified
+}
+
+/** Self-heal probe: one tiny live MAL fetch (through the worker when one is
+ *  configured, like all MAL traffic). True = MAL answers again and the
+ *  success path lifts the app's down state. */
+export async function malServiceProbe(): Promise<boolean> {
+  try {
+    await malFetch<{ id: number }>('/anime/1?fields=id', { useCache: false })
+    return true
+  } catch {
+    return false
+  }
+}
+
+export async function malFetch<T>(path: string, opts: RequestInit & { cacheKey?: string; useCache?: boolean; method?: string } = {}): Promise<T> {  const useCache = opts.useCache ?? (opts.method === undefined || opts.method === 'GET')
   const cacheKey = opts.cacheKey
   const method = opts.method ?? 'GET'
   const url = path.startsWith('http') ? path : `${MAL_API_BASE}${path}`
@@ -131,19 +179,22 @@ export async function malFetch<T>(path: string, opts: RequestInit & { cacheKey?:
           // try next URL (worker -> direct)
           continue
         }
-        if (isAbort) throw new MalProviderError('NETWORK', 'MyAnimeList request timed out after 8s', true)
+        if (isAbort) { noteMalHardFail(); throw new MalProviderError('NETWORK', 'MyAnimeList request timed out after 8s', true) }
         if (isCors) {
+          noteMalHardFail()
           throw new MalProviderError(
             'NETWORK',
             'MyAnimeList blocked the request (CORS). Configure a worker via Settings → Playback Sources → Custom video endpoint (same worker proxies MAL), or test from a non-GH Pages origin. AniList still works as it sends CORS headers.',
             false
           )
         }
+        noteMalHardFail()
         throw new MalProviderError('NETWORK', 'Couldn’t reach MyAnimeList. Check your connection.', true)
       }
     }
     if (!res) {
       if (lastError) throw lastError
+      noteMalHardFail()
       throw new MalProviderError('NETWORK', 'Couldn’t reach MyAnimeList.', true)
     }
 
@@ -159,7 +210,7 @@ export async function malFetch<T>(path: string, opts: RequestInit & { cacheKey?:
       }
       if (res.status === 404) throw new MalProviderError('NOT_FOUND', 'We couldn’t find that anime on MyAnimeList.', false)
       if (res.status === 429) throw new MalProviderError('NETWORK', 'MyAnimeList is rate-limited. Try again in a moment.', true)
-      if (res.status >= 500) throw new MalProviderError('NETWORK', 'MyAnimeList is temporarily unavailable.', true)
+      if (res.status >= 500) { noteMalHardFail(); throw new MalProviderError('NETWORK', 'MyAnimeList is temporarily unavailable.', true) }
       throw new MalProviderError('UNKNOWN', msg || `MyAnimeList error (${res.status})`, false)
     }
 
@@ -169,6 +220,7 @@ export async function malFetch<T>(path: string, opts: RequestInit & { cacheKey?:
       memoryCache.set(mKey, { value: data, expiry: Date.now() + MEMORY_TTL })
       if (cacheKey) putCache(cacheKey, data).catch(() => {})
     }
+    noteMalOk()
     return data
   })()
 

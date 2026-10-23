@@ -19,7 +19,9 @@ import { Docs } from './pages/Docs'
 import { Legal } from './pages/Legal'
 import { AniListProvider } from './contexts/AniListContext'
 import { MALProvider } from './contexts/MALContext'
-import { TrackingProvider } from './contexts/TrackingContext'
+import { TrackingProvider, useTracking } from './contexts/TrackingContext'
+import { ServiceStatusProvider, useServiceStatus, type ServiceKey } from './contexts/ServiceStatusContext'
+import { ServiceDown } from './components/status/ServiceDown'
 
 function FaviconGuard() {
   const { pathname, hash } = useLocation()
@@ -52,6 +54,36 @@ function FaviconGuard() {
 // <Routes> matches the detail path. Browser Back closes the card.
 const DETAIL_ROUTE_RE = /^\/(anime|manga)\/([^/]+)$/
 
+// --- D112 service gate (owner 2026-10-21: "when anilist or mal is down,
+// aeri should have a simple down page like the MAL/AniList one") — which
+// data services each surface REQUIRES for its primary content. A page is
+// replaced by the down page ONLY when one of its own services is
+// definitively down; every other surface keeps working (never a
+// blanket app replacement — MAL-down must not blank discovery, reader is
+// MangaDex-side and stays open). Overlay needs are UNIONed with the
+// background page's: a detail card opened over My List still needs both
+// services' health, not just the card's.
+function requiredServices(path: string, tracker: 'anilist' | 'mal' | null): ServiceKey[] {
+  if (path === '/settings' || path.startsWith('/docs') || path.startsWith('/legal')) return []
+  if (DETAIL_ROUTE_RE.test(path)) return ['anilist'] // floating card = metadata + art
+  if (path.startsWith('/read/')) return [] // reader: MangaDex-side; stays open
+  if (
+    path === '/'
+    || path.startsWith('/anime')
+    || path.startsWith('/search')
+    || path.startsWith('/watch')
+    || path.startsWith('/manga')
+  ) {
+    return ['anilist']
+  }
+  if (path.startsWith('/list') || path.startsWith('/profile')) {
+    // Rows need the tracker that owns the list — and under MAL tracking,
+    // AniList as the display-metadata backbone (D110/D111).
+    return tracker === 'mal' ? ['anilist', 'mal'] : ['anilist']
+  }
+  return []
+}
+
 function Layout() {
   const location = useLocation()
   const { pathname } = location
@@ -79,6 +111,18 @@ function Layout() {
   // of the seeded rows, no scroll jump: Netflix-open behavior.
   const bgLocation = detailMatch ? (navState?.background ?? { pathname: '/' }) : location
 
+  // D112: down-page gate. Reads the shared up/down state that BOTH api
+  // clients feed (aeri:service-down / -up events) and swaps affected
+  // surfaces for the branded down page until a probe proves recovery.
+  const serviceStatus = useServiceStatus()
+  const { trackingProvider } = useTracking()
+  const required = (() => {
+    const bgReq = requiredServices(bgLocation.pathname, trackingProvider)
+    const overlayReq = detailMatch ? requiredServices(pathname, trackingProvider) : []
+    return Array.from(new Set([...bgReq, ...overlayReq]))
+  })()
+  const down = required.map((s) => serviceStatus[s]).find(Boolean) ?? null
+
   // Scroll reset keyed on the SURFACE, not the raw path: opening or closing
   // the floating card must not yank the page behind it to the top (detail
   // URLs collapse onto the page they were opened from, or Home).
@@ -93,31 +137,44 @@ function Layout() {
       <FaviconGuard />
       <Navbar />
       <main className="flex-1 pt-14">
-        {/* Base surface: keeps the background page mounted under the card
-            (own location while a detail URL is active). /anime/:id and
-            /manga/:id are intentionally NOT here — they exist only as the
-            overlay routes below. `location` is ALWAYS explicit (see comment
-            above): an undefined↔object flip changes the element tree shape
-            inside useRoutesImpl and remounts the background page. */}
-        <Routes location={bgLocation}>
-          <Route path="/" element={<Home />} />
-          <Route path="/anime" element={<Browse />} />
-          <Route path="/search" element={<Search />} />
-          <Route path="/list" element={<MyList />} />
-          <Route path="/watch/:id/:episode" element={<Watch />} />
-          <Route path="/read/:id/:chapter" element={<Read />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/manga" element={<Manga />} />
-          <Route path="/docs" element={<Docs />} />
-          <Route path="/legal" element={<Legal />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-        {detailMatch && (
-          <Routes>
-            <Route path="/anime/:id" element={<DetailRoute kind="anime" />} />
-            <Route path="/manga/:id" element={<DetailRoute kind="manga" />} />
-          </Routes>
+        {/* D112 service gate: while a required service is down, the affected
+            surface becomes the simple branded down page (Navbar + footer
+            stay; navigation to /settings still works for diagnostics).
+            Holding both render arms in constants would NOT keep tree shape —
+            this IS a page-level swap by design; on recovery the base Routes
+            remount and refetch, which is exactly the resume-where-you-were
+            behavior we want. */}
+        {down ? (
+          <ServiceDown down={down} />
+        ) : (
+          <>
+            {/* Base surface: keeps the background page mounted under the card
+                (own location while a detail URL is active). /anime/:id and
+                /manga/:id are intentionally NOT here — they exist only as the
+                overlay routes below. `location` is ALWAYS explicit (see comment
+                above): an undefined↔object flip changes the element tree shape
+                inside useRoutesImpl and remounts the background page. */}
+            <Routes location={bgLocation}>
+              <Route path="/" element={<Home />} />
+              <Route path="/anime" element={<Browse />} />
+              <Route path="/search" element={<Search />} />
+              <Route path="/list" element={<MyList />} />
+              <Route path="/watch/:id/:episode" element={<Watch />} />
+              <Route path="/read/:id/:chapter" element={<Read />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/manga" element={<Manga />} />
+              <Route path="/docs" element={<Docs />} />
+              <Route path="/legal" element={<Legal />} />
+              <Route path="/profile" element={<Profile />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+            {detailMatch && (
+              <Routes>
+                <Route path="/anime/:id" element={<DetailRoute kind="anime" />} />
+                <Route path="/manga/:id" element={<DetailRoute kind="manga" />} />
+              </Routes>
+            )}
+          </>
         )}
       </main>
       {/* OWNER 2026-10-18: hidden below the `sm` boundary (640px) — the
@@ -158,7 +215,9 @@ export default function App() {
       <AniListProvider>
         <MALProvider>
           <TrackingProvider>
-            <Layout />
+            <ServiceStatusProvider>
+              <Layout />
+            </ServiceStatusProvider>
           </TrackingProvider>
         </MALProvider>
       </AniListProvider>

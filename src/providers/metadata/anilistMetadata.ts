@@ -1,4 +1,4 @@
-import { anilistGraphQL, getAnilistStats } from '../../services/anilist/client'
+import { anilistGraphQL, anilistCachePut, getAnilistStats } from '../../services/anilist/client'
 import { mapAniListMediaToAnime, type AniListMedia } from '../../services/anilist/mapper'
 import { matchKnownGenre } from '../../lib/genres'
 import { rankSearchResults } from '../../lib/searchRank'
@@ -95,11 +95,58 @@ query ($id: Int) {
 }
 `
 
+// BY-MAL LOOKUPS ARE TYPE-SCOPED IN BOTH THE QUERY AND THE CACHE KEY (owner
+// rule 2026-10-20: "anilist for metadata, ALWAYS. no mal metadata"). MAL ids
+// and AniList anime/manga ids are three separate numeric spaces; a number can
+// be a valid animal id AND manga id in AniList simultaneously. Anime entries
+// must never resolve a MAL lookup to a manga work (or vice versa) — separate
+// queries AND separate `anilist:bymal:{kind}:<id>` keys keep that boundary.
 const MEDIA_BY_MAL_QUERY = `
 query ($malId: Int) {
   Media(idMal: $malId, type: ANIME) {
     ${MEDIA_FIELDS}
     trailer { id site }
+  }
+}
+`
+
+const MEDIA_MANGA_BY_MAL_QUERY = `
+query ($malId: Int) {
+  Media(idMal: $malId, type: MANGA) {
+    ${MEDIA_FIELDS}
+  }
+}
+`
+
+// BATCHED BY-MAL LOOKUPS (D111 2026-10-21, owner: "the continue watching row
+// would just appear immediately... it didn't even show all the shows"): ONE
+// request per ≤50-id chunk resolves the ENTIRE tracker list, instead of one
+// request per entry (which crawled through the rate limit and let throttled
+// shows vanish). An id ABSENT from a chunk that completed is a DEFINITIVE
+// non-mapping — the filter matched and found nothing — not a failure, so the
+// negative is seeded under the same kind-scoped per-id key (24h, like every
+// cache) and the entry can keep a stable identity until AniList maps it.
+// Field parity with the per-id queries keeps seeded records indistinguishable:
+// anime carry trailer, manga carry the catalogue extension (staff/tags/endDate)
+// so seeded records fully serve detail pages too.
+const MEDIA_BY_MAL_BATCH_ANIME_QUERY = `
+query ($ids: [Int]) {
+  Page(perPage: 50) {
+    media(idMal_in: $ids, type: ANIME) {
+      ${MEDIA_FIELDS}
+      trailer { id site }
+    }
+  }
+}
+`
+
+const MEDIA_BY_MAL_BATCH_MANGA_QUERY = `
+query ($ids: [Int]) {
+  Page(perPage: 50) {
+    media(idMal_in: $ids, type: MANGA) {
+      ${MEDIA_FIELDS}
+      ${MANGA_CATALOGUE_FIELDS}
+    }
   }
 }
 `
@@ -326,9 +373,102 @@ export class AniListMetadataProvider implements AnimeMetadataProvider {
 
   async getAnimeByMalId(malId: number, signal?: AbortSignal): Promise<import('../../types/anime').Anime> {
     type Res = { Media: AniListMedia | null }
-    const data = await anilistGraphQL<Res>(MEDIA_BY_MAL_QUERY, { malId }, { cacheKey: `anilist:bymal:${malId}`, useCache: true, signal })
+    const data = await anilistGraphQL<Res>(MEDIA_BY_MAL_QUERY, { malId }, { cacheKey: `anilist:bymal:anime:${malId}`, useCache: true, signal })
     if (!data.Media) throw new ProviderError('NOT_FOUND', 'We couldn’t find that anime.', false)
     return mapAniListMediaToAnime(data.Media)
+  }
+
+  /** Manga record by MAL id — tracker-manga entries resolve here. MANGA
+   *  type-scoped query + `anilist:bymal:manga:` cache key: the same numeric
+   *  MAL id must never satisfy the anime kind (or be satisfied by one). */
+  async getMangaByMalId(malId: number, signal?: AbortSignal): Promise<import('../../types/anime').Anime> {
+    type Res = { Media: AniListMedia | null }
+    const data = await anilistGraphQL<Res>(MEDIA_MANGA_BY_MAL_QUERY, { malId }, { cacheKey: `anilist:bymal:manga:${malId}`, useCache: true, signal })
+    if (!data.Media) throw new ProviderError('NOT_FOUND', 'We couldn’t find that manga.', false)
+    return mapAniListMediaToAnime(data.Media, 'MANGA')
+  }
+
+  /**
+   * BATCHED resolution for a whole tracker list (D111): resolves up to 50
+   * MAL ids per request, mapping each record to the kind-scoped space and
+   * seeding the per-id cache keys — positives AND definitive negatives — so
+   * subsequent single lookups (`getAnimeByMalId`/`getMangaByMalId`) answer
+   * from cache with zero network, and detail opens are warm.
+   *
+   * `onChunk` fires after each ≤50-chunk's records are mapped (list rows can
+   * commit progressively while the next chunk fetches).
+   *
+   * THROTTLED chunks retry patient-style (cooldown-aware, ≤4 attempts) before
+   * giving up; a failed chunk makes the method THROW (never a silent partial)
+   * so callers fall back to the per-entry pipeline for those ids. Ids absent
+   * from a SUCCESSFUL chunk are definitive non-mappings — reported as
+   * `unmapped` — and their per-id key is seeded with the null Media shape
+   * single lookups read back (no repeat network on later passes).
+   */
+  async getBatchByMalIds(
+    malIds: number[],
+    kind: 'anime' | 'manga',
+    opts?: {
+      signal?: AbortSignal
+      onChunk?: (resolved: Map<number, import('../../types/anime').Anime>, unmapped: number[], kind: 'anime' | 'manga') => void
+    },
+  ): Promise<{ resolved: Map<number, import('../../types/anime').Anime>; unmapped: number[] }> {
+    const signal = opts?.signal
+    const type = kind === 'manga' ? 'MANGA' : 'ANIME'
+    const query = kind === 'manga' ? MEDIA_BY_MAL_BATCH_MANGA_QUERY : MEDIA_BY_MAL_BATCH_ANIME_QUERY
+    const ids = [...new Set(malIds.filter((n) => Number.isFinite(n) && n > 0))]
+    const resolved = new Map<number, import('../../types/anime').Anime>()
+    const unmapped: number[] = []
+    if (!ids.length) return { resolved, unmapped }
+
+    for (let i = 0; i < ids.length; i += 50) {
+      const chunk = ids.slice(i, i + 50)
+      type Res = { Page: { media: AniListMedia[] } }
+      // Patient retry: a cold 429 here is the gate to the WHOLE list staying
+      // hidden — worth bounded cooldown-aware retries, unlike per-entry calls.
+      let data: Res | null = null
+      let lastErr: unknown = null
+      for (let attempt = 0; attempt < 4; attempt++) {
+        try {
+          data = await anilistGraphQL<Res>(query, { ids: chunk }, {
+            cacheKey: `anilist:bymalbatch:${type}:${chunk.map(String).join(',')}`,
+            useCache: true,
+            signal,
+          })
+          lastErr = null
+          break
+        } catch (e: any) {
+          if (e?.code !== 'THROTTLED' || attempt === 3) { lastErr = e; break }
+          // Ignore per-caller abort during the cooldown wait — the effect
+          // unmount races its own signal; the next attempt rechecks.
+          const remain = (() => { try { return Math.max(0, getAnilistStats().cooldownUntil - Date.now()) } catch { return 0 } })()
+          await new Promise<void>((r) => setTimeout(r, Math.min(Math.max(remain, 1500), 90_000)))
+        }
+      }
+      if (lastErr || !data) throw lastErr ?? new ProviderError('NETWORK', 'AniList metadata could not be resolved.', true)
+      const byMal = new Map<number, AniListMedia>()
+      for (const m of data.Page.media ?? []) if (typeof m.idMal === 'number') byMal.set(m.idMal, m)
+      const chunkResolved = new Map<number, import('../../types/anime').Anime>()
+      const chunkUnmapped: number[] = []
+      for (const malId of chunk) {
+        const m = byMal.get(malId)
+        if (m) {
+          const anime = mapAniListMediaToAnime(m, type)
+          if (anime.identity.anilistId) putCachedAnime(anime.identity.anilistId, anime, type)
+          chunkResolved.set(malId, anime)
+          // Seed the single-lookup key with the EXACT response shape the
+          // per-id getter reads (`data.Media`) — later calls are cache hits.
+          void anilistCachePut(`anilist:bymal:${kind}:${malId}`, { Media: m })
+        } else {
+          chunkUnmapped.push(malId)
+          void anilistCachePut(`anilist:bymal:${kind}:${malId}`, { Media: null })
+        }
+      }
+      for (const [k, v] of chunkResolved.entries()) resolved.set(k, v)
+      for (const id of chunkUnmapped) if (!unmapped.includes(id)) unmapped.push(id)
+      try { opts?.onChunk?.(chunkResolved, chunkUnmapped, kind) } catch {}
+    }
+    return { resolved, unmapped }
   }
 
   async search(query: string, perPage = 12, signal?: AbortSignal): Promise<import('../../types/anime').Anime[]> {
