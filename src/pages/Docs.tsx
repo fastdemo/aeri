@@ -119,7 +119,8 @@ export function Docs() {
         (24h) cache, in-flight deduplication, and a shared rate-limit cooldown that serves stale data instead of
         failing. MAL runs through PKCE OAuth via the Worker's token proxy (anime and manga lists, same
         <Code>my_list_status</Code> writes). Video: a provider registry resolves episodes → sources, then the
-        Worker signs a relay URL and hls.js (Chromium) or native HLS (Safari) plays it. Manga: MangaDex (primary) +
+        Worker signs a relay URL and Aeri's Video.js v10 player (HlsJsVideo; HLS via MSE, native fallback)
+        plays it. Only direct HLS/MP4 sources are offered. Manga: MangaDex (primary) +
         Weeb Central + MangaPill resolve chapters → page images through the signed <Code>/api/manga/img</Code> relay.
       </P>
       <P>

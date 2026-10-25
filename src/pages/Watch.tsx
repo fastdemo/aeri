@@ -1,21 +1,31 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from 'react'
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, useCallback } from 'react'
 import { Link, useParams, useNavigate, useLocation, Navigate } from 'react-router-dom'
 import { useTracking } from '../contexts/TrackingContext'
 import { useAnimeDetail } from '../hooks/useAnimeMetadata'
 import { useAeriTitle } from '../hooks/useAeriTitle'
-import { VideoPlayer } from '../components/player/VideoPlayer'
-import { resolveEpisodesWithFallback, resolveSourcesWithFallback } from '../providers/video/registry'
+import { resolveEpisodesWithFallback, resolveSourcesForLanguages } from '../providers/video/registry'
 import type { VideoEpisode, VideoSourceEnhanced } from '../providers/video/types'
 import { getWatchPos, putWatchPos, clearWatchPos } from '../storage/db'
 import { getPreferences } from '../storage/preferences'
 import { getTitleHierarchy } from '../lib/titles'
 import { normalizeEpisodes, sanitizeAnimeForDisplay } from '../lib/episodes'
+import { useKitsuEpisodes } from '../hooks/useKitsuEpisodes'
 import { formatLabel } from '../lib/mediaLabels'
 import { Icon } from '../components/ui/Icon'
 import { FilterSelect } from '../components/ui/FilterSelect'
 import { useRelatedEntries } from '../hooks/useRelatedEntries'
-import { RelatedEntries } from '../components/related/RelatedEntries'
+import { RelatedRow } from '../components/related/RelatedRow'
 import { detailPath } from '../hooks/useDetailOpen'
+
+// The player is the only route that needs Video.js + the HLS adapter; keep
+// both out of the initial bundle for Home/Browse/Search/List.
+const VideoPlayer = lazy(() => import('../components/player/VideoPlayer').then((m) => ({ default: m.VideoPlayer })))
+
+// Video.js owns playback for direct HLS/MP4 only. Embed sources are not
+// offered anywhere in the player or source picker (D125).
+function isPlayableSource(source: VideoSourceEnhanced): boolean {
+  return Boolean(source.url) && !source.embed && source.type !== 'embed'
+}
 
 export function Watch() {
   const { id, episode } = useParams<{ id: string; episode: string }>()
@@ -78,36 +88,41 @@ export function Watch() {
     return sanitizeAnimeForDisplay(anime)
   }, [anime])
 
+  // Episode names/thumbnails: AniList first; Kitsu ONLY when AniList has no
+  // usable episode metadata at all; otherwise the UI placeholder. The
+  // video-provider episode list is for source mapping only. `anime` is the
+  // pre-sanitize record so the gate still sees AniList data that the
+  // season/range guard discards for display.
+  const kitsu = useKitsuEpisodes(sanitizedAnimeForWatch, anime)
+
   const immediateEpisodes = useMemo(() => {
     if (!sanitizedAnimeForWatch) return []
-    const eps = normalizeEpisodes(sanitizedAnimeForWatch)
+    const eps = normalizeEpisodes(sanitizedAnimeForWatch, null, kitsu)
     return eps.map(e => ({
       number: e.number,
       displayNumber: e.number,
       title: e.title,
       thumbnail: e.thumbnail,
     }))
-  }, [sanitizedAnimeForWatch])
+  }, [sanitizedAnimeForWatch, kitsu])
 
-  // AniList progress sync — this entry's episode number, nothing else.
-  // FIRES ONCE per (entry, episode): updateProgress writes trigger
-  // context list updates (optimistic + refetch → new array identities →
-  // new updateProgress callback identity). Without the once-guard the
-  // effect re-fires on every callback identity change: an unbounded
-  // PUT → loadList → re-render → PUT storm (verified 2026-10-10: ~100
-  // req/s to the worker in tests). Progress is idempotent — one write
-  // per episode view is the entire contract.
-  const progressSyncedRef = useRef<string | null>(null)
-  useEffect(() => {
-    if (!isAuthenticated || !anime) return
-    const key = `${anime.identity.internalId}:${epNum}`
-    if (progressSyncedRef.current === key) return
-    progressSyncedRef.current = key
-    updateProgress(anime, epNum).catch(() => {})
-    try {
-      localStorage.setItem(`aeri:progress:${anime.identity.internalId}`, String(epNum))
-    } catch {}
-  }, [isAuthenticated, anime, epNum, updateProgress])
+  // PROGRESS VALIDITY (owner 2026-10-23): never write progress from an
+  // incomplete/broken record. A usable record has at least one tracker id,
+  // a real title, a finite episode number and — when the total is known —
+  // an episode inside 1..total. Anything else performs NO tracker write.
+  const canSyncProgress = Boolean(
+    anime &&
+    Number.isFinite(epNum) && epNum > 0 &&
+    (anime.identity.anilistId != null || anime.identity.malId != null) &&
+    (anime.title?.romaji || anime.title?.english || anime.title?.native) &&
+    (anime.episodes == null || anime.episodes <= 0 || epNum <= anime.episodes),
+  )
+
+  // NOTE (owner 2026-10-23): opening an episode NO LONGER marks it watched.
+  // The old mount-time sync wrote progress before a single second played —
+  // the tracker counted untouched episodes. Progress now advances exactly
+  // once per episode, when >= 80% of a genuinely loaded video has played
+  // (below), or when the video ends.
 
   // Background: resolve provider episodes for source mapping (does not block UI) — abortable
   useEffect(() => {
@@ -167,15 +182,16 @@ export function Watch() {
     setSources(null)
     setSelectedSource(null)
     setTriedProviders([])
-    resolveSourcesWithFallback(effectiveEpisode, { preferredProvider, preferredLanguage: preferredAudio, signal: controller.signal, ...matchHints })
+    resolveSourcesForLanguages(effectiveEpisode, { preferredProvider, preferredLanguage: preferredAudio, languages: ['sub', 'dub'], signal: controller.signal, ...matchHints })
       .then(res => {
         if (cancelled || controller.signal.aborted) return
-        setSources(res.sources)
+        const playable = res.sources.filter(isPlayableSource)
+        setSources(playable)
         setTriedProviders(res.tried)
-        if (res.sources.length > 0) {
+        if (playable.length > 0) {
           // Prefer language matching preference, else first
-          const preferred = res.sources.find(s => s.language === preferredAudio)
-          setSelectedSource(preferred ?? res.sources[0])
+          const preferred = playable.find(s => s.language === preferredAudio)
+          setSelectedSource(preferred ?? playable[0])
         } else setSourcesError(null)
         setSourcesLoading(false)
       })
@@ -217,22 +233,29 @@ export function Watch() {
   useEffect(() => { hasCompletedRef.current = false }, [epNum])
 
   const handleTimeUpdate = useCallback((currentTime: number, duration: number) => {
-    if (!anime || !duration || duration < 30) return
+    if (!anime || !Number.isFinite(duration) || duration < 30) return
+    // 80% rule (owner 2026-10-23): an episode counts as FINISHED — and only
+    // then does tracker progress advance (+1) — once 80% of the loaded
+    // video has played. Evaluated on every tick BEFORE the position-save
+    // throttle so crossing the threshold is never skipped.
+    if (canSyncProgress && isAuthenticated && !hasCompletedRef.current && currentTime / duration >= 0.8) {
+      hasCompletedRef.current = true
+      updateProgress(anime, epNum).catch(() => {})
+    }
     const now = Date.now()
     if (now - lastSaveRef.current < 5000) return
     lastSaveRef.current = now
     putWatchPos({ id: anime.identity.internalId, episode: epNum, currentTime, duration, updatedAt: Date.now() }).catch(() => {})
-    // An episode counts as complete once watched through (>= 80%)
-    if (currentTime / duration >= 0.8 && isAuthenticated && !hasCompletedRef.current) {
-      hasCompletedRef.current = true
-      updateProgress(anime, epNum).catch(() => {})
-    }
-  }, [anime, epNum, isAuthenticated, updateProgress])
+  }, [anime, epNum, isAuthenticated, updateProgress, canSyncProgress])
 
   const handleEnded = useCallback(() => {
     if (!anime) return
     clearWatchPos(anime.identity.internalId).catch(() => {})
-    if (isAuthenticated) updateProgress(anime, epNum).catch(() => {})
+    // End-of-video = 100% watched; same validity gate as the 80% path.
+    if (isAuthenticated && canSyncProgress && !hasCompletedRef.current) {
+      hasCompletedRef.current = true
+      updateProgress(anime, epNum).catch(() => {})
+    }
     try {
       const prefs = getPreferences()
       const isMovieNow = anime.format?.toUpperCase() === 'MOVIE'
@@ -240,7 +263,7 @@ export function Watch() {
         navigate(`/watch/${id}/${epNum + 1}`)
       }
     } catch {}
-  }, [anime, epNum, isAuthenticated, updateProgress, id, navigate, immediateEpisodes.length])
+  }, [anime, epNum, isAuthenticated, updateProgress, canSyncProgress, id, navigate, immediateEpisodes.length])
 
   const handleResume = () => {
     setShowResume(false)
@@ -281,6 +304,25 @@ export function Watch() {
   const prev = prevLocal
   const next = nextLocal
   const backdrop = anime.backdropImage || anime.coverImage || ''
+  // Episode tiles use the same placeholder rule as EpisodeList: an episode
+  // without its own artwork shows the show's own backdrop/cover — never a
+  // bare empty box.
+  const fallbackThumb = anime.backdropImage || anime.coverImage || ''
+  // Metadata line owner rule (2026-10-24): season + year, format, duration —
+  // never the playback provider. "Fall 2006 • TV • 24m".
+  const seasonLabel = formatLabel(anime.season)
+  const yearLabel = anime.year ? String(anime.year) : null
+  const seasonYearLabel = seasonLabel && yearLabel ? `${seasonLabel} ${yearLabel}` : (yearLabel ?? seasonLabel)
+  const metaLine = [
+    seasonYearLabel,
+    formatLabel(anime.format) ?? anime.format ?? null,
+    anime.duration ? `${anime.duration}m` : null,
+  ].filter(Boolean).join(' • ') || '—'
+  // Episode nav pills follow the manga reader: filled text-colored pills,
+  // unavailable sides disabled at 40% opacity. The middle pill is a status,
+  // not a control — a span, never a button.
+  const navPill = 'inline-flex max-w-full items-center justify-center truncate rounded-full bg-[var(--text)] px-4 py-1.5 text-xs font-semibold text-[var(--on-text)] transition disabled:cursor-not-allowed disabled:opacity-40'
+  const navPillLink = `${navPill} hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)] active:scale-[0.98]`
   const titles = getTitleHierarchy(anime)
   const hasVideo = sources && sources.length > 0 && selectedSource && selectedSource.url
   const isLoadingVideo = episodesLoading || sourcesLoading
@@ -318,18 +360,27 @@ export function Watch() {
 
           {/* Video player when source available */}
           {hasVideo && !isLoadingVideo && (
-            <VideoPlayer
-              sources={sources!}
-              selectedSource={selectedSource}
-              onTimeUpdate={handleTimeUpdate}
-              onEnded={handleEnded}
-              initialTime={showResume ? undefined : (watchPos && watchPos.episode === epNum ? watchPos.currentTime : 0)}
-              animeTitle={titles.primary}
-              episodeNumber={epNum}
-              volume={getPreferences().volume}
-              autoplay={getPreferences().autoplay}
-              subtitles={getPreferences().subtitles ? selectedSource?.subtitles : undefined}
-            />
+            <Suspense
+              fallback={
+                backdrop ? (
+                  <img src={backdrop} alt="" className="absolute inset-0 h-full w-full object-cover opacity-80" />
+                ) : null
+              }
+            >
+              <VideoPlayer
+                sources={sources!}
+                selectedSource={selectedSource}
+                onTimeUpdate={handleTimeUpdate}
+                onEnded={handleEnded}
+                initialTime={showResume ? undefined : (watchPos && watchPos.episode === epNum ? watchPos.currentTime : 0)}
+                animeTitle={titles.primary}
+                episodeNumber={epNum}
+                volume={getPreferences().volume}
+                autoplay={getPreferences().autoplay}
+                subtitles={getPreferences().subtitles ? selectedSource?.subtitles : undefined}
+                poster={backdrop || undefined}
+              />
+            </Suspense>
           )}
 
           {/* Resume prompt — top center, clear of player controls.
@@ -365,7 +416,7 @@ export function Watch() {
                       if (effectiveEpisode) {
                         setSourcesLoading(true)
                         setSourcesError(null)
-                        resolveSourcesWithFallback(effectiveEpisode, { preferredProvider, preferredLanguage: preferredAudio, bypassCache: true, ...matchHints }).then(res => {
+                        resolveSourcesForLanguages(effectiveEpisode, { preferredProvider, preferredLanguage: preferredAudio, languages: ['sub', 'dub'], bypassCache: true, ...matchHints }).then(res => {
                           setSources(res.sources)
                           setTriedProviders(res.tried)
                           if (res.sources.length) {
@@ -403,7 +454,7 @@ export function Watch() {
                       if (effectiveEpisode) {
                         setSourcesLoading(true)
                         setSourcesError(null)
-                        resolveSourcesWithFallback(effectiveEpisode, { preferredProvider, preferredLanguage: preferredAudio, bypassCache: true, ...matchHints }).then(res => {
+                        resolveSourcesForLanguages(effectiveEpisode, { preferredProvider, preferredLanguage: preferredAudio, languages: ['sub', 'dub'], bypassCache: true, ...matchHints }).then(res => {
                           setSources(res.sources)
                           setTriedProviders(res.tried)
                           if (res.sources.length) {
@@ -435,37 +486,45 @@ export function Watch() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h1 className="text-[15px] font-semibold text-[var(--text)]">
-                {isMovie ? titles.primary : `${titles.primary} — E${epNum}`}
+                {isMovie ? titles.primary : `${titles.primary} — Episode ${epNum}`}
               </h1>
               {titles.native && <p className="text-xs text-[var(--text-muted)]">{titles.native}</p>}
               {titles.romaji && <p className="text-xs text-[var(--text-faint)]">{titles.romaji}</p>}
-              <p className="mt-1 text-xs text-[var(--text-muted)]">
-                {anime.year ? String(anime.year) : '—'} • {formatLabel(anime.format) ?? anime.format ?? '—'} • {anime.duration ? `${anime.duration}m` : '—'}
-                {providerId && providerId !== 'mock' ? ` • ${providerId}` : ''}
-              </p>
+              <p className="mt-1 text-xs text-[var(--text-muted)]">{metaLine}</p>
             </div>
 
             <div className="flex flex-wrap items-center gap-3">
-              {/* Source selector */}
-              {sources && sources.length > 0 && (
-                <div className="flex items-center gap-2">
-                  <span className="text-xs text-[var(--text-faint)]">Source:</span>
-                  <FilterSelect
-                    value={selectedSource?.url ?? ''}
-                    onChange={v => {
-                      const s = sources.find(s => s.url === v)
-                      if (s) setSelectedSource(s)
-                    }}
-                    ariaLabel="Select video source"
-                    options={sources.map((s, idx) => ({
-                      value: s.url,
-                      label: `${s.provider}${s.quality ? ` • ${s.quality}` : ''}${s.language ? ` • ${s.language}` : ''}${s.embed ? ' • embed' : ''}`,
-                      key: `${s.url}::${idx}`,
-                    }))}
-                  />
-                  <span className="text-[10px] text-[color-mix(in_srgb,var(--text)_30%,transparent)]">{preferredProvider ? `Preferred: ${preferredProvider}` : 'Auto'}</span>
-                </div>
-              )}
+              {/* Source selector. Values are option INDICES, not URLs: two
+                  providers can legitimately hand back the same URL, and a
+                  URL-keyed native select silently jumped to the first match —
+                  the "picker does nothing" bug. */}
+              {sources && sources.length > 0 && (() => {
+                // AUDIO IS A SEPARATE CONTROL (owner 2026-10-24): the source
+                // picker lists only the streams for the active Sub/Dub side.
+                // Its label is the provider alone (plus a REAL quality, never
+                // the "auto" placeholder) — the language lives on the toggle.
+                const activeLanguage = selectedSource?.language ?? preferredAudio
+                const languageSources = sources.filter(s => !s.language || s.language === activeLanguage)
+                const selectedIdx = selectedSource ? languageSources.indexOf(selectedSource) : -1
+                return (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-[var(--text-faint)]">Source:</span>
+                    <FilterSelect
+                      value={selectedIdx >= 0 ? String(selectedIdx) : ''}
+                      onChange={v => {
+                        const s = languageSources[Number(v)]
+                        if (s) setSelectedSource(s)
+                      }}
+                      ariaLabel="Select video source"
+                      options={languageSources.map((s, idx) => ({
+                        value: String(idx),
+                        label: `${s.provider}${s.quality && !/^auto$/i.test(s.quality) ? ` • ${s.quality}` : ''}`,
+                        key: `${idx}:${s.provider}:${s.language ?? ''}:${s.quality ?? ''}:${s.url}`,
+                      }))}
+                    />
+                  </div>
+                )
+              })()}
               {/* SUB/DUB toggle when available */}
               {sources && sources.some(s => s.language) && (
                 <div className="flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--text)]/[0.04] p-1">
@@ -475,7 +534,9 @@ export function Watch() {
                     return (
                       <button
                         key={lang}
+                        type="button"
                         disabled={!hasLang}
+                        aria-pressed={isActive}
                         onClick={() => {
                           const match = sources.find(s => s.language === lang)
                           if (match) setSelectedSource(match)
@@ -491,40 +552,34 @@ export function Watch() {
             </div>
           </div>
 
-          {/* Episode navigation — hidden for movies */}
+          {/* Episode navigation — hidden for movies. The middle pill is the
+              current episode only: white like the side pills, but a
+              non-focusable span with no click handler and no hover. */}
           {!isMovie && (
-            <div className="mt-4 flex items-center gap-2">
+            <div className="mt-4 flex flex-wrap items-center gap-2">
               {prev ? (
-                <Link
-                  to={`/watch/${id}/${prev}`}
-                  className="rounded-full border border-[var(--border)] bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-4 py-1.5 text-xs font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)]"
-                >
+                <Link to={`/watch/${id}/${prev}`} className={navPillLink}>
                   ← Previous
                 </Link>
               ) : (
-                <span className="rounded-full border border-[var(--border)] px-4 py-1.5 text-xs text-[color-mix(in_srgb,var(--text)_30%,transparent)]">← Previous</span>
+                <button type="button" disabled aria-label="Previous episode" className={navPill}>
+                  ← Previous
+                </button>
               )}
 
-              <Link
-                to={detailNav.to}
-                state={detailNav.state}
-                className="rounded-full bg-[var(--text)] px-4 py-1.5 text-xs font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]"
-              >
-                Episodes
-              </Link>
+              <span aria-current="step" className={`${navPill} cursor-default select-none`}>
+                Episode {epNum}
+              </span>
 
               {next ? (
-                <Link
-                  to={`/watch/${id}/${next}`}
-                  className="rounded-full bg-[var(--text)] px-4 py-1.5 text-xs font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]"
-                >
+                <Link to={`/watch/${id}/${next}`} className={navPillLink}>
                   Next →
                 </Link>
               ) : (
-                <span className="rounded-full border border-[var(--border)] px-4 py-1.5 text-xs text-[color-mix(in_srgb,var(--text)_30%,transparent)]">Next →</span>
+                <button type="button" disabled aria-label="Next episode" className={navPill}>
+                  Next →
+                </button>
               )}
-
-              <span className="ml-2 text-xs text-[var(--text-faint)]">{immediateEpisodes.length} episodes{providerId && providerId !== 'mock' ? ` • ${providerId}` : ''}</span>
             </div>
           )}
           {!isMovie && (
@@ -544,19 +599,57 @@ export function Watch() {
               {immediateEpisodes.length > 0 ? (
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                   {immediateEpisodes.map(ep => {
+                    // Current tile uses the owner-chosen white "Now playing"
+                    // chip (D124); aria-current stays for semantics. The owner
+                    // picked it from alternatives per AGENTS "Suggestions".
                     const isCurrent = ep.number === epNum
                     const realTitle = ep.title
+                    const thumb = ep.thumbnail || fallbackThumb
                     const epKey = sanitizedAnimeForWatch?.identity.anilistId ? `anilist:${sanitizedAnimeForWatch.identity.anilistId}-${ep.number}` : `${sanitizedAnimeForWatch?.identity.internalId}-${ep.number}`
                     return (
                       <Link
                         key={epKey}
                         to={`/watch/${id}/${ep.displayNumber}`}
-                        className={`relative flex aspect-video flex-col items-center justify-center overflow-hidden rounded bg-[color-mix(in_srgb,var(--text)_5%,transparent)] p-2 text-center transition ${isCurrent ? 'ring-1 ring-[var(--border-strong)] bg-[color-mix(in_srgb,var(--text)_10%,transparent)]' : 'hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)]'}`}
-                        aria-label={`Watch E${ep.displayNumber}${realTitle ? ` - ${realTitle}` : ''}`}
+                        className="group/tile relative block aspect-video overflow-hidden rounded-[6px] border border-[var(--border-strong)] bg-[var(--surface)] transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)]"
+                        aria-label={`Watch Episode ${ep.displayNumber}${realTitle ? ` - ${realTitle}` : ''}`}
+                        aria-current={isCurrent ? 'step' : undefined}
                       >
-                        <span className={`text-xs font-medium ${isCurrent ? 'text-[var(--text)]' : 'text-[var(--text-muted)]'}`}>E{ep.displayNumber}</span>
-                        {realTitle && <span className="mt-1 line-clamp-1 text-[10px] text-[var(--text-faint)]">{realTitle}</span>}
-                        {isCurrent && <span className="absolute bottom-1 left-1/2 h-0.5 w-8 -translate-x-1/2 bg-[var(--accent)]" />}
+                        {thumb && (
+                          <img
+                            src={thumb}
+                            alt=""
+                            loading="lazy"
+                            decoding="async"
+                            className="absolute inset-0 h-full w-full object-cover opacity-90 transition duration-200 group-hover/tile:opacity-100"
+                            onError={(e) => { e.currentTarget.style.display = 'none' }}
+                          />
+                        )}
+                        {/* The artwork dissolves into the page's own base color,
+                            not a black scrim — the tile edge disappears into the
+                            page in every theme. */}
+                        {thumb && (
+                          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[var(--bg)] via-[color-mix(in_srgb,var(--bg)_55%,transparent)] to-transparent" />
+                        )}
+                        {/* Same hover treatment as AnimeCard (D083): base-tinted
+                            scrim + 8px frost + centered 30px play glyph. */}
+                        <div className="pointer-events-none absolute inset-0 bg-[color-mix(in_srgb,var(--bg)_50%,transparent)] opacity-0 backdrop-blur-[8px] transition-opacity duration-200 group-hover/tile:opacity-100 group-focus-visible/tile:opacity-100" />
+                        {isCurrent && (
+                          <span
+                            aria-hidden="true"
+                            className="pointer-events-none absolute left-2 top-2 z-20 inline-flex items-center rounded-full bg-[var(--text)] px-2 py-1 text-[10px] font-semibold leading-none text-[var(--on-text)] shadow-sm"
+                          >
+                            Now playing
+                          </span>
+                        )}
+                        <div className="absolute inset-x-0 bottom-0 z-10 p-2 text-left">
+                          <p className="flex min-w-0 items-center gap-1.5 text-[11px] font-semibold leading-tight text-[var(--text)]">
+                            <span>Episode {ep.displayNumber}</span>
+                          </p>
+                          {realTitle && <p className="mt-0.5 line-clamp-1 text-[10px] leading-tight text-[var(--text-muted)]">{realTitle}</p>}
+                        </div>
+                        <div className="pointer-events-none absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 text-[var(--text)] opacity-0 transition-opacity duration-200 group-hover/tile:opacity-100 group-focus-visible/tile:opacity-100">
+                          <Icon name="play-fill" size={30} />
+                        </div>
                       </Link>
                     )
                   })}
@@ -567,9 +660,15 @@ export function Watch() {
             </div>
           )}
 
-          <p className="mt-6 max-w-[720px] text-sm leading-6 text-[var(--text-muted)]">{anime.description || 'No description available.'}</p>
+          <div className="mt-8 max-w-[720px]">
+            <h2 className="mb-2 text-sm font-semibold text-[var(--text)]">Synopsis</h2>
+            <p className="text-sm leading-6 text-[var(--text-muted)]">{anime.description || 'No description available.'}</p>
+          </div>
 
-          {/* Related Entries: navigation only, below the main content. */}
+          {/* Related rails — Home-style landscape anime first, then the
+              manga adaptations/relations underneath. Same rail, card size,
+              hover treatment and focus behavior as Home; cards open the
+              floating detail card over this page (D097). */}
           {anime.identity.anilistId && (
             <WatchRelatedEntries anilistId={anime.identity.anilistId} relations={anime.relations} />
           )}
@@ -581,5 +680,10 @@ export function Watch() {
 
 function WatchRelatedEntries({ anilistId, relations }: { anilistId: number; relations: import('../types/anime').Anime['relations'] }) {
   const { entries, loading } = useRelatedEntries(`page-${anilistId}:${anilistId}`, relations, 'ANIME')
-  return <RelatedEntries entries={entries} loading={loading} />
+  return (
+    <div className="mt-10 space-y-8">
+      <RelatedRow entries={entries} loading={loading} mediaKind="anime" title="Related Anime" />
+      <RelatedRow entries={entries} loading={loading} mediaKind="manga" title="Related Manga" />
+    </div>
+  )
 }

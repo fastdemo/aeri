@@ -1,5 +1,11 @@
 # DECISIONS — Aeri
 
+> **Screenshot note (2026-10-24):** the owner asked to delete every
+> screenshot file in the working tree. Dated entries below may name PNGs
+> that no longer exist; those paths are historical evidence labels, not
+> live files. The behavioral measurements and probe assertions remain the
+> record.
+
 ## D001 — Static-only hosting
 GitHub Pages, no backend, IDB/localStorage only.
 
@@ -284,7 +290,7 @@ Owner directives landing this batch: (1) the browser tab must read `<NAME> - Aer
 
 **Hooks-order pitfall (caught by the probe, not by review)** — Watch's title call was first placed after the component's early returns (redirect/skeleton/not-found); the record resolving GREW the component's hook count between renders → React tore the whole tree down silently (`#root` emptied, no pageerror, title stuck at "Watch - Aeri"; headless probe `/watch/anilist-20/21` + annotated out). Fixed by hoisting the call above every early return with a placement comment — the same hazard audit cleared Read (unconditional before its first return) and DetailModal (all `return` statements in its body are inside helpers/memos). Rule for the codebase: `useAeriTitle` is a hook — top of the component, never after an early exit.
 
-**Glyph final state (`src/components/cards/AnimeCard.tsx`)** — the manga hover glyph is back to the HOLLOW `book` art (owner flip-flop; D102's filled-book paragraph is superseded). The INK-PARITY box stays, now explained by getBBox measurements in `OpenCode/scratch` (scratch): play-fill ink = 8×9 of 16 (~56%; ≈17px ink in its 30px box) while BOTH book arts span a full-width 16×13.1 — at an equal box the book renders ~2.2–3× the play triangle's ink. So the book keeps its own `BOOK_GLYPH_ICON_PX = 18` box (18px box → visually equal ink; strictly-parity would be 17px — 18 keeps a hair of presence, matching the owner's earlier "equal-strength" approval). Play stays 30px with the softened double shadow chain; ⋮ stays 24px.
+**Glyph final state (`src/components/cards/AnimeCard.tsx`)** — the manga hover glyph is back to the HOLLOW `book` art (owner flip-flop; D102's filled-book paragraph is superseded). The INK-PARITY box stays, now explained by getBBox measurements in `OpenCode/scratch` (scratch): play-fill ink = 8×9 of 16 (~56%; ≈17px ink in its 30px box) while BOTH book arts span a full-width 16×13.1 — at an equal box the book renders ~2.2–3× the play triangle's ink. So the book keeps its own `BOOK_GLYPH_ICON_PX = 18` box (18px box → visually equal ink; strictly-parity would be 17px — 18 keeps a hair of presence, matching the owner's earlier "equal-strength" approval). Play stays 30px with the softened double shadow chain; ⋮ stays 24px. **Superseded by D126 (2026-10-25):** the owner chose equal 30px button size and the `book-open` art.
 
 **Footer breakpoint (`src/App.tsx`)** — `<footer className="hidden … sm:block">`: display:none below 640px, back at ≥640px, globally (signed-out included). Comment pins the boundary to Hero.tsx's dots-pill breakpoint comment (pill moves top-right under `sm`).
 
@@ -722,3 +728,542 @@ with real AniList data.
 
 Deployed Worker `aeri` version `d04b97d5-916e-4960-87de-bfed74906bff`, bundle
 `index-CgMEGOjF.js`, `verify:live` 8/8.
+
+**Visual amended 2026-10-23 (D118, authoritative):** the On/Off pill was
+removed; the row label is just "Incognito", and ON fills the row with
+`var(--text)` + a `var(--on-text)` icon (inverted per theme). Behavior
+(suppression, manual pass-through, tab title) is unchanged.
+
+## D116 — "Finished" = 80% actually played; no writes from broken records; tracker dates always stamped (2026-10-23)
+
+Owner: "an anime episode/manga chapter should only count as finished after
+80% watched/read; if the anime/manga did not load properly, perform no
+tracker action. When an anime completes at 100%, set completed + end date.
+When status changes to watching, always set the start date."
+
+- **Watch no longer writes on open.** The old mount effect advanced the
+  tracker before a second played (and briefly wrote even for a record that
+  never resolved). Deleted. The one automatic write per episode now fires
+  from `handleTimeUpdate` at `currentTime / duration >= 0.8` (checked on
+  every tick BEFORE the 5s IDB throttle) or `handleEnded`; a per-episode
+  `hasCompletedRef` makes it exactly once. Re-crossing 80% in the same view
+  is a no-op.
+- **EpisodeList / ChapterList selection is navigation only.** Both lists
+  used to call `updateProgress` from their row Link `onClick` — clicking an
+  episode/chapter marked it watched/read before anything played. Those
+  writes are deleted; only the Watch/Read thresholds (or a manual stepper /
+  QuickMenu action) can advance the tracker now.
+- **Validity gates (`canSyncProgress` / `canTrackChapter`).** No tracker
+  action unless the record is real: at least one tracker id, a real title
+  (Watch), a finite positive episode/chapter number, provider pages > 0
+  (Read), and the unit inside the known total when that total exists.
+  Broken/partial/out-of-range records write NOTHING. `epNum` no longer
+  coerces to 0/NaN silently.
+- **Read:** the existing 80%-of-pages threshold stays; `canTrackChapter`
+  gates it and the +1 chapter still goes through once per chapter.
+- **Auto-complete (`TrackingContext.updateProgress`):** after a real
+  progress write, if the total is known, finite and > 0 and
+  `progress >= total`, call `updateStatus(anime, 'completed')` — which
+  stamps the finish date. Entries already completed are skipped, so a
+  finale rewatch cannot rewrite the stored finish date. Unknown totals
+  (airing shows, ongoing manga) never auto-complete.
+- **Dates are unconditional on explicit status changes.**
+  `TrackingContext.updateStatus` now stamps today's start date for every
+  Watching selection and today's finish date for every Completed selection
+  (the old transition-only rule made reselecting Watching a no-op forever
+  after an entry was auto-created dateless).
+- **New-entry dates:** an AniList `updateProgress` that creates an entry
+  includes `startedAt` today; a MAL progress write with no existing
+  `list_status` sends `start_date` today. MAL manga list-status lookups now
+  read `/manga/{id}` instead of the anime namespace (the wrong namespace
+  could find an unrelated entry and skip the start date).
+
+**Evidence (deterministic doubles, `new-batch.probe.spec.ts` 8/8):**
+opening `/watch/mal-20/21` → 0 writes; 50% → 0; 85% → exactly one PUT
+`num_watched_episodes=21` with no completion; 95% again → still one;
+episode 25 at 85% → progress 25, then `status=completed&finish_date=<today>`;
+`/watch/mal-20/26` → 0; clicking the preview card's episode row (→
+`/watch/mal-20/21`) → 0; AniList cards → `startedAt` then `completedAt`
+FuzzyDateInputs (today, month 1-based); status select Watching → MAL
+`start_date=<today>`.
+
+AniList's entry lookup is now type-aware (`Media(id, type: MANGA)` for
+manga): previously it always queried ANIME, so a manga entry was never
+found and every chapter write looked like a NEW entry (re-stamping
+`startedAt`). Both list caches are invalidated after a write. MAL clears
+the per-media detail cache after writes too — a stale "not in list"
+response would otherwise re-send `start_date` and overwrite the stored
+one on the next episode/chapter.
+
+## D117 — The preview card's refresh "border" was the keyboard focus ring (2026-10-23)
+
+Owner: "when i refresh, the anime/manga preview card has borders around it.
+fix that." The dialog is focused programmatically on open (scroll container,
+`tabIndex={-1}`); the global UNLAYERED `:focus-visible` rule painted its 2px
+`var(--text)` outline around the whole card. Tailwind's `outline-none` is
+layered, so it could not win; Chrome can match `:focus-visible` on a
+script-focused container, which made it appear (and persist through refresh
+when the URL overlay remounts).
+
+Fix: `:focus-visible:not([tabindex="-1"])` — programmatic focus containers
+never draw a ring; genuine keyboard focus still does. No screenshot-only
+workaround and no per-component class was needed.
+
+**Evidence:** before, the dialog itself computed a 2px outline after open
+and after refresh (diagnose harness); after, `outline-style: none` /
+`outline-width: 0px`, the dialog border is `0px`, and zero descendants
+compute an outline. `new-batch.probe.spec.ts` asserts open + reload.
+
+## D118 — Lucide is the only icon set; Incognito reads as a state-inverted row (2026-10-23)
+
+Owner: "replace every bootstrap icon with lucide icons"; "remove the 'Off'
+label… when incognito is on, the button should be white with a black icon,
+when off the opposite, and it should look good on all themes."
+
+- `bootstrap-icons` removed; `lucide-react@1.61.0` installed. `Icon.tsx`
+  keeps the SAME `IconName` API/name union, so no call site changed; the
+  solid play glyph renders a filled Lucide triangle (`fill="currentColor"`,
+  `strokeWidth={0}`). Two hand-drawn inline search SVGs in the navbar were
+  the last non-Lucide UI glyphs and now use `Icon`. Provider brand marks
+  (`ProviderIcon`: AniList/MAL logos) stay custom SVG — they are brands,
+  not UI icons.
+- Incognito menu row: the On/Off pill is gone; the row's label is only
+  "Incognito". OFF = normal menu row. ON = filled with `var(--text)` and
+  the eye-slash icon in `var(--on-text)` — dark theme: white/black; light
+  themes: `#1a1a1a`/white. Token-driven, so every theme inverts correctly;
+  hover dims the fill slightly by design.
+
+**Evidence:** Home renders 13/13 `svg` elements with the `lucide` class and
+0 legacy 16-viewBox icons; the play glyph is `lucide-play`. Computed
+Incognito row (pointer moved off the row): dark OFF `transparent` bg +
+white icon → ON `rgb(255,255,255)` bg + `rgb(0,0,0)` icon; light ON
+`rgb(26,26,26)` bg + white icon → OFF transparent + dark icon. Label text
+is exactly "Incognito" in both states. All **18** theme `--text` /
+`--on-text` pairs were contrast-checked for the inverted row: the minimum
+is solarized-dark at **5.61:1** (WCAG AA needs 4.5), every other theme is
+higher.
+
+## D119 — Kitsu is a whole-entry episode-name/thumbnail fallback; the gate runs on RAW AniList data (2026-10-24)
+
+Owner: "anilist is the site backbone… when loading an entire anime's episode
+names and thumbnail, prioritize anilist always. only if anilist has
+absolutely NO data, then try kitsu to load just the thumbnails and episode
+names. if no kitsu, then resort to placeholder." Kitsu must never supply
+trackers, identity, totals, discovery, descriptions, show artwork, or other
+metadata.
+
+- **Exactly two trackers stay.** `TrackingProviderId = 'anilist' | 'mal'`;
+  one active tracker at a time (explicit pick → AniList → MAL), both may stay
+  connected, no merge/fan-out. AniList remains the metadata backbone even
+  with MAL active. Kitsu is not a tracker.
+- **Gate:** `filterAndSortStreamingEpisodes` removes trailers and sorts the
+  **raw** AniList `streamingEpisodes`. If any row has a non-generic title or
+  a valid `http(s)` thumbnail, AniList owns the whole entry and Kitsu is
+  **never requested**; missing rows keep the existing placeholder. Kitsu is
+  consulted only when that raw list has zero usable titles and zero valid
+  thumbnails.
+- **Ordering is deliberately strict.** The gate runs before
+  `discardSeasonPollutedStreaming` / the local-range guard. AniList data
+  those guards discard for display safety must never become a Kitsu
+  fallback. `EpisodeFallbackInput.allowed` carries the raw gate from
+  `useKitsuEpisodes` into `normalizeEpisodes`, because the display record
+  has already been sanitized by then. Callers pass the pre-sanitize record
+  (`DetailModal` `rawDisplayAnime`, `EpisodeList` `rawAnime`, `Watch`
+  `anime`).
+- **Mapping:** id-only, `anilist/anime` then `myanimelist/anime`, never a
+  title search (sequel mismatch prevention). Episode fetch is
+  `page[limit]=20` (Kitsu rejects 100 with HTTP 400), cap 500 rows, stops on
+  `meta.count`; only episode number/relativeNumber, a title
+  (`canonicalTitle` → `titles.*`) and a thumbnail (`original` → `large` →
+  `medium`) are consumed. Rows without a number, or with neither a title nor
+  a thumbnail, are skipped. Generic `Episode N` titles are not metadata.
+- **States:** `idle | loading | resolved | unavailable | error`. Only
+  `resolved` fills names/thumbnails, merged by episode number. Loading shows
+  skeletons only on still-empty fields; unavailable/error shows the existing
+  placeholder. Network/HTTP failures are `error`, not cached as absence.
+- **Cache:** memory 30 min, IndexedDB positive 7 days / negative 24 h,
+  inflight dedupe, 10 s timeout, caller abort rejects locally. These are
+  display-only caches; nothing feeds tracking.
+- **Video providers no longer supply display titles/thumbnails.** Provider
+  episodes remain for source mapping, episode count/duration hints. This
+  closes a path where a provider catalog could masquerade as episode names.
+
+**Evidence (2026-10-24):** `npx tsc --noEmit` clean; production build clean.
+Deterministic probes 7/7: AniList data → 0 Kitsu requests; zero AniList data
+→ exact mapping + episode pages, names/thumbs rendered; partial AniList data
+→ 0 Kitsu requests, placeholders; finished partial AniList list dropped by
+the season guard → still 0 Kitsu requests + placeholders; no Kitsu mapping →
+AniList then MAL mapping, 0 episode requests, placeholders; mapping without
+usable rows → placeholders; Watch selector uses Kitsu names. Live records:
+Monster (AniList 19, zero `streamingEpisodes`) → 5 Kitsu requests / 74 Kitsu
+thumbnails / `Herr Dr. Tenma` rendered; FMA:B (5114, 64/64 AniList) → 0
+Kitsu requests; Naruto (20, partial 26/220 AniList, season guard discards
+display list) → 0 Kitsu requests and placeholders, proving discarded
+AniList data cannot trigger the fallback. Full ownership map:
+`docs/PROVIDERS.md`.
+
+## D120 — Incognito recolors only the circle + icon; the row stays normal (2026-10-24)
+
+Owner: "for incognito, do not invert the whole row, only invert the icon
+circle." This amends D118's row-fill visual; behavior (suppression, manual
+pass-through, tab title) is unchanged.
+
+- The row background is always transparent; hover keeps the normal menu
+  hover. The left icon container is the only inverted surface: ON uses
+  `var(--text)` fill, the icon uses `var(--on-text)`; OFF is the normal
+  translucent `color-mix(var(--text) 10%, transparent)` circle with a normal
+  icon. Label typography/color never changes.
+- Because the circle uses theme tokens, it inverts correctly on all 18
+  themes: dark ON = white circle + black icon; light ON = `#1a1a1a` circle +
+  white icon.
+
+**Evidence (Playwright, local preview):** dark ON — row
+`rgba(0, 0, 0, 0)`, circle `rgb(255, 255, 255)`, icon `rgb(0, 0, 0)`,
+label `rgb(255, 255, 255)`; light ON — row transparent, circle
+`rgb(26, 26, 26)`, icon white; OFF circles use translucent
+`color(srgb 1 1 1 / 0.1)`. Screenshots in
+`OpenCode/screenshots/kitsu/incognito-*.png`.
+
+## D121 — Home-style Related rails; one dual-language source pass; episode tiles get art (2026-10-24)
+
+Owner: "for the anime streaming media player page, for the related anime
+row, rip a row from the home page and present the related anime row like
+that, and give it some space between the description and the related anime.
+same thing for the manga too." Also: make the source picker and Sub/Dub
+actually switch playback; show episode thumbnails or the fallback artwork;
+remove the Episodes pill between Previous/Next.
+
+- **Watch related rail:** `RelatedRow` renders `ContentRow` + the default
+  `AnimeCard` (Home widths: 236px lg / 200px sm / 168px mobile; 16:9 anime
+  art; Home hover caption). Cards open the floating detail card over the
+  watch page via `useDetailOpen` (D097). This entry started with the
+  anime-format rail; **D122 adds the Related Manga rail below it** from the
+  same query. The gap after the description is 40px. The detail modal keeps
+  its compact sidebar `RelatedEntries` grid.
+- **Read related rail:** the same component at the end of the reader with
+  portrait manga cards (236×314), a 48px top gap, and only manga-format
+  relations. This is the manga half of "same thing".
+- **Source resolution:** `resolveSourcesForLanguages()` runs the existing
+  first-provider-per-language fallback for `sub` and `dub` in parallel,
+  unions `tried`, dedupes provider/language/quality/URL, and orders the
+  preferred language first. Initial load and both Retry paths use it.
+  `resolveSourcesWithFallback()` is unchanged for single-language callers.
+- **Picker correctness:** native-select values are option indices, not
+  URLs. Duplicate URLs can no longer collapse two choices onto the first
+  one. Selecting an option swaps `VideoPlayer`'s source; Sub/Dub switches
+  over the same already-resolved list without a refetch; a missing language
+  stays disabled. (D123 later removes the language suffix from the picker
+  and lists only the active audio side.)
+- **Episode art:** Watch tiles render `ep.thumbnail || anime.backdropImage
+  || anime.coverImage`, matching `EpisodeList`/D119. On image error the
+  surface + gradient + E-number remains; with no artwork at all the tile is
+  the themed E-number placeholder. AniList/Kitsu ownership is unchanged.
+- **Navigation:** the `Episodes` pill between Previous/Next is gone. The
+  mobile Details link and the no-source Episodes link remain because they
+  are separate escape hatches, not the middle nav pill. (D123 restores a
+  NON-interactive current-episode status there, not the old Episodes
+  control.)
+- **Provider reality:** AniWave remains the only browser-usable provider
+  in production (MegaVid CORS is locked to megavid.buzz; AnimeGG fails
+  Playwright with `ERR_CERT_AUTHORITY_INVALID`). The picker is
+  provider-count agnostic; no fake server was added to make it look fuller.
+
+**Evidence (2026-10-24):** `npx tsc --noEmit` and the production build are
+clean. Local 1440/768/375 probe: two options (`aniwave • auto • sub`,
+`aniwave • auto • dub`), source select changes the player URL, both Sub and
+Dub enabled; 11 Related Anime cards at 236/200/168px wide and 134/113/95px
+tall; description→rail gap exactly 40px; 220 episode `<img>`s; nav contains
+only Previous/Next (no Episodes). Episode art ownership live: Monster (19)
+→ 74 `media.kitsu.app` thumbnails; FMA:B (5114) → 64 AniList/Crunchyroll
+thumbnails; Naruto (20) → 220 show-backdrop fallbacks. Read production:
+36 Related Manga cards, 236×314. Production Worker `aeri` version
+`ff8e3024-21d7-4909-88df-6f43aee6d7a8`, bundle `index-Vch6x-NH.js`, CSS
+`index-SWSBRCGn.css`, `verify:live` 8/8. Production playback after switching:
+sub `currentTime` 2.955s, dub 4.199s, sub again 4.783s — each `readyState 4`,
+1280×720, `paused: false`, no media error.
+
+## D122 — Watch shows Related Manga below Related Anime; the description gets a Synopsis header (2026-10-24)
+
+Owner follow-up: "i want a related manga row too below related anime. for
+the description, add a header called 'Sypnosis'."
+
+- `WatchRelatedEntries` keeps ONE `useRelatedEntries` result and renders
+  two Home-style rails from it: **Related Anime** (landscape) first, then
+  **Related Manga** (portrait) underneath. A title with no manga relations
+  shows only the anime rail; the manga rail simply returns `null`.
+- The rails share a `space-y-8` wrapper (32px between rows). The whole
+  block stays `mt-10` (40px) below the description, unchanged from D121.
+- The description now has an `h2` **Synopsis** header in the same
+  `text-sm font-semibold` style as the Episodes heading, with the existing
+  muted body copy underneath. "Synopsis" is the correct spelling; the
+  owner's "Sypnosis" was a typo.
+- Read is unchanged: it still shows only the Related Manga rail at the end
+  of the chapter.
+
+**Evidence (production, 2026-10-24):** Worker `aeri` version
+`1c7c1734-df22-4f69-a8ca-a6a513414cbe`, bundle `index-hCpv9q-E.js`, CSS
+`index-CAzjKUGc.css`, `verify:live` 8/8. FMA:B (`/watch/anilist-5114/1`):
+heading order `Episodes`, `Synopsis`, `Related Anime`, `Related Manga`;
+Synopsis body rendered; description→Related Anime gap 40px; Related Anime
+10 cards at 236×134; Related Manga 5 cards at 236×314; 64 episode images.
+Mobile 375: Synopsis present, Related Anime 10 cards at 168×95, Related
+Manga 5 cards at 168×223, horizontal page overflow 0. Local 1440 probe
+matched. Screenshot:
+`OpenCode/screenshots/prod-watch-related-both-1440.png`.
+
+## D123 — Watch nav, metadata, source picker, and episode tiles (2026-10-24)
+
+Owner follow-up on the Watch page:
+
+- restore an episode status in the middle of Previous/Next that only shows
+  the current episode and is not interactive;
+- when Previous or Next is unavailable, grey it out like the manga reader;
+- the source picker must show only the source (Sub/Dub has its own toggle);
+- the metadata line under the title becomes `Fall 2006 • TV • 24m`, with
+  no source, and the `25 episodes • megavid` line goes away;
+- episode labels say `Episode N`, the bottom gradient uses the page base
+  colour, hover uses the AnimeCard frost + play glyph;
+- replace the selected-episode outline.
+
+**Metadata line.** `Watch` now builds `seasonYear • format • duration`
+using `formatLabel(anime.season)` + `anime.year`. It no longer appends
+`providerId`; the provider still appears in the bottom capability chips.
+The page `h1` also uses `Episode N` for consistency with the tiles.
+The separate episode-count/provider span next to the nav was deleted.
+
+**Nav.** The middle pill is a `<span aria-current="step">Episode N</span>`
+with `cursor-default` and `tabIndex -1` — not a button, no click handler.
+Previous/Next use the manga reader's pill language: filled `var(--text)`
+with `var(--on-text)`, `disabled:opacity-40`, and disabled `<button>`s for
+the unavailable side. The layout is a 3-column grid (`1fr auto 1fr`) so the
+current episode is truly centered; at 375px all three pills fit (Nav width
+343px, no horizontal overflow).
+
+**Source picker.** `resolveSourcesForLanguages()` still returns both
+languages. The picker now filters to the active audio language
+(`selectedSource.language ?? preferredAudio`) and its option labels are
+`provider • quality` only — never `• sub` / `• dub`. Sub/Dub selects the
+first source for that language, which immediately re-filters the picker.
+The trailing `Auto`/`Preferred:` hint was removed: it duplicated `auto` in
+the source label and was not the source.
+
+**Episode tiles.** Thumbnail gradient is
+`linear-gradient(to top, var(--bg) 0%, color-mix(in srgb, var(--bg) 55%,
+transparent) 50%, transparent 100%)`, so the tile melts into the page base
+instead of painting a black band. Labels are
+`Episode N` (and the aria-label says "Watch Episode N"). Hover is the
+AnimeCard treatment exactly: `var(--bg)` at 50%, `backdrop-blur-[8px]`,
+30px `play-fill`. The current tile has **no ring**: a 2px `var(--accent)`
+bottom bar + a 6px accent dot before the label. Alternatives considered:
+a corner "Now playing" chip (rejected as more chrome) and a scale/brightness
+lift only (rejected as too easy to miss); the bottom bar + dot keeps the
+quiet card language and does not read as a focus outline. **(D124 later
+replaced this with the owner-chosen "Now playing" chip after the owner
+asked for alternatives.)**
+
+**Evidence (production, 2026-10-24).** Worker `aeri` version
+`b225c3d5-08b1-4979-93a2-5f979fa0bbb2`, bundle `index-BApGl7NP.js`, CSS
+`index-z3mHALIj.css`, `verify:live` 8/8. Code Geass (`/watch/anilist-1575/6`):
+h1 `… — Episode 6`; metadata `Fall 2006 • TV • 24m`; source options
+`["aniwave • auto"]`, no language in any option, no trailing Auto; middle
+`Episode 6` is a non-focusable span; no `25 episodes` text; 25 tiles all
+`Episode N`; current tile `aria-current="step"`, no ring, dot + 2px bar;
+gradient computed as `linear-gradient(to top, rgb(0,0,0) 0%,
+color(srgb 0 0 0 / 0.55) 50%, rgba(0,0,0,0) 100%)`; hover overlay
+`opacity 0 → 1` with `blur(8px)`, play glyph `0 → 1` at 30×30. E1 Previous
+and E25 Next are disabled `<button>`s at opacity 0.4 on the same white pill.
+375px: nav 97 / 92 / 74px, all inside 375, page overflow 0. Dub switch
+replaced `video.currentSrc` (`st2.roburnt10.store` → `hlsxst2.echovideo.to`)
+and playback advanced to 2.445s, `readyState 4`, no error. Screenshots:
+`OpenCode/screenshots/watch-ui-batch-top-1440.png`,
+`watch-episode-hover-1440.png`, `watch-first-episode-nav-1440.png`,
+`watch-ui-batch-375.png`.
+
+> **Partially superseded by D124 (2026-10-24):** the 3-column centered
+> grid, the accent bar + dot selected marker, and the `provider • quality`
+> label that still contained `auto` were replaced after the owner reviewed
+> them. D124 keeps the metadata line, white manga-reader pills, disabled
+> ends, and tile gradient/hover. The evidence above remains the historical
+> D123 record.
+
+## D124 — Watch corrections + MegaVid removed entirely (2026-10-24)
+
+Owner follow-up after D123. The source picker showed `aniwave • auto`; the
+owner expected MegaVid and asked to remove `auto`. The current episode pill
+was dark and centered while Previous/Next were white; the owner wanted all
+three left-aligned and the middle pill white. Episode cards did not match
+the Related Anime card frame. The owner also asked for alternatives for the
+selected-tile treatment instead of another silent choice, and asked for a
+standing rule that "suggest me" means ask questions first.
+
+**Provider truth and removal.** The old `25 episodes • megavid` line was
+the **episode-list** provider (MAL-keyed catalog), not the playing stream.
+The playing stream was AniWave. Live probe of
+`https://megavid.buzz/mal/1575/25/sub/source` returned HTTP 200 JSON but
+`access-control-allow-origin: https://megavid.buzz`, so the browser origin
+could never read it; the resolver always fell through to AniWave. The owner
+chose: "if its actually aniwave and megavid is broken, remove megavid
+entirely." `src/providers/video/megavid.ts` is deleted. The import, registry
+entry, health map, bypass-cache key, tests, and worker comments were
+updated/removed (the registry keeps one rationale comment for the removal).
+`videoProviders[]` is now
+`[aniwave, animegg, custom, miruro, …unverified stubs, mock]`; the
+verified-only pool is AniWave (Tier 1) + AnimeGG (Tier 2 fallback). Old
+prefs containing `megavid` are ignored because the id is no longer in the
+registry. The production bundle contains **0** `megavid` occurrences (17
+`aniwave`). Settings lists AniWave + AnimeGG, no MegaVid.
+
+**Source picker.** Labels are the provider alone, plus a real quality
+suffix only when it is not `auto`; no language suffix, no `embed` suffix,
+no trailing `Auto` hint. Production options are `["aniwave"]`, visible
+label `aniwave`; both Sub and Dub resolved AniWave.
+
+**Nav.** The row is a left-aligned `flex items-center gap-2`, not a centered
+grid. The middle `Episode N` is still a non-focusable `<span
+aria-current="step">` (`tabIndex -1`, `cursor-default`), but now uses the
+same white `var(--text)` / `var(--on-text)` pill as Previous/Next. At 1440
+E25: x = 104 / 209 / 315, widths 97 / 98 / 74, 8px gaps; Next is a disabled
+`<button>` at opacity 0.4. At 375: x = 16 / 121 / 227, widths 97 / 98 / 74,
+all inside the viewport, page overflow 0.
+
+**Episode tiles.** The tile frame is exactly the Related Anime `AnimeCard`
+frame: `rounded-[6px] border border-[var(--border-strong)]
+bg-[var(--surface)]`. Computed production values for both: radius `6px`,
+border `1px`, border color `rgba(255,255,255,0.16)`, background
+`rgb(16,16,16)`. All 25 labels remain `Episode N`; the base-color bottom
+gradient and AnimeCard hover frost + 30px play glyph are unchanged.
+
+**Selected tile (owner choice).** The D123 accent bottom bar + dot is gone.
+The owner was shown four alternatives via the question tool and chose a
+small white `Now playing` chip at the top-left. It is white (`var(--text)`)
+with `var(--on-text)` text, `aria-hidden` (the link keeps
+`aria-current="step"`), and sits 8px inside the 1px border (9px from the
+border box). No ring, no bar, no dot. The chip remains sharp above the hover
+frost.
+
+**Suggestions rule.** Added `AGENTS.md` §0 "Suggestions — ask the owner
+first": when the owner says "suggest me" / asks for design or UX options,
+present concrete alternatives and wait for the choice; do not implement a
+silent replacement.
+
+**Evidence (production, 2026-10-24).** Worker `aeri` version
+`47e86f74-a6b5-4b19-a1b3-8ca7325d3ca1`, bundle `index-D9NP5IrD.js`, CSS
+`index-WUbyyegm.css`, `verify:live` 8/8. Code Geass `1575` E25: source
+`aniwave`, 25 tiles, chip top-left, frames identical to Related Anime.
+Playback E6: Sub advanced 2.955s (`readyState 4`, no error); Dub advanced
+2.501s (`readyState 4`, no error); both sources AniWave via the same-origin
+relay. Hover overlay opacity 1 with `blur(8px)` and a 30×30 glyph. 375
+metrics above, overflow 0. Remaining console noise is the known AnimeGG
+CORS failure while it is tried as a fallback; no page errors. Screenshots:
+`watch-final-d124-top-1440.png`, `watch-final-d124-grid-1440.png`,
+`watch-final-d124-hover-1440.png`, `watch-final-d124-top-375.png`,
+`watch-final-d124-375.png`. Probe:
+`OpenCode/scratch/watch-final-d124.probe.spec.ts` (2/2).
+
+## D125 — One Video.js v10 player, default skin (2026-10-24)
+
+Owner request: replace Aeri's custom native/HLS/iframe playback with
+**Video.js v10** and its **default skin** as the single cross-platform
+player, preserving the app-owned behavior and shipping it without touching
+GitHub. No custom skin, no second player path.
+
+**Dependency and component.** Installed `@videojs/react@10.2.0` and
+`@videojs/hlsjs-video@10.2.0`; the latter bundles `hls.js@1.6.19`. Removed
+the direct `hls.js` dependency. `VideoPlayer` is now a thin adapter around
+`VideoJsPlayer` + `VideoSkin` (default skin) + `HlsJsVideo`: one media
+element handles HLS through MSE with native-HLS fallback, and direct MP4
+through its native delegate. The default skin owns play/pause/seek/volume,
+fullscreen, PiP, Cast/AirPlay, captions, settings, buffering, and the error
+alert dialog. The old native `<video controls>` chrome, custom overlays,
+custom device controls, and the direct `hls.js` lifecycle are gone.
+
+**Single path / honest filtering.** Watch applies `isPlayableSource` and
+offers only direct HLS/MP4 sources. Embed-only results stay in `tried` for
+the no-source UI but never create an iframe or enter the picker; a guard in
+`VideoPlayer` remains only as a last-resort rejection. The duplicate
+`aniWaveProvider` entry was removed from the registry.
+
+**Preserved contract.** `sources/selectedSource/subtitles/onTimeUpdate/
+onEnded/initialTime/animeTitle/episodeNumber/volume/autoplay` remain, plus a
+new optional `poster`. Resume seeks only when the saved position is `>5s`
+and before `duration - 5`, listening for `loadedmetadata`, `durationchange`,
+and `canplay`. Volume remains reactive; subtitles still follow the app
+preference; Media Session metadata/seek handlers, `playsInline`, autoplay,
+and AirPlay eligibility (`x-webkit-airplay="allow"`) are retained. The
+AniList backdrop is rendered as a cover-cropped poster.
+
+**Lazy loading.** Watch lazy-loads the player module behind `Suspense`
+(backdrop fallback). The production build keeps Video.js out of the initial
+bundle: main JS `600.01 kB` / `165.42 kB` gzip; `VideoPlayer` chunk
+`821.29 kB` / `243.16 kB` gzip; default-skin CSS `84.45 kB` / `9.71 kB`
+gzip. Home/Browse/Search/List load neither the player JS nor its skin CSS.
+
+**Verification.** `tests/playback-authenticated.spec.ts` 21/21 Chromium
+(2026-10-24) covers real AniWave HLS progression, progress/sub/dub, exactly
+one default skin, native controls off, no iframe, volume 0.35, direct MP4,
+embed-only filtering to the no-source UI, subtitle-preference
+`textTrack` mode, and Resume seek. Targeted mobile Chromium HLS passed.
+Visual checks at 1440/768/375 have zero horizontal overflow and readable
+default-skin controls; screenshot files were deleted at the owner's request
+(2026-10-24). Production playback with the test-auth fixture
+and **real** provider/relay bytes passed 4/4 (`AoT`, `Bebop`, `Frieren`,
+`Naruto` E1); one representative probe: `currentTime 5.896`,
+`readyState 4`, `1280×720`, volume `0.35`, default skin, 0 iframes, 0 page
+errors. Deployed worker `aeri` version
+`872f4cf6-3755-428b-8a13-ed8f55fac160`, bundle `index-CmQ4S1oa.js`, CSS
+`index-Cfq5wLDL.css`, player `VideoPlayer-BU9HNFjW.js`, player CSS
+`VideoPlayer-kKm3wRwP.css`; `verify:live` 8/8. A production Sub/Dub probe
+also passed: the picker stayed `aniwave` (no `auto`/language/embed suffix),
+Sub advanced 3.455s and Dub 3.461s (`readyState 4`, no error), one default
+skin, 0 iframes.
+
+**Limitations / notes.** Real Safari hardware is still untested, and
+Firefox is not installed in this environment; HlsJsVideo's native fallback
+is retained. Vite warns that the lazy player chunk exceeds 500 kB, which is
+expected for a full Video.js skin and does not affect initial load. Known
+pre-existing lint errors remain (`src/hooks/useAeriTitle.ts` conditional
+hooks and `src/components/cards/AnimeCard.tsx:515`); the build/typecheck and
+`verify:build` pass. GitHub was untouched (no push, PR, Actions, or Pages
+change).
+
+## D126 — Uniform 30px open-book glyph; simple Next/Previous; rounded reader ends; reader Synopsis (2026-10-25)
+
+Owner review batch: (1) the manga card's hover read glyph looked too small —
+make it the same size as the play button and switch the art to `book-open`;
+(2) the manga reader's chapter pills should read simply "Previous" and
+"Next" (owner follow-up: keep the arrows); (3) the FINAL manga page should
+have the same rounded bottom corners as the first page's rounded top;
+(4) add the anime-style **Synopsis** block above the reader's Related Manga
+rail.
+
+**Glyph (`src/components/cards/AnimeCard.tsx`, `ui/Icon.tsx`)** — the
+manga hover glyph is now Lucide `book-open` at `GLYPH_ICON_PX` (30px), the
+same measured box as the `play-fill` glyph on anime cards. This supersedes
+D103's 18px ink-parity box: the owner explicitly chose equal button size
+over equal drawn-ink area. Hover reveal, scrim, shadow-free treatment, and
+the `/read/<id>/<ch-next|first>` destination are unchanged. `book-open`
+joins the shared Icon map; the old `book` key remains for other call
+sites.
+
+**Reader (`src/pages/Read.tsx`)** — both top and bottom chapter navs now
+render `← Previous` / `Next →` in every state (enabled link and disabled
+boundary button), replacing provider unit labels and the old "No previous/
+next chapter" copy. Arrows stay (owner correction during the same review).
+The page frame rounds the FIRST page's top corners and the LAST page's
+bottom corners (`rounded-t-lg` / `rounded-b-lg`), so a one-page chapter is
+rounded on both ends. A `Synopsis` section (same heading + body classes as
+Watch) renders after the chapter nav and directly above `Related Manga`.
+
+**Verification (dev + production, 2026-10-25)** — Playwright against the Vite dev server
+at 1440/768/375 on Kaguya-sama `anilist-86635/first`: hovered manga card
+glyph computed `opacity 1`, SVG `30×30`, class `lucide-book-open`; the anime
+card play glyph also measured `30×30`; top and bottom navs both read
+`← Previous | Next →`; first/last page computed radii `12px 12px 0 0` /
+`0 0 12px 12px`; `Synopsis` precedes `Related Manga`; horizontal overflow
+`0` at all three widths. Typecheck passed. No screenshots were written.
+Deployed worker `aeri` version `2e5af107-68f3-44b8-989d-9f95946b48c0`,
+bundle `index-KTo1CfFi.js`, CSS `index-DgcvfjMu.css`; `verify:live` 8/8.
+Production re-ran the same reader checks at 1440/768/375 (both nav labels,
+12px end radii, Synopsis + Related Manga, overflow 0) and the production
+manga hover glyph (`Goodnight Punpun`) measured `30×30`
+`lucide-book-open`, opacity 0 → 1 on real hover. GitHub untouched.

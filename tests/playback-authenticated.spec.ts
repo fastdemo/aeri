@@ -188,7 +188,7 @@ test.describe('Authenticated entry — guards pass, episode grid works', () => {
     await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
     await waitForDecision(page, 'ep-grid')
     // Episode grid renders from AniList metadata (220 eps for Naruto).
-    const ep5 = page.locator('a[aria-label^="Watch E5"]').first()
+    const ep5 = page.locator('a[aria-label^="Watch Episode 5"]').first()
     await expect(ep5).toBeVisible({ timeout: 15000 })
     await ep5.click()
     await page.waitForTimeout(2000)
@@ -266,8 +266,8 @@ test.describe('Deterministic playback — provider resolves, player advances', (
     const s = await waitForDecision(page, 'dead-never-requested')
     // The tried-list renders ONLY in the no-source box. On success the
     // equivalent proof is the Source selector: every option names its
-    // provider (`aniwave • auto • sub`), so a forbidden provider would
-    // appear verbatim if it had contributed a source.
+    // provider (`aniwave` after D124), so a forbidden provider would appear
+    // verbatim if it had contributed a source.
     const triedLine = (s.body.match(/Tried:\s*([^\n]+)/i) || [])[1] ?? ''
     const sourceLabels = await page.evaluate(() =>
       [...document.querySelectorAll('select[aria-label="Select video source"] option')]
@@ -307,11 +307,180 @@ test.describe('HLS wiring — app player advances on live relay bytes', () => {
 
   test('App VideoPlayer advances on aniwave relay bytes', async ({ page }) => {
     test.setTimeout(180000)
-    await setPrefs(page, { preferredProvider: 'aniwave', preferredAudio: 'sub' })
+    await setPrefs(page, { preferredProvider: 'aniwave', preferredAudio: 'sub', volume: 0.35 })
     await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
     const s = await waitForDecision(page, 'app-player-hls')
     expect(s.hasVideo, `expected the app player — ${s.body.slice(0, 300)}`).toBeTruthy()
+    expect(s.hasIframe, 'Video.js must be the only player path (no iframe)').toBeFalsy()
+    const skin = await page.evaluate(() => {
+      const el = document.querySelector('.video-skin') as HTMLElement | null
+      const v = document.querySelector('video') as HTMLVideoElement
+      return {
+        count: document.querySelectorAll('.video-skin').length,
+        theme: el?.getAttribute('data-theme') ?? null,
+        nativeControls: v?.controls ?? null,
+        volume: v?.volume ?? null,
+        videoWidth: v?.videoWidth ?? 0,
+      }
+    })
+    expect(skin.count, 'exactly one Video.js skin').toBe(1)
+    expect(skin.theme, 'Video.js default skin').toBe('default')
+    expect(skin.nativeControls, 'native <video> chrome must be off').toBe(false)
+    expect(Math.abs((skin.volume ?? 0) - 0.35), 'volume preference reaches the media element').toBeLessThan(0.001)
     await assertAdvancingPlayback(page, 'app-player-hls')
+    const decoded = await page.evaluate(() => {
+      const v = document.querySelector('video') as HTMLVideoElement
+      return { videoWidth: v.videoWidth, videoHeight: v.videoHeight }
+    })
+    expect(decoded.videoWidth, 'decoded frames, not a shell').toBeGreaterThan(0)
+    expect(decoded.videoHeight, 'decoded frames, not a shell').toBeGreaterThan(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Suite D2 — deterministic direct-source paths (worker source route only)
+// ---------------------------------------------------------------------------
+
+const FLOWER_MP4 = 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4'
+const MUX_HLS = 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8'
+
+async function routeDirectSource(
+  page: Page,
+  source: {
+    url: string
+    type: string
+    embed?: boolean
+    subtitles?: Array<{ language: string; label: string; url: string }>
+  },
+): Promise<void> {
+  await page.route('**/api/sources/aniwave-*', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        sources: [{
+          ...source,
+          quality: 'auto',
+          provider: 'aniwave',
+          language: 'sub',
+          embed: source.embed ?? false,
+        }],
+      }),
+    })
+  })
+}
+
+test.describe('Direct-source paths — HlsJsVideo (deterministic)', () => {
+  test.beforeEach(async ({ page }) => {
+    await setupAuth(page)
+  })
+
+  test('direct MP4 plays through the single Video.js player', async ({ page }) => {
+    test.setTimeout(180000)
+    await setPrefs(page, { preferredProvider: 'aniwave', preferredAudio: 'sub', autoplay: true, volume: 0.25 })
+    await routeDirectSource(page, { url: FLOWER_MP4, type: 'mp4' })
+    await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
+    const s = await waitForDecision(page, 'direct-mp4')
+    expect(s.hasVideo, `expected the direct MP4 player — ${s.body.slice(0, 300)}`).toBeTruthy()
+    expect(s.hasIframe, 'no iframe fallback for a direct source').toBeFalsy()
+    const state = await page.evaluate(() => {
+      const v = document.querySelector('video') as HTMLVideoElement
+      return {
+        currentSrc: v.currentSrc,
+        controls: v.controls,
+        volume: v.volume,
+        skin: document.querySelectorAll('.video-skin').length,
+      }
+    })
+    expect(state.currentSrc).toContain('flower.mp4')
+    expect(state.controls).toBe(false)
+    expect(state.skin).toBe(1)
+    expect(Math.abs(state.volume - 0.25)).toBeLessThan(0.001)
+    await assertAdvancingPlayback(page, 'direct-mp4')
+  })
+
+  test('embed-only sources are filtered, never rendered as an iframe', async ({ page }) => {
+    test.setTimeout(180000)
+    await setPrefs(page, { preferredProvider: 'aniwave', preferredAudio: 'sub', autoplay: false })
+    await routeDirectSource(page, { url: 'https://example.com/embed/1', type: 'embed', embed: true })
+    await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
+    const s = await waitForDecision(page, 'embed-filtered')
+    expect(s.hasVideo, 'an embed-only source must not create a <video>').toBeFalsy()
+    expect(s.hasIframe, 'an embed-only source must not create an <iframe>').toBeFalsy()
+    expect(s.hasNoSource, `must reach the honest no-source UI — ${s.body.slice(0, 300)}`).toBeTruthy()
+    expect(s.body).toContain('No playable source')
+  })
+
+  test('subtitle preference activates the source text track', async ({ page }) => {
+    test.setTimeout(180000)
+    const vtt = `data:text/vtt;charset=utf-8,${encodeURIComponent('WEBVTT\n\n00:00:00.000 --> 00:00:04.000\nHello from Aeri\n')}`
+    await setPrefs(page, {
+      preferredProvider: 'aniwave',
+      preferredAudio: 'sub',
+      autoplay: false,
+      subtitles: true,
+    })
+    await routeDirectSource(page, {
+      url: FLOWER_MP4,
+      type: 'mp4',
+      subtitles: [{ language: 'en', label: 'English', url: vtt }],
+    })
+    await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
+    await waitForDecision(page, 'subtitle-track')
+    await page.waitForFunction(() => {
+      const v = document.querySelector('video') as HTMLVideoElement | null
+      return !!v && v.textTracks.length > 0
+    }, null, { timeout: 30000 })
+    await page.waitForTimeout(1000)
+    const tracks = await page.evaluate(() => {
+      const v = document.querySelector('video') as HTMLVideoElement
+      return Array.from(v.textTracks).map((track) => ({ kind: track.kind, mode: track.mode, label: track.label }))
+    })
+    console.log('SUBTITLE_TRACKS', JSON.stringify(tracks))
+    expect(tracks.some((track) => track.kind === 'subtitles')).toBeTruthy()
+    expect(tracks.some((track) => track.kind === 'subtitles' && track.mode === 'showing')).toBeTruthy()
+  })
+
+  test('saved position seeks after Resume on a direct HLS source', async ({ page }) => {
+    test.setTimeout(180000)
+    await setPrefs(page, { preferredProvider: 'aniwave', preferredAudio: 'sub', autoplay: false })
+    await routeDirectSource(page, { url: MUX_HLS, type: 'hls' })
+    await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
+    await page.waitForSelector('video', { timeout: 90000 })
+    await page.evaluate(() => (document.querySelector('video') as HTMLVideoElement).pause())
+    await page.evaluate(async () => {
+      const db = await new Promise<IDBDatabase>((resolve, reject) => {
+        const req = indexedDB.open('aeri', 2)
+        req.onupgradeneeded = () => {
+          const d = req.result
+          if (!d.objectStoreNames.contains('watchPos')) d.createObjectStore('watchPos', { keyPath: 'id' })
+        }
+        req.onsuccess = () => resolve(req.result)
+        req.onerror = () => reject(req.error)
+      })
+      await new Promise<void>((resolve, reject) => {
+        const tx = db.transaction('watchPos', 'readwrite')
+        tx.objectStore('watchPos').put({
+          id: 'anilist-20',
+          episode: 1,
+          currentTime: 100,
+          duration: 600,
+          updatedAt: Date.now(),
+        })
+        tx.oncomplete = () => resolve()
+        tx.onerror = () => reject(tx.error)
+      })
+      db.close()
+    })
+    await page.reload({ waitUntil: 'domcontentloaded' })
+    await page.waitForSelector('text=Resume from', { timeout: 90000 })
+    await page.getByRole('button', { name: 'Resume', exact: true }).click()
+    await page.waitForFunction(() => {
+      const v = document.querySelector('video') as HTMLVideoElement | null
+      return !!v && v.readyState >= 1 && v.currentTime >= 95
+    }, null, { timeout: 90000 })
+    const t = await page.evaluate(() => (document.querySelector('video') as HTMLVideoElement).currentTime)
+    expect(t).toBeGreaterThanOrEqual(95)
   })
 })
 
@@ -325,14 +494,14 @@ test.describe('LIVE provider playback (real upstream bytes — may fail on outag
     // NO media routes: every byte comes from real upstreams.
   })
 
-  test('LIVE: MegaVid Naruto E1 sub resolves and advances', async ({ page }) => {
+  test('LIVE: AniWave Naruto E1 sub resolves and advances', async ({ page }) => {
     test.setTimeout(180000)
     await setPrefs(page, { preferredProvider: 'aniwave', preferredAudio: 'sub' })
     await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
-    const s = await waitForDecision(page, 'live-megavid')
+    const s = await waitForDecision(page, 'live-aniwave')
     expect(s.hasNoSource, `provider must resolve live — ${s.tried || s.body.slice(0, 200)}`).toBeFalsy()
     expect(s.hasVideo, `expected a video element — ${s.body.slice(0, 300)}`).toBeTruthy()
-    await assertAdvancingPlayback(page, 'live-megavid')
+    await assertAdvancingPlayback(page, 'live-aniwave')
   })
 
   test('LIVE: relay-blocked playback degrades honestly (no shell masquerade)', async ({ page }) => {
@@ -361,13 +530,26 @@ test.describe('LIVE provider playback (real upstream bytes — may fail on outag
       // playback must hold). Either way: never a trailer.
       const probe = await page.evaluate(() => {
         const v = document.querySelector('video') as HTMLVideoElement | null
-        return v ? { err: (v.error as { code?: number } | null)?.code ?? 0, t: v.currentTime } : null
+        const dialog = document.querySelector('.video-skin [role="alertdialog"]') as HTMLElement | null
+        return {
+          err: (v?.error as { code?: number } | null)?.code ?? 0,
+          t: v?.currentTime ?? 0,
+          dialogVisible: !!dialog && dialog.getBoundingClientRect().width > 0,
+          dialogText: dialog?.textContent?.trim().slice(0, 200) ?? '',
+        }
       })
       expect(probe, 'video element must exist').not.toBeNull()
-      if (probe!.err === 0) {
+      if (probe!.err === 0 && !probe!.dialogVisible) {
         await assertAdvancingPlayback(page, 'live-fallback')
       } else {
-        expect(probe!.err, 'blocked bytes must surface as MEDIA_ERR_SRC_NOT_SUPPORTED').toBe(4)
+        // Old player surfaced MEDIA_ERR_SRC_NOT_SUPPORTED on <video>;
+        // Video.js owns the error surface via its default skin dialog
+        // (hls.js manifest failure is not a native media error). Either
+        // is honest — a dead element with no error is not.
+        expect(
+          probe!.err === 4 || probe!.dialogVisible,
+          `blocked bytes must surface an error (video=${probe!.err}, dialog=${probe!.dialogText})`,
+        ).toBeTruthy()
       }
     } else {
       const src = await page.evaluate(() => (document.querySelector('iframe') as HTMLIFrameElement | null)?.src ?? '')
@@ -431,7 +613,7 @@ test.describe('Watch interactivity during playback', () => {
     await gotoPlayingWatch(page)
     // Episode link click navigates fast.
     let t0 = Date.now()
-    await page.locator('a[aria-label^="Watch E5"]').first().click({ timeout: 15000 })
+    await page.locator('a[aria-label^="Watch Episode 5"]').first().click({ timeout: 15000 })
     const clickMs = Date.now() - t0
     expect(clickMs, 'episode click must dispatch fast during playback').toBeLessThan(5000)
     await page.waitForTimeout(2000)
@@ -469,7 +651,7 @@ test.describe('Watch interactivity during playback', () => {
     await page.waitForTimeout(1000)
     expect(await page.evaluate(() => (document.querySelector('video') as HTMLVideoElement)?.paused)).toBe(true)
     // Episode switch while paused navigates; new episode resolves its own player.
-    await page.locator('a[aria-label^="Watch E2"]').first().click({ timeout: 15000 })
+    await page.locator('a[aria-label^="Watch Episode 2"]').first().click({ timeout: 15000 })
     await page.waitForTimeout(2000)
     expect(await page.evaluate(() => location.pathname)).toContain('/watch/anilist-20/2')
     await page.waitForFunction(() => !!document.querySelector('video'), null, { timeout: 90000 })
@@ -495,7 +677,7 @@ test.describe('Watch interactivity during playback', () => {
       await mpage.evaluate(() => { const v = document.querySelector('video') as HTMLVideoElement | null; if (v) { v.muted = true; v.play().catch(() => {}) } })
       await mpage.waitForTimeout(8000)
       const t0 = Date.now()
-      await mpage.locator('a[aria-label^="Watch E5"]').first().tap({ timeout: 15000 })
+      await mpage.locator('a[aria-label^="Watch Episode 5"]').first().tap({ timeout: 15000 })
       const tapMs = Date.now() - t0
       expect(tapMs, 'mobile tap must dispatch fast during playback').toBeLessThan(8000)
       await mpage.waitForTimeout(2000)

@@ -155,62 +155,81 @@ export function TrackingProvider({ children }: { children: React.ReactNode }) {
   const isMangaObj = (anime: Anime) =>
     anime.identity.mediaType === 'MANGA' ||
     ['MANGA', 'NOVEL', 'ONE_SHOT'].includes((anime.format ?? '').toUpperCase())
-  const updateProgress = useCallback(async (anime: Anime, ep: number, opts?: { manual?: boolean }) => {
-    // INCOGNITO GATE (owner 2026-10-23): automatic progress writes from
-    // watching/reading never reach the tracker while incognito is on.
-    // Manual, user-initiated edits pass `{ manual: true }` and still sync.
-    if (!opts?.manual && isIncognitoEnabled()) return
-    const isManga = isMangaObj(anime)
-    if (active === 'anilist' && ani.isAuthenticated && isSyncEnabled('anilist', 'progress')) {
-      const anilistId = anime.identity.anilistId?.toString() ?? (anime.identity.internalId.startsWith('anilist-') ? anime.identity.internalId.replace('anilist-', '') : null)
-      if (anilistId) { await ani.updateProgress(anilistId, ep).catch(() => {}); return }
-      if (anime.identity.anilistId) { await ani.updateProgress(`anilist-${anime.identity.anilistId}`, ep).catch(() => {}); return }
-    }
-    if (active === 'mal' && mal.isAuthenticated && isSyncEnabled('mal', 'progress')) {
-      const malId = anime.identity.malId ? `mal-${anime.identity.malId}` : (anime.identity.internalId.startsWith('mal-') ? anime.identity.internalId : null)
-      if (malId) { await mal.updateProgress(malId, ep, isManga).catch(() => {}); return }
-      if (anime.identity.malId) { await mal.updateProgress(`mal-${anime.identity.malId}`, ep, isManga).catch(() => {}); return }
-    }
-  }, [active, ani.isAuthenticated, ani.updateProgress, mal.isAuthenticated, mal.updateProgress])
 
+  // DATE STAMPS (owner rules 2026-10-18 + 2026-10-23): setting a title to
+  // WATCHING always stamps today's start date; COMPLETED always stamps
+  // today's finish date. The 10-23 tightening makes this unconditional —
+  // entries auto-created by a progress write used to land in watching with
+  // NO start date, and re-selecting Watching (same status) used to be a
+  // no-op, leaving the tracker dateless forever.
   const updateStatus = useCallback(async (anime: Anime, status: AnimeStatus) => {
     const isManga = isMangaObj(anime)
-    // DATE STAMPS (owner rule 2026-10-18): flipping a title to watching
-    // stamps its start date with today; completing stamps its finish date.
-    // Detected as a real TRANSITION against the current list copy — a
-    // no-op re-save of the same status never rewrites stored dates.
-    const selfManga = isManga
-    const prevStatus = (combinedList ?? []).find((e) => {
-      if (selfManga !== ['MANGA', 'NOVEL', 'ONE_SHOT'].includes((e.anime.format ?? '').toUpperCase())) return false
-      if (anime.identity.malId && e.anime.identity.malId === anime.identity.malId) return true
-      if (anime.identity.anilistId && e.anime.identity.anilistId === anime.identity.anilistId) return true
-      return e.anime.identity.internalId === anime.identity.internalId
-    })?.status ?? null
     const dates: { start?: string; finish?: string } = {}
-    if (prevStatus !== status) {
-      const now = new Date()
-      const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
-      if (status === 'watching') dates.start = today
-      if (status === 'completed') dates.finish = today
-    }
+    const now = new Date()
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
+    if (status === 'watching') dates.start = today
+    if (status === 'completed') dates.finish = today
     if (active === 'anilist' && ani.isAuthenticated && isSyncEnabled('anilist', 'status')) {
       const anilistId = anime.identity.anilistId?.toString() ?? (anime.identity.internalId.startsWith('anilist-') ? anime.identity.internalId.replace('anilist-', '') : null)
-      if (anilistId) { await ani.updateStatus(anilistId, status, undefined, dates).catch(() => {}); return }
-      if (anime.identity.anilistId) { await ani.updateStatus(`anilist-${anime.identity.anilistId}`, status, undefined, dates).catch(() => {}); return }
+      if (anilistId) { await ani.updateStatus(anilistId, status, isManga, dates).catch(() => {}); return }
+      if (anime.identity.anilistId) { await ani.updateStatus(`anilist-${anime.identity.anilistId}`, status, isManga, dates).catch(() => {}); return }
     }
     if (active === 'mal' && mal.isAuthenticated && isSyncEnabled('mal', 'status')) {
       const malId = anime.identity.malId ? `mal-${anime.identity.malId}` : (anime.identity.internalId.startsWith('mal-') ? anime.identity.internalId : null)
       if (malId) { await mal.updateStatus(malId, status, isManga, dates).catch(() => {}); return }
       if (anime.identity.malId) { await mal.updateStatus(`mal-${anime.identity.malId}`, status, isManga, dates).catch(() => {}); return }
     }
-  }, [active, ani.isAuthenticated, ani.updateStatus, mal.isAuthenticated, mal.updateStatus, combinedList])
+  }, [active, ani.isAuthenticated, ani.updateStatus, mal.isAuthenticated, mal.updateStatus])
+
+  // Current list status for this record, if it is already in the active
+  // tracker's list. Used only to avoid re-stamping COMPLETED on every
+  // rewatch of a finale (explicit user status changes always stamp).
+  const currentListStatus = useCallback((anime: Anime): AnimeStatus | null => {
+    const isManga = isMangaObj(anime)
+    return (combinedList ?? []).find((e) => {
+      if (isManga !== ['MANGA', 'NOVEL', 'ONE_SHOT'].includes((e.anime.format ?? '').toUpperCase())) return false
+      if (anime.identity.malId && e.anime.identity.malId === anime.identity.malId) return true
+      if (anime.identity.anilistId && e.anime.identity.anilistId === anime.identity.anilistId) return true
+      return e.anime.identity.internalId === anime.identity.internalId
+    })?.status ?? null
+  }, [combinedList])
+
+  const updateProgress = useCallback(async (anime: Anime, ep: number, opts?: { manual?: boolean }) => {
+    // INCOGNITO GATE (owner 2026-10-23): automatic progress writes from
+    // watching/reading never reach the tracker while incognito is on.
+    // Manual, user-initiated edits pass `{ manual: true }` and still sync.
+    if (!opts?.manual && isIncognitoEnabled()) return
+    const isManga = isMangaObj(anime)
+    let wrote = false
+    if (active === 'anilist' && ani.isAuthenticated && isSyncEnabled('anilist', 'progress')) {
+      const anilistId = anime.identity.anilistId?.toString() ?? (anime.identity.internalId.startsWith('anilist-') ? anime.identity.internalId.replace('anilist-', '') : null)
+      // `wrote` flips ONLY after the provider call resolves: a failed
+      // progress write must not be followed by a completed-status write.
+      if (anilistId) { try { await ani.updateProgress(anilistId, ep, isManga); wrote = true } catch { /* no write */ } }
+      else if (anime.identity.anilistId) { try { await ani.updateProgress(`anilist-${anime.identity.anilistId}`, ep, isManga); wrote = true } catch { /* no write */ } }
+    } else if (active === 'mal' && mal.isAuthenticated && isSyncEnabled('mal', 'progress')) {
+      const malId = anime.identity.malId ? `mal-${anime.identity.malId}` : (anime.identity.internalId.startsWith('mal-') ? anime.identity.internalId : null)
+      if (malId) { try { await mal.updateProgress(malId, ep, isManga); wrote = true } catch { /* no write */ } }
+      else if (anime.identity.malId) { try { await mal.updateProgress(`mal-${anime.identity.malId}`, ep, isManga); wrote = true } catch { /* no write */ } }
+    }
+    // AUTO-COMPLETE (owner 2026-10-23): reaching 100% of a KNOWN total
+    // flips the entry to completed — which stamps the finish date. An
+    // unknown total (airing show, ongoing manga) or a malformed count means
+    // NO status write at all: incomplete data must never fake completion.
+    // Already-completed entries are left alone so a finale rewatch cannot
+    // rewrite the stored finish date.
+    const total = isManga ? anime.chapters : anime.episodes
+    if (wrote && total != null && Number.isFinite(total) && total > 0 && ep >= total && currentListStatus(anime) !== 'completed') {
+      await updateStatus(anime, 'completed')
+    }
+  }, [active, ani.isAuthenticated, ani.updateProgress, mal.isAuthenticated, mal.updateProgress, updateStatus, currentListStatus])
 
   const updateRating = useCallback(async (anime: Anime, rating: number) => {
     const isManga = isMangaObj(anime)
     if (active === 'anilist' && ani.isAuthenticated && isSyncEnabled('anilist', 'rating')) {
       const anilistId = anime.identity.anilistId?.toString() ?? (anime.identity.internalId.startsWith('anilist-') ? anime.identity.internalId.replace('anilist-', '') : null)
-      if (anilistId) { await ani.updateRating(anilistId, rating).catch(() => {}); return }
-      if (anime.identity.anilistId) { await ani.updateRating(`anilist-${anime.identity.anilistId}`, rating).catch(() => {}); return }
+      if (anilistId) { await ani.updateRating(anilistId, rating, isManga).catch(() => {}); return }
+      if (anime.identity.anilistId) { await ani.updateRating(`anilist-${anime.identity.anilistId}`, rating, isManga).catch(() => {}); return }
     }
     if (active === 'mal' && mal.isAuthenticated && isSyncEnabled('mal', 'rating')) {
       const malId = anime.identity.malId ? `mal-${anime.identity.malId}` : (anime.identity.internalId.startsWith('mal-') ? anime.identity.internalId : null)
@@ -223,7 +242,7 @@ export function TrackingProvider({ children }: { children: React.ReactNode }) {
     const isManga = isMangaObj(anime)
     if (active === 'anilist' && ani.isAuthenticated && isSyncEnabled('anilist', 'status')) {
       const anilistId = resolveAnilistId(anime)
-      if (anilistId) { await ani.removeEntry(anilistId).catch(() => {}); return }
+      if (anilistId) { await ani.removeEntry(anilistId, isManga).catch(() => {}); return }
     }
     if (active === 'mal' && mal.isAuthenticated && isSyncEnabled('mal', 'status')) {
       const malId = resolveMalId(anime) ?? (anime.identity.malId ? `mal-${anime.identity.malId}` : null)

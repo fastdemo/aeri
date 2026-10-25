@@ -134,7 +134,7 @@ function seriesYearOk(series: any, hint?: ProviderHint): boolean {
 // --- Episode-count helper (AniList metadata only) ---
 // Returns the authoritative episode list shape (numbers + streaming titles)
 // WITHOUT any trailer-as-playback: sources must come from real episode
-// providers (megavid/animegg/...). Trailer metadata stays on the AniList
+// providers (aniwave/animegg/...). Trailer metadata stays on the AniList
 // record for a future separate trailer feature, never in this chain.
 
 // --- Demo Provider (mux HLS) for regression / HLS path verification ---

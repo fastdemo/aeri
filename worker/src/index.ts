@@ -195,7 +195,7 @@ export default {
         version: '1.0.0',
         allowedOrigin: env.ALLOWED_ORIGIN || '*',
         providers: providers.map(p => ({ id: p.id, displayName: p.capabilities.displayName, capabilities: p.capabilities })),
-        note: 'Episode providers resolve full episodes via the frontend registry (megavid/animegg); worker resolves explicit pins and diagnostics.',
+        note: 'Episode providers resolve full episodes via the frontend registry (aniwave/animegg); worker resolves explicit pins and diagnostics.',
       }, 200, env, origin, { 'Cache-Control': CACHE_CONTROL_HEALTH })
     }
 
@@ -571,8 +571,9 @@ const epMatch = url.pathname.match(/^\/(?:api\/)?(?:video\/)?episodes\/(\d+)$/)
       }
       try {
         // Unpinned episode requests have no full-episode provider in the
-        // worker (megavid/animegg resolve browser-direct). Return an honest
-        // empty set with demo only on explicit request — never trailers.
+        // worker (browser-direct providers resolve in the frontend). Return
+        // an honest empty set with demo only on explicit request — never
+        // trailers.
         if (false) {
           void demoProvider
         }

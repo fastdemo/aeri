@@ -2,7 +2,7 @@ import type { TrackingProvider, AniListUser, TrackerDates } from '../anilist/pro
 import type { Anime, AnimeListEntry, AnimeStatus } from '../../types/anime'
 import { malFetch, clearMalMemoryCache, MalProviderError } from '../../services/mal/client'
 import { deleteCache } from '../../storage/db'
-import { mapMALNodeToAnime, mapMALEntryToAeri, aeriStatusToMal, type MALNode, type MALListEntryRaw } from '../../services/mal/mapper'
+import { mapMALNodeToAnime, mapMALEntryToAeri, aeriStatusToMal, malStatusToAeri, type MALNode, type MALListEntryRaw } from '../../services/mal/mapper'
 import { getMalToken } from '../../storage/mal'
 
 export class MALProvider implements TrackingProvider {
@@ -125,13 +125,31 @@ export class MALProvider implements TrackingProvider {
     // Manga writes go to /manga/ with chapter vocabulary; anime to /anime/.
     const base = isManga ? 'manga' : 'anime'
     body.set(isManga ? 'num_chapters_read' : 'num_watched_episodes', String(episode))
-    // MAL requires status to be set; if not in list, it will create with default? We need to ensure status is at least watching
-    // First try to get current status via getAnime or via list? For simplicity, we set status to watching if not provided
-    // To avoid overwriting, we fetch current list_status first
+    // MAL requires a status on every write. Fetch THIS media type's
+    // list_status first: manga ids live in a separate namespace from anime
+    // ids, so a manga write must never read the anime record (it could see
+    // an unrelated entry and skip the start date). `undefined` = not in
+    // the list.
     try {
-      const current = await this.getAnime(malId.toString())
-      const currentStatus = current.listStatus ?? 'watching'
-      body.set('status', aeriStatusToMal(currentStatus, isManga))
+      let currentStatus: 'watching' | 'completed' | 'on_hold' | 'dropped' | 'planned' | undefined
+      if (isManga) {
+        const data = await malFetch<{ my_list_status?: { status?: string } }>(
+          `/manga/${malId}?fields=${encodeURIComponent('my_list_status{status}')}`,
+          { cacheKey: `mal:manga:${malId}`, useCache: true },
+        )
+        currentStatus = data.my_list_status?.status ? malStatusToAeri(data.my_list_status.status) : undefined
+      } else {
+        const current = await this.getAnime(malId.toString())
+        currentStatus = current.listStatus
+      }
+      body.set('status', aeriStatusToMal(currentStatus ?? 'watching', isManga))
+      // NEW ENTRY (owner 2026-10-23): stamp the start date when this
+      // progress write is what adds the title to the list. Existing
+      // entries keep their stored start date untouched.
+      if (!currentStatus) {
+        const now = new Date()
+        body.set('start_date', `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`)
+      }
     } catch {
       body.set('status', isManga ? 'reading' : 'watching')
     }
@@ -141,10 +159,18 @@ export class MALProvider implements TrackingProvider {
       body: body.toString(),
       useCache: false,
     })
-    // Invalidate list cache (memory + IDB) so the follow-up loadList in the
-    // context reads the just-written server state, not a 24h IDB snapshot.
+    // Invalidate list AND per-media cache (memory + IDB) so the follow-up
+    // loadList reads the just-written server state, not a 24h IDB snapshot.
+    // The per-media entry matters for dates: a stale "not in list" detail
+    // response would re-send start_date on the NEXT progress write and
+    // overwrite the stored start date.
     clearMalMemoryCache()
-    try { await deleteCache('mal:list').catch(() => {}); await deleteCache('mal:list:manga').catch(() => {}) } catch {}
+    try {
+      await deleteCache('mal:list').catch(() => {})
+      await deleteCache('mal:list:manga').catch(() => {})
+      await deleteCache(`mal:anime:${malId}`).catch(() => {})
+      await deleteCache(`mal:manga:${malId}`).catch(() => {})
+    } catch {}
   }
 
   async updateStatus(id: string, status: AnimeStatus, isManga = false, dates?: TrackerDates): Promise<void> {

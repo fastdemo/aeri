@@ -5,10 +5,10 @@ import type { Page } from '@playwright/test'
  *
  * SCOPE — READ CAREFULLY. These doubles replace ONLY the final media bytes
  * (MP4 file, HLS playlist/segments) served to the browser's `<video>` /
- * hls.js element. They NEVER replace provider resolution: MegaVid's
- * `/mal/{id}/{ep}/{lang}/source` JSON, AnimeGG's search→series→episode→
- * embed→play scrape chain, and the worker's signed `/api/stream` relay all
- * run UNMODIFIED unless a test explicitly routes them. A test that wants
+ * hls.js element. They NEVER replace provider resolution: AniWave's worker
+ * source route, AnimeGG's search→series→episode→embed→play scrape chain,
+ * and the worker's signed `/api/stream` relay all run UNMODIFIED unless a
+ * test explicitly routes them. A test that wants
  * to prove END-TO-END provider playback must NOT call the byte-level
  * helpers below — it routes nothing (or only blocks a tier) and asserts
  * on live upstream bytes (see playback-authenticated.spec.ts "live" suite,
@@ -48,7 +48,7 @@ export async function routeControlledMp4(page: Page): Promise<void> {
 }
 
 /**
- * Serve a REAL HLS multivariant playlist for MegaVid-signed `.m3u8` URLs.
+ * Serve a REAL HLS multivariant playlist for provider-signed `.m3u8` URLs.
  * Fetches the mux master LIVE, rewrites relative segment/playlist URIs to
  * absolute upstream URLs, and fulfills with the correct content-type.
  * Throws when the upstream master is unreachable (explicit failure, never
@@ -72,7 +72,7 @@ export async function routeControlledHls(page: Page): Promise<void> {
   await page.route('**/*.m3u8**', async (route) => {
     const url = route.request().url()
     // Only stand in for provider-signed playlists, never for arbitrary m3u8.
-    if (!/megavid|megaplay|animegg|aniwatch|cdnx|oeeee|broforgotsave|echovideo|dpopdrop/.test(url)) {
+    if (!/megaplay|animegg|aniwatch|cdnx|oeeee|broforgotsave|echovideo|dpopdrop/.test(url)) {
       await route.continue()
       return
     }

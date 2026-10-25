@@ -536,7 +536,7 @@ test.describe('Controls — demo (HLS) must be PLAYABLE', () => {
 
 test.describe('Source switching & fallback', () => {
   // Trailer fallback retired 2026-10-10: no trailer provider exists in the
-  // chain. Fallback is between full-episode providers only (megavid →
+  // chain. Fallback is between full-episode providers only (aniwave →
   // animegg); when all fail the honest state is "No playable source".
   test('fallback: preferred anikoto → falls back within episode providers (no trailer masquerade)', async ({ page }) => {
     test.setTimeout(22_000)

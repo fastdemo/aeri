@@ -73,8 +73,13 @@ body {
   scrollbar-width: none;
 }
 
-/* Focus — preserve pill shape: use box-shadow for rounded-full, keep outline for others */
-:focus-visible {
+/* Focus — preserve pill shape: use box-shadow for rounded-full, keep outline for others.
+   tabindex="-1" containers (the floating detail card, which every open and
+   every deep-link refresh focuses programmatically) are EXEMPT: the ring is
+   for keyboard-navigable controls, not for a card that merely took focus.
+   Without the exclusion the global ring paints a 2px "border" around the
+   whole preview card (owner fix 2026-10-23). */
+:focus-visible:not([tabindex="-1"]) {
   outline: 2px solid var(--text);
   outline-offset: 2px;
 }

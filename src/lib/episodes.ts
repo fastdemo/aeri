@@ -13,7 +13,8 @@ export interface AnimeEpisode {
   thumbnail?: string
   duration?: number
   streamingUrl?: string
-  source: 'anilist' | 'provider' | 'none'
+  /** Display metadata provenance. Video providers never supply names/art. */
+  source: 'anilist' | 'kitsu' | 'none'
   providerId?: string
   /**
    * Per-field resolution state. Loading ≠ failed ≠ absent: the UI shows a
@@ -28,6 +29,27 @@ export interface AnimeEpisode {
     title?: 'loading' | 'resolved' | 'unavailable' | 'error'
     thumbnail?: 'loading' | 'resolved' | 'unavailable' | 'error'
   }
+}
+
+/** Supplemental episode metadata (Kitsu), never a general metadata source. */
+export interface EpisodeFallback {
+  number: number
+  title?: string
+  thumbnail?: string
+}
+
+export type EpisodeFallbackStatus = 'idle' | 'loading' | 'resolved' | 'unavailable' | 'error'
+
+export interface EpisodeFallbackInput {
+  episodes?: EpisodeFallback[] | null
+  status: EpisodeFallbackStatus
+  /**
+   * Whole-entry gate decided by the caller on the RAW AniList record.
+   * `false` means AniList supplied usable episode metadata even if the
+   * display record was later sanitized (season/range guard); the fallback
+   * must not be used in that case. Omitted (e.g. tests) defaults to allowed.
+   */
+  allowed?: boolean
 }
 
 /** Field quality rank: resolved real data beats everything; a failed or
@@ -128,6 +150,29 @@ function isValidHttpUrl(url: string): boolean {
   } catch {
     return false
   }
+}
+
+/**
+ * OWNER RULE (2026-10-23): Kitsu may answer ONLY when AniList has
+ * absolutely no usable episode metadata for the whole entry. "Usable"
+ * means at least one non-generic title or one real thumbnail. Partial
+ * AniList data is still AniList data: missing rows keep the UI placeholder
+ * and Kitsu is never mixed in.
+ *
+ * Pass the RAW (trailer-filtered) streaming list here — NOT a record that
+ * already went through the season-pollution or range guards. Data that
+ * AniList supplied but those guards discarded is still AniList data; it
+ * must never silently become a Kitsu fallback.
+ */
+export function hasUsableAniListEpisodeMetadata(anime: Pick<Anime, 'streamingEpisodes'>): boolean {
+  for (const episode of anime.streamingEpisodes ?? []) {
+    const rawTitle = typeof episode.title === 'string' ? episode.title.trim() : ''
+    const title = rawTitle ? cleanEpisodeTitle(rawTitle) : ''
+    if (title && !isGenericTitle(title)) return true
+    const thumbnail = typeof episode.thumbnail === 'string' ? episode.thumbnail.trim() : ''
+    if (thumbnail && isValidHttpUrl(thumbnail)) return true
+  }
+  return false
 }
 
 export function filterAndSortStreamingEpisodes(
@@ -282,17 +327,24 @@ export function resolveEpisodeCount(
 
 /**
  * Normalize episodes with explicit priority for title/thumbnail:
+ * AniList → (Kitsu ONLY when the whole entry has zero AniList episode
+ * metadata) → UI placeholder. Video-provider rows still supply the
+ * episode COUNT/duration and source-mapping ids, but never names or art.
  */
 export function normalizeEpisodes(
   anime: Anime,
-  providerEpisodes?: VideoEpisode[] | null
+  providerEpisodes?: VideoEpisode[] | null,
+  fallback?: EpisodeFallbackInput | null,
 ): AnimeEpisode[] {
   // Ensure streaming is filtered/sorted for standalone usage (without group)
+  const rawStreaming = filterAndSortStreamingEpisodes(anime.streamingEpisodes)
   const sortedAnime: Anime = discardSeasonPollutedStreaming(
-    filterAndSortStreamingEpisodes(anime.streamingEpisodes)
-      ? { ...anime, streamingEpisodes: filterAndSortStreamingEpisodes(anime.streamingEpisodes) }
-      : anime
+    rawStreaming ? { ...anime, streamingEpisodes: rawStreaming } : anime
   )
+  // Fallback gate is decided on the RAW trailer-filtered list, before the
+  // season-pollution / range guards. AniList data that those guards discard
+  // is still AniList data and must never be replaced by Kitsu.
+  const anilistHasMetadata = hasUsableAniListEpisodeMetadata({ streamingEpisodes: rawStreaming })
   // Apply local mismatch discard before index mapping?
   let effectiveAnime = sortedAnime
   let preDiscardCount: number | null = null
@@ -342,6 +394,22 @@ export function normalizeEpisodes(
       }
     }
   }
+
+  // AniList owns episode metadata. Kitsu is a whole-entry fallback only:
+  // the moment AniList has ONE usable title/thumbnail, the fallback is
+  // ignored entirely and any gaps stay placeholders. `fallback.allowed`
+  // carries the caller's raw-record gate when the display record has
+  // already been sanitized (season/range guards).
+  const fallbackAllowed = !anilistHasMetadata && (fallback?.allowed ?? true)
+  const fallbackByNum = new Map<number, EpisodeFallback>()
+  if (fallbackAllowed && fallback?.episodes?.length) {
+    for (const episode of fallback.episodes) {
+      if (typeof episode.number === 'number' && episode.number >= 1 && episode.number <= count) {
+        if (!fallbackByNum.has(episode.number)) fallbackByNum.set(episode.number, episode)
+      }
+    }
+  }
+  const fallbackPending = fallbackAllowed && fallback?.status === 'loading'
 
   const baseDuration = effectiveAnime.duration
 
@@ -406,13 +474,16 @@ export function normalizeEpisodes(
     let title: string | undefined
     let source: AnimeEpisode['source'] = 'none'
     let providerId: string | undefined
-    // Field states: resolved only when a REAL value landed; loading when a
-    // source COULD still supply it (provider fetch pending or not yet
-    // attempted); unavailable when no source has it and none is pending.
-    // The UI skeleton-binds on 'loading', falls back quietly otherwise —
-    // a generic "Episode N" label is never presented as resolved metadata.
+    // Field states: resolved only when a REAL value landed; loading while
+    // the whole-entry Kitsu fallback is still in flight; unavailable when
+    // no source has it and none is pending. The UI skeleton-binds on
+    // 'loading', falls back quietly otherwise — a generic "Episode N"
+    // label is never presented as resolved metadata.
     let titleState: 'loading' | 'resolved' | 'unavailable' | 'error' = 'unavailable'
     let thumbState: 'loading' | 'resolved' | 'unavailable' | 'error' = 'unavailable'
+
+    const pe = providerByNum.get(n)
+    if (pe) providerId = pe.provider
 
     const anilistRaw = typeof se?.title === 'string' ? se.title.trim() : ''
     const cleanedAnilist = anilistRaw ? cleanEpisodeTitle(anilistRaw) : ''
@@ -421,23 +492,14 @@ export function normalizeEpisodes(
       source = 'anilist'
       titleState = 'resolved'
     } else {
-      const pe = providerByNum.get(n)
-      const providerRaw = typeof pe?.title === 'string' ? pe.title.trim() : ''
-      const cleanedProvider = providerRaw ? cleanEpisodeTitle(providerRaw) : ''
-      if (cleanedProvider && !isGenericTitle(cleanedProvider)) {
-        title = cleanedProvider
-        source = 'provider'
-        providerId = pe?.provider
+      const fallbackTitle = fallbackAllowed ? fallbackByNum.get(n)?.title?.trim() : ''
+      const cleanedFallback = fallbackTitle ? cleanEpisodeTitle(fallbackTitle) : ''
+      if (cleanedFallback && !isGenericTitle(cleanedFallback)) {
+        title = cleanedFallback
+        source = 'kitsu'
         titleState = 'resolved'
-      } else if (pe) {
-        providerId = pe.provider
-        // Provider knows this episode but gave no usable title (yet?) —
-        // still loading only while the provider fetch itself is pending.
-        titleState = providerEpisodes === null || providerEpisodes === undefined ? 'loading' : 'unavailable'
-      } else {
-        // No provider row at all: loading while provider fetch pending,
-        // unavailable once it settled.
-        titleState = providerEpisodes === null || providerEpisodes === undefined ? 'loading' : 'unavailable'
+      } else if (fallbackPending) {
+        titleState = 'loading'
       }
     }
 
@@ -448,15 +510,13 @@ export function normalizeEpisodes(
       if (source === 'none') source = 'anilist'
       thumbState = 'resolved'
     } else {
-      const pe = providerByNum.get(n)
-      const providerThumb = typeof pe?.thumbnail === 'string' ? pe.thumbnail.trim() : ''
-      if (providerThumb && isValidHttpUrl(providerThumb)) {
-        thumbnail = providerThumb
-        if (source === 'none') source = 'provider'
-        if (pe && !providerId) providerId = pe.provider
+      const fallbackThumb = fallbackAllowed ? fallbackByNum.get(n)?.thumbnail?.trim() : ''
+      if (fallbackThumb && isValidHttpUrl(fallbackThumb)) {
+        thumbnail = fallbackThumb
+        if (source === 'none') source = 'kitsu'
         thumbState = 'resolved'
-      } else {
-        thumbState = providerEpisodes === null || providerEpisodes === undefined ? 'loading' : 'unavailable'
+      } else if (fallbackPending) {
+        thumbState = 'loading'
       }
     }
 

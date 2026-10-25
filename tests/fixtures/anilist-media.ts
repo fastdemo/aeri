@@ -6,12 +6,12 @@
  * inside the Playwright browser context. They carry catalogue metadata
  * (titles, episode counts, malId linkage) so Watch/AnimeDetail can render
  * and resolve provider episodes. They carry NO playback bytes — media
- * resolution always runs the REAL provider chain (MegaVid / AnimeGG /
- * AniWave) unless a test explicitly routes those hosts to a controlled
- * double (see tests/helpers/test-media.ts).
+ * resolution always runs the REAL provider chain (AniWave / AnimeGG)
+ * unless a test explicitly routes those hosts to a controlled double
+ * (see tests/helpers/test-media.ts).
  *
  * Units tested per title: episodes + idMal are the fields Watch needs
- * (episode grid + MegaVid MAL-keyed resolution). streamingEpisodes is
+ * (episode grid + provider source mapping). streamingEpisodes is
  * intentionally EMPTY: provider episode titles must come from providers,
  * never from fabricated streaming metadata.
  */

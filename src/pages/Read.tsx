@@ -9,6 +9,8 @@ import { sortProviderUnits, unitDisplayLabel } from '../providers/manga/types'
 import { getTitleHierarchy } from '../lib/titles'
 import { Icon } from '../components/ui/Icon'
 import { FilterSelect } from '../components/ui/FilterSelect'
+import { useRelatedEntries } from '../hooks/useRelatedEntries'
+import { RelatedRow } from '../components/related/RelatedRow'
 import type { MangaChapter, MangaPage, MangaProvider, MangaSourceOptions } from '../providers/manga/types'
 import { getMangaProviderById, resolveChaptersWithFallback } from '../providers/manga/mangadex'
 
@@ -46,11 +48,11 @@ function ChapterNavButtons({
           data-testid={`${testId}-prev`}
           className={pill}
         >
-          ← {unitDisplayLabel(prevChapter)}
+          ← Previous
         </Link>
       ) : (
         <button type="button" disabled aria-label="Previous chapter" data-testid={`${testId}-prev`} className={pill}>
-          ← No previous chapter
+          ← Previous
         </button>
       )}
       {nextChapter ? (
@@ -60,11 +62,11 @@ function ChapterNavButtons({
           data-testid={`${testId}-next`}
           className={pill}
         >
-          {unitDisplayLabel(nextChapter)} →
+          Next →
         </Link>
       ) : (
         <button type="button" disabled aria-label="Next chapter" data-testid={`${testId}-next`} className={pill}>
-          No next chapter →
+          Next →
         </button>
       )}
     </div>
@@ -293,6 +295,20 @@ export function Read() {
   const completedRef = useRef(false)
   useEffect(() => { completedRef.current = false }, [currentChapter?.providerChapterId])
 
+  // PROGRESS VALIDITY (owner 2026-10-23): a tracker write requires a
+  // properly loaded manga — at least one tracker id, a real chapter number,
+  // provider pages, and a chapter inside the known total when one exists.
+  // Broken/partial records write NOTHING (that was the reported bug).
+  const canTrackChapter = Boolean(
+    manga &&
+    currentChapter &&
+    currentChapter.number != null &&
+    Number.isFinite(currentChapter.number) &&
+    (manga.identity.anilistId != null || manga.identity.malId != null) &&
+    (manga.chapters == null || manga.chapters <= 0 || currentChapter.number <= manga.chapters) &&
+    (pages?.length ?? 0) > 0,
+  )
+
   // Throttled read-position persist. Key = `read:<internalId>` (AniList
   // Manga ID + mangadex provider + provider unit ID). Scroll position lives
   // in refs, never in global React state; a single IntersectionObserver
@@ -327,14 +343,16 @@ export function Read() {
       maxPage: pages.length,
       updatedAt: now,
     }).catch(() => {})
-    // Reached ~80% of the chapter → counts as read for the tracker.
-    // Discrete pages: furthest page >= 80% of page count. Never on open.
+    // Reached ~80% of the chapter → counts as read for the tracker
+    // (+1 chapter). Discrete pages: furthest page >= 80% of the page count.
+    // Invalid/partial records never reach this branch (canTrackChapter).
     const readThreshold = Math.max(1, Math.ceil(pages.length * 0.8))
-    if (isAuthenticated && !completedRef.current && pageRef.current + 1 >= readThreshold && currentChapter.number != null) {
+    const chapterNumber = currentChapter.number
+    if (isAuthenticated && canTrackChapter && !completedRef.current && pageRef.current + 1 >= readThreshold && chapterNumber != null) {
       completedRef.current = true
-      updateProgress(manga, currentChapter.number).catch(() => {})
+      updateProgress(manga, chapterNumber).catch(() => {})
     }
-  }, [manga, currentChapter, pages?.length, isAuthenticated, updateProgress])
+  }, [manga, currentChapter, pages?.length, isAuthenticated, updateProgress, canTrackChapter])
   useEffect(() => { flushRef.current = () => persistPos(true) }, [persistPos])
   // Flush on unmount / chapter change so position survives short visits.
   // Skip when the user never scrolled (pageRef 0): flushing 0 would erase
@@ -566,6 +584,7 @@ export function Read() {
               key={p.index}
               page={p}
               fit={fit}
+              isLast={p.index === pages[pages.length - 1].index}
               register={el => { if (el) pageElsRef.current.set(p.index, el); else pageElsRef.current.delete(p.index) }}
             />
           ))}
@@ -578,18 +597,35 @@ export function Read() {
           <ChapterNavButtons id={id} prevChapter={prevChapter} nextChapter={nextChapter} testId="chapter-nav-bottom" />
         </div>
       )}
+
+      {/* Synopsis — same block as Watch, above the related rail. */}
+      <div className="mt-10 max-w-[720px]">
+        <h2 className="mb-2 text-sm font-semibold text-[var(--text)]">Synopsis</h2>
+        <p className="text-sm leading-6 text-[var(--text-muted)]">{manga.description || 'No description available.'}</p>
+      </div>
+
+      {/* Related Manga — the same Home-style rail as Watch, using portrait
+          manga cards. Opens the floating detail card over the reader. */}
+      {manga.identity.anilistId && (
+        <ReadRelatedRow anilistId={manga.identity.anilistId} relations={manga.relations} />
+      )}
     </div>
   )
 }
 
-function MangaPageImage({ page, fit, register }: { page: MangaPage; fit: string; register: (el: HTMLElement | null) => void }) {
+function ReadRelatedRow({ anilistId, relations }: { anilistId: number; relations: import('../types/anime').Anime['relations'] }) {
+  const { entries, loading } = useRelatedEntries(`page-manga-${anilistId}:${anilistId}`, relations, 'MANGA')
+  return <RelatedRow entries={entries} loading={loading} mediaKind="manga" title="Related Manga" className="mt-12" />
+}
+
+function MangaPageImage({ page, fit, isLast, register }: { page: MangaPage; fit: string; isLast: boolean; register: (el: HTMLElement | null) => void }) {
   const [failed, setFailed] = useState(false)
   const [retryKey, setRetryKey] = useState(0)
   return (
     <div
       ref={register as any}
       data-page-index={page.index}
-      className={`relative w-full overflow-hidden bg-[var(--surface)] ${page.index === 0 ? 'rounded-t-lg' : ''}`}
+      className={`relative w-full overflow-hidden bg-[var(--surface)] ${page.index === 0 ? 'rounded-t-lg' : ''} ${isLast ? 'rounded-b-lg' : ''}`}
       style={{ minHeight: 400 }}
     >
       {!failed ? (

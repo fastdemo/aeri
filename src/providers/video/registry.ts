@@ -6,7 +6,6 @@ import { animePaheProvider } from './animepahe'
 import { aniKotoProvider } from './anikoto'
 import { aniWaveProvider } from './aniwave'
 import { megaPlayProvider } from './megaplay'
-import { megaVidProvider } from './megavid'
 import { animeGGProvider } from './animegg'
 import { animeParadiseProvider } from './animeparadise'
 import { aniNekoProvider } from './anineko'
@@ -15,19 +14,20 @@ import { customProvider } from './custom'
 import { getPreferences, getEffectiveVideoApiUrl } from '../../storage/preferences'
 import { fetchWithTimeout } from './base'
 
-// Priority order (verified reliability first — 2026-09-27 live pass):
-// 1. megavid (Tier 1: proven HLS sub+dub, MAL-keyed, highest priority)
-// 2. animegg (Tier 2: proven MP4 sub+dub, first fallback)
-// 3. custom endpoint (user self-hosted) when configured
+// Priority order (verified reliability first — 2026-10-24 pass):
+// 1. aniwave (Tier 1: verified HLS sub+dub through the same-origin Worker
+//    relay; the only browser-usable provider after MegaVid was removed)
+// 2. animegg (Tier 2: verified browser-direct MP4 fallback; cert/CORS can
+//    fail in some environments)
 // A trailer must never be presented as a full-episode playback source, so
 // no trailer provider exists in this chain (see agents/streaming.md).
 // Dead/broken/stub providers (allanime/pahe/koto/paradise/neko crypto-
 // or CF-gated, miruro trailer-alias) are NEVER in the active chain: they
 // are status!=verified so the verified-only pool below excludes them —
-// zero requests, zero timeout budget spent. aniwave is VERIFIED and the
-// Tier-3 worker-resolver fallback (filter → episode list → sources → HLS,
-// proven 2026-09-27 through 2026-10-10: 1180ep One Piece, 220ep Naruto,
-// 37ep Death Note, 25ep AoT, 28ep Frieren with TS-sync bytes).
+// zero requests, zero timeout budget spent. MegaVid was removed entirely
+// (D124): its JSON is CORS-locked to megavid.buzz, so it could never be the
+// playing source in a browser; keeping it only produced a false episode-
+// provider label and a useless first attempt.
 // Mock is last for episode list only (no video).
 // NOTE (2026-10-10): AniDap was fully probed (anilistId→slug→chad servers→
 // sources→multivariant HLS+VTT, TS-sync bytes) but REJECTED for the
@@ -36,11 +36,10 @@ import { fetchWithTimeout } from './base'
 // as the HiAnime-API sidecar finding — viable only as a self-hosted
 // relay, not as a direct registry provider. See agents/streaming.md.
 export const videoProviders: VideoProvider[] = [
-  megaVidProvider,
+  aniWaveProvider,
   animeGGProvider,
   customProvider,
   miruroProvider,
-  aniWaveProvider,
   allAnimeProvider,
   animePaheProvider,
   aniKotoProvider,
@@ -102,13 +101,13 @@ export async function checkProviderHealth(signal?: AbortSignal): Promise<Record<
         // Health = worker reachable; per-provider truth comes from the
         // verified registry (Settings only lists verified providers, so
         // the map carries exactly those keys).
-        const baseMap: Record<string, 'available' | 'unavailable'> = { megavid: 'available', animegg: 'available' }
+        const baseMap: Record<string, 'available' | 'unavailable'> = { aniwave: 'available', animegg: 'available' }
         return baseMap
       }
     } catch {}
-    return { megavid: 'unavailable', animegg: 'unavailable' } as any
+    return { aniwave: 'unavailable', animegg: 'unavailable' } as any
   }
-  return { megavid: 'unavailable', animegg: 'unavailable' }
+  return { aniwave: 'unavailable', animegg: 'unavailable' }
 }
 
 export function getProviderById(id: string): VideoProvider | undefined {
@@ -148,6 +147,12 @@ export interface ResolveSourcesOptions {
   preferredLanguage?: VideoLanguage
   signal?: AbortSignal
   bypassCache?: boolean
+  /**
+   * Languages to resolve in one pass. Watch passes ['sub', 'dub'] so the
+   * source picker has real alternatives and the sub/dub toggle never has to
+   * re-resolve on click. Single-language callers keep the old behavior.
+   */
+  languages?: VideoLanguage[]
   /** Anime title for provider resolution (romaji). Lets the worker resolve
       without its own AniList fetch (often IP-blocked from worker egress). */
   animeTitle?: string | null
@@ -189,7 +194,6 @@ export async function resolveSourcesWithFallback(
         `video:custom:sources:${episode.providerEpisodeId}:${lang}`,
         `video:custom:episodes:${episode.animeId}`,
         `video:anikoto:sources:${episode.providerEpisodeId}:${lang}`,
-        `video:megavid:sources:${episode.providerEpisodeId}:${lang}`,
         `video:animegg:sources:${episode.providerEpisodeId}:${lang}`,
       ]
       for (const k of possibleKeys) {
@@ -257,6 +261,46 @@ export async function resolveSourcesWithFallback(
     }
   }
   return { sources: [], tried }
+}
+
+/**
+ * Resolve the same episode in more than one language in a single pass.
+ *
+ * Playback surfaces need this: `resolveSourcesWithFallback()` returns only
+ * the preferred language from the first provider that answers. Fetching sub
+ * and dub together gives the source picker real options and makes the
+ * sub/dub toggle an instant local switch instead of a dead disabled button.
+ * The order is preferred language first; duplicate provider/language/quality
+ * URLs are removed, and `tried` is the union of every provider attempted.
+ */
+export async function resolveSourcesForLanguages(
+  episode: VideoEpisode,
+  options?: ResolveSourcesOptions,
+): Promise<{ sources: VideoSourceEnhanced[]; tried: string[] }> {
+  const languages: VideoLanguage[] = Array.from(new Set(
+    options?.languages?.length
+      ? options.languages
+      : [options?.preferredLanguage ?? 'sub', 'dub'],
+  ))
+  const results = await Promise.allSettled(
+    languages.map(language => resolveSourcesWithFallback(episode, { ...options, preferredLanguage: language })),
+  )
+  const sources: VideoSourceEnhanced[] = []
+  const seen = new Set<string>()
+  const tried = new Set<string>()
+  for (const result of results) {
+    if (result.status !== 'fulfilled') continue
+    for (const id of result.value.tried) tried.add(id)
+    for (const source of result.value.sources) {
+      const key = `${source.provider}|${source.language ?? ''}|${source.quality ?? ''}|${source.url}`
+      if (seen.has(key)) continue
+      seen.add(key)
+      sources.push(source)
+    }
+  }
+  const preferred = options?.preferredLanguage ?? languages[0]
+  sources.sort((a, b) => (a.language === preferred ? 0 : 1) - (b.language === preferred ? 0 : 1))
+  return { sources, tried: [...tried] }
 }
 
 export function getProviderCapabilities() {

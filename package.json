@@ -16,8 +16,9 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",
-    "bootstrap-icons": "^1.13.1",
-    "hls.js": "^1.7.1",
+    "@videojs/hlsjs-video": "^10.2.0",
+    "@videojs/react": "^10.2.0",
+    "lucide-react": "^1.61.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-router-dom": "^7.18.3",

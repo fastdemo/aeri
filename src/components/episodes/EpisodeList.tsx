@@ -3,12 +3,13 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Anime } from '../../types/anime'
 import type { VideoEpisode } from '../../providers/video/types'
 import { useTracking } from '../../contexts/TrackingContext'
-import { normalizeEpisodes } from '../../lib/episodes'
+import { normalizeEpisodes, type EpisodeFallbackInput } from '../../lib/episodes'
 import { resolveEpisodesWithFallback } from '../../providers/video/registry'
+import { useKitsuEpisodes } from '../../hooks/useKitsuEpisodes'
 import { Icon } from '../ui/Icon'
 
-export function getEpisodes(anime: Anime) {
-  const eps = normalizeEpisodes(anime)
+export function getEpisodes(anime: Anime, fallback?: EpisodeFallbackInput | null) {
+  const eps = normalizeEpisodes(anime, null, fallback)
   return eps.map(e => ({
     number: e.number,
     displayNumber: e.number,
@@ -19,11 +20,15 @@ export function getEpisodes(anime: Anime) {
   }))
 }
 
-export function EpisodeList({ anime, hideHeader }: { anime: Anime; hideHeader?: boolean }) {
+export function EpisodeList({ anime, rawAnime, hideHeader }: { anime: Anime; rawAnime?: Anime; hideHeader?: boolean }) {
   const [providerEpisodes, setProviderEpisodes] = useState<VideoEpisode[] | null>(null)
   const [providerDone, setProviderDone] = useState(false)
   const prevIdRef = useRef<string>('')
-  const { isAuthenticated, combinedList, updateProgress } = useTracking()
+  const { isAuthenticated, combinedList } = useTracking()
+  // `rawAnime` is the pre-sanitize record; without it, AniList data that the
+  // season/range guard discarded would be mistaken for "no data" and Kitsu
+  // would replace it. Callers that hold the raw record must pass it.
+  const kitsu = useKitsuEpisodes(anime, rawAnime ?? anime)
 
   useEffect(() => {
     const id = anime.identity.internalId
@@ -51,7 +56,7 @@ export function EpisodeList({ anime, hideHeader }: { anime: Anime; hideHeader?: 
 
   const [localDesc, setLocalDesc] = useState(false)
   const episodes = useMemo(() => {
-    const eps = normalizeEpisodes(anime, providerEpisodes)
+    const eps = normalizeEpisodes(anime, providerEpisodes, kitsu)
     const mapped = eps.map(e => ({
       number: e.number,
       displayNumber: e.number,
@@ -70,6 +75,7 @@ export function EpisodeList({ anime, hideHeader }: { anime: Anime; hideHeader?: 
     anime.streamingEpisodes,
     anime.duration,
     providerEpisodes,
+    kitsu,
     localDesc,
   ])
 
@@ -118,12 +124,6 @@ export function EpisodeList({ anime, hideHeader }: { anime: Anime; hideHeader?: 
   })()
   const progressEp = entry?.progress ?? anime.progress?.episode ?? 0
 
-  const handleSelect = (localNum: number) => {
-    if (isAuthenticated) {
-      updateProgress(anime, localNum).catch(() => {})
-    }
-  }
-
   if (episodes.length === 0) {
     return (
       <div className="rounded-lg border border-[var(--border)] bg-[var(--text)]/[0.02] px-4 py-6 text-center text-xs text-[var(--text-faint)]">
@@ -167,12 +167,11 @@ export function EpisodeList({ anime, hideHeader }: { anime: Anime; hideHeader?: 
           const isWatched = progressEp > 0 && ep.number <= progressEp
           const seasonKey = anime.identity.anilistId ? `anilist:${anime.identity.anilistId}` : anime.identity.internalId
           // Per-row state: skeleton ONLY while that field is genuinely still
-          // loading (provider fetch pending). A resolved-but-absent field
-          // renders the quiet "Episode N" fallback — never a fake thumbnail.
-          // providerDone=false + unavailable state can occur on the very
-          // first paint (fetch not yet settled); treat as loading then.
-          const titleLoading = !providerDone ? (ep.fieldState?.title !== 'resolved') : ep.fieldState?.title === 'loading'
-          const thumbLoading = !providerDone ? (ep.fieldState?.thumbnail !== 'resolved') : ep.fieldState?.thumbnail === 'loading'
+          // loading (the whole-entry Kitsu fallback is in flight). A
+          // resolved-but-absent field renders the quiet "Episode N" fallback
+          // — never a fake thumbnail or a provider title.
+          const titleLoading = ep.fieldState?.title === 'loading'
+          const thumbLoading = ep.fieldState?.thumbnail === 'loading'
           // PLACEHOLDER RULE (owner 2026-10-18): an episode without its own
           // thumbnail shows the SHOW's artwork — never a bare tile. The
           // skeleton only runs when there is no artwork at all yet.
@@ -185,7 +184,6 @@ export function EpisodeList({ anime, hideHeader }: { anime: Anime; hideHeader?: 
             <Link
               key={`${seasonKey}-${ep.number}`}
               to={`/watch/${anime.identity.internalId}/${watchEp}`}
-              onClick={() => handleSelect(ep.number)}
               className={`flex items-center gap-3 bg-[var(--surface)] px-3 py-3 text-left transition hover:bg-[var(--text)]/[0.04] ${idx !== episodes.length - 1 ? 'border-b border-[var(--border)]' : ''}`}
             >
               <span className="w-9 text-center text-sm font-medium text-[var(--text-muted)]">{epLabel}</span>

@@ -7,6 +7,7 @@ Docs that describe behavior must be updated **in the same change** as the behavi
 | Change touches | Update in the same change |
 |---|---|
 | Architecture, routing, storage, data flow | `docs/ARCHITECTURE.md`, `agents/architecture.md`, `docs/DECISIONS.md` (new number if a trade-off was made) |
+| Providers, metadata ownership, tracker choice, Kitsu episode fallback | `docs/PROVIDERS.md`, `docs/ARCHITECTURE.md`, `agents/anilist.md` / `agents/mal.md`, `agents/streaming.md`, `agents/changelog.md`, `docs/DECISIONS.md` |
 | Deployment, hosting, Worker config, secrets, roles | `docs/DEPLOYMENT.md`, `docs/RELEASING.md` (if preflight/verify steps change), `agents/deployment.md`, `docs/DECISIONS.md` |
 | Auth (AniList / MAL / OAuth) | `docs/API.md`, `docs/ARCHITECTURE.md`, `agents/mal.md` / `agents/anilist.md`, `docs/DECISIONS.md` |
 | Streaming / providers / matching / resolver | `agents/streaming.md`, `src/providers/video/registry.ts` comments, `docs/DECISIONS.md`, dated provider-verification paragraph in `agents/changelog.md` |

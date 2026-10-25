@@ -19,8 +19,8 @@ function headers(extra: Record<string, string> = {}): Record<string, string> {
  * search → /series/naruto → /naruto-episode-1 → /embed/25881 →
  * /play/248322/video.mp4 → 200 video/mp4, sub+dub variants).
  *
- * Tier 2 (first fallback after MegaVid). Browser-direct scraping of the
- * site's server-rendered HTML (Express + jwplayer); NO worker JSON routes.
+ * Tier 2 (fallback after AniWave). Browser-direct scraping of the site's
+ * server-rendered HTML (Express + jwplayer); NO worker JSON routes.
  *
  * Signed/date-stamped MP4 URLs: episodes (stable series/episode links)
  * are cached; sources (signed /play/ MP4) ALWAYS resolve fresh at

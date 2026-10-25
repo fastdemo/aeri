@@ -21,7 +21,7 @@ export function ChapterList({ manga }: { manga: Anime }) {
   const [resolveError, setResolveError] = useState<string | null>(null)
   const [done, setDone] = useState(false)
   const [orderTick, setOrderTick] = useState(0)
-  const { combinedList, isAuthenticated, updateProgress } = useTracking()
+  const { combinedList, isAuthenticated } = useTracking()
 
   // Re-sort when the chapterOrder pref changes (Settings writes prefs, then
   // broadcasts; storage event covers other tabs). ALSO re-resolves when
@@ -170,9 +170,6 @@ export function ChapterList({ manga }: { manga: Anime }) {
             <Link
               key={ch.id}
               to={`/read/${manga.identity.internalId}/${encodeURIComponent(ch.providerChapterId)}`}
-              onClick={() => {
-                if (isAuthenticated && ch.number != null) updateProgress(manga, ch.number).catch(() => {})
-              }}
               className={`flex items-center gap-3 bg-[var(--surface)] px-3 py-3 text-left transition hover:bg-[var(--text)]/[0.04] ${idx !== ordered.length - 1 ? 'border-b border-[var(--border)]' : ''}`}
             >
               {/* OWNER LAYOUT (2026-10-18 rethink): name left; the date is

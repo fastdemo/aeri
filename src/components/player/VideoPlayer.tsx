@@ -1,4 +1,8 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
+import type { ComponentProps } from 'react'
+import { VideoPlayer as VideoJsPlayer, VideoSkin } from '@videojs/react/video'
+import { HlsJsVideo } from '@videojs/react/media/hlsjs-video'
+import '@videojs/react/video/skin.css'
 import type { VideoSourceEnhanced, SubtitleTrack } from '../../providers/video/types'
 
 type Props = {
@@ -12,141 +16,87 @@ type Props = {
   episodeNumber: number
   volume?: number
   autoplay?: boolean
+  poster?: string
 }
 
-export function VideoPlayer({ sources, selectedSource, subtitles, onTimeUpdate, onEnded, initialTime, animeTitle, episodeNumber, volume = 1, autoplay = false }: Props) {
+// Safari needs this attribute on the media element for the default skin's
+// AirPlay button to reach the system picker.
+const airPlayAttrs = { 'x-webkit-airplay': 'allow' }
+
+// AniList backdrops are ultra-wide; crop them to the player frame instead of
+// letting the default skin letterbox them with `contain`.
+function renderCoverPoster({ src, style, ...props }: ComponentProps<'img'>) {
+  if (!src) return null
+  return <img {...props} src={src} alt="" style={{ ...style, objectFit: 'cover' }} />
+}
+
+export function VideoPlayer({
+  sources,
+  selectedSource,
+  subtitles,
+  onTimeUpdate,
+  onEnded,
+  initialTime,
+  animeTitle,
+  episodeNumber,
+  volume = 1,
+  autoplay = false,
+  poster,
+}: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  // Device targets appear only when the OS reports one — no extra chrome otherwise.
-  const [airPlayAvailable, setAirPlayAvailable] = useState(false)
-  const [castAvailable, setCastAvailable] = useState(false)
 
   const source = selectedSource ?? sources[0] ?? null
-  const isHlsSource = !!(source && (source.url.includes('.m3u8') || source.type === 'hls'))
+  const isPlayable = !!source?.url && !source.embed && source.type !== 'embed'
+  const sourceType = source?.type?.toLowerCase() ?? ''
+  const isHlsSource = !!(
+    source
+    && (sourceType === 'hls'
+      || sourceType.includes('mpegurl')
+      || /\.m3u8(?:$|[?#])/i.test(source.url))
+  )
 
-  // Reset loading/error/time when source changes
-  useEffect(() => {
-    setError(null)
-    setIsLoading(true)
-    // reset video element time as well (React state alone doesn't seek)
-    if (videoRef.current) {
-      try { videoRef.current.currentTime = initialTime ?? 0 } catch {}
-    }
-  }, [source?.url])
-
-  // HLS support: lazy import, never blocks navigation. Cleanup destroys hls instance but does NOT clear src (MP4 src is managed via JSX)
-  const hlsRef = useRef<any>(null)
-  useEffect(() => {
-    setError(null)
-    if (!source || source.embed) return
-    const url = source.url
-    const isHls = url.includes('.m3u8') || source.type === 'hls'
-    if (!isHls) return
-    const video = videoRef.current
-    if (!video) return
-    if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = url
-      // Native HLS: only pause on cleanup, do not clear src (next MP4 will set via JSX)
-      return () => {
-        try { video.pause() } catch {}
-      }
-    }
-    let cancelled = false
-    let timer: ReturnType<typeof setTimeout> | null = null
-    timer = setTimeout(async () => {
-      if (cancelled) return
-      try {
-        const Hls = (await import('hls.js')).default
-        if (cancelled || !Hls.isSupported()) {
-          if (!cancelled) try { video.src = url } catch {}
-          return
-        }
-        if (hlsRef.current) { try { hlsRef.current.destroy() } catch {}; hlsRef.current = null }
-        if (cancelled) return
-        const hls = new Hls({ enableWorker: true })
-        hlsRef.current = hls
-        hls.on(Hls.Events.ERROR, (_evt: any, data: any) => {
-          if (data?.fatal) {
-            try { hls.destroy() } catch {}
-            hlsRef.current = null
-            if (!cancelled) setError('Stream error. Try another source.')
-          }
-        })
-        hls.loadSource(url)
-        hls.attachMedia(video)
-      } catch {
-        if (!cancelled) try { video.src = url } catch {}
-      }
-    }, 0)
-    return () => {
-      cancelled = true
-      if (timer) clearTimeout(timer)
-      if (hlsRef.current) { try { hlsRef.current.destroy() } catch {}; hlsRef.current = null }
-      try { video.pause() } catch {}
-    }
-  }, [source?.url, source?.type, source?.embed])
-
-  // Resume from initialTime — seek only after metadata is available
+  // Resume from initialTime — seek only after metadata is available. The
+  // adapter fires loadedmetadata/durationchange; canplay covers manifests
+  // whose duration becomes finite slightly after metadata.
   useEffect(() => {
     const v = videoRef.current
-    if (!v || !initialTime || initialTime <= 0) return
+    if (!v || !initialTime || initialTime <= 5) return
+
+    let cancelled = false
+    const cleanup = () => {
+      v.removeEventListener('loadedmetadata', trySeek)
+      v.removeEventListener('durationchange', trySeek)
+      v.removeEventListener('canplay', trySeek)
+    }
     const trySeek = () => {
+      if (cancelled) return
       try {
         const dur = v.duration
-        if (!isFinite(dur) || dur === 0) return
-        if (initialTime > 5 && initialTime < dur - 5) v.currentTime = initialTime
+        if (!Number.isFinite(dur) || dur <= 0 || initialTime >= dur - 5) return
+        v.currentTime = initialTime
+        cancelled = true
+        cleanup()
       } catch {}
     }
-    if (v.readyState >= 1) {
-      trySeek()
-    } else {
-      const onMeta = () => trySeek()
-      v.addEventListener('loadedmetadata', onMeta, { once: true })
-      return () => v.removeEventListener('loadedmetadata', onMeta)
+
+    if (v.readyState >= 1) trySeek()
+    if (!cancelled) {
+      v.addEventListener('loadedmetadata', trySeek)
+      v.addEventListener('durationchange', trySeek)
+      v.addEventListener('canplay', trySeek)
+    }
+
+    return () => {
+      cancelled = true
+      cleanup()
     }
   }, [initialTime, source?.url])
 
-  // Volume control
+  // Volume preference is a media-element property, not an attribute.
   useEffect(() => {
-    if (videoRef.current) videoRef.current.volume = Math.max(0, Math.min(1, volume))
-  }, [volume])
-
-  // OS integration: AirPlay (Safari) + Chromecast (Remote Playback API).
-  // Native controls already surface these where the OS provides them; this
-  // only wires availability detection and the explicit pickers.
-  useEffect(() => {
-    const v = videoRef.current as any
-    if (!v) return
-    // Chromecast: opt into Remote Playback so supporting browsers (Chrome/Edge)
-    // inject their Cast entry point; track availability for our button.
-    let watchCb: ((available: boolean) => void) | null = null
-    let watchHandle: Promise<number> | null = null
-    try {
-      if (v.remote && typeof v.remote.watchAvailability === 'function') {
-        try { v.setAttribute('remote', '') } catch {}
-        watchCb = (available: boolean) => setCastAvailable(!!available)
-        watchHandle = v.remote.watchAvailability(watchCb).catch?.(() => null) ?? null
-      }
-    } catch {}
-    // AirPlay: Safari fires availability events on the element.
-    const onAirPlay = (e: any) => setAirPlayAvailable(e?.availability === 'available')
-    try { v.addEventListener?.('webkitplaybacktargetavailabilitychanged', onAirPlay) } catch {}
-    // Probe once in case the event already fired before listeners attached.
-    try {
-      if (typeof v.webkitShowPlaybackTargetPicker === 'function' && v.webkitCurrentPlaybackTargetIsWireless === true) {
-        setAirPlayAvailable(true)
-      }
-    } catch {}
-    return () => {
-      try { v.removeEventListener?.('webkitplaybacktargetavailabilitychanged', onAirPlay) } catch {}
-      try {
-        if (v.remote && watchHandle && typeof v.remote.cancelWatchAvailability === 'function') {
-          v.remote.cancelWatchAvailability()
-        }
-      } catch {}
-    }
-  }, [source?.url])
+    const v = videoRef.current
+    if (v) v.volume = Math.max(0, Math.min(1, volume))
+  }, [volume, source?.url])
 
   // Lock-screen / Bluetooth / PiP metadata (Media Session API).
   useEffect(() => {
@@ -184,7 +134,8 @@ export function VideoPlayer({ sources, selectedSource, subtitles, onTimeUpdate, 
     } catch { return }
   }, [animeTitle, episodeNumber, source?.url])
 
-  // Apply subtitles track mode when subtitles prop changes
+  // Apply the subtitles preference once track metadata exists. HLS text
+  // tracks can arrive after loadedmetadata, so addtrack is covered too.
   useEffect(() => {
     if (!subtitles || subtitles.length === 0) return
     const v = videoRef.current
@@ -192,131 +143,66 @@ export function VideoPlayer({ sources, selectedSource, subtitles, onTimeUpdate, 
     const apply = () => {
       for (let i = 0; i < v.textTracks.length; i++) {
         const tt = v.textTracks[i]
-        // only show subtitles, not captions/metadata
         if (tt.kind === 'subtitles' || tt.kind === 'captions') tt.mode = 'showing'
       }
     }
-    if (v.readyState >= 1) {
-      // metadata already loaded — apply immediately
-      apply()
+    apply()
+    v.textTracks.addEventListener('addtrack', apply)
+    v.addEventListener('loadedmetadata', apply)
+    return () => {
+      v.textTracks.removeEventListener('addtrack', apply)
+      v.removeEventListener('loadedmetadata', apply)
     }
-    // also listen for future metadata (when switching source)
-    v.addEventListener('loadedmetadata', apply, { once: true })
-    return () => v.removeEventListener('loadedmetadata', apply)
   }, [subtitles, source?.url])
 
-  // No source — don't render video
-  if (!source || !source.url) {
-    return null
-  }
-
-  // Embed: use iframe
-  if (source.embed) {
+  // No direct source — Watch filters embed sources before rendering, so this
+  // is an honest guard rather than a second (iframe) player path.
+  if (!source || !source.url) return null
+  if (!isPlayable) {
     return (
-      <div className="relative aspect-video w-full overflow-hidden bg-[var(--bg)]">
-        <iframe
-          src={source.url}
-          title={`${animeTitle ?? 'Anime'} Episode ${episodeNumber}`}
-          className="h-full w-full border-0"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
-          allowFullScreen
-          loading="lazy"
-          referrerPolicy="no-referrer"
-          onLoad={() => setIsLoading(false)}
-          onError={() => setError('Embed failed to load. Try another source.')}
-        />
-        {isLoading && (
-          <div className="pointer-events-none absolute inset-0 grid place-items-center bg-[color-mix(in_srgb,var(--bg)_60%,transparent)]">
-            <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--border-strong)] border-t-[var(--text)]" />
-          </div>
-        )}
-        {error && <p className="absolute left-1/2 top-3 -translate-x-1/2 rounded bg-[var(--accent)] px-3 py-1 text-xs text-[var(--text)]">{error}</p>}
+      <div className="grid h-full w-full place-items-center bg-[var(--bg)] px-6 text-center">
+        <p className="text-sm text-[var(--text-muted)]">This source can’t be played in Aeri’s player.</p>
       </div>
     )
   }
 
-  // Direct video (hls/mp4)
-  // crossOrigin only when subtitles require it (CORS VTT) — avoids breaking non-CORS MP4s
+  // One media element for every direct source: HlsJsVideo uses hls.js for
+  // HLS (MSE) and falls back to the browser's native player for MP4/HLS
+  // where MSE is unavailable. Video.js owns all chrome via the default skin.
   const needsCors = !!(subtitles && subtitles.length > 0)
   return (
-    <div className="relative aspect-video w-full overflow-hidden bg-[var(--bg)]">
-      {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
-      <video
-        ref={videoRef}
-        src={isHlsSource ? undefined : source.url}
-        controls
-        autoPlay={!!autoplay}
-        playsInline
-        preload="metadata"
-        crossOrigin={needsCors ? "anonymous" : undefined}
-        // Lets supporting browsers (Safari, Chrome/Edge) surface their own
-        // AirPlay / Cast entry points in the native controls.
-        {...({ 'x-webkit-airplay': 'allow' } as any)}
-        className="h-full w-full object-contain"
-        onLoadedMetadata={() => {
-          setIsLoading(false)
-          if (videoRef.current && initialTime && initialTime > 5) {
-            const dur = videoRef.current.duration
-            if (Number.isFinite(dur) && initialTime < dur - 5) videoRef.current.currentTime = initialTime
-          }
-        }}
-        onTimeUpdate={e => {
-          const v = e.currentTarget
-          onTimeUpdate?.(v.currentTime, v.duration)
-        }}
-        onEnded={() => onEnded?.()}
-        onError={() => {
-          setError('Video failed to load. Try another source.')
-        }}
-        onWaiting={() => setIsLoading(true)}
-        onPlaying={() => setIsLoading(false)}
-      >
-        {subtitles?.map((track, idx) => (
-          <track key={`${track.url}-${track.language}-${idx}`} kind="subtitles" src={track.url} srcLang={track.language} label={track.label} default={idx === 0} />
-        ))}
-        Your browser does not support video playback.
-      </video>
-
-      {isLoading && (
-        <div className="pointer-events-none absolute inset-0 grid place-items-center bg-[color-mix(in_srgb,var(--bg)_30%,transparent)]">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--border-strong)] border-t-[var(--text)]" />
-        </div>
-      )}
-
-      {/* Device targets — rendered ONLY while the OS reports one available,
-          so there is no extra chrome in the common case. */}
-      {(airPlayAvailable || castAvailable) && (
-        <div className="absolute right-2 top-2 flex gap-1.5">
-          {airPlayAvailable && (
-            <button
-              type="button"
-              aria-label="AirPlay"
-              title="AirPlay"
-              onClick={() => {
-                try { (videoRef.current as any)?.webkitShowPlaybackTargetPicker?.() } catch {}
-              }}
-              className="rounded-full bg-[color-mix(in_srgb,var(--bg)_70%,transparent)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--text)] backdrop-blur hover:bg-[color-mix(in_srgb,var(--bg)_90%,transparent)]"
-            >
-              AirPlay
-            </button>
-          )}
-          {castAvailable && (
-            <button
-              type="button"
-              aria-label="Cast"
-              title="Cast"
-              onClick={async () => {
-                try { await (videoRef.current as any)?.remote?.prompt?.() } catch {}
-              }}
-              className="rounded-full bg-[color-mix(in_srgb,var(--bg)_70%,transparent)] px-2.5 py-1.5 text-[11px] font-medium text-[var(--text)] backdrop-blur hover:bg-[color-mix(in_srgb,var(--bg)_90%,transparent)]"
-            >
-              Cast
-            </button>
-          )}
-        </div>
-      )}
-
-      {error && <p className="absolute left-1/2 top-3 -translate-x-1/2 rounded bg-[var(--accent)] px-3 py-1 text-xs text-[var(--text)]">{error}</p>}
+    <div className="h-full w-full">
+      <VideoJsPlayer poster={poster}>
+        <VideoSkin className="h-full w-full" renderPoster={renderCoverPoster}>
+          <HlsJsVideo
+            ref={videoRef}
+            source={{
+              src: source.url,
+              type: isHlsSource ? 'application/vnd.apple.mpegurl' : 'video/mp4',
+            }}
+            autoPlay={!!autoplay}
+            playsInline
+            crossOrigin={needsCors ? 'anonymous' : undefined}
+            {...airPlayAttrs}
+            onTimeUpdate={(e) => {
+              const v = e.currentTarget
+              onTimeUpdate?.(v.currentTime, v.duration)
+            }}
+            onEnded={() => onEnded?.()}
+          >
+            {subtitles?.map((track, idx) => (
+              <track
+                key={`${track.url}-${track.language}-${idx}`}
+                kind="subtitles"
+                src={track.url}
+                srcLang={track.language}
+                label={track.label}
+                default={idx === 0}
+              />
+            ))}
+          </HlsJsVideo>
+        </VideoSkin>
+      </VideoJsPlayer>
     </div>
   )
 }

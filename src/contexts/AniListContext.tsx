@@ -25,7 +25,7 @@ type Ctx = {
   updateStatus: (id: string, status: AnimeStatus, isManga?: boolean, dates?: TrackerDates) => Promise<void>
   updateRating: (id: string, rating: number, isManga?: boolean) => Promise<void>
   /** Remove the entry from the list entirely (AniList DeleteMediaListEntry). */
-  removeEntry: (id: string) => Promise<void>
+  removeEntry: (id: string, isManga?: boolean) => Promise<void>
 }
 
 const AniListContext = createContext<Ctx | null>(null)
@@ -329,11 +329,11 @@ export function AniListProvider({ children }: { children: React.ReactNode }) {
     return p
   }, [])
 
-  const updateProgress = useCallback(async (id: string, ep: number) => {
+  const updateProgress = useCallback(async (id: string, ep: number, isManga?: boolean) => {
     return guardWrite(`progress:${id}`, async () => {
     optimisticUpdate(id, { progress: ep })
     try {
-      await aniListProvider.updateProgress(id, ep)
+      await aniListProvider.updateProgress(id, ep, isManga)
       const t = getAnilistToken()
       if (t) await loadList(t).catch(() => {})
     } catch (e) {
@@ -345,11 +345,11 @@ export function AniListProvider({ children }: { children: React.ReactNode }) {
     })
   }, [optimisticUpdate, loadList, guardWrite])
 
-  const updateStatus = useCallback(async (id: string, status: AnimeStatus, _isManga?: boolean, dates?: TrackerDates) => {
+  const updateStatus = useCallback(async (id: string, status: AnimeStatus, isManga?: boolean, dates?: TrackerDates) => {
     return guardWrite(`status:${id}`, async () => {
     optimisticUpdate(id, { status })
     try {
-      await aniListProvider.updateStatus(id, status, undefined, dates)
+      await aniListProvider.updateStatus(id, status, isManga, dates)
       const t = getAnilistToken()
       if (t) await loadList(t).catch(() => {})
     } catch (e) {
@@ -361,11 +361,11 @@ export function AniListProvider({ children }: { children: React.ReactNode }) {
     })
   }, [optimisticUpdate, loadList, guardWrite])
 
-  const updateRating = useCallback(async (id: string, rating: number) => {
+  const updateRating = useCallback(async (id: string, rating: number, isManga?: boolean) => {
     return guardWrite(`rating:${id}`, async () => {
     optimisticUpdate(id, { score: rating })
     try {
-      await aniListProvider.updateRating(id, rating)
+      await aniListProvider.updateRating(id, rating, isManga)
       const t = getAnilistToken()
       if (t) await loadList(t).catch(() => {})
     } catch (e) {
@@ -377,11 +377,11 @@ export function AniListProvider({ children }: { children: React.ReactNode }) {
     })
   }, [optimisticUpdate, loadList, guardWrite])
 
-  const removeEntry = useCallback(async (id: string) => {
+  const removeEntry = useCallback(async (id: string, isManga?: boolean) => {
     return guardWrite(`remove:${id}`, async () => {
     optimisticRemove(id)
     try {
-      await aniListProvider.removeEntry(id)
+      await aniListProvider.removeEntry(id, isManga)
       const t = getAnilistToken()
       if (t) await loadList(t).catch(() => {})
     } catch (e) {

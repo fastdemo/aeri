@@ -309,7 +309,7 @@ export class AniListProvider implements TrackingProvider {
   }
 
   // Helpers to find existing list entry id
-  private async findEntryIdForMedia(mediaId: number, token: string): Promise<number | null> {
+  private async findEntryIdForMedia(mediaId: number, token: string, isManga = false): Promise<number | null> {
     // Try to locate existing entry via user's list — use cached list if possible, otherwise query single?
     // For simplicity, fetch user's list and find
     try {
@@ -318,10 +318,13 @@ export class AniListProvider implements TrackingProvider {
       // Need entry id — we lost it in mapping? Extend mapping to include entry id? We'll need to store entry id via anime identity? Better to refetch with entry id map
       // For now, we re-query MediaList with specific media query to get entry id via mediaListEntry
       if (found) {
-        // Re-query media to get mediaListEntry
+        // Re-query media to get mediaListEntry. The type MUST match the
+        // record: Media(id, type: ANIME) returns null for a manga id, and
+        // a null entry here made every manga write look like a NEW entry
+        // (re-sending startedAt on each chapter).
         const q = `
           query ($mediaId: Int) {
-            Media(id: $mediaId, type: ANIME) {
+            Media(id: $mediaId, type: ${isManga ? 'MANGA' : 'ANIME'}) {
               mediaListEntry { id status progress }
             }
           }
@@ -334,32 +337,46 @@ export class AniListProvider implements TrackingProvider {
     return null
   }
 
-  async updateProgress(id: string, episode: number): Promise<void> {
+  async updateProgress(id: string, episode: number, isManga = false): Promise<void> {
     const t = this.ensureToken()
     const anilistId = this.toAnilistId(id)
     // Need to find existing entry id or create via mediaId
-    // First try to get entry id
-    const entryId = await this.findEntryIdForMedia(anilistId, t).catch(() => null)
+    // First try to get entry id (type-aware: manga ids are in the same
+    // numeric space but a Media query must name the right type)
+    const entryId = await this.findEntryIdForMedia(anilistId, t, isManga).catch(() => null)
 
     let mutationId: any = {}
     if (entryId) {
       mutationId = { id: entryId, progress: episode }
     } else {
-      mutationId = { mediaId: anilistId, progress: episode, status: 'CURRENT' }
+      // NEW ENTRY (owner 2026-10-23): a progress write that creates the
+      // entry must also stamp today's start date — otherwise the title
+      // lands in Watching with no start date, and a later explicit
+      // "Watching" re-save used to be a no-op.
+      const now = new Date()
+      mutationId = {
+        mediaId: anilistId,
+        progress: episode,
+        status: 'CURRENT',
+        startedAt: { year: now.getFullYear(), month: now.getMonth() + 1, day: now.getDate() },
+      }
     }
 
     await anilistGraphQL(SAVE_MEDIA_LIST_ENTRY, mutationId, { token: t, useCache: false })
     // Invalidate list cache (memory + IDB) so the follow-up loadList in the
     // context reads the just-written server state, not a 24h IDB snapshot.
+    // Both kinds are cleared: the provider loads anime + manga lists.
     clearAnilistMemoryCache()
-    try { await deleteCache(`anilist:list:${(await this.getUser(t).catch(() => null))?.id ?? ''}`).catch(() => {}) } catch {}
+    const uid = (await this.getUser(t).catch(() => null))?.id ?? ''
+    try { await deleteCache(`anilist:list:${uid}`).catch(() => {}) } catch {}
+    try { await deleteCache(`anilist:list:manga:${uid}`).catch(() => {}) } catch {}
   }
 
-  async updateStatus(id: string, status: AnimeStatus, _isManga?: boolean, dates?: TrackerDates): Promise<void> {
+  async updateStatus(id: string, status: AnimeStatus, isManga?: boolean, dates?: TrackerDates): Promise<void> {
     const t = this.ensureToken()
     const anilistId = this.toAnilistId(id)
     const anilistStatus = aeriStatusToAnilist(status)
-    const entryId = await this.findEntryIdForMedia(anilistId, t).catch(() => null)
+    const entryId = await this.findEntryIdForMedia(anilistId, t, isManga).catch(() => null)
     const vars: any = entryId ? { id: entryId, status: anilistStatus } : { mediaId: anilistId, status: anilistStatus }
     // Date stamps (owner rule): watching → startedAt today, completed →
     // completedAt today. Sent only when the caller detected a real status
@@ -376,10 +393,10 @@ export class AniListProvider implements TrackingProvider {
    * Remove the entry from the user's list entirely (AniList
    * DeleteMediaListEntry). No-op when the title isn't in the list.
    */
-  async removeEntry(id: string): Promise<void> {
+  async removeEntry(id: string, isManga = false): Promise<void> {
     const t = this.ensureToken()
     const anilistId = this.toAnilistId(id)
-    const entryId = await this.findEntryIdForMedia(anilistId, t).catch(() => null)
+    const entryId = await this.findEntryIdForMedia(anilistId, t, isManga).catch(() => null)
     if (!entryId) return
     await anilistGraphQL(DELETE_MEDIA_LIST_ENTRY, { id: entryId }, { token: t, useCache: false })
     clearAnilistMemoryCache()
@@ -387,7 +404,7 @@ export class AniListProvider implements TrackingProvider {
     try { await deleteCache(`anilist:list:manga:${(await this.getUser(t).catch(() => null))?.id ?? ''}`).catch(() => {}) } catch {}
   }
 
-  async updateRating(id: string, rating: number): Promise<void> {
+  async updateRating(id: string, rating: number, isManga = false): Promise<void> {
     const t = this.ensureToken()
     const anilistId = this.toAnilistId(id)
     // AniList stores score in the USER's scoring format (POINT_100 = 0-100,
@@ -396,7 +413,7 @@ export class AniListProvider implements TrackingProvider {
     // the read path (mapper) normalizes >10 back by /10.
     const format = await this.getScoreFormat(t).catch(() => null)
     const score = toAnilistScore(rating, format)
-    const entryId = await this.findEntryIdForMedia(anilistId, t).catch(() => null)
+    const entryId = await this.findEntryIdForMedia(anilistId, t, isManga).catch(() => null)
     const vars: any = entryId ? { id: entryId, score } : { mediaId: anilistId, score, status: 'COMPLETED' }
     await anilistGraphQL(SAVE_MEDIA_LIST_ENTRY, vars, { token: t, useCache: false })
     clearAnilistMemoryCache()

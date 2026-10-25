@@ -301,17 +301,11 @@ export function Navbar() {
                 aria-controls="search-suggestions"
                 className="h-8 w-[180px] rounded-full border border-[var(--border)] bg-[var(--text)]/[0.08] py-0 pl-8 pr-3 text-[13px] text-[var(--text)] placeholder:text-[var(--text-faint)] backdrop-blur focus:w-[240px] focus:border-[var(--border-strong)] focus:bg-[var(--text)]/[0.12] focus:outline-none lg:w-[200px] transition-all"
               />
-              <svg
-                aria-hidden
-                className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[var(--text-muted)]"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-              >
-                <circle cx="11" cy="11" r="7" />
-                <path d="m20 20-3.5-3.5" />
-              </svg>
+              <Icon
+                name="search"
+                size={14}
+                className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"
+              />
               {showSuggestions && query.trim().length >= 2 && (
                 <HeaderPopup anchorRef={searchInputRef} align="left" width={240} ariaLabel="Search suggestions" role="listbox">
                   <SearchSuggestions query={query} onClose={() => setShowSuggestions(false)} onPreview={(a) => { if (!isAuthenticated) setSignInOpen(true); else openDetail(a) }} />
@@ -326,10 +320,7 @@ export function Navbar() {
             className="grid h-11 w-11 touch-manipulation place-items-center rounded-full text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)] hover:text-[var(--text)]"
             style={{ touchAction: 'manipulation' } as any}
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="11" cy="11" r="7" />
-              <path d="m20 20-3.5-3.5" />
-            </svg>
+            <Icon name="search" size={16} />
           </button>
           )}
 
@@ -415,24 +406,39 @@ export function Navbar() {
                       </span>
                       <span className="text-xs font-medium text-[var(--text)]">Settings</span>
                     </Link>
-                    {/* Incognito (owner 2026-10-23): a plain on/off mode —
-                        automatic tracker writes stop and every tab reads
-                        "Incognito - Aeri". Manual edits still sync. */}
+                    {/* Incognito (owner 2026-10-23, circle-only state
+                        2026-10-23): a plain on/off mode — automatic tracker
+                        writes stop and every tab reads "Incognito - Aeri".
+                        Manual edits still sync. The ROW is always normal;
+                        only the circle + icon invert: ON = --text circle
+                        with --on-text icon (white/black on dark themes,
+                        black/white on light themes), OFF = the normal
+                        translucent circle with a --text icon. */}
                     <button
                       type="button"
                       role="menuitemcheckbox"
                       aria-checked={incognito}
                       aria-label="Incognito mode"
                       onClick={toggleIncognito}
-                      className="flex w-full touch-manipulation items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)]"
+                      className="flex w-full touch-manipulation items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-[var(--text)] transition-colors duration-150 hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)]"
                       style={{ touchAction: 'manipulation' } as any}
                     >
-                      <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)]" aria-hidden>
-                        <Icon name="eye-slash" size={12} className="text-[var(--text)]" />
+                      <span
+                        className={`grid h-6 w-6 shrink-0 place-items-center rounded-full transition-colors duration-150 ${
+                          incognito
+                            ? 'bg-[var(--text)]'
+                            : 'bg-[color-mix(in_srgb,var(--text)_10%,transparent)]'
+                        }`}
+                        aria-hidden
+                      >
+                        <Icon
+                          name="eye-slash"
+                          size={12}
+                          className={incognito ? 'text-[var(--on-text)]' : 'text-[var(--text)]'}
+                        />
                       </span>
-                      <span className="flex-1 text-xs font-medium text-[var(--text)]">Incognito</span>
-                      <span className={`text-[10px] font-semibold uppercase tracking-wide ${incognito ? 'text-[var(--text)]' : 'text-[var(--text-faint)]'}`} aria-hidden>
-                        {incognito ? 'On' : 'Off'}
+                      <span className="flex-1 text-xs font-medium text-[var(--text)]">
+                        Incognito
                       </span>
                     </button>
                   </div>

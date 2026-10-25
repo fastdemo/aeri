@@ -12,6 +12,7 @@ import { getTitleHierarchy } from '../../lib/titles'
 import { useAeriTitle } from '../../hooks/useAeriTitle'
 import { Icon } from '../ui/Icon'
 import { sanitizeAnimeForDisplay, getStreamingEpisodeTitle } from '../../lib/episodes'
+import { useKitsuEpisodes } from '../../hooks/useKitsuEpisodes'
 import { resolveDisplayRecord } from '../../lib/records'
 import { formatLabel, statusLabel } from '../../lib/mediaLabels'
 import { resolveChaptersWithFallback } from '../../providers/manga/mangadex'
@@ -83,14 +84,22 @@ export function DetailModal({
   // then-fill flip the owner reported. Now the complete record wins the
   // display; the list entry still owns tracking truth; identity ids are
   // unioned so tracker writes resolve through either provider.
+  //
+  // `rawDisplayAnime` is kept BEFORE the display sanitizer so the Kitsu
+  // whole-entry gate can still see AniList data that the season/range guard
+  // later discards for rendering.
+  const rawDisplayAnime = useMemo(() => resolveDisplayRecord(anime, baseEntry), [anime, baseEntry])
   const displayAnime = useMemo(() => {
-    const merged = resolveDisplayRecord(anime, baseEntry)
-    if (['MANGA', 'NOVEL', 'ONE_SHOT'].includes(merged.format?.toUpperCase() ?? '')) {
-      return merged
+    if (['MANGA', 'NOVEL', 'ONE_SHOT'].includes(rawDisplayAnime.format?.toUpperCase() ?? '')) {
+      return rawDisplayAnime
     }
-    return sanitizeAnimeForDisplay(merged)
-  }, [anime, baseEntry])
+    return sanitizeAnimeForDisplay(rawDisplayAnime)
+  }, [rawDisplayAnime])
   const displayKey = displayAnime.identity.anilistId ? `anilist:${displayAnime.identity.anilistId}` : displayAnime.identity.internalId
+  // E-line + episode list share the same narrow fallback: Kitsu is
+  // consulted only when this entry has zero usable AniList episode
+  // metadata. AniList titles/thumbs always win when present.
+  const kitsuEpisodes = useKitsuEpisodes(displayAnime, rawDisplayAnime)
   const titles = getTitleHierarchy(displayAnime)
   // TAB TITLE (owner 2026-10-18): the overlay carries the ENTRY's name —
   // "Assassination Classroom - Aeri" — and the stack restores the page
@@ -191,7 +200,7 @@ export function DetailModal({
     const showTotal = displayAnime.episodes && displayAnime.episodes > 0 ? displayAnime.episodes : 0
     if (numEp > 0 && showTotal > 0 && numEp >= showTotal) return null
     const next = resumeEpisodeNumber
-    const target = getEpisodes(displayAnime).find(e => e.number === next) ?? null
+    const target = getEpisodes(displayAnime, kitsuEpisodes).find(e => e.number === next) ?? null
     const title = nextEpName ?? target?.title ?? null
     if (!title && numEp <= 0 && !displayAnime.progress) return null
     return { number: target?.displayNumber ?? next, title }
@@ -469,7 +478,7 @@ export function DetailModal({
               <ChapterList key={displayKey} manga={displayAnime} />
             ) : (
               !isMovie && (
-                <EpisodeList key={displayKey} anime={displayAnime} />
+                <EpisodeList key={displayKey} anime={displayAnime} rawAnime={rawDisplayAnime} />
               )
             )}
           </div>

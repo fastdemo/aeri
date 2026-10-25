@@ -264,18 +264,12 @@ export function AnimeCard({
     'absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 grid place-items-center text-[var(--text)] hover-only-control ' +
     'opacity-0 group-hover/art:opacity-100 group-focus-visible/card:opacity-100 focus-visible:opacity-100 ' +
     'transition duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)]'
-  const GLYPH_ICON_PX = 30  // INK PARITY (owner 2026-10-18: "make sure the read icon filled is the
-  // same size as the play icon"; 2026-10-19: the FILLED art was reverted
-  // to the hollow `book` — the MEASUREMENTS hold for both arts): both
-  // icons share the 16-unit viewBox, but their DRAWN ink differs wildly
-  // — bootstrap play-fill ink is 8×9 (≈56% → 16.9px at a 30px box) while
-  // the book art spans the FULL 16×13.1 (→ 30px at the same box, nearly
-  // 3× the triangle's area). Measured via getBBox in chromium
-  // (OpenCode/scratch; D103). An 18px box puts the book's ink at
-  // ~18×14.8px — visually equal weight to the play triangle's ~15×17px
-  // ink. Strict parity would be a 17px box; 18 keeps a hair of presence
-  // the owner approved when the filled book was sized the same way.
-  const BOOK_GLYPH_ICON_PX = 18
+  const GLYPH_ICON_PX = 30
+  // OWNER 2026-10-24: the read glyph uses the SAME 30px box as play
+  // ("on hover... the read icon is too small. make it the same size as
+  // the play button") and is now the open-book art. This supersedes the
+  // D103 ink-parity 18px box; both icons now share one size.
+  const BOOK_GLYPH_ICON_PX = GLYPH_ICON_PX
   // Manga continue caption: provider's own unit label from the IDB read
   // position (e.g. "Volume 3", "Chapter 12"). Never "E12" for manga, never
   // a volume renamed to a chapter. Falls back to tracker progress text.
@@ -384,13 +378,8 @@ export function AnimeCard({
             }}
             className={HOVER_GLYPH}
           >
-            {/* OWNER 2026-10-18 (evening, revert): the hover read glyph is
-                back to the HOLLOW book. The ink-parity BOX stays — both
-                book arts span the same 16×13.1 geometry in the 16-unit
-                viewBox, so an 18px box keeps the book's ink visually equal
-                to the play triangle's (a same-size 30px box would render
-                the book ~3× the triangle's area — measured via getBBox). */}
-            <Icon name="book" size={BOOK_GLYPH_ICON_PX} />
+            {/* OWNER 2026-10-24: open-book art at the play button's size. */}
+            <Icon name="book-open" size={BOOK_GLYPH_ICON_PX} />
           </button>
         )}
 
