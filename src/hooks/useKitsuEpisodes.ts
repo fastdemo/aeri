@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { Anime } from '../types/anime'
 import {
-  filterAndSortStreamingEpisodes,
-  hasUsableAniListEpisodeMetadata,
+  anilistEpisodeMetadataSurvivesGuards,
   type EpisodeFallbackInput,
   type EpisodeFallbackStatus,
 } from '../lib/episodes'
@@ -15,16 +14,19 @@ interface KitsuEpisodesState extends EpisodeFallbackInput {
 }
 
 /**
- * Fetch Kitsu episode names/thumbnails ONLY when the AniList record has no
- * usable episode metadata at all. The decision is made on the RAW AniList
- * streaming list (only trailers removed): if AniList supplied any usable
- * title/thumbnail, Kitsu is never consulted — even when the separate
- * season-pollution/range guards later discard that list for display.
+ * Fetch Kitsu episode names/thumbnails ONLY when AniList's episode metadata
+ * will not survive the display guards. The decision is made on the RAW
+ * AniList streaming list (only trailers removed) AND the guards that
+ * actually render it: a season-polluted list (Code Geass R2's S1
+ * Crunchyroll rows) or an out-of-range list is discarded on screen, so
+ * treating it as "usable" left the UI with bare "Episode N" placeholders
+ * forever and never asked Kitsu. AniList data that IS displayed always
+ * wins; Kitsu never mixes into a partial AniList list.
  *
  * `anime` is the record used for identity/fetching (it may be sanitized).
  * `gateAnime` is the pre-sanitize record; callers that already ran
- * sanitizeAnimeForDisplay for rendering MUST pass it so discarded AniList
- * data cannot silently become a Kitsu fallback.
+ * sanitizeAnimeForDisplay for rendering MUST pass it so the gate can run
+ * the guards on the original list.
  *
  * The hook is display-only. It never feeds tracking, identity, totals, or
  * discovery. Components that do not render episode metadata (cards) must
@@ -36,8 +38,7 @@ export function useKitsuEpisodes(anime: Anime | null, gateAnime?: Anime | null):
     if (!gate) return false
     const format = (gate.format ?? '').toUpperCase()
     if (format === 'MANGA' || format === 'NOVEL' || format === 'ONE_SHOT') return false
-    const rawStreaming = filterAndSortStreamingEpisodes(gate.streamingEpisodes)
-    return !hasUsableAniListEpisodeMetadata({ streamingEpisodes: rawStreaming })
+    return !anilistEpisodeMetadataSurvivesGuards(gate)
   }, [gate])
 
   const [state, setState] = useState<KitsuEpisodesState>(() => ({

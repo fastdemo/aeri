@@ -109,6 +109,12 @@ export class AnimeGGProvider implements VideoProvider {
       const trySlugs = langSlug === slug ? [slug] : [langSlug, slug]
       const out: VideoSourceEnhanced[] = []
       for (const s of trySlugs) {
+        // OWNER RULE (2026-10-25): the language on a source is the language
+        // of the PAGE it was scraped from, never the request. A missing
+        // `-dub` page falls back to the sub page; labelling that stream
+        // "dub" made the player offer a Dub toggle that played sub audio.
+        // Only a `-dub` slug can produce a dub-labelled source.
+        const pageLanguage: 'sub' | 'dub' = /-dub$/i.test(s) ? 'dub' : 'sub'
         try {
           const epRes = await fetchWithTimeout(`${BASE}/${s}-episode-${num}`, { headers: headers() }, 6000, options?.signal)
           if (!epRes.ok) continue
@@ -129,7 +135,7 @@ export class AnimeGGProvider implements VideoProvider {
                 type: 'mp4',
                 quality: 'auto',
                 provider: 'animegg',
-                language: lang as any,
+                language: pageLanguage,
                 embed: false,
                 headers: { Referer: REFERER },
               })

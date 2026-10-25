@@ -6,7 +6,7 @@ import { SignInModal } from '../components/auth/SignInModal'
 import type { Anime, AnimeListEntry } from '../types/anime'
 import { useTracking } from '../contexts/TrackingContext'
 import { RowSkeleton } from '../components/ui/Skeleton'
-import { useTrending, usePopular, useAiring, useNewReleases } from '../hooks/useAnimeMetadata'
+import { useHomeFeed } from '../hooks/useAnimeMetadata'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useDetailOpen } from '../hooks/useDetailOpen'
 import { getRecommendations } from '../recommendations/engine'
@@ -164,11 +164,25 @@ export function Home() {
     navigate('/', { replace: true })
   }, [location.search, navigate])
 
-  // Fetch larger pools so varied sampling has room to vary
-  const trending = useTrending(24)
-  const popular = usePopular(24)
-  const airing = useAiring(24)
-  const news = useNewReleases(24)
+  // ONE batched feed request (2026-10-25): the four rails share a single
+  // aliased AniList query + cache key. Rail-shaped views are memoized so
+  // their object identities stay stable across re-renders (the section
+  // memos below depend on them).
+  const feed = useHomeFeed(24)
+  const rails = useMemo(() => {
+    const rail = (data: Anime[] | null | undefined) => ({
+      data: data ?? null,
+      loading: feed.loading,
+      error: feed.error,
+    })
+    return {
+      trending: rail(feed.data?.trending),
+      popular: rail(feed.data?.popular),
+      airing: rail(feed.data?.airing),
+      news: rail(feed.data?.newReleases),
+    }
+  }, [feed.data, feed.loading, feed.error])
+  const { trending, popular, airing, news } = rails
 
   // HOME RULE: anime only. Manga progress lives in the reader/My List,
   // never in this row — even when a manga watching entry exists.
@@ -417,6 +431,18 @@ export function Home() {
 
   const trackerName = trackingProvider === 'mal' ? 'MyAnimeList' : 'AniList'
 
+  // Above-the-fold ART PRIORITY (owner 2026-10-25): tiles the user sees
+  // first (Continue Watching + the top row immediately under the hero) load
+  // eagerly at high priority; every other tile is viewport-gated in
+  // AnimeCard, so the first screenful never competes with ~100 offscreen
+  // banners.
+  const priorityIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const a of continueWatching.slice(0, 6)) ids.add(a.identity.internalId)
+    for (const a of (middleSections[0]?.data ?? []).slice(0, 6)) ids.add(a.identity.internalId)
+    return ids
+  }, [continueWatching, middleSections])
+
   return (
     <div className="pb-10">
       <div className="px-4 sm:px-6 lg:mx-auto lg:w-full lg:max-w-[1600px] lg:px-12">
@@ -448,7 +474,7 @@ export function Home() {
           ) : continueWatching.length > 0 ? (
             <ContentRow title="Continue Watching" subtitle={`${continueWatching.length} titles • ${trackerName}`}>
               {continueWatching.map((a) => (
-                <AnimeCard key={a.identity.internalId} anime={a} variant="continue" onSelect={handleSelect} />
+                <AnimeCard key={a.identity.internalId} anime={a} variant="continue" onSelect={handleSelect} priority={priorityIds.has(a.identity.internalId)} />
               ))}
             </ContentRow>
           ) : null
@@ -463,7 +489,7 @@ export function Home() {
         {middleSections.map(s => (
           <ContentRow key={s.key} title={s.title} subtitle={s.subtitle}>
             {s.data.map(a => (
-              <AnimeCard key={a.identity.internalId} anime={a} onSelect={handleSelect} />
+              <AnimeCard key={a.identity.internalId} anime={a} onSelect={handleSelect} priority={priorityIds.has(a.identity.internalId)} />
             ))}
           </ContentRow>
         ))}

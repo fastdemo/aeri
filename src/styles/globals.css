@@ -9,6 +9,11 @@
   --surface-elevated: #1e1e1e;
   --border: rgba(255,255,255,0.08);
   --border-strong: rgba(255,255,255,0.16);
+  /* CARD FRAME HAIRLINE (owner 2026-10-25): the hero and every artwork card
+     share one frame line, drawn at 50% of --border-strong's strength so the
+     frame reads as an edge, not an outline. Keep hero + card in sync by
+     using this token in both places. */
+  --border-card: color-mix(in srgb, var(--border-strong) 50%, transparent);
   --text: #ffffff;
   --text-muted: #a3a3a3;
   --text-faint: #6e6e6e;
@@ -62,6 +67,43 @@ body {
 
 ::selection {
   background: var(--border-strong);
+}
+
+/* FROSTED FRAME (owner 2026-10-25): the translucent hairline that wraps the
+   hero and every artwork card sits on a blurred rim, matching the frosted
+   glass used by the navbar, hero chips, and the card hover treatment. The
+   mask keeps the backdrop filter to the rim only, so pixels under the frame
+   edge are blurred while the artwork's face stays sharp. The visible line is
+   still the same --border-card hairline drawn on top. */
+.frame-glass {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  padding: 3px;
+  box-shadow: inset 0 0 0 1px var(--border-card);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+}
+
+/* SOFT FRAME (cards): the same 1px hairline plus a short inward glow, so the
+   edge reads soft like the frosted hero rim. Deliberately NO backdrop-filter
+   here: 30-100 cards per page each capturing the backdrop re-introduced the
+   browser's page-tiling artifact over the artwork and added paint work to the
+   feed. One filter on the hero (above) carries the literal glass effect; the
+   cards keep the same language visually at a fraction of the cost. */
+.frame-soft {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    inset 0 0 0 1px var(--border-card),
+    inset 0 0 10px -4px color-mix(in srgb, var(--text) 24%, transparent);
 }
 
 /* Hide scrollbar for rows but keep scroll */

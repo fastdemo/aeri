@@ -45,9 +45,10 @@ export interface EpisodeFallbackInput {
   status: EpisodeFallbackStatus
   /**
    * Whole-entry gate decided by the caller on the RAW AniList record.
-   * `false` means AniList supplied usable episode metadata even if the
-   * display record was later sanitized (season/range guard); the fallback
-   * must not be used in that case. Omitted (e.g. tests) defaults to allowed.
+   * `false` means AniList supplied metadata that SURVIVES the display
+   * guards (season/range), so the fallback must not be used. When the
+   * guards discard the list entirely (Code Geass R2) the gate stays `true`
+   * and Kitsu may fill the whole entry.
    */
   allowed?: boolean
 }
@@ -153,16 +154,16 @@ function isValidHttpUrl(url: string): boolean {
 }
 
 /**
- * OWNER RULE (2026-10-23): Kitsu may answer ONLY when AniList has
- * absolutely no usable episode metadata for the whole entry. "Usable"
- * means at least one non-generic title or one real thumbnail. Partial
- * AniList data is still AniList data: missing rows keep the UI placeholder
- * and Kitsu is never mixed in.
+ * OWNER RULE (2026-10-23, tightened 2026-10-25): Kitsu may answer ONLY when
+ * AniList cannot render usable episode metadata for the entry. "Usable"
+ * means at least one non-generic title or one real thumbnail AND that list
+ * survives the season-pollution / range guards. Partial AniList data is
+ * still AniList data: missing rows keep the UI placeholder and Kitsu is
+ * never mixed in. A list the guards discard does not count — see
+ * `anilistEpisodeMetadataSurvivesGuards`.
  *
- * Pass the RAW (trailer-filtered) streaming list here — NOT a record that
- * already went through the season-pollution or range guards. Data that
- * AniList supplied but those guards discarded is still AniList data; it
- * must never silently become a Kitsu fallback.
+ * Pass the RAW streaming list here from `anilistEpisodeMetadataSurvivesGuards`
+ * callers; this predicate alone does not apply the season/range guards.
  */
 export function hasUsableAniListEpisodeMetadata(anime: Pick<Anime, 'streamingEpisodes'>): boolean {
   for (const episode of anime.streamingEpisodes ?? []) {
@@ -256,23 +257,43 @@ export function discardSeasonPollutedStreaming(anime: Anime): Anime {
  * - local range validation: if majority of parsed numbers exceed the
  *   episode count, discard (likely another entry's global numbering).
  */
-export function sanitizeAnimeForDisplay(anime: Anime): Anime {
+function survivingStreamingEpisodes(anime: Anime) {
   const guarded = discardSeasonPollutedStreaming(anime)
   const sorted = filterAndSortStreamingEpisodes(guarded.streamingEpisodes)
-  if (!sorted) {
-    return { ...guarded, streamingEpisodes: undefined }
-  }
+  if (!sorted) return undefined
   const count = guarded.episodes
   if (typeof count === 'number' && count > 0) {
     const parsed = sorted.map(e => parseEpisodeNumber(typeof e.title === 'string' ? e.title : '')).filter(n => n !== null) as number[]
     if (parsed.length >= 2) {
       const outOfRange = parsed.filter(n => n > count + 0.6 || n < 0.5).length
-      if (outOfRange / parsed.length > 0.7) {
-        return { ...guarded, streamingEpisodes: undefined }
-      }
+      if (outOfRange / parsed.length > 0.7) return undefined
     }
   }
+  return sorted
+}
+
+export function sanitizeAnimeForDisplay(anime: Anime): Anime {
+  const guarded = discardSeasonPollutedStreaming(anime)
+  const sorted = survivingStreamingEpisodes(anime)
   return { ...guarded, streamingEpisodes: sorted }
+}
+
+/**
+ * OWNER RULE (2026-10-25, Code Geass R2): the Kitsu fallback is allowed when
+ * AniList's episode metadata does NOT survive the display guards. The old
+ * gate asked only "does the raw list contain a title/thumbnail?", so a
+ * season-polluted list (AniList id 2904 carries S1's 25 Crunchyroll rows)
+ * counted as usable even though `sanitizeAnimeForDisplay` throws the whole
+ * list away — the UI then showed bare "Episode N" placeholders forever and
+ * Kitsu was never consulted. Data the guards discard is NOT usable data.
+ *
+ * True = AniList can render at least one real title/thumbnail in the UI.
+ * False = the whole-entry fallback may run (Kitsu, or the UI placeholder
+ * when Kitsu has nothing either).
+ */
+export function anilistEpisodeMetadataSurvivesGuards(anime: Anime): boolean {
+  const surviving = survivingStreamingEpisodes(anime)
+  return hasUsableAniListEpisodeMetadata({ streamingEpisodes: surviving })
 }
 
 /**
@@ -341,10 +362,10 @@ export function normalizeEpisodes(
   const sortedAnime: Anime = discardSeasonPollutedStreaming(
     rawStreaming ? { ...anime, streamingEpisodes: rawStreaming } : anime
   )
-  // Fallback gate is decided on the RAW trailer-filtered list, before the
-  // season-pollution / range guards. AniList data that those guards discard
-  // is still AniList data and must never be replaced by Kitsu.
-  const anilistHasMetadata = hasUsableAniListEpisodeMetadata({ streamingEpisodes: rawStreaming })
+  // Fallback gate follows the DISPLAY guards (2026-10-25): a list the
+  // season-pollution/range guards discard cannot suppress Kitsu — that was
+  // Code Geass R2 (polluted list dropped → bare "Episode N" forever).
+  const anilistHasMetadata = anilistEpisodeMetadataSurvivesGuards(anime)
   // Apply local mismatch discard before index mapping?
   let effectiveAnime = sortedAnime
   let preDiscardCount: number | null = null
@@ -395,11 +416,10 @@ export function normalizeEpisodes(
     }
   }
 
-  // AniList owns episode metadata. Kitsu is a whole-entry fallback only:
-  // the moment AniList has ONE usable title/thumbnail, the fallback is
-  // ignored entirely and any gaps stay placeholders. `fallback.allowed`
-  // carries the caller's raw-record gate when the display record has
-  // already been sanitized (season/range guards).
+  // AniList owns episode metadata while it survives the display guards.
+  // Kitsu is a whole-entry fallback: the moment AniList can render ONE real
+  // title/thumbnail, the fallback is ignored entirely and any gaps stay
+  // placeholders. `fallback.allowed` carries the caller's whole-entry gate.
   const fallbackAllowed = !anilistHasMetadata && (fallback?.allowed ?? true)
   const fallbackByNum = new Map<number, EpisodeFallback>()
   if (fallbackAllowed && fallback?.episodes?.length) {

@@ -67,6 +67,68 @@ const NEW_RELEASES_QUERY = buildPageQuery('START_DATE_DESC', ', status: FINISHED
 const UPCOMING_QUERY = buildPageQuery('POPULARITY_DESC', ', status: NOT_YET_RELEASED')
 const FINISHED_QUERY = buildPageQuery('END_DATE_DESC', ', status: FINISHED')
 
+/**
+ * HOME FEED (owner 2026-10-25: Home "takes forever and shows many blank
+ * cards"). Home used to fire FOUR separate page queries carrying the full
+ * detail field set — description HTML, every relation edge, streaming
+ * episodes, airing schedule — for a page that only paints tiles. Measured
+ * against the live API on 2026-10-25:
+ *
+ *   old: 4 requests · ~967 KB · ~2.0 s wall (and 4 slots of the burst limit)
+ *   new: 1 request  · ~134 KB · ~1.4 s wall
+ *
+ * The four rails ride ONE aliased request under a single cache key. Fields
+ * are exactly what a card/hero render needs; `description` stays for the
+ * hero. Relations and streaming episodes are NOT here — detail pages fetch
+ * the full record, and `getAnime` requires relations in a shared record, so
+ * these light records are never published to the shared media cache (see
+ * `mapHomePage`).
+ */
+const HOME_CARD_FIELDS = `
+  id
+  idMal
+  type
+  title { romaji english native }
+  description
+  coverImage { extraLarge large medium }
+  bannerImage
+  startDate { year }
+  season
+  seasonYear
+  episodes
+  chapters
+  volumes
+  duration
+  status
+  averageScore
+  genres
+  format
+  popularity
+`
+
+function buildHomeRail(sort: string, extra?: string): string {
+  return `media(type: ANIME, isAdult: false, sort: ${sort}${extra ?? ''}) {
+        ${HOME_CARD_FIELDS}
+      }`
+}
+
+const HOME_FEED_QUERY = `
+  query ($perPage: Int) {
+    trending: Page(perPage: $perPage) { ${buildHomeRail('TRENDING_DESC')} }
+    popular: Page(perPage: $perPage) { ${buildHomeRail('POPULARITY_DESC')} }
+    airing: Page(perPage: $perPage) { ${buildHomeRail('POPULARITY_DESC', ', status: RELEASING')} }
+    newReleases: Page(perPage: $perPage) { ${buildHomeRail('START_DATE_DESC', ', status: FINISHED')} }
+  }
+`
+
+export interface HomeFeed {
+  trending: import('../../types/anime').Anime[]
+  popular: import('../../types/anime').Anime[]
+  airing: import('../../types/anime').Anime[]
+  newReleases: import('../../types/anime').Anime[]
+}
+
+
 const MEDIA_QUERY = `
 query ($id: Int) {
   Media(id: $id, type: ANIME) {
@@ -181,6 +243,19 @@ function mapPage(res: { Page: { media: AniListMedia[] } }, mediaType?: 'ANIME' |
   return out
 }
 
+/**
+ * Home rails use the light card field set (no relations, no streaming
+ * episodes). Same TV+MOVIE ingestion rule as `mapPage`, but these records
+ * are NOT published to the shared media cache: a relations-less record would
+ * either be ignored by detail reads (they require relations) or, worse, be
+ * mistaken for a complete one later. Detail/warm-up fetches own that cache.
+ */
+function mapHomePage(res: { media: AniListMedia[] } | undefined): import('../../types/anime').Anime[] {
+  return (res?.media ?? [])
+    .filter((m) => ['TV', 'MOVIE'].includes((m.format ?? '').toUpperCase()))
+    .map((m) => mapAniListMediaToAnime(m, 'ANIME'))
+}
+
 export interface BrowseParams {
   sort?: 'TRENDING_DESC' | 'POPULARITY_DESC' | 'SCORE_DESC' | 'START_DATE_DESC' | 'END_DATE_DESC'
   status?: 'RELEASING' | 'NOT_YET_RELEASED' | 'FINISHED' | 'CANCELLED' | 'HIATUS'
@@ -266,6 +341,32 @@ function buildBrowseMangaQuery(params: BrowseMangaParams): { query: string; vari
 
 export class AniListMetadataProvider implements AnimeMetadataProvider {
   id = 'anilist-metadata' as const
+
+  /**
+   * ONE request for Home's four rails (see HOME_FEED_QUERY). Cached as a
+   * single unit (`anilist:home:<perPage>`, memory 5 min + IDB 24 h) so a
+   * return visit paints every row from one cache read — no request at all
+   * while warm, one request when cold.
+   */
+  async getHomeFeed(perPage = 24, signal?: AbortSignal): Promise<HomeFeed> {
+    type Res = {
+      trending: { media: AniListMedia[] } | null
+      popular: { media: AniListMedia[] } | null
+      airing: { media: AniListMedia[] } | null
+      newReleases: { media: AniListMedia[] } | null
+    }
+    const data = await anilistGraphQL<Res>(HOME_FEED_QUERY, { perPage }, {
+      cacheKey: `anilist:home:${perPage}`,
+      useCache: true,
+      signal,
+    })
+    return {
+      trending: mapHomePage(data.trending ?? undefined),
+      popular: mapHomePage(data.popular ?? undefined),
+      airing: mapHomePage(data.airing ?? undefined),
+      newReleases: mapHomePage(data.newReleases ?? undefined),
+    }
+  }
 
   async getTrending(perPage = 12, signal?: AbortSignal): Promise<import('../../types/anime').Anime[]> {
     type Res = { Page: { media: AniListMedia[] } }

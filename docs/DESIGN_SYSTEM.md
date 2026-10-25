@@ -17,6 +17,8 @@ Quiet UI, loud artwork. Aeri borrows Netflix's cinematic browsing contract: hero
   --surface-elevated: #1e1e21;
   --border: rgba(255,255,255,0.07);
   --border-strong: rgba(255,255,255,0.12);
+  /* 50% of --border-strong — the shared hero/card frame hairline (D127) */
+  --border-card: color-mix(in srgb, var(--border-strong) 50%, transparent);
   --text: #f2f2f3;
   --text-muted: #9a9aa0;
   --text-faint: #6b6b70;
@@ -25,6 +27,18 @@ Quiet UI, loud artwork. Aeri borrows Netflix's cinematic browsing contract: hero
 }
 ```
 Page background: near-black (#070708). Surfaces are subtly lighter, not cards with heavy borders.
+
+### Frame language (D127)
+
+The hero and every artwork card share one edge: a 1px `--border-card`
+hairline (half-strength, computed `rgba(255,255,255,0.08)` on the default
+theme — alpha-0.5 white reads as an outline). `.frame-glass` draws the hero
+rim as an overlay with a 3px masked `backdrop-filter: blur(8px)`; `.frame-soft`
+draws the card line plus a short inward glow and deliberately no per-tile
+backdrop filter (30–100 captures re-introduced browser tiling over artwork).
+Neither is a CSS `border`: cards avoid layout inflation, and the composited
+carousel layer tiled stale snapshots with a real border.
+
 
 ### Typography
 

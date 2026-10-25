@@ -4,7 +4,7 @@ import { useTracking } from '../contexts/TrackingContext'
 import { useMangaDetail } from '../hooks/useAnimeMetadata'
 import { useAeriTitle } from '../hooks/useAeriTitle'
 import { getReadPos, putReadPos } from '../storage/db'
-import { getPreferences } from '../storage/preferences'
+import { getPreferences, isIncognitoEnabled } from '../storage/preferences'
 import { sortProviderUnits, unitDisplayLabel } from '../providers/manga/types'
 import { getTitleHierarchy } from '../lib/titles'
 import { Icon } from '../components/ui/Icon'
@@ -87,7 +87,7 @@ export function Read() {
   const { id, chapter } = useParams<{ id: string; chapter: string }>()
   const navigate = useNavigate()
   const location = useLocation()
-  const { isAuthenticated, combinedList, updateProgress } = useTracking()
+  const { isAuthenticated, combinedList, updateProgress, updateStatus } = useTracking()
 
   const trackingEntry = isAuthenticated && id ? combinedList?.find((e) => e.anime.identity.internalId === id || e.anime.identity.anilistId?.toString() === id || e.anime.identity.malId?.toString() === id) : null
   const realId = (() => {
@@ -309,6 +309,20 @@ export function Read() {
     (pages?.length ?? 0) > 0,
   )
 
+  // OWNER (2026-10-25): opening a chapter puts the title in Reading — status
+  // + start date — even when the chapter is unfinished (the "I started this"
+  // signal, separate from chapter completion). Written once per open, only
+  // when the entry isn't already Watching. Incognito suppresses it.
+  const trackingStatus = trackingEntry?.status ?? manga?.listStatus ?? null
+  const autoWatchingRef = useRef(false)
+  useEffect(() => {
+    if (!manga || !canTrackChapter || !isAuthenticated) return
+    if (autoWatchingRef.current || trackingStatus === 'watching') return
+    if (isIncognitoEnabled()) return
+    autoWatchingRef.current = true
+    updateStatus(manga, 'watching').catch(() => { autoWatchingRef.current = false })
+  }, [manga, canTrackChapter, isAuthenticated, trackingStatus, updateStatus])
+
   // Throttled read-position persist. Key = `read:<internalId>` (AniList
   // Manga ID + mangadex provider + provider unit ID). Scroll position lives
   // in refs, never in global React state; a single IntersectionObserver
@@ -346,13 +360,17 @@ export function Read() {
     // Reached ~80% of the chapter → counts as read for the tracker
     // (+1 chapter). Discrete pages: furthest page >= 80% of the page count.
     // Invalid/partial records never reach this branch (canTrackChapter).
+    // OWNER (2026-10-25): never REGRESS the tracker — rereading chapter 3
+    // while progress is 12 must leave progress at 12. Only a not-yet-counted
+    // chapter advances it.
     const readThreshold = Math.max(1, Math.ceil(pages.length * 0.8))
     const chapterNumber = currentChapter.number
-    if (isAuthenticated && canTrackChapter && !completedRef.current && pageRef.current + 1 >= readThreshold && chapterNumber != null) {
+    const trackedProgress = trackingEntry?.progress ?? manga.progress?.episode ?? 0
+    if (isAuthenticated && canTrackChapter && !completedRef.current && chapterNumber != null && chapterNumber > trackedProgress && pageRef.current + 1 >= readThreshold) {
       completedRef.current = true
       updateProgress(manga, chapterNumber).catch(() => {})
     }
-  }, [manga, currentChapter, pages?.length, isAuthenticated, updateProgress, canTrackChapter])
+  }, [manga, currentChapter, pages?.length, isAuthenticated, updateProgress, canTrackChapter, trackingEntry?.progress])
   useEffect(() => { flushRef.current = () => persistPos(true) }, [persistPos])
   // Flush on unmount / chapter change so position survives short visits.
   // Skip when the user never scrolled (pageRef 0): flushing 0 would erase

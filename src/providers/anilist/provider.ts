@@ -21,7 +21,7 @@ export interface AniListUser {
 export interface TrackingProvider {
   id: 'anilist' | 'mal'
   getUser(token?: string): Promise<AniListUser>
-  getAnimeList(token?: string): Promise<AnimeListEntry[]>
+  getAnimeList(token?: string, opts?: { force?: boolean }): Promise<AnimeListEntry[]>
   getAnime(id: string): Promise<Anime>
   search(query: string): Promise<Anime[]>
   updateProgress(id: string, episode: number, isManga?: boolean): Promise<void>
@@ -81,6 +81,13 @@ query ($userId: Int!, $type: MediaType) {
         status
         progress
         score
+        # SCORE NORMALIZATION (owner 2026-10-25): the raw score field is
+        # stored in the USER scoring format (POINT_100 = 0-100,
+        # POINT_10_DECIMAL = 0-10 float, POINT_5 = 0-5). This alias asks
+        # AniList for the same value on a FIXED 0-10 decimal scale, so
+        # read-side tiering never depends on guesswork about the account's
+        # format. The mapper prefers it and keeps the raw field as fallback.
+        score10: score(format: POINT_10_DECIMAL)
         updatedAt
         media {
           id
@@ -242,10 +249,17 @@ export class AniListProvider implements TrackingProvider {
     return data.Viewer
   }
 
-  async getAnimeList(token?: string): Promise<AnimeListEntry[]> {
+  /**
+   * The user's full list (anime + manga). `opts.force` bypasses BOTH cache
+   * layers and rewrites them — the pull-sync path (focus/online/visibility)
+   * and the Profile refresh button use it, because scores/statuses changed
+   * on anilist.co are invisible behind the 24 h IDB snapshot otherwise.
+   */
+  async getAnimeList(token?: string, opts?: { force?: boolean }): Promise<AnimeListEntry[]> {
     const t = this.ensureToken(token)
     // Need viewer id first (cached)
     const viewer = await this.getUser(t)
+    const force = opts?.force ?? false
     type Res = {
       MediaListCollection: {
         lists: { name: string; isCustomList: boolean; entries: AniListMediaListEntryRaw[] }[]
@@ -259,12 +273,12 @@ export class AniListProvider implements TrackingProvider {
       anilistGraphQL<Res>(
         MEDIA_LIST_COLLECTION_QUERY,
         { userId: viewer.id, type: 'ANIME' },
-        { token: t, cacheKey: cacheKeyA, useCache: true },
+        { token: t, cacheKey: cacheKeyA, useCache: true, force },
       ),
       anilistGraphQL<Res>(
         MEDIA_LIST_COLLECTION_QUERY,
         { userId: viewer.id, type: 'MANGA' },
-        { token: t, cacheKey: cacheKeyM, useCache: true },
+        { token: t, cacheKey: cacheKeyM, useCache: true, force },
       ).catch(() => null),
     ])
     const lists = [...(aData.MediaListCollection?.lists ?? []), ...(mData?.MediaListCollection?.lists ?? [])]

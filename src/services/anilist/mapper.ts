@@ -79,8 +79,9 @@ export interface AniListMediaListEntryRaw {
   mediaId: number
   status?: string | null // CURRENT, COMPLETED, PLANNING, PAUSED, DROPPED, REPEATING
   progress?: number | null
-  score?: number | null // raw float
-  scoreRaw?: number | null
+  score?: number | null // raw float, in the USER's scoring format
+  /** `score(format: POINT_10_DECIMAL)` alias — always a 0-10 scale. */
+  score10?: number | null
   updatedAt?: number | null // unix seconds — drives most-recent-first sorting
   media?: AniListMedia | null
 }
@@ -289,10 +290,16 @@ export function mapAniListEntryToAeri(entry: AniListMediaListEntryRaw): AnimeLis
   anime.inList = true
   anime.listStatus = status
 
-  // score: AniList returns 0-10 or 0-100 depending user setting; we pass through 0-10 normalized if >10 divide
+  // SCORE NORMALIZATION (owner 2026-10-25): the list query also asks for
+  // `score(format: POINT_10_DECIMAL)` — a fixed 0-10 scale that is immune to
+  // the account's scoring format. Prefer it, and keep the raw field as a
+  // fallback: POINT_100 values (>10) divide down, POINT_5 stays on a 0-5
+  // scale but is still a valid ordinal for Highest/Lowest tiers. 0 = unrated
+  // on every format, so it never becomes a score.
+  const rawScore = entry.score10 ?? entry.score
   let score: number | undefined = undefined
-  if (entry.score != null && entry.score > 0) {
-    score = entry.score > 10 ? Math.round((entry.score / 10) * 10) / 10 : entry.score
+  if (rawScore != null && rawScore > 0) {
+    score = rawScore > 10 ? Math.round((rawScore / 10) * 10) / 10 : rawScore
   }
 
   return {

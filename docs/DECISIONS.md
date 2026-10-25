@@ -1267,3 +1267,138 @@ Production re-ran the same reader checks at 1440/768/375 (both nav labels,
 12px end radii, Synopsis + Related Manga, overflow 0) and the production
 manga hover glyph (`Goodnight Punpun`) measured `30×30`
 `lucide-book-open`, opacity 0 → 1 on real hover. GitHub untouched.
+
+## D127 — Home first-load budget, frosted card/hero frame, Netflix restart, honest tracker state (2026-10-25)
+
+Owner batch. Two of the asks were perf reports ("Home takes forever and shows
+many blank cards"), the rest were polish/correctness items on cards, the
+player, the reader, the tracker, and the nav.
+
+**Home first load (`src/providers/metadata/anilistMetadata.ts`,
+`src/hooks/useAnimeMetadata.ts`, `src/pages/Home.tsx`).** Home used to fire one
+AniList Page request per rail (four), each mapping the full MEDIA_FIELDS
+record. `HOME_FEED_QUERY` now aliases trending / popular / airing /
+newReleases under ONE GraphQL request with a deliberately light
+`HOME_CARD_FIELDS` set (no relations, no streamingEpisodes, no staff/studios),
+cached as a single unit (`anilist:home:<perPage>`, memory 5 min + IDB 24 h).
+`mapHomePage` maps those light records without publishing them to the shared
+media cache, because `getAnime` requires relations in a shared record.
+Measured on a cold profile (IDB deleted request returned `blocked`, page
+reloaded): **1** GraphQL request at **2012 ms**, 15 AniList-CDN art requests,
+19 images, **0** pending, 9 rows, 108 cards at 375. Warm reload: **0**
+GraphQL requests.
+
+**Artwork is viewport-gated (`src/hooks/useNearViewport.ts`,
+`AnimeCard`).** `loading="lazy"` alone queued ~50 full banner images (~1.8k px,
+~170 KB each) for a 240 px tile, so the visible tiles waited behind offscreen
+ones and read as blank. Cards now render their `<img>` only once they come
+within `300px 600px` of the viewport (IntersectionObserver, latched once).
+Above-the-fold tiles skip the gate via `priority` (Home passes `priorityIds`
+for Continue Watching + the first middle rail), and keep eager/high fetch
+priority. The gated state renders the same flat placeholder box, so nothing
+shifts.
+
+**One frame language: `--border-card` + `.frame-glass` / `.frame-soft`
+(`src/styles/globals.css`).** The owner asked for the card border and the
+hero border to match at "50% transparency" and then to "blur like the rest of
+the design language". `--border-card` is `color-mix(in srgb, var(--border-strong)
+50%, transparent)` → computed `rgba(255,255,255,0.0804)`. It is half-strength,
+not alpha-0.5 white; alpha 0.5 read as an outline, not an edge. The hero rim
+is `.frame-glass`: an inset overlay with a 3px masked `backdrop-filter:
+blur(8px)` (mask-composite `xor` so only the rim is blurred) plus a 1px inset
+`--border-card` line. It is an overlay, not a CSS border, for two reasons: a
+real border on the composited `translateZ(0)` carousel layer made Chrome tile
+stale backdrop snapshots into the slide art, and a border would shift the 1px
+layout the ken-burns geometry depends on. Cards and Watch episode tiles use
+`.frame-soft`: the same 1px hairline plus `inset 0 0 10px -4px` 24% glow, and
+deliberately **no** per-tile backdrop filter — 30–100 backdrop captures per
+page re-introduced the tiling artifact over artwork and added paint work to
+the feed. The hero carries the literal frost; cards match it visually and
+frost the whole face on hover through the existing scrim.
+
+**Resume vs restart is one tested rule (`src/lib/resume.ts`).** "Next unit"
+(progress + 1) has no valid target once everything is watched, and the old
+clamp parked the button on the finale forever. `planResume()` now returns
+`restart` when nothing new remains — every known unit watched, or an airing
+show caught up (`progress >= nextAiringEpisode - 1`) — and then targets unit
+1 with the label `Play` / `Read`. `DetailModal` and `AnimeCard` (continue
+cards, manga read target) both consume it, so the card and the preview can
+never disagree. A deterministic 12-case node probe of `planResume` passes:
+unwatched, partway, finished, over-count, airing caught up, airing behind,
+manga, unknown total.
+
+**Tracker semantics (owner rules).** Opening an episode or chapter now puts
+the title in Watching/Reading with the tracker's start date stamped, once per
+open and only when the entry is not already Watching — the "I started this"
+signal, suppressed by Incognito. It still does NOT mark the unit watched:
+progress advances by exactly one when ≥80% of a genuinely loaded video has
+played or the video ends, and only for an episode past the tracked progress,
+so rewatching cannot regress the list.
+
+**Labels and counts.** The preview card's progress line reports what was
+watched (`6 of 25`), never the resume target, and unit labels read `Episode
+12` / `Chapter 142` instead of `E12` / `Ch142`.
+
+**Hover card (`AnimeCard`).** The caption band's own bottom-up gradient is
+gone; it doubled the whole-card scrim into a heavy strip and made the blur
+read unevenly. One uniform `color-mix(in srgb, var(--bg) 50%, transparent)` +
+`backdrop-blur(8px)` scrim now carries text contrast across the whole face.
+The player's own bottom gradient is untouched.
+
+**Glyphs.** Play/read hover glyphs dropped from 30 px to 22 px (the requested
+25% reduction, rounded down), manga reads use `book-open` at the same box, and
+Watch episode tiles use the same 22 px play glyph.
+
+**Sub/Dub availability (`src/pages/Watch.tsx`,
+`src/providers/video/animegg.ts`).** Each toggle side is disabled at 20% text
+when no resolved source carries that language, so a title with only subs no
+longer offers a Dub that cannot play. Root cause on AnimeGG: requesting a
+`-dub` page that does not exist fell back to the sub page and the resulting
+stream was still labelled `dub`. The label now comes from the page the stream
+was found on (`/-dub$/`), so only a real dub page produces a dub source.
+
+**Profile scores (`src/pages/Profile.tsx`, `AniListContext`,
+`src/providers/anilist/provider.ts`, `src/services/anilist/mapper.ts`).** The
+AniList Highest/Lowest Rated rows were empty because the list query only asked
+for `score` and the mapper only read `score`. The query now aliases
+`score10: score(format: POINT_10_DECIMAL)`, the mapper prefers `score10`, and
+the profile can force-refresh (including pull-sync). The audited account
+(`0yon`, id 7725526, format `POINT_10_DECIMAL`) genuinely has 27 anime entries
+with zero scores, so the correct output is the new honest empty state ("No
+scores yet" + Refresh scores), not fabricated bars.
+
+**Kitsu gate (`src/lib/episodes.ts`, `src/hooks/useKitsuEpisodes.ts`).**
+AniList 2904 (Code Geass R2) carries S1's 25-row `streamingEpisodes`. The gate
+now requires the AniList episode metadata to survive the display guards
+(relations/PREQUEL, 25 episodes) before it suppresses Kitsu; verified false
+for 2904 and true for 16498/21, and the Kitsu mapping (`anilist/anime` →
+2634) returns 25 named episodes with thumbnails.
+
+**Signed-out My List (`src/components/navigation/Navbar.tsx`).** My List is
+always in the desktop and mobile nav; signed out, clicking it `preventDefault`s
+and opens the sign-in modal instead of navigating to a locked page. Verified
+at 1440 (`/manga` → URL unchanged, modal opens) and 375 (menu lists Home /
+Anime / Manga / My List, closes, URL unchanged, modal opens).
+
+**Verification.** `npx tsc -b` clean; production build `index-BKy7G_iW.js`
+(605.47 kB / 167.07 kB gzip) + `index-DWT4uKbv.css` (65.99 kB / 11.20 kB).
+Playwright: hero rim computed `blur(8px)` + 1px `rgba(255,255,255,0.0804)`
+inset at 14px radius; card rim same hairline, 30/30 rims on `/manga`, 0
+`frame-glass` there; cold Home numbers above; no pending images.
+Deployed Worker `aeri` version `4122f33b-5851-4526-82ec-5a75b9bc7df8`
+(bundle `index-BKy7G_iW.js`, CSS `index-DWT4uKbv.css`, player
+`VideoPlayer-BADn3d2A.js`); `verify:live` **8/8**. Production Home at 1440:
+1 GraphQL request, 26 images / **0 pending**, 9 rows / 108 cards, hero
+`blur(8px)` + the 0.08 inset line, 108 `.frame-soft` rims, signed-out nav
+shows Home / Anime / Manga / My List. Production 375: mobile menu lists the
+same four, My List closes the menu, URL stays `/`, Sign in modal opens.
+Screenshots: `OpenCode/live-home-1440.png`, `OpenCode/live-home-375.png`.
+
+**Limitations.** No authenticated AniList/MAL token was available in the
+browser session, so tracker-dependent preview-card states (Resume/Read labels,
+progress line, Profile score rows) are covered by the `planResume` unit tests
+plus source/computed checks, not an end-to-end signed-in run. Sub/Dub
+availability was not re-probed against a live provider in this pass. Headless
+Chrome intermittently tiled stale page snapshots into screenshots even with
+our overlays removed; DOM/computed assertions and clean captures at 375/1440
+were used as the evidence.

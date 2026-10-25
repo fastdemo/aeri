@@ -546,9 +546,18 @@ function CarouselShell({ children }: { children: React.ReactNode }) {
   // Own stacking context + clip boundary: the ken-burns scale on backdrop
   // images must never paint outside the rounded hero at any viewport.
   // translateZ(0) forces the compositor to respect overflow + radius.
+  //
+  // FRAME LINE (owner 2026-10-25): the hero shares the card frame's 1px
+  // hairline (--border-card, 50% of --border-strong) on a frosted rim
+  // (.frame-glass — same blur language as the nav/chips/hover treatment).
+  // Drawn as an overlay instead of a real border: a border on this
+  // composited, overflow-clipped layer made Chrome tile stale
+  // backdrop-filter snapshots into the slide artwork, and an overlay cannot
+  // shift the 1px layout the carousel's ken-burns geometry depends on.
   return (
     <div className="relative overflow-hidden rounded-xl sm:rounded-[14px] [transform:translateZ(0)] [isolation:isolate]">
       {children}
+      <div aria-hidden className="frame-glass z-30" />
     </div>
   )
 }

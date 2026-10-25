@@ -74,23 +74,31 @@ artwork, scores, statuses, or any other metadata. The contract lives in
 
 ### Gate
 
-The gate is evaluated on the **raw AniList record**, before
-`sanitizeAnimeForDisplay()`. In order:
+The gate is evaluated on the AniList data that **survives the display
+guards** — `anilistEpisodeMetadataSurvivesGuards()` in
+`src/lib/episodes.ts` calls `survivingStreamingEpisodes()` and then asks
+whether any surviving row has a usable title/thumbnail. Data the guards
+throw away is not usable data (D127). In order:
 
-1. Remove trailer/preview entries and sort the raw `streamingEpisodes`
+1. Apply the season-pollution guard (`discardSeasonPollutedStreaming`,
+   which needs relations — a `PREQUEL` entry with the same episode count)
+   and the local-range guard, then remove trailer/preview entries and sort
    (`filterAndSortStreamingEpisodes`).
-2. If **any** entry has a non-generic title or a valid `http(s)` thumbnail,
-   AniList owns the whole entry. Kitsu is **never requested**; rows without
-   AniList data keep the UI placeholder.
-3. Only when the raw list has **zero** usable titles and **zero** valid
-   thumbnails may Kitsu be consulted.
+2. If **any** surviving entry has a non-generic title or a valid `http(s)`
+   thumbnail, AniList owns the whole entry. Kitsu is **never requested**;
+   rows without AniList data keep the UI placeholder.
+3. Only when the surviving list has **zero** usable titles and **zero**
+   valid thumbnails may Kitsu be consulted.
 
-This is deliberately strict. Partial AniList data is still AniList data.
-The season-pollution and local-range guards run later, for display safety;
-AniList data that those guards discard **does not** trigger Kitsu. Example:
-AniList Naruto (20) carries a partial 26-row list for a 220-episode finished
-entry; the guard drops that list for display, but because the raw list had
-usable titles, Kitsu is never called and the rows show placeholders.
+This is deliberately strict. Partial AniList data that survives the guards
+is still AniList data. Example: AniList Naruto (20) carries a partial 26-row
+list for a 220-episode finished entry; those rows are in range, so the gate
+stays closed, Kitsu is never called, and rows without names keep the UI
+placeholder. Counter-example (the D127 fix): AniList Code Geass R2 (2904)
+carries **S1's** 25-row list; the season guard drops it (relations show a
+25-episode PREQUEL), so nothing survives, Kitsu is allowed, and the
+`anilist/anime` mapping → Kitsu 2634 supplies 25 named episodes with
+thumbnails.
 
 ### Mapping and fetch
 
@@ -166,18 +174,16 @@ have a 10s timeout.
 
 ```text
 raw AniList record
-  ├─ trailer filter + sort                      (raw gate input)
-  ├─ whole-entry gate: any usable title/thumb?
+  ├─ survivingStreamingEpisodes: season guard → trailer filter + sort → range guard
+  ├─ whole-entry gate: any usable title/thumb SURVIVING the guards?
   │     ├─ yes → AniList owns the entry; Kitsu never requested
   │     └─ no  → Kitsu names/thumbnails (by number)
-  └─ display sanitization (separate from the gate)
-        ├─ season-pollution guard
-        ├─ local-range guard
+  └─ display sanitization (same guards, separate call)
         └─ normalizeEpisodes() → AniList values → Kitsu values → placeholder
 ```
 
-The display path is intentionally allowed to discard unsafe AniList rows.
-The fallback path is intentionally not allowed to replace them.
+The display path is intentionally allowed to discard unsafe AniList rows,
+and discarded rows are exactly what opens the fallback (D127).
 
 ---
 

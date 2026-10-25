@@ -6,7 +6,7 @@ import { useAeriTitle } from '../hooks/useAeriTitle'
 import { resolveEpisodesWithFallback, resolveSourcesForLanguages } from '../providers/video/registry'
 import type { VideoEpisode, VideoSourceEnhanced } from '../providers/video/types'
 import { getWatchPos, putWatchPos, clearWatchPos } from '../storage/db'
-import { getPreferences } from '../storage/preferences'
+import { getPreferences, isIncognitoEnabled } from '../storage/preferences'
 import { getTitleHierarchy } from '../lib/titles'
 import { normalizeEpisodes, sanitizeAnimeForDisplay } from '../lib/episodes'
 import { useKitsuEpisodes } from '../hooks/useKitsuEpisodes'
@@ -31,7 +31,7 @@ export function Watch() {
   const { id, episode } = useParams<{ id: string; episode: string }>()
   const navigate = useNavigate()
   const location = useLocation()
-  const { isAuthenticated, combinedList, updateProgress } = useTracking()
+  const { isAuthenticated, combinedList, updateProgress, updateStatus } = useTracking()
 
   // URL is the episode number of THIS entry. No season offsets, no global
   // numbering: entry owns its episodes 1..N.
@@ -118,11 +118,33 @@ export function Watch() {
     (anime.episodes == null || anime.episodes <= 0 || epNum <= anime.episodes),
   )
 
-  // NOTE (owner 2026-10-23): opening an episode NO LONGER marks it watched.
-  // The old mount-time sync wrote progress before a single second played —
-  // the tracker counted untouched episodes. Progress now advances exactly
-  // once per episode, when >= 80% of a genuinely loaded video has played
-  // (below), or when the video ends.
+  // OWNER (2026-10-25): "reaching 80% advances progress by one." A write
+  // must never REGRESS the tracker: rewatching an earlier episode (progress
+  // 8, episode 3 at 80%) leaves progress at 8. Only a not-yet-counted
+  // episode advances it.
+  const trackedProgress = trackingEntry?.progress ?? anime?.progress?.episode ?? 0
+  const canAdvanceProgress = canSyncProgress && epNum > trackedProgress
+
+  // NOTE (owner 2026-10-23): opening an episode does not mark it WATCHED.
+  // Progress advances exactly once per episode, when >= 80% of a genuinely
+  // loaded video has played (below), or when the video ends.
+  //
+  // OWNER (2026-10-25): opening an episode DOES put the title in Watching —
+  // status + start date, even when the episode is unfinished. This is the
+  // "I started this show" signal, separate from episode completion. Written
+  // once per open, only when the entry is not already Watching (so a
+  // completed title restarted at episode 1 becomes a rewatch). Incognito
+  // suppresses the automatic write exactly like progress.
+  const trackingStatus = trackingEntry?.status ?? anime?.listStatus ?? null
+  const autoWatchingRef = useRef(false)
+  useEffect(() => {
+    if (!anime || !canSyncProgress || !isAuthenticated) return
+    if (autoWatchingRef.current) return
+    if (trackingStatus === 'watching') return
+    if (isIncognitoEnabled()) return
+    autoWatchingRef.current = true
+    updateStatus(anime, 'watching').catch(() => { autoWatchingRef.current = false })
+  }, [anime, canSyncProgress, isAuthenticated, trackingStatus, updateStatus])
 
   // Background: resolve provider episodes for source mapping (does not block UI) — abortable
   useEffect(() => {
@@ -238,7 +260,7 @@ export function Watch() {
     // then does tracker progress advance (+1) — once 80% of the loaded
     // video has played. Evaluated on every tick BEFORE the position-save
     // throttle so crossing the threshold is never skipped.
-    if (canSyncProgress && isAuthenticated && !hasCompletedRef.current && currentTime / duration >= 0.8) {
+    if (canAdvanceProgress && isAuthenticated && !hasCompletedRef.current && currentTime / duration >= 0.8) {
       hasCompletedRef.current = true
       updateProgress(anime, epNum).catch(() => {})
     }
@@ -246,13 +268,14 @@ export function Watch() {
     if (now - lastSaveRef.current < 5000) return
     lastSaveRef.current = now
     putWatchPos({ id: anime.identity.internalId, episode: epNum, currentTime, duration, updatedAt: Date.now() }).catch(() => {})
-  }, [anime, epNum, isAuthenticated, updateProgress, canSyncProgress])
+  }, [anime, epNum, isAuthenticated, updateProgress, canAdvanceProgress])
 
   const handleEnded = useCallback(() => {
     if (!anime) return
     clearWatchPos(anime.identity.internalId).catch(() => {})
-    // End-of-video = 100% watched; same validity gate as the 80% path.
-    if (isAuthenticated && canSyncProgress && !hasCompletedRef.current) {
+    // End-of-video = 100% watched; same validity + no-regression gate as the
+    // 80% path.
+    if (isAuthenticated && canAdvanceProgress && !hasCompletedRef.current) {
       hasCompletedRef.current = true
       updateProgress(anime, epNum).catch(() => {})
     }
@@ -263,7 +286,7 @@ export function Watch() {
         navigate(`/watch/${id}/${epNum + 1}`)
       }
     } catch {}
-  }, [anime, epNum, isAuthenticated, updateProgress, canSyncProgress, id, navigate, immediateEpisodes.length])
+  }, [anime, epNum, isAuthenticated, updateProgress, canAdvanceProgress, id, navigate, immediateEpisodes.length])
 
   const handleResume = () => {
     setShowResume(false)
@@ -331,8 +354,12 @@ export function Watch() {
   return (
     <div className="min-h-screen bg-[var(--bg)]">
       <div className="mx-auto max-w-[1280px] px-0 sm:px-4 lg:px-6">
-        {/* Player area */}
-        <div className="relative aspect-video w-full overflow-hidden bg-[var(--bg-soft)] sm:rounded-lg">
+        {/* Player area. The OLD player's wrapper chrome (soft background +
+            rounded corners) is gone (owner 2026-10-25): Video.js 10 paints
+            its own surface and bottom control gradient, so any wrapper fill
+            or radius showed through as an artifact around the video. The
+            placeholder frame (no video yet) keeps its soft surface/rounding. */}
+        <div className={`relative aspect-video w-full overflow-hidden ${hasVideo && !isLoadingVideo ? 'bg-transparent' : 'bg-[var(--bg-soft)] sm:rounded-lg'}`}>
           {/* Backdrop fallback (visible when no video) */}
           {!hasVideo && (
             <img
@@ -610,7 +637,7 @@ export function Watch() {
                       <Link
                         key={epKey}
                         to={`/watch/${id}/${ep.displayNumber}`}
-                        className="group/tile relative block aspect-video overflow-hidden rounded-[6px] border border-[var(--border-strong)] bg-[var(--surface)] transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)]"
+                        className="group/tile relative block aspect-video overflow-hidden rounded-[6px] bg-[var(--surface)] transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)]"
                         aria-label={`Watch Episode ${ep.displayNumber}${realTitle ? ` - ${realTitle}` : ''}`}
                         aria-current={isCurrent ? 'step' : undefined}
                       >
@@ -631,7 +658,9 @@ export function Watch() {
                           <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[var(--bg)] via-[color-mix(in_srgb,var(--bg)_55%,transparent)] to-transparent" />
                         )}
                         {/* Same hover treatment as AnimeCard (D083): base-tinted
-                            scrim + 8px frost + centered 30px play glyph. */}
+                            scrim + 8px frost + centered play glyph. The glyph
+                            is 22px — the same 25%-smaller box every card uses
+                            (owner 2026-10-25). */}
                         <div className="pointer-events-none absolute inset-0 bg-[color-mix(in_srgb,var(--bg)_50%,transparent)] opacity-0 backdrop-blur-[8px] transition-opacity duration-200 group-hover/tile:opacity-100 group-focus-visible/tile:opacity-100" />
                         {isCurrent && (
                           <span
@@ -648,8 +677,10 @@ export function Watch() {
                           {realTitle && <p className="mt-0.5 line-clamp-1 text-[10px] leading-tight text-[var(--text-muted)]">{realTitle}</p>}
                         </div>
                         <div className="pointer-events-none absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 text-[var(--text)] opacity-0 transition-opacity duration-200 group-hover/tile:opacity-100 group-focus-visible/tile:opacity-100">
-                          <Icon name="play-fill" size={30} />
+                          <Icon name="play-fill" size={22} />
                         </div>
+                        {/* Soft frame — same hairline + glow as cards. */}
+                        <div aria-hidden className="frame-soft z-20" />
                       </Link>
                     )
                   })}

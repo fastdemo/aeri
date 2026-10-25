@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Anime } from '../types/anime'
-import { anilistMetadataProvider } from '../providers/metadata/anilistMetadata'
+import { anilistMetadataProvider, type HomeFeed } from '../providers/metadata/anilistMetadata'
 import { ProviderError, type ProviderErrorCode } from '../services/anilist/errors'
 
 type State<T> = { data: T | null; loading: boolean; error: string | null }
@@ -47,6 +47,15 @@ function useData<T>(fetcher: (signal: AbortSignal) => Promise<T>, deps: any[]): 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps)
   return state
+}
+
+/**
+ * HOME FEED — one aliased AniList request for all four Home rails (see
+ * HOME_FEED_QUERY). Replaces the four independent page hooks Home used to
+ * call: one cache key, one request, one loading state, one error.
+ */
+export function useHomeFeed(perPage = 24): State<HomeFeed> {
+  return useData<HomeFeed>(signal => anilistMetadataProvider.getHomeFeed(perPage, signal), [perPage])
 }
 
 export function useTrending(perPage = 12): State<Anime[]> {

@@ -1,9 +1,11 @@
 import type { Anime } from '../../types/anime'
+import type { HomeFeed } from './anilistMetadata'
 
 export interface AnimeMetadataProvider {
   id: string
   getAnime(id: string, signal?: AbortSignal): Promise<Anime>
   search(query: string, perPage?: number, signal?: AbortSignal): Promise<Anime[]>
+  getHomeFeed(perPage?: number, signal?: AbortSignal): Promise<HomeFeed>
   getTrending(perPage?: number, signal?: AbortSignal): Promise<Anime[]>
   getPopular(perPage?: number, signal?: AbortSignal): Promise<Anime[]>
   getAiring(perPage?: number, signal?: AbortSignal): Promise<Anime[]>

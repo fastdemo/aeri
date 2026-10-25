@@ -137,18 +137,22 @@ export function Navbar() {
   // Desktop nav items — Settings lives in the profile menu, not the top bar.
   // Fixed gaps: the left cluster uses ONE gap value at all scales so logo↔nav
   // spacing never breathes during scaling transitions.
+  // MY LIST IS ALWAYS VISIBLE (owner 2026-10-25): signed-out visitors see the
+  // same nav as members; clicking it opens the sign-in modal instead of
+  // navigating (see the /list guard in both nav renderers). Hiding the tab
+  // made the product look like it had no list until you signed in.
   const desktopNav = [
     { to: '/', label: 'Home' },
     { to: '/anime', label: 'Anime' },
     { to: '/manga', label: 'Manga' },
-    ...(isAuthenticated ? [{ to: '/list', label: 'My List' } as const] : []),
+    { to: '/list', label: 'My List' },
   ]
 
   const mobileNav = [
     { to: '/', label: 'Home' },
     { to: '/anime', label: 'Anime' },
     { to: '/manga', label: 'Manga' },
-    ...(isAuthenticated ? [{ to: '/list', label: 'My List' } as const] : []),
+    { to: '/list', label: 'My List' },
     { to: '/search', label: 'Search' },
   ]
 
@@ -261,7 +265,16 @@ export function Navbar() {
               <NavLink
                 key={l.to}
                 to={l.to}
-                onClick={() => dispatchNavigate(l.to)}
+                onClick={(e) => {
+                  // Signed-out My List: prompt sign-in, never navigate to a
+                  // page that can only show a locked state.
+                  if (l.to === '/list' && !isAuthenticated) {
+                    e.preventDefault()
+                    setSignInOpen(true)
+                    return
+                  }
+                  dispatchNavigate(l.to)
+                }}
                 className={({ isActive }) =>
                   `touch-manipulation whitespace-nowrap text-[13px] font-medium transition-colors px-2 py-1.5 rounded -mx-2 ${
                     isActive ? 'text-[var(--text)]' : 'text-[var(--text-muted)] hover:text-[var(--text)]'
@@ -478,7 +491,13 @@ export function Navbar() {
               <Link
                 key={l.to}
                 to={l.to}
-                onClick={() => {
+                onClick={(e) => {
+                  if (l.to === '/list' && !isAuthenticated) {
+                    e.preventDefault()
+                    setMobileNavOpen(false)
+                    setSignInOpen(true)
+                    return
+                  }
                   setMobileNavOpen(false)
                   dispatchNavigate(l.to)
                 }}

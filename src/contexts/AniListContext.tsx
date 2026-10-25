@@ -83,11 +83,17 @@ export function AniListProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
-  const loadList = useCallback(async (t: string) => {
+  /**
+   * List load. `opts.force` re-asks AniList even when the 24 h IDB snapshot
+   * (or the 5 min memory copy) is still fresh — the only way an entry scored
+   * or changed on anilist.co shows up without a reload. Used by pull-sync
+   * and the Profile refresh button; ordinary loads stay cached.
+   */
+  const loadList = useCallback(async (t: string, opts?: { force?: boolean }) => {
     setLoadingList(true)
     setError(null)
     try {
-      const list = await aniListProvider.getAnimeList(t)
+      const list = await aniListProvider.getAnimeList(t, opts)
       setAnimeList(list)
       setAuthExpired(false)
     } catch (e) {
@@ -112,7 +118,9 @@ export function AniListProvider({ children }: { children: React.ReactNode }) {
     if (!t) return
     try {
       await loadUser(t)
-      await loadList(t)
+      // Force: a manual/pull refresh exists to surface EXTERNAL changes,
+      // which the 24 h list cache would otherwise mask.
+      await loadList(t, { force: true })
     } catch {}
   }, [loadUser, loadList])
 
@@ -171,6 +179,9 @@ export function AniListProvider({ children }: { children: React.ReactNode }) {
     // Pull-sync: external changes (site/app) surface on focus, reconnect,
     // and visibility return. No webhooks exist — this is the sync path.
     // Bounded: 60s cooldown, token-gated, failures silent (stale list kept).
+    // FORCED (owner 2026-10-25): a pull-sync that reads the 24h IDB snapshot
+    // can never see a score added on anilist.co — exactly the "my scores
+    // don't show up" report. Focus/online/visibility now re-ask AniList.
     const lastSyncRef = { current: 0 }
     const pullSync = () => {
       try {
@@ -181,7 +192,7 @@ export function AniListProvider({ children }: { children: React.ReactNode }) {
         if (now - lastSyncRef.current < 60000) return
         lastSyncRef.current = now
         loadUser(t).catch(() => {})
-        loadList(t).catch(() => {})
+        loadList(t, { force: true }).catch(() => {})
       } catch {}
     }
     window.addEventListener('aeri:anilist:logout', onLogout as EventListener)

@@ -19,7 +19,7 @@ import type { Anime, AnimeListEntry } from '../types/anime'
 // avatar, and the profile links.
 export function Profile() {
   const { isAuthenticated, trackingProvider, combinedList, loading, error, authExpired } = useTracking()
-  const { user: anilistUser } = useAniList()
+  const { user: anilistUser, refresh: refreshAniList, loadingList: loadingAniList } = useAniList()
   const { user: malUser } = useMAL()
   const openDetail = useDetailOpen()
   // Avatar + name follow the ACTIVE tracker (switching MAL/AniList swaps
@@ -109,6 +109,22 @@ export function Profile() {
   const myList: Anime[] = useMemo(() => {
     if (!combinedList) return []
     return combinedList.filter(isAnimeEntry).map(e => e.anime)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [combinedList])
+
+  // HONEST EMPTY STATE (owner 2026-10-25). Both score rows are hidden when
+  // nothing is scored — that is correct, but on its own it reads as "the
+  // rows are broken" (the reported Highest/Lowest bug). Report the real
+  // reason instead: the rows need scores, and scores added on anilist.co are
+  // pulled on the next sync. `refresh` forces past the 24 h list cache.
+  const scoredAnimeCount = useMemo(() => {
+    if (!combinedList) return 0
+    return combinedList.filter(e => (e.score ?? 0) > 0 && isAnimeEntry(e)).length
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [combinedList])
+  const listedAnimeCount = useMemo(() => {
+    if (!combinedList) return 0
+    return combinedList.filter(isAnimeEntry).length
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [combinedList])
 
@@ -257,6 +273,30 @@ export function Profile() {
                   <AnimeCard key={a.identity.internalId} anime={a} onSelect={openDetail} />
                 ))}
               </ContentRow>
+            )}
+            {scoredAnimeCount === 0 && listedAnimeCount > 0 && (
+              <div className="rounded-xl border border-[var(--border)] bg-[var(--text)]/[0.02] px-4 py-6 text-center">
+                <p className="text-sm font-medium text-[var(--text)]">No scores yet</p>
+                <p className="mx-auto mt-1 max-w-[46ch] text-xs leading-5 text-[var(--text-faint)]">
+                  Highest Rated and Lowest Rated are built from the scores on your {trackerName} list.
+                  {trackingProvider === 'anilist'
+                    ? ' Rate titles in My List — or on anilist.co — and refresh to pull them in.'
+                    : ' Rate a title in My List and it will show up here.'}
+                </p>
+                {trackingProvider === 'anilist' && (
+                  <button
+                    type="button"
+                    onClick={() => { void refreshAniList() }}
+                    disabled={loadingAniList}
+                    className="mt-4 inline-flex h-8 items-center gap-1.5 rounded-full bg-[var(--text)] px-4 text-xs font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)] disabled:opacity-60"
+                  >
+                    {loadingAniList && (
+                      <span className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--on-text)]/30 border-t-[var(--on-text)]" />
+                    )}
+                    {loadingAniList ? 'Refreshing…' : 'Refresh scores'}
+                  </button>
+                )}
+              </div>
             )}
 
             {/* OWNER (2026-10-20): the home page's "My List" row, directly

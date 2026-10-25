@@ -8,6 +8,8 @@ import { Icon } from '../ui/Icon'
 import { useTracking } from '../../contexts/TrackingContext'
 import { getReadPos } from '../../storage/db'
 import { detailPath } from '../../hooks/useDetailOpen'
+import { useNearViewport } from '../../hooks/useNearViewport'
+import { planResume } from '../../lib/resume'
 
 type Variant = 'default' | 'continue' | 'compact'
 
@@ -144,6 +146,7 @@ export function AnimeCard({
   mediaKind,
   disableLink,
   hideHoverCaption,
+  priority,
 }: {
   anime: Anime
   variant?: Variant
@@ -159,6 +162,10 @@ export function AnimeCard({
       all — name and meta both live outside the art (name in the aria-label
       and the grid's meta line below). Manga tiles keep their caption. */
   hideHoverCaption?: boolean
+  /** Above-the-fold tile: skip the proximity gate and load its art eagerly
+      at high network priority (Home's first row). Every other card waits
+      until it is near the viewport — see useNearViewport. */
+  priority?: boolean
 }) {
   const kind = kindOf(anime, mediaKind)
   const isManga = kind === 'manga'
@@ -177,6 +184,23 @@ export function AnimeCard({
   const artAspect = isManga ? 'aspect-[3/4]' : 'aspect-[16/9]'
   const artDims = isManga ? { width: 300, height: 400 } : { width: 400, height: 225 }
   const primaryTitle = getPrimaryTitle(anime)
+  // ART LOADING (owner 2026-10-25): the tile only asks for its artwork once
+  // it is near the viewport. `loading="lazy"` alone queued ~50 full-size
+  // banners on a cold Home (every row is a scroller and Chrome's lazy
+  // distance spans the whole feed), so in-view tiles stayed blank behind
+  // offscreen downloads. `priority` tiles (Home's first row) skip the gate
+  // and load eagerly at high priority.
+  const { ref: artRef, near: artNear } = useNearViewport<HTMLDivElement>({ priority })
+  // Broken banner URLs (deleted AniList art) fall back ONCE to the same
+  // record's other image before giving up — never a fabricated image.
+  const [imgSrc, setImgSrc] = useState(fallbackSrc)
+  const triedAlternateArt = useRef(false)
+  const [artLoaded, setArtLoaded] = useState(false)
+  useEffect(() => {
+    setImgSrc(fallbackSrc)
+    setArtLoaded(false)
+    triedAlternateArt.current = false
+  }, [fallbackSrc])
   const progressEp = anime.progress?.episode ?? 0
   const displayEp = progressEp > 0 ? getDisplayEpisodeNumber(anime, progressEp) : 0
   // CONTINUE = NEXT EPISODE (owner 2026-10-18): "if I watched 20 episodes,
@@ -206,8 +230,16 @@ export function AnimeCard({
   }, [variant, isManga, anime.identity.anilistId, anime.identity.malId])
   const meta = episodeMeta ?? anime
   const epTotal = typeof meta.episodes === 'number' && meta.episodes > 0 ? meta.episodes : 0
-  const nextEpRaw = progressEp > 0 ? progressEp + 1 : 1
-  const watchEp = epTotal > 0 ? Math.min(nextEpRaw, epTotal) : nextEpRaw
+  // RESUME / RESTART (owner 2026-10-25): the same pure rule as the preview
+  // card. A part-watched show opens progress+1; a show with nothing new
+  // left (finished, or airing-and-caught-up) restarts at episode 1 instead
+  // of pointing the glyph at a finale — or at an episode that has not aired.
+  const resume = planResume({
+    progress: progressEp,
+    total: epTotal,
+    nextAiringEpisode: meta.nextAiringEpisode?.episode ?? null,
+  })
+  const watchEp = resume.target
   const displayWatchEp = getDisplayEpisodeNumber(meta, watchEp)
   const watchName = getStreamingEpisodeTitle(meta, watchEp)
   // Watch target id — ANILIST-FIRST, preferring the full AniList record's
@@ -220,14 +252,15 @@ export function AnimeCard({
   })()
   // Manga READ target (owner 2026-10-18 — same next-unit semantics as the
   // anime play button): the first unread chapter — progress+1, clamped to
-  // the tracker's chapter count — or 'first' for an unstarted title. The
-  // Read route contract is the same one DetailModal's Resume uses:
-  // 'ch-N' targets unit number N, 'first' the oldest provider unit.
+  // the tracker's chapter count — or 'first' for an unstarted OR exhausted
+  // title (Netflix restart). The Read route contract is the same one
+  // DetailModal's Resume uses: 'ch-N' targets unit number N, 'first' the
+  // oldest provider unit.
   const readTarget = (() => {
-    if (progressEp <= 0) return 'first'
     const chTotal = typeof anime.chapters === 'number' && anime.chapters > 0 ? anime.chapters : 0
-    const n = chTotal > 0 ? Math.min(progressEp + 1, chTotal) : progressEp + 1
-    return `ch-${n}`
+    const plan = planResume({ progress: progressEp, total: chTotal })
+    if (plan.restart || progressEp <= 0) return 'first'
+    return `ch-${plan.target}`
   })()
   // OWNER (2026-10-18 evening): one overlay language for EVERY card on
   // EVERY surface (home rows, /anime, /manga browse, My List, Search,
@@ -264,11 +297,10 @@ export function AnimeCard({
     'absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 grid place-items-center text-[var(--text)] hover-only-control ' +
     'opacity-0 group-hover/art:opacity-100 group-focus-visible/card:opacity-100 focus-visible:opacity-100 ' +
     'transition duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)]'
-  const GLYPH_ICON_PX = 30
-  // OWNER 2026-10-24: the read glyph uses the SAME 30px box as play
-  // ("on hover... the read icon is too small. make it the same size as
-  // the play button") and is now the open-book art. This supersedes the
-  // D103 ink-parity 18px box; both icons now share one size.
+  // OWNER (2026-10-25): the hover glyph is 25% SMALLER than the 30px box
+  // (30 → 22) and the manga read glyph keeps the SAME size as play. The
+  // 30px art read as a billboard over the thumbnail.
+  const GLYPH_ICON_PX = 22
   const BOOK_GLYPH_ICON_PX = GLYPH_ICON_PX
   // Manga continue caption: provider's own unit label from the IDB read
   // position (e.g. "Volume 3", "Chapter 12"). Never "E12" for manga, never
@@ -317,25 +349,42 @@ export function AnimeCard({
     // bridging the sibling gap).
     <div className="relative w-full min-w-0 flex-shrink-0">
       <div
-        className={`relative w-full min-w-0 flex-shrink-0 overflow-hidden rounded-[6px] border border-[var(--border-strong)] bg-[var(--surface)] transition-colors duration-200 hover:z-10 hover:border-[color-mix(in_srgb,var(--text)_35%,transparent)] ${width}`}
+        className={`relative w-full min-w-0 flex-shrink-0 overflow-hidden rounded-[6px] bg-[var(--surface)] ${width}`}
       >
-      <div className={`group/art relative ${artAspect} w-full min-w-0 overflow-hidden bg-[var(--surface-elevated)] @container`}>
-        <img
-          src={fallbackSrc}
-          alt={primaryTitle}
-          loading="lazy"
-          decoding="async"
-          width={artDims.width}
-          height={artDims.height}
-          onError={(e) => {
-            const t = e.currentTarget
-            t.style.display = 'none'
-          }}
-          onLoad={(e) => {
-            e.currentTarget.classList.add('is-loaded')
-          }}
-          className="img-fade h-full w-full object-cover opacity-[0.96] transition group-hover/art:opacity-100"
-        />
+      <div ref={artRef} className={`group/art relative ${artAspect} w-full min-w-0 overflow-hidden bg-[var(--surface-elevated)] @container`}>
+        {/* Quiet placeholder while the art is gated/loading — a flat empty
+            box read as a broken card. Same final box, so nothing shifts. */}
+        {!artLoaded && (
+          <div aria-hidden className="absolute inset-0 animate-pulse bg-[var(--surface-elevated)]" />
+        )}
+        {artNear && imgSrc && (
+          <img
+            src={imgSrc}
+            alt={primaryTitle}
+            loading={priority ? 'eager' : 'lazy'}
+            fetchPriority={priority ? 'high' : 'low'}
+            decoding="async"
+            width={artDims.width}
+            height={artDims.height}
+            onError={() => {
+              const alternate = isManga ? anime.backdropImage : anime.coverImage
+              if (!triedAlternateArt.current && alternate && alternate !== imgSrc) {
+                triedAlternateArt.current = true
+                setImgSrc(alternate)
+                return
+              }
+              // No usable art left: stop the placeholder pulse (a permanently
+              // pulsing empty tile reads as perpetual loading).
+              setImgSrc('')
+              setArtLoaded(true)
+            }}
+            onLoad={(e) => {
+              e.currentTarget.classList.add('is-loaded')
+              setArtLoaded(true)
+            }}
+            className="img-fade relative h-full w-full object-cover opacity-[0.96] transition group-hover/art:opacity-100"
+          />
+        )}
 
         {/* HOVER TREATMENT (owner 2026-10-19): the old bottom-up gradient
             is REPLACED by a uniform whole-card treatment — the card
@@ -390,10 +439,15 @@ export function AnimeCard({
             layout on touch (opacity-0, zero-size) and its text reports
             getBoundingClientRect().left = 0, which trips overflow/clip
             audits and can paint during scroll. can-hover gate renders it
-            only where a real hover exists (see globals.css). */}
+            only where a real hover exists (see globals.css).
+            OWNER (2026-10-25): the band NO LONGER paints its own bottom-up
+            gradient. It doubled the whole-card scrim into a heavy strip with
+            a hard horizontal edge — the blur looked like an artifact on both
+            anime and manga tiles. One uniform hover treatment carries the
+            text instead (the player's own bottom gradient is unrelated). */}
         {variant !== 'continue' && !hideHoverCaption && (
           <div
-            className={`absolute inset-x-0 bottom-0 hidden translate-y-1 bg-gradient-to-t from-[color-mix(in_srgb,var(--bg)_75%,transparent)] to-transparent p-2 opacity-0 transition can-hover:block group-hover/art:translate-y-0 group-hover/art:opacity-100 ${!isManga ? '@max-[160px]:py-1' : ''}`}
+            className={`absolute inset-x-0 bottom-0 hidden translate-y-1 p-2 opacity-0 transition can-hover:block group-hover/art:translate-y-0 group-hover/art:opacity-100 ${!isManga ? '@max-[160px]:py-1' : ''}`}
           >
             <p className="line-clamp-1 text-[11px] font-medium leading-tight text-[var(--text)]">
               {primaryTitle}
@@ -442,6 +496,12 @@ export function AnimeCard({
           </p>
         </div>
       )}
+      {/* Soft frame (hairline + short inner glow — see .frame-soft). Cards
+          cannot carry a per-tile backdrop blur: 100+ backdrop captures
+          tiled the artwork and cost paint time on Home. The hero keeps the
+          literal frosted rim; cards match it visually and frost fully on
+          hover via the existing whole-card treatment. */}
+      <div aria-hidden className="frame-soft z-20" />
       </div>
       {/* OWNER (2026-10-20): the ⋮ QuickMenu stays a SIBLING of the frame
           (content-level) on purpose — its dropdown + 48px shadow must not

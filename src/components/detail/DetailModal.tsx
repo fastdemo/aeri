@@ -16,6 +16,7 @@ import { useKitsuEpisodes } from '../../hooks/useKitsuEpisodes'
 import { resolveDisplayRecord } from '../../lib/records'
 import { formatLabel, statusLabel } from '../../lib/mediaLabels'
 import { resolveChaptersWithFallback } from '../../providers/manga/mangadex'
+import { planResume } from '../../lib/resume'
 
 function ScoreBadge({ anime, trackingProvider }: { anime: Anime; trackingProvider?: 'anilist' | 'mal' | null }) {
   const text = formatRating(displayRating(anime, trackingProvider))
@@ -138,24 +139,22 @@ export function DetailModal({
   const currentStatus: AnimeStatus | null = trackedStatus
   const numEp = entry?.progress ?? 0
   const hasWatched = numEp > 0
-  // RESUME = NEXT (owner 2026-10-18): "if I watched 20 episodes, the resume
-  // button is episode 21." One past the last-completed unit, clamped to the
-  // known total; the metric line below still reports what WAS watched.
-  const resumeEpisodeNumber = (() => {
-    if (!hasWatched) return 1
-    const total = isMangaKind
-      ? (displayAnime.chapters && displayAnime.chapters > 0 ? displayAnime.chapters : 0)
-      : (displayAnime.episodes && displayAnime.episodes > 0 ? displayAnime.episodes : 0)
-    return total > 0 ? Math.min(numEp + 1, total) : numEp + 1
-  })()
-  const resumeEp = resumeEpisodeNumber
-  // Manga "fully caught up" — the Ch-line hides when nothing is left to read
-  // (same rule as the E-line for anime with progress == episodes total).
-  const caughtUpManga = (() => {
-    if (!isMangaKind) return false
-    const total = displayAnime.chapters && displayAnime.chapters > 0 ? displayAnime.chapters : 0
-    return numEp > 0 && total > 0 && numEp >= total
-  })()
+  // KNOWN TOTAL for this kind: episodes for anime, chapters for manga.
+  const knownTotal = isMangaKind
+    ? (displayAnime.chapters && displayAnime.chapters > 0 ? displayAnime.chapters : 0)
+    : (displayAnime.episodes && displayAnime.episodes > 0 ? displayAnime.episodes : 0)
+  // RESUME vs RESTART: one pure rule (`planResume`) owns the decision so the
+  // modal, card actions, and tests can never drift apart.
+  //   • something left  → open unit progress+1, label "Resume"
+  //   • nothing left    → open unit 1, label "Play"/"Read" (Netflix restart)
+  const resumePlan = planResume({
+    progress: numEp,
+    total: knownTotal,
+    nextAiringEpisode: displayAnime.nextAiringEpisode?.episode ?? null,
+  })
+  const restart = resumePlan.restart
+  const resumeEpisodeNumber = resumePlan.target
+  const resumeLabel = resumePlan.resumable ? 'Resume' : isMangaKind ? 'Read' : 'Play'
   // Finished entries always render a full bar even when no percent survived mapping
   const barPercent = (() => {
     if (!entry) return 0
@@ -197,6 +196,9 @@ export function DetailModal({
   }, [isMovie, isMangaKind, displayAnime.identity.anilistId, displayAnime.identity.malId, resumeEpisodeNumber])
   const epline = (() => {
     if (isMovie || isMangaKind) return null
+    // Nothing new to watch (finished, or caught up on an airing show): the
+    // line would advertise a rewatch, so it hides with the restart state.
+    if (restart) return null
     const showTotal = displayAnime.episodes && displayAnime.episodes > 0 ? displayAnime.episodes : 0
     if (numEp > 0 && showTotal > 0 && numEp >= showTotal) return null
     const next = resumeEpisodeNumber
@@ -315,11 +317,12 @@ export function DetailModal({
 
             {isMangaKind ? (
               <Link
-                to={`/read/${displayAnime.identity.internalId}/${hasWatched ? `ch-${resumeEpisodeNumber}` : 'first'}`}
+                to={`/read/${displayAnime.identity.internalId}/${hasWatched && !restart ? `ch-${resumeEpisodeNumber}` : restart ? 'ch-1' : 'first'}`}
                 className="inline-flex h-8 items-center gap-1.5 rounded-full bg-[var(--text)] px-4 text-[13px] font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]"
               >
-                <Icon name="book" size={14} />
-                {hasWatched ? 'Resume' : 'Read'}
+                {/* OWNER (2026-10-25): open-book art, matching the cards. */}
+                <Icon name="book-open" size={14} />
+                {resumeLabel}
               </Link>
             ) : (
               <Link
@@ -327,16 +330,18 @@ export function DetailModal({
                 className="inline-flex h-8 items-center gap-1.5 rounded-full bg-[var(--text)] px-4 text-[13px] font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]"
               >
                 <Icon name="play-fill" size={14} />
-                {hasWatched ? 'Resume' : 'Play'}
+                {resumeLabel}
               </Link>
             )}
-            {/* Manga captions read "N of M" (chapters read of total);
-                anime keeps Episode N • title. */}
+            {/* OWNER (2026-10-25): the progress line reports what WAS
+                WATCHED (numEp), never the resume target (progress+1) — "6 of
+                25" means six watched, not "you are about to watch 6". Manga
+                reads "N of M chapters"; anime keeps "N of M • P% watched". */}
             {hasWatched && (
               <span className="text-xs text-[var(--text-muted)]">
                 {isMangaKind
-                  ? `${resumeEp} of ${displayAnime.chapters && displayAnime.chapters > 0 ? displayAnime.chapters : '—'}`
-                  : (<>{resumeEp}{displayAnime.episodes && displayAnime.episodes > 0 ? ` of ${displayAnime.episodes}` : ''} • {barPercent}% watched</>)}
+                  ? `${numEp} of ${knownTotal > 0 ? knownTotal : '—'}`
+                  : (<>{numEp}{knownTotal > 0 ? ` of ${knownTotal}` : ''} • {barPercent}% watched</>)}
               </span>
             )}
 
@@ -448,14 +453,15 @@ export function DetailModal({
             {/* E-line renders only with real content — never a spacer. */}
             {!isMovie && !isMangaKind && hasEpline && (
               <p className="mt-2 text-[12px] font-semibold text-[var(--text)]">
-                E{eplineNumber} {eplineTitle ? `• ${eplineTitle}` : ''}
+                Episode {eplineNumber} {eplineTitle ? `• ${eplineTitle}` : ''}
               </p>
             )}
             {/* Manga mirror of the E-line (owner 2026-10-18: "the same
                 behavior also applied to manga"): the NEXT chapter's info
-                above the description — Ch <next> + the provider unit's own
-                title when it carries one. */}
-            {isMangaKind && !caughtUpManga && (
+                above the description — Chapter <next> + the provider unit's
+                own title when it carries one. Hidden when nothing new is
+                left (the button restarts at chapter 1 instead). */}
+            {isMangaKind && !restart && (
               <MangaNextLine manga={displayAnime} next={resumeEpisodeNumber} watched={numEp} />
             )}
             <p className="mt-1 line-clamp-3 text-[13px] leading-6 text-[var(--text-muted)]">
@@ -571,7 +577,7 @@ function MangaNextLine({ manga, next, watched }: { manga: Anime; next: number; w
   if (!watched && !unitExtra) return null
   return (
     <p className="mt-2 text-[12px] font-semibold text-[var(--text)]">
-      Ch{next} {unitExtra ? `• ${unitExtra}` : ''}
+      Chapter {next} {unitExtra ? `• ${unitExtra}` : ''}
     </p>
   )
 }
