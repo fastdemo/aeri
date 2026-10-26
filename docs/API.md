@@ -135,6 +135,45 @@ interface VideoProvider {
 - **Limitations (historical — pre-Worker era, documented 2026-08-29):** All 6 real providers return **no-source** from browser due to CORS (`No 'Access-Control-Allow-Origin'` for `api.myanimelist.net` style, `animepahe.ru`/`animeparadise.moe` CORS blocked, `anikoto.to` DNS fail, `megaplay.buzz` 200 but HTML Error, `allanime.day` CORS OK but query requires exact schema and Cloudflare; all fetch from `https://fastdemo.github.io` → `ERR_FAILED` → `Failed to fetch`). Documented in provider files as `browser-incompatible` without proxy. `MockVideoProvider` ensures episode navigation still works, Watch shows **no-source UI** `Video unavailable • No browser-compatible source was found for Episode N. Aeri is static with no backend; most providers require a server proxy. Try another episode or source. Tried: …` with `Retry` + `Episodes` + provider caps footer, not blank.
 - Authorized sources only, no DRM bypass, no secrets in `VITE_*` (client IDs are public; `ANILIST_CLIENT_SECRET` lives only in Worker secrets / auth-proxy env, never in bundles).
 
+### MangaProvider (worker-backed, D091/D099/D128)
+
+```ts
+interface MangaChapter {
+  id: string; mangaId: string
+  providerChapterId: string        // opaque provider unit (chapter OR volume)
+  label: string; number: number | null
+  kind?: string; unitType?: 'volume' | 'chapter'
+  publishedAt?: string
+  externalUrl?: string             // off-site licensed link
+  externalOnly?: boolean           // no hosted pages — never reader content
+}
+interface MangaProvider {
+  id: string; status: 'verified' | 'unverified' | 'broken'
+  enabledByDefault: boolean
+  resolveManga(anime: Anime, options?): Promise<MangaProviderMatch | null>
+  getChapters(anime: Anime, options?): Promise<MangaChapter[]>
+  getChapterPages(chapter: MangaChapter, options?): Promise<MangaPage[]>
+}
+```
+
+Single-source contract: `resolveChaptersWithFallback` walks enabled +
+verified providers in registry order (`mangadex → weebcentral → mangapill →
+mangahere → …`) and stops at the first **usable** catalogue. A match alone
+is not enough (D128): `externalOnly` units are filtered out; an all-external
+list is skipped with its links kept as `externalUnits`; a catalogue covering
+<10% of a ≥25-chapter series is a sliver and is skipped; a ≤3-unit catalogue
+is probed on its first and last unit (two empty answers = no hosted pages).
+A thrown probe is inconclusive and never downgrades the source.
+
+Worker responses used by the provider: `mdx-chapters` returns
+`{readable, external, count}` — an `externalUrl` row with MangaDex's
+placeholder `pages ≤ 1` is classified `external` (it answers zero pages
+from `mdx-pages`), while a genuinely mirrored external unit (>1 page) stays
+readable. `mp-*`, `mh-*` and WeebCentral routes expose units + signed-relay
+pages. Reader states are explicit: licensed links only when nothing is
+readable, a named zero-page unit with Next / Start from chapter 1, and a
+fallback notice when the requested unit is absent from the winning source.
+
 ## Anime Type (normalized) — Phase 7.1 corrections
 
 ```ts
@@ -173,7 +212,7 @@ interface Anime {
 - In-memory `Map<string,{value,expiry}>` TTL 5 min for all metadata (trending/popular/airing/new/search/anime + viewer/lists) — shared by `anilistGraphQL` and `malFetch`
 - IndexedDB `cache` store keys `anilist:*` + `mal:*` TTL 24 h via `putCache/getCache` (shared for tracking + metadata + MAL, no second system)
 - Deduplicate concurrent fetches via `inflight` promise map (both clients)
-- Early `?code=` handling: AniList and MAL callbacks are both search params and survive HashRouter; each context claims only codes whose `state` matches its own stored state (D042). No hash-token parsing remains.
+- Early `?code=` handling: AniList and MAL callbacks are both origin-root search params (path router, D098); each context claims only codes whose `state` matches its own stored state (D042). No hash-token parsing remains.
 - Public metadata cached same as tracking; Home's four rails ride ONE aliased request (D127) deduped and cached; MAL user/list cached same TTL
 
 ## Search

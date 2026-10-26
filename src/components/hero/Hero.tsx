@@ -5,6 +5,7 @@ import { getTitleHierarchy } from '../../lib/titles'
 import { formatLabel } from '../../lib/mediaLabels'
 import { displayRating, formatRating } from '../../lib/rating'
 import { Icon } from '../ui/Icon'
+import { pillSolid, pillSoft } from '../ui/buttonStyles'
 
 function ScoreBadge({ anime, trackingProvider }: { anime: Anime; trackingProvider?: 'anilist' | 'mal' | null }) {
   const text = formatRating(displayRating(anime, trackingProvider))
@@ -22,7 +23,7 @@ export function Hero({ anime, onMoreInfo, trackingProvider }: { anime: Anime; on
 
   return (
     <CarouselShell>
-    <section className="relative overflow-hidden rounded-xl bg-[var(--surface)] sm:rounded-[14px] [transform:translateZ(0)]">
+    <section className="relative overflow-hidden rounded-[28px] bg-[var(--surface)] [transform:translateZ(0)]">
       {/* Backdrop image */}
       <div className="relative aspect-[16/9] w-full overflow-hidden sm:aspect-[21/9] sm:min-h-[400px] lg:aspect-[2.2/1] lg:min-h-[460px] lg:max-h-[640px]">
         <img
@@ -93,14 +94,14 @@ export function Hero({ anime, onMoreInfo, trackingProvider }: { anime: Anime; on
             <div className="mt-1 flex items-center gap-2">
               <Link
                 to={`/watch/${anime.identity.internalId}/1`}
-                className="inline-flex h-8 items-center gap-1.5 rounded-full bg-[var(--text)] px-5 text-[13px] font-semibold text-[var(--on-text)] transition hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)] active:scale-[0.98]"
+                className={pillSolid}
               >
                 <Icon name="play-fill" size={14} />
                 Play
               </Link>
               <button
                 onClick={onMoreInfo}
-                className="inline-flex h-8 items-center rounded-full bg-[color-mix(in_srgb,var(--text)_14%,transparent)] px-4 text-[13px] font-medium text-[var(--text)] backdrop-blur transition hover:bg-[color-mix(in_srgb,var(--text)_20%,transparent)]"
+                className={`${pillSoft} backdrop-blur`}
                 aria-label={`More info about ${titles.primary}`}
               >
                 More Info
@@ -261,7 +262,7 @@ export function HeroCarousel({
     <CarouselShell>
     <section
       ref={containerRef as never}
-      className="relative overflow-hidden rounded-xl bg-[var(--surface)] sm:rounded-[14px] [transform:translateZ(0)]"
+      className="relative overflow-hidden rounded-[28px] bg-[var(--surface)] [transform:translateZ(0)]"
       aria-roledescription="carousel"
       aria-label="Featured anime"
       onMouseEnter={() => setPaused(true)}
@@ -518,14 +519,14 @@ function HeroSlide({
                   <div className="mt-1 flex shrink-0 items-center gap-2">
                     <Link
                       to={`/watch/${anime.identity.internalId}/1`}
-                      className="pointer-events-auto z-20 inline-flex h-7 items-center gap-1.5 rounded-full bg-[var(--text)] px-4 text-[12px] font-semibold text-[var(--on-text)] transition hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)] active:scale-[0.98] sm:h-8 sm:px-5 sm:text-[13px]"
+                      className={`${pillSolid} pointer-events-auto z-20`}
                     >
                       <Icon name="play-fill" size={14} />
                       Play
                     </Link>
                     <button
                       onClick={() => onMoreInfo?.(anime)}
-                      className="pointer-events-auto z-20 inline-flex h-7 items-center rounded-full bg-[color-mix(in_srgb,var(--text)_14%,transparent)] px-4 text-[12px] font-medium text-[var(--text)] backdrop-blur transition hover:bg-[color-mix(in_srgb,var(--text)_20%,transparent)] sm:h-8 sm:text-[13px]"
+                      className={`${pillSoft} pointer-events-auto z-20 backdrop-blur`}
                       aria-label={`More info about ${titles.primary}`}
                     >
                       More Info
@@ -555,7 +556,7 @@ function CarouselShell({ children }: { children: React.ReactNode }) {
   // backdrop-filter snapshots into the slide artwork, and an overlay cannot
   // shift the 1px layout the carousel's ken-burns geometry depends on.
   return (
-    <div className="relative overflow-hidden rounded-xl sm:rounded-[14px] [transform:translateZ(0)] [isolation:isolate]">
+    <div className="relative overflow-hidden rounded-[28px] [transform:translateZ(0)] [isolation:isolate]">
       {children}
       <div aria-hidden className="frame-glass z-30" />
     </div>

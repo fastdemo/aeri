@@ -11,6 +11,7 @@ import { displayRating, formatRating } from '../../lib/rating'
 import { getTitleHierarchy } from '../../lib/titles'
 import { useAeriTitle } from '../../hooks/useAeriTitle'
 import { Icon } from '../ui/Icon'
+import { pillSolid } from '../ui/buttonStyles'
 import { sanitizeAnimeForDisplay, getStreamingEpisodeTitle } from '../../lib/episodes'
 import { useKitsuEpisodes } from '../../hooks/useKitsuEpisodes'
 import { resolveDisplayRecord } from '../../lib/records'
@@ -318,7 +319,7 @@ export function DetailModal({
             {isMangaKind ? (
               <Link
                 to={`/read/${displayAnime.identity.internalId}/${hasWatched && !restart ? `ch-${resumeEpisodeNumber}` : restart ? 'ch-1' : 'first'}`}
-                className="inline-flex h-8 items-center gap-1.5 rounded-full bg-[var(--text)] px-4 text-[13px] font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]"
+                className={pillSolid}
               >
                 {/* OWNER (2026-10-25): open-book art, matching the cards. */}
                 <Icon name="book-open" size={14} />
@@ -327,7 +328,7 @@ export function DetailModal({
             ) : (
               <Link
                 to={`/watch/${displayAnime.identity.internalId}/${resumeEpisodeNumber}`}
-                className="inline-flex h-8 items-center gap-1.5 rounded-full bg-[var(--text)] px-4 text-[13px] font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]"
+                className={pillSolid}
               >
                 <Icon name="play-fill" size={14} />
                 {resumeLabel}

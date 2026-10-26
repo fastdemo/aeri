@@ -69,9 +69,39 @@ body {
   background: var(--border-strong);
 }
 
-/* FROSTED FRAME (owner 2026-10-25): the translucent hairline that wraps the
-   hero and every artwork card sits on a blurred rim, matching the frosted
-   glass used by the navbar, hero chips, and the card hover treatment. The
+/* NO-COPY (owner 2026-10-26): "i want this website to be uncopypastable like
+   you cant select anything. for the emtire website." Nothing outside a form
+   control can be selected, so page text and artwork cannot be dragged into
+   another app. Inputs, textareas, selects and contenteditable stay
+   selectable — the search box and every settings field would be unusable
+   otherwise — and clipboard buttons (navigator.clipboard) are unaffected by
+   user-select. Links and images also stop being drag sources, which would
+   otherwise still copy a URL or a picture. */
+html,
+body {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+input,
+textarea,
+select,
+[contenteditable='true'] {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+a,
+img,
+video {
+  -webkit-user-drag: none;
+}
+
+/* FROSTED FRAME (owner 2026-10-25; player added 2026-10-26): the translucent
+   hairline that wraps the hero, the media player and every artwork card sits
+   on a blurred rim, matching the frosted glass used by the navbar, hero
+   chips, and the card hover treatment. The
    mask keeps the backdrop filter to the rim only, so pixels under the frame
    edge are blurred while the artwork's face stays sharp. The visible line is
    still the same --border-card hairline drawn on top. */
@@ -104,6 +134,33 @@ body {
   box-shadow:
     inset 0 0 0 1px var(--border-card),
     inset 0 0 10px -4px color-mix(in srgb, var(--text) 24%, transparent);
+}
+
+/* CRISP FRAME (Continue Watching only — owner 2026-10-25): "dont blur the
+   borders of the continue watching card". The continue tile stacks artwork
+   over a caption block on the page background, so the soft frame's inward
+   glow bleeds across that seam and reads as a blurred/out-of-focus border.
+   This variant draws the SAME hairline weight with zero glow: one clean 1px
+   edge. Every other card keeps .frame-soft. */
+.frame-crisp {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 0 0 1px var(--border-card);
+}
+
+/* PLAYER SURFACE (owner 2026-10-26, revised same day): "just the plain
+   background and the media player on top", then "return the media player
+   corner radius to the stock state … same border for the hero for the media
+   player". So the page paints nothing behind the video (no wrapper fill, no
+   poster), the skin keeps its STOCK 28px corner radius, and its own 1px frame
+   line is made transparent because the player wears the hero's frosted frame
+   (`.frame-glass` in Watch.tsx) instead — two hairlines on the same edge
+   would read as a double border. The skin's control gradient is untouched
+   (it belongs to the player, not the page). */
+.aeri-player {
+  --media-border-color: transparent;
 }
 
 /* Hide scrollbar for rows but keep scroll */

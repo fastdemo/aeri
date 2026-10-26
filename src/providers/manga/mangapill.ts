@@ -74,10 +74,15 @@ class MangaPillProvider implements MangaProvider {
   name = 'MangaPill'
   kind = 'manga' as const
   // Verified 2026-09-20: 405 units + 24 relayed pages (Berserk), SxF/HxH/
-  // Uzumaki matches + rendered JPEG bytes. Third fallback after MangaDex
-  // (quality scans) and WeebCentral (licensed coverage).
+  // Uzumaki matches + rendered JPEG bytes. ON BY DEFAULT (owner 2026-10-25):
+  // a live production pass found MangaDex ambiguous/no-match for the biggest
+  // titles, WeebCentral matching none of them, and MangaHere matching but
+  // returning 502 "empty page list". MangaPill matched ALL five sampled
+  // titles (Berserk, One Punch-Man, Jujutsu Kaisen, One Piece, Kimetsu) with
+  // 13–44 relayed JPEG pages each — with it off by default, those titles had
+  // no readable source at all. It is now the working fallback, not an opt-in.
   status = 'verified' as const
-  enabledByDefault = false
+  enabledByDefault = true
   blurb = 'Large library fallback, server-rendered, signed relay'
 
   private hintsOf(manga: Anime, options?: MangaSourceOptions) {

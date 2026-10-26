@@ -7,6 +7,7 @@ import { useDetailOpen } from '../hooks/useDetailOpen'
 import { ANILIST_GENRES } from '../lib/genres'
 import { useTracking } from '../contexts/TrackingContext'
 import { SignInModal } from '../components/auth/SignInModal'
+import { pillSolid, pillSoft } from '../components/ui/buttonStyles'
 const categories = [
   { id: 'popular', label: 'Popular', sort: 'POPULARITY_DESC' as const },
   { id: 'trending', label: 'Trending', sort: 'TRENDING_DESC' as const },
@@ -159,9 +160,7 @@ export function Browse() {
             <button
               key={c.id}
               onClick={() => setCategory(c.id)}
-              className={`shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-medium transition ${
-                category === c.id ? 'border-[var(--border-strong)] bg-[var(--text)] text-[var(--on-text)]' : 'border-transparent bg-[color-mix(in_srgb,var(--text)_10%,transparent)] text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)] hover:text-[var(--text)]'
-              }`}
+              className={`shrink-0 ${category === c.id ? pillSolid : pillSoft}`}
             >
               {c.label}
             </button>
@@ -187,7 +186,7 @@ export function Browse() {
           {(genre !== 'All' || yearKey !== 'All Years' || season !== 'All' || format !== 'All') && (
             <button
               onClick={() => { setGenre('All'); setYearKey('All Years'); setSeason('All'); setFormat('All') }}
-              className="shrink-0 rounded-full border border-transparent bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-3.5 py-1.5 text-xs font-medium text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)] hover:text-[var(--text)]"
+              className={`${pillSoft} shrink-0`}
             >
               Clear
             </button>
@@ -200,9 +199,7 @@ export function Browse() {
           <button
             key={c.id}
             onClick={() => setCategory(c.id)}
-            className={`shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-medium transition ${
-              category === c.id ? 'border-[var(--border-strong)] bg-[var(--text)] text-[var(--on-text)]' : 'border-transparent bg-[color-mix(in_srgb,var(--text)_10%,transparent)] text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)] hover:text-[var(--text)]'
-            }`}
+            className={`shrink-0 ${category === c.id ? pillSolid : pillSoft}`}
           >
             {c.label}
           </button>
@@ -226,7 +223,7 @@ export function Browse() {
         {(genre !== 'All' || yearKey !== 'All Years' || season !== 'All' || format !== 'All') && (
           <button
             onClick={() => { setGenre('All'); setYearKey('All Years'); setSeason('All'); setFormat('All') }}
-            className="shrink-0 rounded-full border border-transparent bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-3.5 py-1.5 text-xs font-medium text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)] hover:text-[var(--text)]"
+            className={`${pillSoft} shrink-0`}
           >
             Clear
           </button>

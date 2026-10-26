@@ -337,8 +337,13 @@ export async function mdxGetChapters(
       publishedAt: a.publishAt ?? a.createdAt ?? undefined,
     }
     // External with hosted pages (edge: mirrored oneshots) → readable.
-    // External-only (licensed/off-site, pages=0) → link out, never reader.
-    if (a.externalUrl && !(a.pages > 0)) { external.push(unit); continue }
+    // External-only (licensed/off-site) → link out, never reader.
+    // MangaDex reports a PLACEHOLDER page count of 1 for external chapters
+    // (verified 2026-10-25: One Piece's 5 EN rows are all externalUrl with
+    // pages=1 and mdx-pages returns 0). Treating pages>0 as readable put
+    // those rows in the reader, which then resolved to zero pages — the
+    // "chapter not found" wall. A genuinely mirrored unit has >1 page.
+    if (a.externalUrl && !(a.pages > 1)) { external.push(unit); continue }
     if (!(a.pages > 0)) { external.push(unit); continue }
     readable.push(unit)
   }

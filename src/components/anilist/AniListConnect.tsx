@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useAniList } from '../../contexts/AniListContext'
+import { pillSolid } from '../ui/buttonStyles'
 
 export function AniListConnectCompact() {
   const { isAuthenticated, user, login, logout, setManualToken, error, authExpired, loadingUser, hasClientId, redirectUri } = useAniList()
@@ -37,7 +38,7 @@ export function AniListConnectCompact() {
           <p className="text-[11px] text-[var(--text-faint)]">Sync your list, progress, and ratings. No data leaves your browser except to AniList.</p>
         </div>
         <div className="ml-auto flex gap-2">
-          <button onClick={login} className="rounded-full bg-[var(--text)] px-4 py-1.5 text-xs font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]">
+          <button onClick={login} className={pillSolid}>
             Sign in
           </button>
           <button onClick={() => setShowManual((v) => !v)} className="rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-3 py-1.5 text-xs font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)]">
@@ -76,7 +77,7 @@ export function AniListConnectCompact() {
             placeholder="Paste access_token or full redirect URL"
             className="flex-1 rounded-full border border-[var(--border)] bg-[var(--text)]/[0.06] px-3 py-1.5 text-xs text-[var(--text)] placeholder:text-[var(--text-faint)] focus:border-[var(--border-strong)] focus:outline-none"
           />
-          <button type="submit" className="rounded-full bg-[var(--text)] px-4 py-1.5 text-xs font-semibold text-[var(--on-text)]">
+          <button type="submit" className={pillSolid}>
             Save
           </button>
         </form>

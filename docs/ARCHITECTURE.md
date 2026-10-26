@@ -129,12 +129,30 @@ Watch.tsx (shell renders immediately with anime title/backdrop, episode list imm
   ├─ resolveSourcesForLanguages(VideoEpisode) ──→ sources in sub+dub (parallel per language, tried[] union, only selected episode, not all)
   │     └─ Watch filters to direct HLS/MP4 (`isPlayableSource`; embed-only sources never enter the picker or player) → lazy VideoPlayer (Video.js v10 default skin + HlsJsVideo: HLS via MSE/native fallback, direct MP4; subtitles, resume, MediaSession; index-keyed source selector filtered to the active audio language, provider-only label with real quality only when not auto, no trailing Auto, Sub/Dub over the same list, loading/error/no-source distinct; D124/D125)
   ├─ nav: left-aligned Previous · white non-interactive current `Episode N` status · Next; unavailable sides are disabled manga-reader pills (D124)
-  ├─ Synopsis heading above the description
-  ├─ Related Anime + Related Manga rails (ContentRow + AnimeCard, home widths, 40px below Synopsis; D121/D122)
-  ├─ episode grid tiles: AniList/Kitsu thumbnail → show backdrop/cover fallback, `Episode N`, base-color bottom gradient, same 6px border/radius frame as Related Anime, AnimeCard hover frost + play, white top-left `Now playing` chip (D124)
+  ├─ h1 = show name only; Synopsis heading above the description; Episodes header below it with a right-aligned `N episodes` count (D128)
+  ├─ Related Anime + Related Manga rails (ContentRow + AnimeCard, home widths, 40px below Synopsis; D121/D122; fit-width measurement D128)
+  ├─ episode grid tiles: AniList/Kitsu thumbnail → show backdrop/cover fallback, `Episode N`, base-color bottom gradient, same 6px border/radius frame as Related Anime, AnimeCard hover frost + play, white top-left `Now playing` chip (D124), preview-card tick overlay on watched units (D128)
   ├─ TrackingContext.updateProgress(anime, epNum) (isolated, throttled 5s)
-  └─ storage/db.ts watchPos (putWatchPos/getWatchPos/clearWatchPos, DB v2, resume prompt)
+  └─ storage/db.ts watchPos (putWatchPos/getWatchPos/clearWatchPos, DB v2, resume prompt; Resume/Restart seek through nonce'd `seekRequest`, D128)
 ```
+
+**Manga reader (`src/pages/Read.tsx`, `src/providers/manga/*`,
+`worker/src/mangadex.ts`, D128).** Providers resolve one SOURCE per title in
+registry order (MangaDex → WeebCentral → MangaPill → MangaHere → …), verified
++ enabled only. A matched title is not automatically readable:
+
+- External-only units (licensed links, MangaDex placeholder pages ≤1) never
+  enter the reader; a source with nothing but those is skipped, its links
+  kept for the "Licensed — read officially" state.
+- A sliver catalogue (≥25 known chapters, <10% coverage) is skipped, as is a
+  ≤3-unit catalogue whose first and last units both return zero pages.
+- MangaPill is enabled by default; MangaHere currently matches but returns
+  502 "empty page list".
+- Reader states: missing requested unit → nearest readable unit + notice;
+  zero-page unit → named message + Next / Start from chapter 1.
+  Evidence: One Piece 1,196 units via WeebCentral (MangaDex had 4 external +
+  1 dead upload), OPM 268, JJK 272 (`ch-100` 22 pages), Berserk 425 via
+  MangaDex.
 
 **Performance (Phase 7.1):** Shell renders 85ms, Home 4 parallel `POST graphql.anilist.co` at 141ms (all at same time, not waterfall), responses 840ms, hero 1.4s, first row 1.4s, cached Home 0 new (IDB), Watch shell 29ms, title 873ms, episode list 876ms immediate, source no-source 2.3s (parallel 3.5s max, not 21s sequential). `anilistGraphQL` now has 8s `AbortController` timeout (AniList p95 <1.5s, 8s allows slow nets without freezing shell), `fetchWithTimeout` 3500ms for video, `registry` 4000ms parallel. **D125:** the player route is lazy — main JS `599.94 kB` / `165.39 kB` gzip; `VideoPlayer` chunk `821.29 kB` / `243.16 kB` gzip; default-skin CSS `84.45 kB` / `9.71 kB` gzip. Home/Browse/Search/List load neither Video.js nor its CSS.
 

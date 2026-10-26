@@ -80,5 +80,5 @@ If `vite-plugin-pwa` enabled, manifest `scope` and `start_url` must match the de
 ## Troubleshooting
 
 - Blank page → check `base` mismatch (view source: script src should be `/assets/...` on production; `/aeri/assets/...` means a stale GH Pages-era build).
-- 404 on refresh → confirm HashRouter; if history router, add 404.html fallback.
+- 404 on refresh → the Worker must serve the SPA shell for non-asset GETs (D098); check the `/assets/...` base first, then the ASSETS binding.
 - Styles missing → ensure Tailwind plugin and `globals.css` imported.

@@ -4,10 +4,15 @@ export function ContentRow({
   title,
   subtitle,
   children,
+  tailSpacer = true,
 }: {
   title: string
   subtitle?: string
   children: React.ReactNode
+  /** Trailing breathing room after the last card on touch widths. Rails
+      that size their cards to end exactly on the content edge pass `false`
+      so the final card's right border is not pushed off that line. */
+  tailSpacer?: boolean
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null)
   const [canLeft, setCanLeft] = useState(false)
@@ -84,7 +89,7 @@ export function ContentRow({
         >
           {children}
           {/* tail spacer */}
-          <div className="w-4 shrink-0 lg:w-0" aria-hidden />
+          {tailSpacer && <div className="w-4 shrink-0 lg:w-0" aria-hidden />}
         </div>
       </div>
     </section>

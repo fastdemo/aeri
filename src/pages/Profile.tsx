@@ -9,6 +9,7 @@ import { RowSkeleton } from '../components/ui/Skeleton'
 import { formatRating } from '../lib/rating'
 import { useDetailOpen } from '../hooks/useDetailOpen'
 import type { Anime, AnimeListEntry } from '../types/anime'
+import { pillSolid, pillSoft } from '../components/ui/buttonStyles'
 
 // Profile (owner 2026-10-20): the home page's row MATERIALS on the user's
 // own page — a home-styled "Currently Watching" row with NORMAL cards (not
@@ -180,13 +181,13 @@ export function Profile() {
           <div className="mt-3 flex flex-wrap gap-2">
             <Link
               to="/list"
-              className="rounded-full bg-[var(--text)] px-4 py-1.5 text-xs font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]"
+              className={pillSolid}
             >
               My List
             </Link>
             <Link
               to="/settings"
-              className="rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-4 py-1.5 text-xs font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)]"
+              className={pillSoft}
             >
               Settings
             </Link>
@@ -250,7 +251,7 @@ export function Profile() {
                 <p className="mt-1 text-xs text-[var(--text-faint)]">Titles you mark as watching will appear here.</p>
                 <Link
                   to="/anime"
-                  className="mt-4 inline-block rounded-full bg-[var(--text)] px-5 py-2 text-xs font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]"
+                  className={`${pillSolid} mt-4`}
                 >
                   Browse anime
                 </Link>
@@ -288,7 +289,7 @@ export function Profile() {
                     type="button"
                     onClick={() => { void refreshAniList() }}
                     disabled={loadingAniList}
-                    className="mt-4 inline-flex h-8 items-center gap-1.5 rounded-full bg-[var(--text)] px-4 text-xs font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)] disabled:opacity-60"
+                    className={`${pillSolid} mt-4 disabled:opacity-60`}
                   >
                     {loadingAniList && (
                       <span className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--on-text)]/30 border-t-[var(--on-text)]" />

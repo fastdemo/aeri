@@ -1,5 +1,4 @@
 import { useEffect, useRef } from 'react'
-import type { ComponentProps } from 'react'
 import { VideoPlayer as VideoJsPlayer, VideoSkin } from '@videojs/react/video'
 import { HlsJsVideo } from '@videojs/react/media/hlsjs-video'
 import '@videojs/react/video/skin.css'
@@ -12,23 +11,18 @@ type Props = {
   onTimeUpdate?: (currentTime: number, duration: number) => void
   onEnded?: () => void
   initialTime?: number
+  /** Imperative seek (nonce'd): resume/restart clicks seek the live element
+      even when it is already playing or had no mount-time position. */
+  seekRequest?: { time: number; nonce: number } | null
   animeTitle?: string
   episodeNumber: number
   volume?: number
   autoplay?: boolean
-  poster?: string
 }
 
 // Safari needs this attribute on the media element for the default skin's
 // AirPlay button to reach the system picker.
 const airPlayAttrs = { 'x-webkit-airplay': 'allow' }
-
-// AniList backdrops are ultra-wide; crop them to the player frame instead of
-// letting the default skin letterbox them with `contain`.
-function renderCoverPoster({ src, style, ...props }: ComponentProps<'img'>) {
-  if (!src) return null
-  return <img {...props} src={src} alt="" style={{ ...style, objectFit: 'cover' }} />
-}
 
 export function VideoPlayer({
   sources,
@@ -37,11 +31,11 @@ export function VideoPlayer({
   onTimeUpdate,
   onEnded,
   initialTime,
+  seekRequest,
   animeTitle,
   episodeNumber,
   volume = 1,
   autoplay = false,
-  poster,
 }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
 
@@ -91,6 +85,30 @@ export function VideoPlayer({
       cleanup()
     }
   }, [initialTime, source?.url])
+
+  // Imperative seek (resume / restart). Runs on every nonce, including while
+  // the element is already playing; waits for metadata when it is not ready
+  // yet. Seeking to 0 is a real request (restart), not "no value".
+  useEffect(() => {
+    const v = videoRef.current
+    if (!v || !seekRequest) return
+    const target = Math.max(0, seekRequest.time)
+    const apply = () => {
+      try {
+        const dur = v.duration
+        if (Number.isFinite(dur) && dur > 0) v.currentTime = Math.min(target, Math.max(0, dur - 0.25))
+        else v.currentTime = target
+      } catch {}
+    }
+    if (v.readyState >= 1) { apply(); return }
+    const onReady = () => apply()
+    v.addEventListener('loadedmetadata', onReady)
+    v.addEventListener('canplay', onReady)
+    return () => {
+      v.removeEventListener('loadedmetadata', onReady)
+      v.removeEventListener('canplay', onReady)
+    }
+  }, [seekRequest?.nonce, seekRequest?.time, source?.url])
 
   // Volume preference is a media-element property, not an attribute.
   useEffect(() => {
@@ -171,9 +189,15 @@ export function VideoPlayer({
   // where MSE is unavailable. Video.js owns all chrome via the default skin.
   const needsCors = !!(subtitles && subtitles.length > 0)
   return (
-    <div className="h-full w-full">
-      <VideoJsPlayer poster={poster}>
-        <VideoSkin className="h-full w-full" renderPoster={renderCoverPoster}>
+    <div className="aeri-player h-full w-full">
+      {/* No poster: the Watch surface is the plain page background with the
+          video on top (owner 2026-10-26). An artwork poster behind the
+          picture is exactly the "background wrapping around" that was
+          reported, so the skin starts on black. renderPoster returns null so
+          the skin does not emit an empty <img class="media-poster-image">
+          (an empty src also logs a browser warning). */}
+      <VideoJsPlayer>
+        <VideoSkin className="h-full w-full" renderPoster={() => null}>
           <HlsJsVideo
             ref={videoRef}
             source={{

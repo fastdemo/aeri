@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useMAL } from '../../contexts/MALContext'
+import { pillSolid } from '../ui/buttonStyles'
 
 export function MALConnectCompact() {
   const { isAuthenticated, user, login, logout, setManualToken, error, authExpired, loadingUser, hasClientId, redirectUri } = useMAL()
@@ -41,7 +42,7 @@ export function MALConnectCompact() {
           <p className="text-[11px] text-[var(--text-faint)]">Sync your MAL list, progress, and ratings. Token stays in your browser.</p>
         </div>
         <div className="ml-auto flex gap-2">
-          <button onClick={() => { login().catch(()=>{}) }} className="rounded-full bg-[var(--text)] px-4 py-1.5 text-xs font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]">
+          <button onClick={() => { login().catch(()=>{}) }} className={pillSolid}>
             Connect
           </button>
           <button onClick={() => setShowManual(v => !v)} className="rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-3 py-1.5 text-xs font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)]">
@@ -80,7 +81,7 @@ export function MALConnectCompact() {
             placeholder="Paste MAL access token"
             className="flex-1 rounded-full border border-[var(--border)] bg-[var(--text)]/[0.06] px-3 py-1.5 text-xs text-[var(--text)] placeholder:text-[var(--text-faint)] focus:border-[var(--border-strong)] focus:outline-none"
           />
-          <button type="submit" className="rounded-full bg-[var(--text)] px-4 py-1.5 text-xs font-semibold text-[var(--on-text)]">
+          <button type="submit" className={pillSolid}>
             Save
           </button>
         </form>

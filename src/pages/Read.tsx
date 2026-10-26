@@ -9,15 +9,11 @@ import { sortProviderUnits, unitDisplayLabel } from '../providers/manga/types'
 import { getTitleHierarchy } from '../lib/titles'
 import { Icon } from '../components/ui/Icon'
 import { FilterSelect } from '../components/ui/FilterSelect'
+import { pillSolid, pillSoft } from '../components/ui/buttonStyles'
 import { useRelatedEntries } from '../hooks/useRelatedEntries'
 import { RelatedRow } from '../components/related/RelatedRow'
-import type { MangaChapter, MangaPage, MangaProvider, MangaSourceOptions } from '../providers/manga/types'
+import type { MangaChapter, MangaPage, MangaProvider } from '../providers/manga/types'
 import { getMangaProviderById, resolveChaptersWithFallback } from '../providers/manga/mangadex'
-
-/** Structural subset: providers that expose off-site licensed units. */
-type MangaDexProviderLike = MangaProvider & {
-  getExternalUnits(manga: import('../types/anime').Anime, options?: MangaSourceOptions): Promise<{ label: string; url: string }[]>
-}
 
 /**
  * Prev/next chapter controls. Previous (earlier in display order, idx-1) on
@@ -37,8 +33,7 @@ function ChapterNavButtons({
   nextChapter: MangaChapter | null
   testId: string
 }) {
-  const pill =
-    'max-w-[48%] truncate rounded-full bg-[var(--text)] px-5 py-2 text-sm font-semibold text-[var(--on-text)] transition hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40'
+  const pill = `${pillSolid} max-w-[48%] truncate`
   return (
     <div data-testid={testId} className="flex items-center justify-between gap-2">
       {prevChapter ? (
@@ -154,18 +149,13 @@ export function Read() {
         setChapters(res.chapters)
         const won = res.providerId ? getMangaProviderById(res.providerId) ?? null : null
         setActiveMangaProvider(won)
-        if (!res.chapters.length && !res.error) {
-          setChaptersError('Couldn’t load chapters')
-        } else if (!res.chapters.length && res.error) {
-          setChaptersError(res.error === 'No Manga providers are enabled.' ? res.error : 'Couldn’t load chapters')
-        }
-        // Licensed titles (e.g. Solo Leveling) have zero hosted pages but
-        // real off-site chapters — offer those as external links instead of
-        // a dead "no chapters" wall. Only the winning provider's externals.
-        if (!res.chapters.length && won && 'getExternalUnits' in won) {
-          ;(won as MangaDexProviderLike).getExternalUnits(manga, { signal: controller.signal })
-            .then(ext => { if (!cancelled) setExternalUnits(ext) })
-            .catch(() => {})
+        // Licensed titles (e.g. Solo Leveling, One Piece post-2026) host
+        // zero readable units: the resolver returns the first all-external
+        // source's off-site links instead of a dead wall. Never an error
+        // when those links exist — they ARE the answer.
+        setExternalUnits(res.externalUnits?.length ? res.externalUnits : null)
+        if (!res.chapters.length && !res.externalUnits?.length) {
+          setChaptersError(res.error && res.error === 'No Manga providers are enabled.' ? res.error : 'Couldn’t load chapters')
         }
       })
       .catch(e => {
@@ -186,17 +176,42 @@ export function Read() {
     void orderTick
     return sortProviderUnits(chapters, 'asc')
   }, [chapters, orderTick])
-  const currentChapter: MangaChapter | null = useMemo(() => {
+  /**
+   * Resolve the URL param to a readable unit.
+   *
+   * `requested` carries the param ONLY when it could not be matched exactly
+   * — the reader then shows a one-line notice instead of pretending. A
+   * miss never dead-ends: numeric targets (`ch-N`, written by every Resume /
+   * Read button) snap to the nearest unit after N, then before N, then the
+   * last unit. Skip-numbered catalogues (volumes, .5 chapters, provider gaps)
+   * previously left `currentChapter === null`, which rendered the header
+   * with "Loading chapters…" forever — the "chapter not found" the owner hit
+   * on most titles. An unknown raw provider id (list rebuilt by another
+   * source) falls back to the first unit instead of a blank reader.
+   */
+  const resolvedChapter = useMemo<{ chapter: MangaChapter; requested: string | null } | null>(() => {
     if (!orderedChapters?.length) return null
-    if (chapterParam === 'first') return orderedChapters[0]
-    if (chapterParam === 'latest') return orderedChapters[orderedChapters.length - 1]
+    if (chapterParam === 'first') return { chapter: orderedChapters[0], requested: null }
+    if (chapterParam === 'latest') {
+      return { chapter: orderedChapters[orderedChapters.length - 1], requested: null }
+    }
     const chNum = /^ch-(\d+(?:\.\d+)?)$/.exec(chapterParam)
     if (chNum) {
       const n = Number(chNum[1])
-      return orderedChapters.find(c => c.number === n) ?? null
+      const exact = orderedChapters.find(c => c.number === n)
+      if (exact) return { chapter: exact, requested: null }
+      const after = orderedChapters.find(c => typeof c.number === 'number' && c.number > n)
+      const before = [...orderedChapters].reverse().find(c => typeof c.number === 'number' && c.number < n)
+      const target = after ?? before ?? orderedChapters[orderedChapters.length - 1]
+      return { chapter: target, requested: chapterParam }
     }
-    return orderedChapters.find(c => c.providerChapterId === chapterParam) ?? null
+    const byId = orderedChapters.find(c => c.providerChapterId === chapterParam)
+    if (byId) return { chapter: byId, requested: null }
+    return { chapter: orderedChapters[0], requested: chapterParam }
   }, [orderedChapters, chapterParam])
+  const currentChapter: MangaChapter | null = resolvedChapter?.chapter ?? null
+  // Set only when the requested unit was missing from this source's list.
+  const chapterFallbackNotice = resolvedChapter?.requested ?? null
 
   const chapterIdx = currentChapter ? orderedChapters!.findIndex(c => c.id === currentChapter.id) : -1
   // Display order: prev = earlier in reading order (idx-1), next = later (idx+1).
@@ -490,7 +505,7 @@ export function Read() {
       <div className="mx-auto grid max-w-[800px] place-items-center px-4 py-24 text-center">
         <div>
           <p className="text-sm font-medium text-[var(--text)]">Manga not found</p>
-          <Link to="/manga" className="mt-6 inline-block rounded-full bg-[var(--text)] px-5 py-2 text-sm font-semibold text-[var(--on-text)]">Back to Manga</Link>
+          <Link to="/manga" className={`${pillSolid} mt-6`}>Back to Manga</Link>
         </div>
       </div>
     )
@@ -504,7 +519,7 @@ export function Read() {
       <div className="mx-auto grid max-w-[800px] place-items-center px-4 py-24 text-center">
         <div>
           <p className="text-sm font-medium text-[var(--text)]">This entry is an anime, not a manga.</p>
-          <Link to={`/anime/${id}`} state={{ background: { pathname: location.pathname, search: location.search } }} className="mt-6 inline-block rounded-full bg-[var(--text)] px-5 py-2 text-sm font-semibold text-[var(--on-text)]">Open anime page</Link>
+          <Link to={`/anime/${id}`} state={{ background: { pathname: location.pathname, search: location.search } }} className={`${pillSolid} mt-6`}>Open anime page</Link>
         </div>
       </div>
     )
@@ -512,6 +527,23 @@ export function Read() {
 
   const prefs = getPreferences()
   const fit = prefs.readerFit ?? 'width'
+
+  // Which provider serves THIS chapter's pages. Merged lists mix providers,
+  // so the winner alone is misleading — the unit's own id prefix is the
+  // truth. Unknown prefix (stale cache) shows nothing rather than a guess.
+  // Owner 2026-10-26: this rides on the chapter pill as a `· Provider`
+  // suffix (the standalone "Source: …" line is gone).
+  const chapterProvider = (() => {
+    const prov = currentChapter?.id.split('-')[0] || ''
+    return prov === 'mangadex' ? 'MangaDex'
+      : prov === 'weebcentral' ? 'WeebCentral'
+      : prov === 'mangapill' ? 'MangaPill'
+      : prov === 'mangahere' ? 'MangaHere'
+      : prov === 'bato1' ? 'Bato1'
+      : prov === 'kakalot' ? 'Kakalot'
+      : prov === 'mangaread' ? 'MangaRead'
+      : ''
+  })()
 
   return (
     <div className="mx-auto max-w-[800px] px-4 pb-16 sm:px-6">
@@ -522,12 +554,18 @@ export function Read() {
         </Link>
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-[15px] font-semibold text-[var(--text)]">{titles.primary}</h1>
-          <p className="truncate text-xs text-[var(--text-faint)]">{currentChapter ? unitDisplayLabel(currentChapter) : 'Loading chapters…'}</p>
+          {/* Chapter + serving provider (owner 2026-10-26): the SUBTITLE
+              carries `Chapter 1 · WeebCentral` — chapter, middle dot,
+              provider. The dropdown stays chapter-only. */}
+          <p className="truncate text-xs text-[var(--text-faint)]">
+            {currentChapter
+              ? `${unitDisplayLabel(currentChapter)}${chapterProvider ? ` · ${chapterProvider}` : ''}`
+              : 'Loading chapters…'}
+          </p>
         </div>
-        {/* Chapter selector (reader order: oldest-first) + source indicator.
-            The reader uses a per-unit source badge (below) — the dropdown
-            stays provider-agnostic; provenance lives on each chapter row
-            and the header badge, not in this control. */}
+        {/* Chapter selector (reader order: oldest-first) — unchanged
+            component: the pill shows the chapter alone. Provenance lives in
+            the subtitle above; the old "Source: …" line is gone. */}
         {orderedChapters && orderedChapters.length > 0 && (
           <FilterSelect
             value={currentChapter?.providerChapterId ?? ''}
@@ -537,17 +575,16 @@ export function Read() {
           />
         )}
       </div>
-      {/* Source indicator: which provider serves THIS chapter's pages.
-          Merged lists mix providers, so the winner alone is misleading —
-          the unit's own id prefix is the truth. Unknown prefix (stale
-          cache) shows no badge rather than a guessed one. */}
-      {currentChapter && (() => {
-        const prov = currentChapter.id.split('-')[0] || ''
-        const provName = prov === 'mangadex' ? 'MangaDex' : prov === 'weebcentral' ? 'WeebCentral' : prov === 'mangapill' ? 'MangaPill' : prov === 'mangahere' ? 'MangaHere' : prov === 'bato1' ? 'Bato1' : prov === 'kakalot' ? 'Kakalot' : prov === 'mangaread' ? 'MangaRead' : ''
-        return provName ? (
-          <p className="pb-2 text-[11px] text-[var(--text-faint)]">Source: {provName} • pages load from this provider</p>
-        ) : null
-      })()}
+
+      {/* Requested unit missing (skip-numbered list, or a chapter id that
+          belonged to a source we no longer resolve): say so, and land on a
+          readable unit instead of a dead reader. */}
+      {chapterFallbackNotice && currentChapter && (
+        <p className="pb-3 text-[11px] leading-5 text-[var(--text-muted)]">
+          {/^ch-/.test(chapterFallbackNotice) ? 'That chapter' : 'That chapter link'} isn&apos;t in this source&apos;s list — opened{' '}
+          <span className="text-[var(--text)]">{unitDisplayLabel(currentChapter)}</span> instead.
+        </p>
+      )}
 
       {chaptersError && !chapters && (
         <div className="rounded-lg border border-[var(--border)] bg-[var(--text)]/[0.03] px-4 py-6 text-center">
@@ -564,7 +601,7 @@ export function Read() {
               <p className="text-xs text-[var(--text-faint)]">Licensed — read officially:</p>
               <div className="mt-2 flex flex-wrap justify-center gap-2">
                 {externalUnits.slice(0, 6).map((u, i) => (
-                  <a key={i} href={u.url} target="_blank" rel="noopener noreferrer" className="rounded-full border border-[var(--border)] bg-[var(--bg-soft)] px-4 py-1.5 text-xs font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)]">{u.label}</a>
+                  <a key={i} href={u.url} target="_blank" rel="noopener noreferrer" className={pillSoft}>{u.label}</a>
                 ))}
               </div>
             </div>
@@ -592,7 +629,32 @@ export function Read() {
       {pagesError && (
         <div className="rounded-lg border border-[var(--border)] bg-[var(--text)]/[0.03] px-4 py-6 text-center">
           <p className="text-sm text-[var(--warn)]">{pagesError}</p>
-          <button onClick={() => window.location.reload()} className="mt-3 rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-4 py-1.5 text-xs font-medium text-[var(--text)]">Retry</button>
+          <div className="mt-3 flex flex-wrap justify-center gap-2">
+            <button onClick={() => window.location.reload()} className={pillSoft}>Retry</button>
+            {currentChapter && !/^(first|latest)$/.test(chapterParam) && (
+              <button onClick={() => navigate(`/read/${id}/first`)} className={pillSoft}>Start from chapter 1</button>
+            )}
+          </div>
+        </div>
+      )}
+      {/* A provider that answers 200 with zero pages used to render NOTHING —
+          a blank reader with no explanation (the second half of the "chapter
+          not found" reports). Name the unit and offer the way out. */}
+      {pages && pages.length === 0 && !pagesLoading && !pagesError && currentChapter && (
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--text)]/[0.03] px-4 py-6 text-center">
+          <p className="text-sm text-[var(--text-muted)]">
+            {unitDisplayLabel(currentChapter)} has no pages on this source right now.
+          </p>
+          <div className="mt-3 flex flex-wrap justify-center gap-2">
+            {nextChapter && (
+              <button onClick={() => navigate(`/read/${id}/${encodeURIComponent(nextChapter.providerChapterId)}`)} className={pillSolid}>
+                Next chapter
+              </button>
+            )}
+            <button onClick={() => navigate(`/read/${id}/first`)} className={pillSoft}>
+              Start from chapter 1
+            </button>
+          </div>
         </div>
       )}
       {pages && pages.length > 0 && (

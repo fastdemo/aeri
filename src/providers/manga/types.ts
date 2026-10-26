@@ -18,6 +18,19 @@ export interface MangaChapter {
    */
   unitType?: 'volume' | 'chapter'
   publishedAt?: string
+  /**
+   * Off-site (licensed) link for a unit the provider does NOT host pages
+   * for — MangaDex external chapters. Present only alongside
+   * `externalOnly: true`; the reader never opens these as pages.
+   */
+  externalUrl?: string
+  /**
+   * True when the unit is off-site only (no hosted pages). The resolver
+   * removes these from the readable list: a source whose whole list is
+   * external hosts nothing, so resolution moves on to the next provider
+   * instead of opening a reader that returns zero pages.
+   */
+  externalOnly?: boolean
 }
 
 /**
@@ -26,7 +39,11 @@ export interface MangaChapter {
  * synthesizes one when the label is bare. Never converts volume↔chapter.
  */
 export function unitDisplayLabel(u: Pick<MangaChapter, 'label' | 'number' | 'kind' | 'unitType'>): string {
-  const label = (u.label ?? '').trim()
+  // WeebCentral (and some mirrors) label manga units "Episode N" — their
+  // site vocabulary, not ours. A manga reader must read "Chapter N"
+  // (owner-facing vocabulary, 2026-10-26); this is display-only, the stored
+  // provider label is untouched. Any suffix after the number is preserved.
+  const label = (u.label ?? '').trim().replace(/^episode\b/i, 'Chapter')
   if (label) return label
   if (u.unitType === 'volume') return u.number != null ? `Volume ${u.number}` : 'Volume'
   return u.number != null ? `Chapter ${u.number}` : 'Chapter'

@@ -13,6 +13,7 @@ import { useKitsuEpisodes } from '../hooks/useKitsuEpisodes'
 import { formatLabel } from '../lib/mediaLabels'
 import { Icon } from '../components/ui/Icon'
 import { FilterSelect } from '../components/ui/FilterSelect'
+import { pillSolid, pillSoft } from '../components/ui/buttonStyles'
 import { useRelatedEntries } from '../hooks/useRelatedEntries'
 import { RelatedRow } from '../components/related/RelatedRow'
 import { detailPath } from '../hooks/useDetailOpen'
@@ -229,6 +230,18 @@ export function Watch() {
   const [watchPos, setWatchPos] = useState<{ currentTime: number; duration: number; episode: number } | null>(null)
   const [showResume, setShowResume] = useState(false)
   const hasShownResume = useRef(false)
+  // EXPLICIT SEEK REQUESTS (owner 2026-10-25 "make the resume overlay work
+  // better"): `initialTime` only fires on mount, so Restart never actually
+  // rewound an already-playing video and Resume depended on the pill
+  // unmounting in the right order. Both now post a nonce'd seek to the
+  // player — the effect re-runs on every click, whatever the element's
+  // ready state.
+  const [seekRequest, setSeekRequest] = useState<{ time: number; nonce: number } | null>(null)
+  const seekNonce = useRef(0)
+  const requestSeek = useCallback((time: number) => {
+    seekNonce.current += 1
+    setSeekRequest({ time: Math.max(0, time), nonce: seekNonce.current })
+  }, [])
 
   useEffect(() => {
     if (!anime) return
@@ -289,13 +302,17 @@ export function Watch() {
   }, [anime, epNum, isAuthenticated, updateProgress, canAdvanceProgress, id, navigate, immediateEpisodes.length])
 
   const handleResume = () => {
+    const at = watchPos?.currentTime ?? 0
     setShowResume(false)
-    // VideoPlayer will seek via initialTime prop
+    // Explicit seek: the player may already be playing at 0:00 behind the
+    // prompt (autoplay), and a mount-time initialTime can no longer move it.
+    requestSeek(at)
   }
 
   const handleRestart = () => {
     setShowResume(false)
     setWatchPos(null)
+    requestSeek(0)
     if (anime) clearWatchPos(anime.identity.internalId).catch(() => {})
   }
 
@@ -326,11 +343,13 @@ export function Watch() {
   const nextLocal = !isMovie && immediateEpisodes.length > 0 && epNum < immediateEpisodes.length ? epNum + 1 : null
   const prev = prevLocal
   const next = nextLocal
-  const backdrop = anime.backdropImage || anime.coverImage || ''
   // Episode tiles use the same placeholder rule as EpisodeList: an episode
   // without its own artwork shows the show's own backdrop/cover — never a
   // bare empty box.
   const fallbackThumb = anime.backdropImage || anime.coverImage || ''
+  // Watched boundary for the tile ticks — same rule as the preview card's
+  // episode rows: everything up to the tracker's progress is seen.
+  const watchedUpTo = trackedProgress
   // Metadata line owner rule (2026-10-24): season + year, format, duration —
   // never the playback provider. "Fall 2006 • TV • 24m".
   const seasonLabel = formatLabel(anime.season)
@@ -341,10 +360,13 @@ export function Watch() {
     formatLabel(anime.format) ?? anime.format ?? null,
     anime.duration ? `${anime.duration}m` : null,
   ].filter(Boolean).join(' • ') || '—'
-  // Episode nav pills follow the manga reader: filled text-colored pills,
-  // unavailable sides disabled at 40% opacity. The middle pill is a status,
-  // not a control — a span, never a button.
-  const navPill = 'inline-flex max-w-full items-center justify-center truncate rounded-full bg-[var(--text)] px-4 py-1.5 text-xs font-semibold text-[var(--on-text)] transition disabled:cursor-not-allowed disabled:opacity-40'
+  // Episode nav pills — the ORIGINAL shape (owner 2026-10-26: "it should
+  // look like the old one but with the same size as the other component"):
+  // all three are solid white pills, the middle one a non-interactive span.
+  // Size comes from the shared 30px geometry (6px padding + 16px leading-4
+  // + 1px transparent border); the transparent border only pins the height,
+  // it draws nothing. Do not restyle these into another component.
+  const navPill = 'inline-flex max-w-full items-center justify-center truncate rounded-full border border-transparent bg-[var(--text)] px-4 py-1.5 text-xs font-semibold leading-4 text-[var(--on-text)] transition disabled:cursor-not-allowed disabled:opacity-40'
   const navPillLink = `${navPill} hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)] active:scale-[0.98]`
   const titles = getTitleHierarchy(anime)
   const hasVideo = sources && sources.length > 0 && selectedSource && selectedSource.url
@@ -354,27 +376,21 @@ export function Watch() {
   return (
     <div className="min-h-screen bg-[var(--bg)]">
       <div className="mx-auto max-w-[1280px] px-0 sm:px-4 lg:px-6">
-        {/* Player area. The OLD player's wrapper chrome (soft background +
-            rounded corners) is gone (owner 2026-10-25): Video.js 10 paints
-            its own surface and bottom control gradient, so any wrapper fill
-            or radius showed through as an artifact around the video. The
-            placeholder frame (no video yet) keeps its soft surface/rounding. */}
-        <div className={`relative aspect-video w-full overflow-hidden ${hasVideo && !isLoadingVideo ? 'bg-transparent' : 'bg-[var(--bg-soft)] sm:rounded-lg'}`}>
-          {/* Backdrop fallback (visible when no video) */}
-          {!hasVideo && (
-            <img
-              src={backdrop}
-              alt=""
-              className="absolute inset-0 h-full w-full object-cover opacity-80"
-              loading="eager"
-              decoding="async"
-              onError={(e) => ((e.currentTarget as HTMLImageElement).style.display = 'none')}
-            />
-          )}
-
+        {/* Player area — PLAIN SURFACE (owner 2026-10-26): "just the plain
+            background and the media player on top". No wrapper fill and no
+            artwork poster behind the picture; the previous border-y "band"
+            hairlines are gone. The Video.js skin keeps its STOCK 28px corner
+            radius (owner follow-up: "return the media player corner radius to
+            the stock state"), and the player wears the hero's frosted frame
+            (`.frame-glass`: 1px --border-card hairline on a 3px blurred rim)
+            instead of the skin's own 1px line, which `.aeri-player` keeps
+            transparent so the edge never doubles. The loading state is the
+            page background plus a spinner, nothing else. */}
+        <div className="relative aspect-video w-full overflow-hidden rounded-[28px] bg-transparent">
+          <span aria-hidden className="frame-glass z-30" />
           {/* Loading: episode finding - pointer-events-none so navbar remains clickable even while loading */}
           {isLoadingVideo && (
-            <div className="pointer-events-none absolute inset-0 grid place-items-center bg-[color-mix(in_srgb,var(--bg)_40%,transparent)]">
+            <div className="pointer-events-none absolute inset-0 grid place-items-center bg-[var(--bg)]">
               <div className="text-center">
                 <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-[var(--border-strong)] border-t-[var(--text)]" />
                 <p className="mt-3 text-sm font-medium text-[var(--text)]">
@@ -387,38 +403,45 @@ export function Watch() {
 
           {/* Video player when source available */}
           {hasVideo && !isLoadingVideo && (
-            <Suspense
-              fallback={
-                backdrop ? (
-                  <img src={backdrop} alt="" className="absolute inset-0 h-full w-full object-cover opacity-80" />
-                ) : null
-              }
-            >
+            <Suspense fallback={null}>
               <VideoPlayer
                 sources={sources!}
                 selectedSource={selectedSource}
                 onTimeUpdate={handleTimeUpdate}
                 onEnded={handleEnded}
                 initialTime={showResume ? undefined : (watchPos && watchPos.episode === epNum ? watchPos.currentTime : 0)}
+                seekRequest={seekRequest}
                 animeTitle={titles.primary}
                 episodeNumber={epNum}
                 volume={getPreferences().volume}
                 autoplay={getPreferences().autoplay}
                 subtitles={getPreferences().subtitles ? selectedSource?.subtitles : undefined}
-                poster={backdrop || undefined}
               />
             </Suspense>
           )}
 
           {/* Resume prompt — top center, clear of player controls.
               Shows whenever a saved position exists (not gated on video
-              readiness, which can lag behind IDB on slow networks). */}
+              readiness, which can lag behind IDB on slow networks).
+              SKIN (owner 2026-10-25): the same frosted Aeri surface as the
+              player chrome — translucent base tint, hairline, deep shadow —
+              plus z-30 so no player layer can cover it. */}
           {showResume && watchPos && (
-            <div className="absolute inset-x-4 top-14 flex justify-center">
-              <div className="flex items-center gap-2 rounded-full bg-[color-mix(in_srgb,var(--bg)_80%,transparent)] px-4 py-2 text-xs text-[var(--text)] backdrop-blur">
-                <span>Resume from {Math.floor(watchPos.currentTime / 60)}:{String(Math.floor(watchPos.currentTime % 60)).padStart(2, '0')}?</span>
-                <button onClick={handleResume} className="rounded-full bg-[var(--text)] px-3 py-1 text-xs font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]">Resume</button>
-                <button onClick={handleRestart} className="rounded-full bg-[color-mix(in_srgb,var(--text)_20%,transparent)] px-3 py-1 text-xs text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_30%,transparent)]">Restart</button>
+            <div className="pointer-events-none absolute inset-x-4 top-14 z-30 flex justify-center">
+              <div className="pointer-events-auto flex max-w-full items-center gap-2 rounded-full border border-[var(--border-strong)] bg-[color-mix(in_srgb,var(--bg)_55%,transparent)] py-1.5 pl-4 pr-1.5 text-xs text-[var(--text)] shadow-[0_10px_40px_var(--shadow)] backdrop-blur-xl">
+                <span className="truncate tabular-nums">Resume from {Math.floor(watchPos.currentTime / 60)}:{String(Math.floor(watchPos.currentTime % 60)).padStart(2, '0')}?</span>
+                <button
+                  onClick={handleResume}
+                  className={`${pillSolid} shrink-0`}
+                >
+                  Resume
+                </button>
+                <button
+                  onClick={handleRestart}
+                  className={`${pillSoft} shrink-0`}
+                >
+                  Restart
+                </button>
               </div>
             </div>
           )}
@@ -454,14 +477,14 @@ export function Watch() {
                         }).catch(() => setSourcesLoading(false))
                       }
                     }}
-                    className="rounded-full bg-[var(--text)] px-4 py-1.5 text-xs font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]"
+                    className={pillSolid}
                   >
                     Retry
                   </button>
-                  <Link to="/settings" className="rounded-full bg-[color-mix(in_srgb,var(--text)_15%,transparent)] px-4 py-1.5 text-xs font-medium text-[var(--text)] backdrop-blur hover:bg-[color-mix(in_srgb,var(--text)_20%,transparent)]">
+                  <Link to="/settings" className={`${pillSoft} backdrop-blur`}>
                     Change source
                   </Link>
-                  <Link to={detailNav.to} state={detailNav.state} className="rounded-full bg-[color-mix(in_srgb,var(--text)_15%,transparent)] px-4 py-1.5 text-xs font-medium text-[var(--text)] backdrop-blur hover:bg-[color-mix(in_srgb,var(--text)_20%,transparent)]">
+                  <Link to={detailNav.to} state={detailNav.state} className={`${pillSoft} backdrop-blur`}>
                     {isMovie ? 'Details' : 'Episodes'}
                   </Link>
                 </div>
@@ -492,11 +515,11 @@ export function Watch() {
                         }).catch(() => setSourcesLoading(false))
                       }
                     }}
-                    className="rounded-full bg-[var(--text)] px-4 py-1.5 text-xs font-semibold text-[var(--on-text)]"
+                    className={pillSolid}
                   >
                     Try another source
                   </button>
-                  <Link to="/settings" className="rounded-full bg-[color-mix(in_srgb,var(--text)_15%,transparent)] px-4 py-1.5 text-xs font-medium text-[var(--text)]">Change source</Link>
+                  <Link to="/settings" className={pillSoft}>Change source</Link>
                 </div>
               </div>
             </div>
@@ -513,7 +536,10 @@ export function Watch() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h1 className="text-[15px] font-semibold text-[var(--text)]">
-                {isMovie ? titles.primary : `${titles.primary} — Episode ${epNum}`}
+                {/* Owner 2026-10-25: the show NAME stands alone — the episode
+                    number lives in the Now-playing tile and the nav pills,
+                    never appended to the title. */}
+                {titles.primary}
               </h1>
               {titles.native && <p className="text-xs text-[var(--text-muted)]">{titles.native}</p>}
               {titles.romaji && <p className="text-xs text-[var(--text-faint)]">{titles.romaji}</p>}
@@ -552,9 +578,15 @@ export function Watch() {
                   </div>
                 )
               })()}
-              {/* SUB/DUB toggle when available */}
+              {/* SUB/DUB toggle when available — the ORIGINAL segmented
+                  toggle (owner 2026-10-26: "REVERT THAT TO THE OLD TOGGLE …
+                  i just meant the same size, not CHANGE COMPONENTS"). Track +
+                  inner pill, exactly as before; only the height is unified:
+                  1px border + 4px track padding + a 20px inner pill (16px
+                  leading-4 + 2px padding) = 30px, the same box as every
+                  other control. */}
               {sources && sources.some(s => s.language) && (
-                <div className="flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--text)]/[0.04] p-1">
+                <div className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--text)]/[0.04] p-1">
                   {(['sub','dub'] as const).map(lang => {
                     const hasLang = sources.some(s => s.language === lang)
                     const isActive = selectedSource?.language === lang || (!selectedSource?.language && preferredAudio === lang)
@@ -568,7 +600,7 @@ export function Watch() {
                           const match = sources.find(s => s.language === lang)
                           if (match) setSelectedSource(match)
                         }}
-                        className={`rounded-full px-3 py-1 text-xs font-medium ${isActive ? 'bg-[var(--text)] text-[var(--on-text)]' : hasLang ? 'text-[var(--text-muted)] hover:text-[var(--text)]' : 'text-[color-mix(in_srgb,var(--text)_20%,transparent)]'}`}
+                        className={`rounded-full px-3 py-0.5 text-xs font-medium leading-4 ${isActive ? 'bg-[var(--text)] text-[var(--on-text)]' : hasLang ? 'text-[var(--text-muted)] hover:text-[var(--text)]' : 'text-[color-mix(in_srgb,var(--text)_20%,transparent)]'}`}
                       >
                         {lang === 'sub' ? 'Sub' : 'Dub'}
                       </button>
@@ -619,17 +651,41 @@ export function Watch() {
             </Link>
           )}
 
-          {/* Episode list — this entry's own episodes, no season model. */}
+          {/* Synopsis — ABOVE the episode list (owner 2026-10-25): the page
+              reads show → what it is → episodes → related. */}
+          <div className="mt-6">
+            <h2 className="mb-2 text-sm font-semibold text-[var(--text)]">Synopsis</h2>
+            <p className="text-sm leading-6 text-[var(--text-muted)]">{anime.description || 'No description available.'}</p>
+          </div>
+
+          {/* Episode list — this entry's own episodes, no season model.
+              Header (owner 2026-10-25): title left, count right — the exact
+              Home row header rhythm ("25 episodes"). */}
           {!isMovie && (
             <div className="mt-6">
-              <h2 className="mb-2 text-sm font-semibold text-[var(--text)]">Episodes</h2>
+              <div className="mb-2 flex items-baseline justify-between gap-2">
+                <h2 className="min-w-0 flex-1 truncate text-[14px] font-semibold tracking-[-0.01em] text-[var(--text)]">Episodes</h2>
+                {immediateEpisodes.length > 0 && (
+                  <span className="shrink-0 text-[14px] text-[var(--text-faint)]">
+                    {immediateEpisodes.length} {immediateEpisodes.length === 1 ? 'episode' : 'episodes'}
+                  </span>
+                )}
+              </div>
               {immediateEpisodes.length > 0 ? (
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                   {immediateEpisodes.map(ep => {
-                    // Current tile uses the owner-chosen white "Now playing"
-                    // chip (D124); aria-current stays for semantics. The owner
-                    // picked it from alternatives per AGENTS "Suggestions".
+                    // CURRENT TILE (owner 2026-10-26): the white "Now
+                    // playing" chip is gone. The playing episode wears the
+                    // SAME overlay as a watched one — 40% base scrim + glyph
+                    // — but with `audio-lines` instead of the tick, so "this
+                    // is playing" reads as sound, not as "already seen".
+                    // aria-current stays for semantics.
                     const isCurrent = ep.number === epNum
+                    // WATCHED TICK (owner 2026-10-25): the exact overlay the
+                    // preview card's episode rows use — 40% base scrim + the
+                    // check glyph — so "already seen" reads the same on both
+                    // surfaces.
+                    const isWatched = watchedUpTo > 0 && ep.number <= watchedUpTo
                     const realTitle = ep.title
                     const thumb = ep.thumbnail || fallbackThumb
                     const epKey = sanitizedAnimeForWatch?.identity.anilistId ? `anilist:${sanitizedAnimeForWatch.identity.anilistId}-${ep.number}` : `${sanitizedAnimeForWatch?.identity.internalId}-${ep.number}`
@@ -662,12 +718,12 @@ export function Watch() {
                             is 22px — the same 25%-smaller box every card uses
                             (owner 2026-10-25). */}
                         <div className="pointer-events-none absolute inset-0 bg-[color-mix(in_srgb,var(--bg)_50%,transparent)] opacity-0 backdrop-blur-[8px] transition-opacity duration-200 group-hover/tile:opacity-100 group-focus-visible/tile:opacity-100" />
-                        {isCurrent && (
+                        {(isCurrent || isWatched) && (
                           <span
                             aria-hidden="true"
-                            className="pointer-events-none absolute left-2 top-2 z-20 inline-flex items-center rounded-full bg-[var(--text)] px-2 py-1 text-[10px] font-semibold leading-none text-[var(--on-text)] shadow-sm"
+                            className="pointer-events-none absolute inset-0 z-10 grid place-items-center bg-[color-mix(in_srgb,var(--bg)_40%,transparent)] text-[var(--text)] transition-opacity duration-200 group-hover/tile:opacity-0 group-focus-visible/tile:opacity-0"
                           >
-                            Now playing
+                            <Icon name={isCurrent ? 'audio-lines' : 'check-lg'} size={18} />
                           </span>
                         )}
                         <div className="absolute inset-x-0 bottom-0 z-10 p-2 text-left">
@@ -690,11 +746,6 @@ export function Watch() {
               )}
             </div>
           )}
-
-          <div className="mt-8 max-w-[720px]">
-            <h2 className="mb-2 text-sm font-semibold text-[var(--text)]">Synopsis</h2>
-            <p className="text-sm leading-6 text-[var(--text-muted)]">{anime.description || 'No description available.'}</p>
-          </div>
 
           {/* Related rails — Home-style landscape anime first, then the
               manga adaptations/relations underneath. Same rail, card size,

@@ -28,7 +28,11 @@ Quiet UI, loud artwork. Aeri borrows Netflix's cinematic browsing contract: hero
 ```
 Page background: near-black (#070708). Surfaces are subtly lighter, not cards with heavy borders.
 
-### Frame language (D127)
+### Frame language (D127/D128, radius D133)
+
+The hero and the media player share one corner radius: **28px**
+(`rounded-[28px]`; the player's stock Video.js radius, D131). The hero's
+`.frame-glass` overlay inherits it, so the rim follows the same curve.
 
 The hero and every artwork card share one edge: a 1px `--border-card`
 hairline (half-strength, computed `rgba(255,255,255,0.08)` on the default
@@ -36,8 +40,38 @@ theme — alpha-0.5 white reads as an outline). `.frame-glass` draws the hero
 rim as an overlay with a 3px masked `backdrop-filter: blur(8px)`; `.frame-soft`
 draws the card line plus a short inward glow and deliberately no per-tile
 backdrop filter (30–100 captures re-introduced browser tiling over artwork).
-Neither is a CSS `border`: cards avoid layout inflation, and the composited
-carousel layer tiled stale snapshots with a real border.
+`.frame-crisp` is the hairline alone — the Continue Watching card uses it
+because its inward glow read as a blurred edge on a mostly still frame;
+every other card, hero slot, and Watch tile stays `.frame-soft`. None is a
+CSS `border`: cards avoid layout inflation, and the composited carousel
+layer tiled stale snapshots with a real border.
+
+### Nav hitboxes
+
+Icon-only controls in the top bar are one group: menu, search, and bell are
+each a **32×32** box at `--text-muted` rest color (the bell's own size), with
+`gap-1.5` (6px) between cluster items and 12px from the wordmark to the
+menu trigger. The menu glyph is Lucide `menu` (three rules). Text controls
+(Sign in) keep their own padding.
+
+**Compaction step (D129).** The bar has exactly ONE breakpoint: **640px**
+(Tailwind `sm`), the same step at which the hero dot pill leaves the hero's
+top-right corner for the bottom-center. Below 640 the bar is compact — menu
+trigger + search icon; from 640 up it is inline — Home / Anime / Manga /
+My List + the search field. Never two different mobile breakpoints on one
+screen. A true-width fit check (hidden measurer built from the same
+`SectionLinks` component as the live row, compared against the bar's content
+box) acts only as an overflow safety valve.
+
+**No divider.** There is no rule between the bell and the profile (owner
+2026-10-25); the right cluster's `gap-1.5 lg:gap-3` separates them. Bell and
+profile stay visible at every scaling.
+
+**Inline sizes by band.** Search field 150px at 640–1023 / 200px at `lg`,
+growing to 240px on focus only at `lg` (a +60px jump at 640 would overflow
+the signed-out bar). Nav link gap and logo→nav gap are 20px below `lg`,
+24px at `lg`. Measured: the widest inline case (640px, signed out) needs
+558px of the 581px content box.
 
 
 ### Typography
@@ -51,7 +85,49 @@ carousel layer tiled stale snapshots with a real border.
 
 - Base unit 4px. Page gutters: 24px mobile, 48px desktop (max-width 1600px).
 - Row gap 8px. Section gap 32px.
-- Radius: card 6px, button 6px, modal 12px.
+- Radius: card 6px, modal 12px. Buttons and dropdowns are pills (fully
+  rounded) — one geometry, see Pills & dropdowns.
+
+### Pills & dropdowns (D130, 2026-10-26)
+
+One pill geometry for the whole app, imported from
+`src/components/ui/buttonStyles.ts`. The reference is the active white
+"Popular" category pill on `/anime` / `/manga`:
+
+| property | value |
+|---|---|
+| height | **30px** (6px padding + 16px line-height + 1px border) |
+| horizontal padding | 14px (`px-3.5`) |
+| text | 12px / 500 / 16px line-height (`text-xs font-medium leading-4`) |
+| shape | fully rounded, 1px hairline |
+| solid | `bg: var(--text)`, label `var(--on-text)`, border `--border-strong` |
+| soft | 10% text tint, muted label, transparent border |
+
+- `pillSolid` = primary action (Sign in, Play, Connect, Resume, Retry,
+  Back/Next, Home) and the active category/status tab. `pillSoft` = secondary
+  action and the inactive category/status tab.
+- **Never size a pill with `h-7` / `h-8` / `py-1` / `py-2` / `py-3` or a
+  13–14px font.** Padding + `leading-4` is the only sizing, so every pill
+  computes to 30px. Icon + label pills keep the same metrics (`gap-1.5`,
+  14px icon).
+- **Segmented toggles stay toggles** (owner correction, 2026-10-26): Sub/Dub
+  on Watch and the preferred-audio / reader-fit controls on Settings keep
+  their original TRACK + INNER PILL. The size rule applies to the control as
+  a whole — 1px border + 4px track padding + a 20px inner pill (16px
+  `leading-4` + 2px padding) = **30px** — not to the thumb. Never convert a
+  segmented toggle into a row of standalone pills; "same size" is not
+  permission to change the component.
+- The Watch episode nav (Prev / current / Next) also keeps its original
+  component: three solid white pills, `px-4`, **semibold 600**, the middle
+  one a non-interactive span. Only its height is unified to 30px (a
+  transparent 1px border pins the box without drawing a line).
+- List status tabs (My List) are standalone pills — solid active, soft rest.
+- **Dropdowns are always `FilterSelect`** (the "All Genres" control): 30px
+  shell, 12px medium value, 12px chevron at `right-2`, `--bg-soft` fill,
+  `--border` hairline, transparent native `<select>` covering the whole
+  pill. Never build a second dropdown style.
+- Skeleton placeholders for a pill use the same 30px box so the swap does
+  not shift layout.
 
 ### Shadows & Depth
 
@@ -59,12 +135,26 @@ carousel layer tiled stale snapshots with a real border.
 - Modal: `0 24px 64px rgba(0,0,0,0.9)` + backdrop 70% black.
 - Nav: translucent with blur, fading from top.
 
+### Selection & copying (D132, 2026-10-26)
+
+- The whole page is **non-selectable**: `html, body { user-select: none;
+  -webkit-user-select: none; -webkit-touch-callout: none }`, and links/images/
+  video are not drag sources (`-webkit-user-drag: none`). Page text and
+  artwork cannot be copied or dragged into another app.
+- Form controls (`input`, `textarea`, `select`, `[contenteditable='true']`)
+  opt back in with `user-select: text` — the search box and every settings
+  field must stay usable. Native clipboard buttons keep working:
+  `navigator.clipboard` does not depend on a selection.
+- This is deliberate and site-wide (owner request). Do not "restore" text
+  selection on a page without an explicit owner instruction.
+
 ## Components
 
 ### Navigation
 
 - Height 56px, sticky, `background: linear-gradient(#070708 0%, rgba(7,7,8,0) 100%)` at top, solid #070708 on scroll.
 - Left: "Aeri" wordmark (18px, 600, tracking -0.02em). Center links: Home, Browse, My List (13px, muted, active white). Right: Search, Profile.
+- Icon-only controls share a 32×32 box (menu / search / bell; see Nav hitboxes).
 - No sidebar. Quiet.
 
 ### Hero
@@ -76,7 +166,7 @@ carousel layer tiled stale snapshots with a real border.
   - Bottom: `linear-gradient(0deg, var(--bg) 6%, transparent 62%)`
   - Optional top vignette for nav readability.
 - Content sits left, max-width 560px, padding 0 48px. Title → meta (Type · Year · Episodes · Rating) → description (2-line clamp, muted) → actions.
-- Buttons: Primary Play (white, black text, pill, 32px height) + secondary More Info (white/14% bg, backdrop-blur, white text).
+- Buttons: Primary Play (white pill, 30px, 12px/500, black text) + secondary More Info (soft pill, same 30px geometry, backdrop-blur).
 - Never cover hero with cards.
 
 ### Content Row
@@ -104,6 +194,31 @@ carousel layer tiled stale snapshots with a real border.
 - Top artwork 56% height with bottom fade into `var(--surface)`.
 - Content: title, progress, Resume/Play, Add to List (icon circle), meta, description, genres (subtle pills), cast, episodes.
 - Episodes: list, not grid. Row with number, title, duration, watched check.
+
+### Watch / player (D130, revised D131)
+
+- The page is the **plain background with the video on top**: no wrapper
+  fill, no artwork poster behind the picture. (The 2026-10-26 revision keeps
+  the corners and adds the hero frame — see below.)
+- The Video.js skin keeps its **STOCK 28px corner radius**
+  (`--media-border-radius` is not overridden). The wrapper is
+  `rounded-[28px]` so every layer shares the same curve.
+- The player wears the **hero's frosted frame**: `.frame-glass` (1px
+  `--border-card` hairline on a 3px masked blur rim), `z-30`,
+  `pointer-events-none`. The skin's own 1px frame line is made transparent
+  (`.aeri-player { --media-border-color: transparent }`) so the edge never
+  doubles. The skin's control gradient belongs to the player and stays.
+- The loading state is the page background + spinner; the no-source state is
+  the page background + copy/actions. Never paint a backdrop image under a
+  pending player.
+- **Synopsis is full width** — the same width as the episode grid (the page
+  container), no `max-w-[720px]` reading column.
+- Episode tiles: watched = 40% base scrim + `check-lg`; the CURRENT episode
+  uses the same overlay with `audio-lines` (no "Now playing" chip). Both
+  overlays fade out on hover/focus so the 22px play glyph is never drawn on
+  top of them.
+- Player chrome (controls, menus, tooltips) is Video.js's; page pills around
+  it follow Pills & dropdowns.
 
 ### Skeletons
 

@@ -5,6 +5,7 @@
 // call sites never import an icon library directly.
 import {
   ArrowDown,
+  AudioLines,
   ArrowLeft,
   ArrowUp,
   ArrowUpDown,
@@ -20,6 +21,7 @@ import {
   EllipsisVertical,
   EyeOff,
   List,
+  Menu,
   Minus,
   Play,
   Plus,
@@ -40,11 +42,19 @@ const ICONS: Record<string, LucideIcon> = {
   'play-circle': CirclePlay,
   'three-dots-vertical': EllipsisVertical,
   'check-lg': Check,
+  // Owner 2026-10-26: the Watch grid marks the CURRENT episode with the
+  // same overlay as a watched one, but an audio-bars glyph instead of the
+  // tick — "now playing" reads as sound, not as "already seen".
+  'audio-lines': AudioLines,
   x: X,
   'plus-lg': Plus,
   'plus-circle': CirclePlus,
   'dash-lg': Minus,
   list: List,
+  // Owner 2026-10-25: the collapsed nav trigger is Lucide's `menu`
+  // (three rules), not the `list` glyph (bulleted rows). `list` stays for
+  // its historical call sites.
+  menu: Menu,
   search: Search,
   bell: Bell,
   person: User,

@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { pillSolid } from '../components/ui/buttonStyles'
 
 function H({ children }: { children: React.ReactNode }) {
   return <h2 className="mb-2 mt-8 text-[16px] font-semibold tracking-tight text-[var(--text)] first:mt-4">{children}</h2>
@@ -112,7 +113,7 @@ export function Legal() {
       </P>
 
       <div className="mt-8 flex gap-2">
-        <Link to="/" className="rounded-full bg-[var(--text)] px-5 py-2 text-xs font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]">Home</Link>
+        <Link to="/" className={pillSolid}>Home</Link>
       </div>
     </div>
   )

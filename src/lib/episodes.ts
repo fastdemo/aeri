@@ -347,6 +347,32 @@ export function resolveEpisodeCount(
 }
 
 /**
+ * Resolve a LOCAL episode number against a Kitsu fallback list.
+ *
+ * Kitsu entries in a franchise sometimes carry FRANCHISE-absolute numbers
+ * (a 25-episode sequel listed as 26..50) while Aeri's locals are 1..N. An
+ * exact miss therefore falls back to a contiguous-offset list — only when
+ * the numbers really are a single run starting above 1, so a sparse or
+ * partial list can never be mapped onto the wrong episodes.
+ */
+export function findFallbackEpisode<T extends { number: number }>(
+  episodes: T[] | null | undefined,
+  localNum: number,
+): T | null {
+  if (!episodes?.length || !(localNum >= 1)) return null
+  const exact = episodes.find(e => e.number === localNum)
+  if (exact) return exact
+  const nums = episodes.map(e => e.number).filter(n => typeof n === 'number' && Number.isFinite(n) && n > 0)
+  if (!nums.length) return null
+  const min = Math.min(...nums)
+  const max = Math.max(...nums)
+  if (min > 1 && max - min + 1 === episodes.length) {
+    return episodes.find(e => e.number === min + localNum - 1) ?? null
+  }
+  return null
+}
+
+/**
  * Normalize episodes with explicit priority for title/thumbnail:
  * AniList → (Kitsu ONLY when the whole entry has zero AniList episode
  * metadata) → UI placeholder. Video-provider rows still supply the
@@ -422,13 +448,27 @@ export function normalizeEpisodes(
   // placeholders. `fallback.allowed` carries the caller's whole-entry gate.
   const fallbackAllowed = !anilistHasMetadata && (fallback?.allowed ?? true)
   const fallbackByNum = new Map<number, EpisodeFallback>()
+  let fallbackOffset = 0
   if (fallbackAllowed && fallback?.episodes?.length) {
     for (const episode of fallback.episodes) {
-      if (typeof episode.number === 'number' && episode.number >= 1 && episode.number <= count) {
+      if (typeof episode.number === 'number' && Number.isFinite(episode.number) && episode.number >= 1) {
         if (!fallbackByNum.has(episode.number)) fallbackByNum.set(episode.number, episode)
       }
     }
+    // Franchise-absolute Kitsu numbering (a 25-ep sequel listed 26..50):
+    // a single contiguous run above 1 maps onto locals 1..N by offset.
+    // Sparse lists never qualify (see findFallbackEpisode).
+    const run = fallback.episodes
+      .map(e => e.number)
+      .filter(n => typeof n === 'number' && Number.isFinite(n) && n > 0)
+    if (run.length === fallback.episodes.length && run.length) {
+      const mn = Math.min(...run)
+      const mx = Math.max(...run)
+      if (mn > 1 && mx - mn + 1 === run.length) fallbackOffset = Math.round(mn - 1)
+    }
   }
+  const fallbackFor = (n: number): EpisodeFallback | undefined =>
+    fallbackByNum.get(n) ?? (fallbackOffset ? fallbackByNum.get(n + fallbackOffset) : undefined)
   const fallbackPending = fallbackAllowed && fallback?.status === 'loading'
 
   const baseDuration = effectiveAnime.duration
@@ -512,7 +552,7 @@ export function normalizeEpisodes(
       source = 'anilist'
       titleState = 'resolved'
     } else {
-      const fallbackTitle = fallbackAllowed ? fallbackByNum.get(n)?.title?.trim() : ''
+      const fallbackTitle = fallbackAllowed ? fallbackFor(n)?.title?.trim() : ''
       const cleanedFallback = fallbackTitle ? cleanEpisodeTitle(fallbackTitle) : ''
       if (cleanedFallback && !isGenericTitle(cleanedFallback)) {
         title = cleanedFallback
@@ -530,7 +570,7 @@ export function normalizeEpisodes(
       if (source === 'none') source = 'anilist'
       thumbState = 'resolved'
     } else {
-      const fallbackThumb = fallbackAllowed ? fallbackByNum.get(n)?.thumbnail?.trim() : ''
+      const fallbackThumb = fallbackAllowed ? fallbackFor(n)?.thumbnail?.trim() : ''
       if (fallbackThumb && isValidHttpUrl(fallbackThumb)) {
         thumbnail = fallbackThumb
         if (source === 'none') source = 'kitsu'

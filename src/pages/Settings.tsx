@@ -11,6 +11,7 @@ import { verifiedMangaProviders } from '../providers/manga/mangadex'
 import { FilterSelect } from '../components/ui/FilterSelect'
 import { THEMES, applyTheme } from '../lib/themes'
 import { Icon } from '../components/ui/Icon'
+import { pillSolid, pillSoft } from '../components/ui/buttonStyles'
 
 // Counters only — no tokens, no user data. Refreshes while visible.
 function AnilistDiagnostics() {
@@ -223,7 +224,7 @@ export function Settings() {
               {ani.isAuthenticated ? (
                 <button onClick={() => ani.logout()} className="rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-3 py-1.5 text-xs font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)]">Disconnect</button>
               ) : (
-                <button onClick={() => ani.login()} className="rounded-full bg-[var(--text)] px-4 py-1.5 text-xs font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]">Connect</button>
+                <button onClick={() => ani.login()} className={pillSolid}>Connect</button>
               )}
             </div>
             {ani.isAuthenticated && ani.user?.avatar?.large && (
@@ -280,7 +281,7 @@ export function Settings() {
               {mal.isAuthenticated ? (
                 <button onClick={() => mal.logout()} className="rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-3 py-1.5 text-xs font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)]">Disconnect</button>
               ) : (
-                <button onClick={() => mal.login().catch(()=>{})} className="rounded-full bg-[var(--text)] px-4 py-1.5 text-xs font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]">Connect</button>
+                <button onClick={() => mal.login().catch(()=>{})} className={pillSolid}>Connect</button>
               )}
             </div>
             {mal.isAuthenticated && mal.user && (
@@ -372,6 +373,10 @@ export function Settings() {
           <div>
             <p className="text-xs font-medium text-[var(--text)]">Preferred audio</p>
             <p className="text-[11px] text-[var(--text-faint)]">Sub: Japanese with subtitles. Dub: English where available. Falls back if missing.</p>
+            {/* ORIGINAL segmented toggle (owner 2026-10-26: size only, do
+                not change the component). Track + inner pill; 1px border +
+                4px track padding + 20px inner pill = the same 30px box as
+                every other control. */}
             <div className="mt-2 inline-flex rounded-full border border-[var(--border)] bg-[var(--bg-soft)] p-1" role="radiogroup" aria-label="Preferred audio">
               {(['sub','dub'] as const).map(lang => (
                 <button
@@ -379,7 +384,7 @@ export function Settings() {
                   role="radio"
                   aria-checked={prefs.preferredAudio === lang}
                   onClick={() => updatePref({ preferredAudio: lang })}
-                  className={`rounded-full px-4 py-1 text-xs font-medium ${prefs.preferredAudio === lang ? 'bg-[var(--text)] text-[var(--on-text)]' : 'text-[var(--text-muted)] hover:text-[var(--text)]'}`}
+                  className={`rounded-full px-4 py-0.5 text-xs font-medium leading-4 ${prefs.preferredAudio === lang ? 'bg-[var(--text)] text-[var(--on-text)]' : 'text-[var(--text-muted)] hover:text-[var(--text)]'}`}
                 >
                   {lang === 'sub' ? 'Sub' : 'Dub'}
                 </button>
@@ -482,7 +487,7 @@ export function Settings() {
                   role="radio"
                   aria-checked={readerFit === f}
                   onClick={() => updatePref({ readerFit: f })}
-                  className={`rounded-full px-4 py-1 text-xs font-medium ${readerFit === f ? 'bg-[var(--text)] text-[var(--on-text)]' : 'text-[var(--text-muted)] hover:text-[var(--text)]'}`}
+                  className={`rounded-full px-4 py-0.5 text-xs font-medium leading-4 ${readerFit === f ? 'bg-[var(--text)] text-[var(--on-text)]' : 'text-[var(--text-muted)] hover:text-[var(--text)]'}`}
                 >
                   {f === 'width' ? 'Width' : 'Height'}
                 </button>
@@ -557,19 +562,19 @@ export function Settings() {
         <div className="mt-4 grid gap-2 sm:grid-cols-3">
           <button
             onClick={handleClearCache}
-            className="rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-4 py-2 text-xs font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)]"
+            className={pillSoft}
           >
             Clear cached data
           </button>
           <button
             onClick={handleClearWatchPos}
-            className="rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-4 py-2 text-xs font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)]"
+            className={pillSoft}
           >
             Clear watch positions
           </button>
           <button
             onClick={handleResetAll}
-            className="rounded-full bg-[var(--text)] px-4 py-2 text-xs font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]"
+            className={pillSolid}
           >
             Reset local data
           </button>

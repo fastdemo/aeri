@@ -448,6 +448,17 @@ export class AniListMetadataProvider implements AnimeMetadataProvider {
   }
 
   async getManga(id: string, signal?: AbortSignal): Promise<import('../../types/anime').Anime> {
+    // MAL-backed ids resolve through idMal, exactly like getAnime. MAL
+    // tracker entries carry `internalId: mal-<malId>` (mapper.ts) and every
+    // Read link is built from that internalId — without this branch
+    // `Number('mal-23390')` is NaN, so /read/mal-23390/… answered "Manga not
+    // found" for every signed-in MAL manga even though the detail page had
+    // just listed its chapters (owner report 2026-10-26).
+    if (id.startsWith('mal-')) {
+      const malId = Number(id.replace('mal-', ''))
+      if (Number.isNaN(malId)) throw new ProviderError('NOT_FOUND', 'We couldn’t find that manga.', false)
+      return this.getMangaByMalId(malId, signal)
+    }
     const anilistId = id.startsWith('anilist-') ? Number(id.replace('anilist-', '')) : Number(id)
     if (Number.isNaN(anilistId)) throw new ProviderError('NOT_FOUND', 'We couldn’t find that manga.', false)
     // Type-scoped shared record: an anime record with the same numeric id

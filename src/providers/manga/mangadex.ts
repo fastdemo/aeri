@@ -1,5 +1,6 @@
 import type { Anime } from '../../types/anime'
 import type { MangaChapter, MangaPage, MangaProvider, MangaProviderMatch, MangaSourceOptions } from './types'
+import { unitDisplayLabel } from './types'
 import { getEffectiveVideoApiUrl, getPreferences } from '../../storage/preferences'
 
 function getWorkerBase(): string | null {
@@ -132,22 +133,43 @@ class MangaDexProvider implements MangaProvider {
   async getChapters(manga: Anime, options?: MangaSourceOptions): Promise<MangaChapter[]> {
     const m = await this.resolveManga(manga, options)
     if (!m) return []
-    const key = `manga:mangadex:chapters:${m.providerMangaId}`
+    const key = `manga:mangadex:chapters:v2:${m.providerMangaId}`
     const hit = memGet<MangaChapter[]>(key, 10 * 60 * 1000)
     if (hit) return hit
     try {
       const j = await workerJson(`/api/manga/mdx-chapters/${m.providerMangaId}`, options?.signal)
-      const list = Array.isArray(j?.chapters) ? j.chapters : []
-      const out: MangaChapter[] = list.map((c: any) => ({
-        id: `mangadex-${String(c.providerChapterId)}`,
-        mangaId: manga.identity.internalId,
-        providerChapterId: String(c.providerChapterId),
-        label: String(c.label ?? 'Chapter'),
-        number: typeof c.number === 'number' ? c.number : null,
-        kind: c.kind,
-        unitType: c.unitType === 'volume' ? 'volume' : 'chapter',
-        publishedAt: c.publishedAt,
-      }))
+      // The worker separates hosted units (`chapters`) from off-site
+      // licensed ones (`external`). Older worker versions put external
+      // chapters in `chapters` with a placeholder page count of 1, so the
+      // reader could open a unit that returns zero pages. Both lists are
+      // mapped here, tagged `externalOnly`, and de-duplicated by unit id —
+      // the resolver filters tagged units out of the readable list while
+      // keeping their links for the "read officially" state.
+      const toUnit = (c: any, forceExternal: boolean): MangaChapter => {
+        const externalUrl = typeof c.externalUrl === 'string' && c.externalUrl ? c.externalUrl : undefined
+        return {
+          id: `mangadex-${String(c.providerChapterId)}`,
+          mangaId: manga.identity.internalId,
+          providerChapterId: String(c.providerChapterId),
+          label: String(c.label ?? 'Chapter'),
+          number: typeof c.number === 'number' ? c.number : null,
+          kind: c.kind,
+          unitType: c.unitType === 'volume' ? 'volume' : 'chapter',
+          publishedAt: c.publishedAt,
+          externalUrl,
+          externalOnly: forceExternal || (!!externalUrl && !(typeof c.pages === 'number' && c.pages > 1)),
+        }
+      }
+      const byId = new Map<string, MangaChapter>()
+      const hosted = Array.isArray(j?.chapters) ? j.chapters : []
+      const external = Array.isArray(j?.external) ? j.external : []
+      for (const c of hosted) byId.set(String(c?.providerChapterId), toUnit(c, false))
+      for (const c of external) {
+        const id = String(c?.providerChapterId)
+        const prev = byId.get(id)
+        if (!prev || !prev.externalOnly) byId.set(id, toUnit(c, true))
+      }
+      const out = [...byId.values()]
       memSet(key, out)
       return out
     } catch { return [] }
@@ -163,24 +185,6 @@ class MangaDexProvider implements MangaProvider {
       const out: MangaPage[] = list.map((u: any, i: number) => ({ index: i, url: String(typeof u === 'string' ? u : u.url) }))
       memSet(key, out)
       return out
-    } catch { return [] }
-  }
-
-  /**
-   * External (off-site licensed) units for a manga — never reader content.
-   * Match succeeds even when all chapters are external (the series itself
-   * matched fine), so re-resolve is cheap (cached) and one chapters call
-   * serves the external list.
-   */
-  async getExternalUnits(manga: Anime, options?: MangaSourceOptions): Promise<{ label: string; url: string }[]> {
-    const m = await this.resolveManga(manga, options)
-    if (!m) return []
-    try {
-      const j = await workerJson(`/api/manga/mdx-chapters/${m.providerMangaId}`, options?.signal)
-      const ext = Array.isArray(j?.external) ? j.external : []
-      return ext
-        .filter((c: any) => c?.externalUrl)
-        .map((c: any) => ({ label: String(c.label ?? 'Chapter'), url: String(c.externalUrl) }))
     } catch { return [] }
   }
 }
@@ -247,7 +251,8 @@ export function verifiedMangaProviders(): MangaProvider[] {
 function mangaEnabled(id: string): boolean {
   try {
     const v = getPreferences().enabledMangaProviders?.[id]
-    // Default: provider's own enabledByDefault (both ship true).
+    // Default: provider's own enabledByDefault (every verified source ships
+    // true; D128 made MangaPill one of them).
     if (v !== undefined) return v !== false
     return allMangaProviders().find(p => p.id === id)?.enabledByDefault !== false
   } catch { return true }
@@ -263,13 +268,20 @@ export interface ChapterResolveResult {
   error?: string
   /**
    * Per-provider attempt ledger (verified+enabled providers only, in the
-   * order attempted; STOPS at the first provider that returned units —
-   * single-source rule, no later requests). Lets callers distinguish
-   * "all providers failed" from "a provider matched but hosts nothing"
-   * and surface honest per-provider states. Never includes disabled
+   * order attempted; STOPS at the first provider that returned a usable
+   * catalogue — single-source rule, no later requests). Lets callers
+   * distinguish "all providers failed" from "a provider matched but hosts
+   * nothing" and surface honest per-provider states. Never includes disabled
    * providers.
    */
   attempts?: { providerId: string; units: number; error?: string }[]
+  /**
+   * Off-site licensed links from the first provider whose units were ALL
+   * external (it matched the title but hosts no pages). Only populated when
+   * no provider hosted anything readable — the reader then offers "read
+   * officially" instead of a dead "no chapters" wall.
+   */
+  externalUnits?: { label: string; url: string }[]
 }
 
 export async function resolveChaptersWithFallback(manga: Anime, signal?: AbortSignal, options?: MangaSourceOptions): Promise<ChapterResolveResult> {
@@ -286,24 +298,89 @@ export async function resolveChaptersWithFallback(manga: Anime, signal?: AbortSi
   let lastError: string | undefined
   // Single-source rule (OWNER 2026-10-18): ONE source per manga — the
   // highest-priority ENABLED provider wins outright. The next enabled
-  // provider is attempted only when the first hosts NOTHING (no match,
-  // zero units, or a request error). No cross-provider merging: every row
+  // provider is attempted only when the first hosts NOTHING readable (no
+  // match, zero units, only off-site licensed units, a sliver of a long
+  // series, or a request error). No cross-provider merging: every row
   // in the list belongs to the winner, so the provenance is one source the
   // user can reason about. Disabled providers are never requested — zero
   // requests, no fallback through them.
   const enabled = orderedMangaProviders().filter(p => p.status === 'verified' && mangaEnabled(p.id))
   const attempts: { providerId: string; units: number; error?: string }[] = []
+  let externalUnits: { label: string; url: string }[] | undefined
+  // COMPLETENESS GUARD (owner 2026-10-25). A long series served by a source
+  // that holds a SLIVER of it is not a working source. Live example: One
+  // Piece has ~1,100 chapters; MangaDex returned 5 English rows, four of
+  // them off-site licensed links and the fifth a removed upload whose
+  // at-home call answers 404. Without this guard that single dead unit
+  // "won" the title and the reader never fell through to MangaPill's 1,212
+  // usable chapters. Thresholds are deliberately loose (≥25 known chapters,
+  // under 10% coverage) so a source that genuinely started late still
+  // serves: only catalogues this broken get skipped.
+  const expectedChapters = options?.mangaChapters ?? manga.chapters ?? 0
+  const minUnits = expectedChapters >= 25 ? Math.max(3, Math.ceil(expectedChapters * 0.1)) : 0
   for (const p of enabled) {
     try {
       const chapters = await p.getChapters(manga, opts)
-      attempts.push({ providerId: p.id, units: chapters.length })
-      if (chapters.length) {
-        // First enabled provider holding units ends resolution — later
-        // providers stay untouched (this is a feature: resolution cost is
-        // the winner's cost alone).
-        return { chapters, providerId: p.id, attempts }
+      // READABLE UNITS ONLY (owner 2026-10-25). A provider can match a title
+      // and still host nothing: MangaDex lists licensed series (One Piece as
+      // of 2026) as EXTERNAL chapters with a placeholder page count, and
+      // every one of them returns zero pages. Counting those as "units"
+      // declared the title resolvable and opened a reader that could never
+      // show a page — the "chapter not found" wall the owner hit. External
+      // units are never readable, so an all-external list means this source
+      // hosts nothing and resolution continues to the next provider.
+      const readable = chapters.filter(c => !c.externalOnly)
+      const partial = minUnits > 0 && readable.length > 0 && readable.length < minUnits
+      attempts.push({
+        providerId: p.id,
+        units: readable.length,
+        ...(partial ? { error: `partial catalogue (${readable.length}/${expectedChapters})` } : {}),
+      })
+      if (readable.length && !partial) {
+        // HOSTED-PAGES PROBE (owner 2026-10-25). A unit list can be real
+        // metadata for chapters that no longer exist: MangaDex returned
+        // Chapter 1191 for One Piece with `pages: 14`, and its at-home
+        // endpoint answers 404 — the reader opened on a single dead chapter
+        // while MangaPill held 1,212 usable ones. Only DEGENERATE lists
+        // (≤3 units) are probed, so normal catalogues resolve with no extra
+        // request: the first unit is read, then the last (a removed upload
+        // is often at the tail); two empty answers mean the source hosts
+        // nothing. Requests are provider-cached, so the reader's own page
+        // load is a cache hit, not a duplicate fetch. A THROWN probe is
+        // inconclusive — the list is accepted and the reader surfaces its own
+        // error, so a flaky network never silently downgrades a working
+        // source.
+        let hosted: boolean | null = true
+        if (readable.length <= 3) {
+          try {
+            const first = await p.getChapterPages(readable[0], opts)
+            if (first.length) hosted = true
+            else {
+              const last = readable[readable.length - 1]
+              hosted = last === readable[0] ? false : (await p.getChapterPages(last, opts)).length > 0
+            }
+          } catch { hosted = null }
+        }
+        if (hosted !== false) {
+          // First enabled provider serving a usable catalogue ends
+          // resolution — later providers stay untouched (this is a feature:
+          // resolution cost is the winner's cost alone).
+          return { chapters: readable, providerId: p.id, attempts }
+        }
+        attempts[attempts.length - 1].error = 'no hosted pages'
+        lastError = `no hosted pages via ${p.id}`
+        if (signal?.aborted) break
+        continue
       }
-      lastError = `no readable units via ${p.id}`
+      if (chapters.length && !externalUnits) {
+        externalUnits = chapters
+          .filter(c => !!c.externalUrl)
+          .map(c => ({ label: unitDisplayLabel(c), url: c.externalUrl as string }))
+        if (!externalUnits.length) externalUnits = undefined
+      }
+      lastError = partial
+        ? `only ${readable.length} of ${expectedChapters} units via ${p.id}`
+        : `no readable units via ${p.id}`
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)
       attempts.push({ providerId: p.id, units: 0, error: msg })
@@ -311,5 +388,5 @@ export async function resolveChaptersWithFallback(manga: Anime, signal?: AbortSi
     }
     if (signal?.aborted) break
   }
-  return { chapters: [], providerId: null, error: enabled.length ? lastError : 'No Manga providers are enabled.', attempts }
+  return { chapters: [], providerId: null, error: enabled.length ? lastError : 'No Manga providers are enabled.', attempts, externalUnits }
 }

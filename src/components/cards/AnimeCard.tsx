@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import type { Anime } from '../../types/anime'
 import { getPrimaryTitle } from '../../lib/titles'
-import { getDisplayEpisodeNumber, getStreamingEpisodeTitle } from '../../lib/episodes'
+import { cleanEpisodeTitle, getDisplayEpisodeNumber, getStreamingEpisodeTitle, sanitizeAnimeForDisplay } from '../../lib/episodes'
+import { findFallbackEpisode } from '../../lib/episodes'
+import { useKitsuEpisodes } from '../../hooks/useKitsuEpisodes'
 import { formatLabel } from '../../lib/mediaLabels'
 import { Icon } from '../ui/Icon'
 import { useTracking } from '../../contexts/TrackingContext'
@@ -229,6 +231,16 @@ export function AnimeCard({
     return () => { cancelled = true }
   }, [variant, isManga, anime.identity.anilistId, anime.identity.malId])
   const meta = episodeMeta ?? anime
+  // DISPLAY RECORD (owner 2026-10-25): the fetched AniList record must pass
+  // the SAME display guards as every other surface. Code Geass R2's AniList
+  // entry carries season 1's 25 Crunchyroll rows — reading them raw showed
+  // S1 episode 4's name on an R2 continue card. sanitizeAnimeForDisplay
+  // drops that list, so the caption is either the correct AniList name, a
+  // Kitsu name (below), or an honest "Episode N".
+  const displayMeta = useMemo(
+    () => (episodeMeta ? sanitizeAnimeForDisplay(episodeMeta) : anime),
+    [episodeMeta, anime],
+  )
   const epTotal = typeof meta.episodes === 'number' && meta.episodes > 0 ? meta.episodes : 0
   // RESUME / RESTART (owner 2026-10-25): the same pure rule as the preview
   // card. A part-watched show opens progress+1; a show with nothing new
@@ -241,7 +253,18 @@ export function AnimeCard({
   })
   const watchEp = resume.target
   const displayWatchEp = getDisplayEpisodeNumber(meta, watchEp)
-  const watchName = getStreamingEpisodeTitle(meta, watchEp)
+  // KITSU FALLBACK (owner 2026-10-25): only when the AniList record resolved
+  // AND the display guards discard its episode metadata (CG R2). Gating on
+  // `episodeMeta` keeps cold Home loads at zero extra requests: thin
+  // tracker copies never trigger a Kitsu lookup, and cards whose AniList
+  // list survives never touch it either (the hook decides per record).
+  const kitsuGate = variant === 'continue' && !isManga
+    ? (episodeMeta ?? (anime.streamingEpisodes?.length ? anime : null))
+    : null
+  const kitsu = useKitsuEpisodes(kitsuGate, kitsuGate)
+  const kitsuEpisode = findFallbackEpisode(kitsu.episodes, watchEp)
+  const watchName = getStreamingEpisodeTitle(displayMeta, watchEp)
+    ?? (kitsuEpisode?.title ? cleanEpisodeTitle(kitsuEpisode.title) : null)
   // Watch target id — ANILIST-FIRST, preferring the full AniList record's
   // canonical id when it arrived; MAL is a fallback key only.
   const watchId = (() => {
@@ -500,8 +523,11 @@ export function AnimeCard({
           cannot carry a per-tile backdrop blur: 100+ backdrop captures
           tiled the artwork and cost paint time on Home. The hero keeps the
           literal frosted rim; cards match it visually and frost fully on
-          hover via the existing whole-card treatment. */}
-      <div aria-hidden className="frame-soft z-20" />
+          hover via the existing whole-card treatment.
+          CONTINUE CARDS (owner 2026-10-25): crisp hairline only — the soft
+          frame's inward glow crossed the art/caption seam and read as a
+          blurred border. Every other card keeps .frame-soft. */}
+      <div aria-hidden className={variant === 'continue' ? 'frame-crisp z-20' : 'frame-soft z-20'} />
       </div>
       {/* OWNER (2026-10-20): the ⋮ QuickMenu stays a SIBLING of the frame
           (content-level) on purpose — its dropdown + 48px shadow must not

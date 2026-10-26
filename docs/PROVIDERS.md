@@ -154,8 +154,14 @@ The fallback is display-only and is used by:
 - `components/detail/DetailModal.tsx` — E-line and `EpisodeList`
 - `components/episodes/EpisodeList.tsx`
 - `pages/Watch.tsx` — episode selector / next-episode labels
+- `components/cards/AnimeCard.tsx` — continue variant's next-episode name
+  (D128; gated on its resolved AniList record, one request per card)
 
-Cards never call it; that would fan out one Kitsu request per rail item.
+Cards: only the **continue** variant calls it, and only after its own AniList
+record resolves and the display guards discard that record's list (D128) —
+one request for one card, never per rail item. Default cards never call it.
+Proven by `tests/continue-card-episode-name.spec.ts` (CG R2: the caption is
+Kitsu's episode-5 name, never S1's row).
 
 ### Caching
 
@@ -286,7 +292,11 @@ a white top-left `Now playing` chip, not a ring/bar/dot (D124).
 - Live records (`kitsu-live.probe.spec.ts` 1/1): Monster (AniList 19) → 74
   Kitsu thumbnails, 5 Kitsu requests; FMA:B (5114, full AniList list) → 0
   Kitsu requests; Naruto (20, partial AniList list) → 0 Kitsu requests.
-- Watch source/UI probe (D124, production 2026-10-24): source picker shows
+- Watch source/UI probe (D124, production 2026-10-24; **superseded in part
+  by D128, 2026-10-25**: the heading order is now `Synopsis` ABOVE
+  `Episodes`, the header carries an `N episodes` count, and the h1 is the
+  show name with no episode suffix — the geometry below still records the
+  D124 nav/tile state): source picker shows
   one option `aniwave` (provider-only; no `auto`, language, or trailing
   Auto). Sub playback advanced 2.955s and Dub 2.501s, both
   `readyState 4` with no error; both sources are AniWave through the

@@ -7,6 +7,7 @@ import { detailSurface, type DetailNavState } from '../../hooks/useDetailOpen'
 import { isCompleteRecord } from '../../lib/records'
 import { DetailModal } from './DetailModal'
 import { Icon } from '../ui/Icon'
+import { pillSolid, pillSoft } from '../ui/buttonStyles'
 
 /**
  * AUTO-RETRY LADDER (owner rule 2026-10-18: never paint a half-populated
@@ -155,14 +156,14 @@ export function DetailRoute({ kind }: { kind: 'anime' | 'manga' }) {
             {loadError && (
               <button
                 onClick={() => setRetryNonce(n => n + 1)}
-                className="inline-flex h-8 items-center rounded-full bg-[color-mix(in_srgb,var(--text)_12%,transparent)] px-4 text-[13px] font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_18%,transparent)]"
+                className={pillSoft}
               >
                 Retry
               </button>
             )}
             <button
               onClick={close}
-              className="inline-flex h-8 items-center rounded-full bg-[var(--text)] px-4 text-[13px] font-semibold text-[var(--on-text)] hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)]"
+              className={pillSolid}
             >
               {hasBackground ? 'Back' : 'Back to Home'}
             </button>

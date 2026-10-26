@@ -9,6 +9,7 @@ import { useAniList } from '../contexts/AniListContext'
 import { useMAL } from '../contexts/MALContext'
 import { useDetailOpen } from '../hooks/useDetailOpen'
 import { ANILIST_GENRES } from '../lib/genres'
+import { pillSolid, pillSoft } from '../components/ui/buttonStyles'
 
 // STATUS = the STOLEN pill row (owner 2026-10-19: "remove all statuses. on
 // the anime page, steal the popular/trending/airing and replace that with
@@ -135,9 +136,7 @@ export function MyList() {
             <button
               key={t.id}
               onClick={() => setStatus(t.id)}
-              className={`shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-medium transition ${
-                status === t.id ? 'border-[var(--border-strong)] bg-[var(--text)] text-[var(--on-text)]' : 'border-transparent bg-[color-mix(in_srgb,var(--text)_10%,transparent)] text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)] hover:text-[var(--text)]'
-              }`}
+              className={`shrink-0 ${status === t.id ? pillSolid : pillSoft}`}
             >
               {t.label}
             </button>
@@ -163,7 +162,7 @@ export function MyList() {
           {(genre !== 'All' || yearKey !== 'All Years' || season !== 'All' || format !== 'All') && (
             <button
               onClick={() => { setGenre('All'); setYearKey('All Years'); setSeason('All'); setFormat('All') }}
-              className="shrink-0 rounded-full border border-transparent bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-3.5 py-1.5 text-xs font-medium text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)] hover:text-[var(--text)]"
+              className={`${pillSoft} shrink-0`}
             >
               Clear
             </button>
@@ -176,9 +175,7 @@ export function MyList() {
           <button
             key={t.id}
             onClick={() => setStatus(t.id)}
-            className={`shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-medium transition ${
-              status === t.id ? 'border-[var(--border-strong)] bg-[var(--text)] text-[var(--on-text)]' : 'border-transparent bg-[color-mix(in_srgb,var(--text)_10%,transparent)] text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)] hover:text-[var(--text)]'
-            }`}
+            className={`shrink-0 ${status === t.id ? pillSolid : pillSoft}`}
           >
             {t.label}
           </button>
@@ -202,7 +199,7 @@ export function MyList() {
         {(genre !== 'All' || yearKey !== 'All Years' || season !== 'All' || format !== 'All') && (
           <button
             onClick={() => { setGenre('All'); setYearKey('All Years'); setSeason('All'); setFormat('All') }}
-            className="shrink-0 rounded-full border border-transparent bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-3.5 py-1.5 text-xs font-medium text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)] hover:text-[var(--text)]"
+            className={`${pillSoft} shrink-0`}
           >
             Clear
           </button>

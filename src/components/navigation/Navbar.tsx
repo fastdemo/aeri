@@ -6,11 +6,46 @@ import { useTracking } from '../../contexts/TrackingContext'
 import { SearchSuggestions } from '../search/SearchSuggestions'
 import { SchedulePanel } from './SchedulePanel'
 import { HeaderPopup } from './HeaderPopup'
+import { pillSolid } from '../ui/buttonStyles'
 import { SignInModal } from '../auth/SignInModal'
 import { Icon } from '../ui/Icon'
 import { useDetailOpen } from '../../hooks/useDetailOpen'
 import { refreshAeriTitle } from '../../hooks/useAeriTitle'
 import { isIncognitoEnabled, setIncognitoEnabled } from '../../storage/preferences'
+
+/**
+ * Section links. Rendered by BOTH the live bar and the hidden measurer, so
+ * the fit decision can never drift from the real row (the old hand-copied
+ * measurer drifted twice: stale gap, and px-2 counted without the -mx-2
+ * that cancels it). Same component ⇒ same widths, always.
+ */
+function SectionLinks({
+  items,
+  onSelect,
+}: {
+  items: Array<{ to: string; label: string }>
+  onSelect: (to: string, e: React.MouseEvent) => void
+}) {
+  return (
+    <nav className="flex items-center gap-5 lg:gap-6" aria-label="Sections">
+      {items.map((l) => (
+        <NavLink
+          key={l.to}
+          to={l.to}
+          onClick={(e) => onSelect(l.to, e)}
+          className={({ isActive }) =>
+            `touch-manipulation whitespace-nowrap text-[13px] font-medium transition-colors px-2 py-1.5 rounded -mx-2 ${
+              isActive ? 'text-[var(--text)]' : 'text-[var(--text-muted)] hover:text-[var(--text)]'
+            }`
+          }
+          style={{ touchAction: 'manipulation' } as any}
+        >
+          {l.label}
+        </NavLink>
+      ))}
+    </nav>
+  )
+}
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false)
@@ -148,6 +183,18 @@ export function Navbar() {
     { to: '/list', label: 'My List' },
   ]
 
+  // Signed-out My List: prompt sign-in, never navigate to a page that can
+  // only show a locked state. Shared by the live nav and the measurer copy
+  // (the measurer's copy never fires — it is visibility:hidden).
+  const onSectionClick = (to: string, e: React.MouseEvent) => {
+    if (to === '/list' && !isAuthenticated) {
+      e.preventDefault()
+      setSignInOpen(true)
+      return
+    }
+    dispatchNavigate(to)
+  }
+
   const mobileNav = [
     { to: '/', label: 'Home' },
     { to: '/anime', label: 'Anime' },
@@ -157,17 +204,18 @@ export function Navbar() {
   ]
 
   // Fit-based breakpoint: show the inline nav only when everything fits in
-  // one row with ~30% breathing room; otherwise collapse to the mini menu.
-  // NOTE: the hidden measurer below MUST mirror the real left-cluster gap
-  // (gap-6): it measures the same links+input with the same classes, so a
-  // stale gap here would under-measure and stick inline nav where it
-  // overflows. State-independent measurement ⇒ no oscillation possible.
-  // A hidden measurer renders the SAME links + search input with the SAME
-  // classes, so the decision uses true widths — never an estimate that can
-  // disagree with reality at some scales (the old estimate measured the
-  // collapsed 44px search icon instead of the 200px inline input, and never
-  // re-measured after switching, so narrow scales could stick inline and
-  // overflow). State-independent measurement ⇒ no oscillation possible.
+  // one row AND the viewport is at the hero's `sm` step (640px). OWNER RULE
+  // (2026-10-25): "the top bar only compacts at the same scaling as when the
+  // hero pills goes to the top right" — the hero's dot pill tucks into the
+  // top-right corner below 640 and returns to the bottom-center at 640, so
+  // the nav's compact (menu + search icon) mode must begin at that same
+  // scale. A pure width fit collapsed the bar around ~900px (30% breathing
+  // factor + a measurer that over-counted the right cluster's tighter gaps),
+  // which read as two different mobile breakpoints on one screen.
+  // The measurer below is built from the SAME `SectionLinks` component and
+  // the same cluster classes as the real row, so its scrollWidth IS the
+  // row's true width; the only extra is a 2px rounding buffer.
+  // State-independent measurement ⇒ no oscillation possible.
   // Starts collapsed (mobile-first) to avoid a flash of overflowing nav.
   const barRef = useRef<HTMLDivElement>(null)
   const measureRef = useRef<HTMLDivElement>(null)
@@ -177,13 +225,16 @@ export function Navbar() {
       const bar = barRef.current
       const m = measureRef.current
       if (!bar || !m) return
-      const barW = bar.clientWidth
-      if (!barW) return
-      const need = (m.scrollWidth + 48) * 1.3
-      setNavFits((prev) => {
-        const next = need <= barW
-        return prev === next ? prev : next
-      })
+      // clientWidth includes the bar's px-4/6/12 padding — compare against
+      // the CONTENT box, or the padding would read as free space.
+      const cs = getComputedStyle(bar)
+      const inner =
+        bar.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0)
+      if (!inner || inner <= 0) return
+      // 640 = Tailwind `sm`, the hero pill's own switch point.
+      const smUp = typeof window !== 'undefined' && window.matchMedia('(min-width: 640px)').matches
+      const next = smUp && m.scrollWidth + 2 <= inner
+      setNavFits((prev) => (prev === next ? prev : next))
     }
     measure()
     let ro: ResizeObserver | null = null
@@ -204,27 +255,33 @@ export function Navbar() {
     }
   }, [desktopNav.length, isAuthenticated])
 
-  // Hidden measurer: same links + same search input, same classes, but
-  // always mounted invisibly so widths are TRUE at every scale. It never
-  // intercepts clicks and never affects layout. Rendered OUTSIDE <header>
-  // (fragment sibling) so no header query can match it — the old in-header
-  // measurer hijacked `header > div` lookups and broke every width reading
-  // (iPad Pro 834px incident). Query the bar via [data-navbar-bar].
+  // Hidden measurer: the REAL left cluster (logo + SectionLinks) and the REAL
+  // right cluster (search input, bell, avatar / Sign in) with identical
+  // classes, always mounted invisibly so widths are TRUE at every scale. It
+  // never intercepts clicks and never affects layout. Rendered OUTSIDE
+  // <header> (fragment sibling) so no header query can match it — the old
+  // in-header measurer hijacked `header > div` lookups and broke every width
+  // reading (iPad Pro 834px incident). Query the bar via [data-navbar-bar].
   const measurer = (
     <div
       ref={measureRef}
       aria-hidden
-      className="pointer-events-none fixed left-0 top-0 -z-10 flex h-14 w-max items-center gap-6 opacity-0"
+      className="pointer-events-none fixed left-0 top-0 -z-10 flex h-14 w-max items-center gap-4 opacity-0 lg:gap-6"
       style={{ visibility: 'hidden' } as any}
     >
-      <span className="text-[19px] font-semibold tracking-[-0.02em]" style={{ fontFamily: '"Cal Sans", sans-serif' } as any}>aeri</span>
-      <span className="flex items-center gap-5">
-        {desktopNav.map((l) => (
-          <span key={l.to} className="whitespace-nowrap px-2 py-1.5 text-[13px] font-medium">{l.label}</span>
-        ))}
-      </span>
-      <span className="h-8 w-[180px] shrink-0 rounded-full border lg:w-[200px]" />
-      {isAuthenticated ? <span className="h-7 w-7 shrink-0 rounded" /> : <span className="h-8 px-5 text-[13px]">Sign in</span>}
+      <div className="flex items-center gap-5 lg:gap-6">
+        <span className="text-[19px] font-semibold tracking-[-0.02em]" style={{ fontFamily: '"Cal Sans", sans-serif' } as any}>aeri</span>
+        <SectionLinks items={desktopNav} onSelect={() => {}} />
+      </div>
+      <div className="flex items-center gap-1.5 lg:gap-3">
+        <span className="h-8 w-[150px] shrink-0 rounded-full border lg:w-[200px]" />
+        <span className="h-8 w-8 shrink-0 rounded-full" />
+        {isAuthenticated ? (
+          <span className="h-7 w-7 shrink-0 rounded" />
+        ) : (
+          <span className="inline-flex h-[30px] shrink-0 items-center rounded-full px-3.5 text-xs font-medium">Sign in</span>
+        )}
+      </div>
     </div>
   )
 
@@ -245,8 +302,7 @@ export function Navbar() {
             collapsed) branch halves it — owner 2026-10-18: "half the
             distance from aeri to the menu button" — the old gap-6 (24px)
             read as detached on phones. Desktop keeps gap-6. */}
-        <div className={navFits ? 'flex items-center gap-6' : 'flex items-center gap-3'}>
-          {/* Logo — simple Aeri, unselectable */}
+        <div className={navFits ? 'flex items-center gap-5 lg:gap-6' : 'flex items-center gap-3'}>
           {/* Logo — simple Aeri, unselectable */}
           <Link
             to="/"
@@ -260,46 +316,31 @@ export function Navbar() {
           </Link>
 
           {navFits ? (
-          <nav className="flex items-center gap-6" aria-label="Sections">
-            {desktopNav.map((l) => (
-              <NavLink
-                key={l.to}
-                to={l.to}
-                onClick={(e) => {
-                  // Signed-out My List: prompt sign-in, never navigate to a
-                  // page that can only show a locked state.
-                  if (l.to === '/list' && !isAuthenticated) {
-                    e.preventDefault()
-                    setSignInOpen(true)
-                    return
-                  }
-                  dispatchNavigate(l.to)
-                }}
-                className={({ isActive }) =>
-                  `touch-manipulation whitespace-nowrap text-[13px] font-medium transition-colors px-2 py-1.5 rounded -mx-2 ${
-                    isActive ? 'text-[var(--text)]' : 'text-[var(--text-muted)] hover:text-[var(--text)]'
-                  }`
-                }
-                style={{ touchAction: 'manipulation' } as any}
-              >
-                {l.label}
-              </NavLink>
-            ))}
-          </nav>
+          <SectionLinks items={desktopNav} onSelect={onSectionClick} />
           ) : (
+          /* OWNER (2026-10-25): on small scalings the menu + search
+             triggers match the BELL — same 32px hitbox, same muted rest
+             color — so the icon row reads as one control group. Lucide
+             `menu` (three rules) replaces the old bulleted `list` glyph.
+             The smaller box also pulls the icon 6px closer to the wordmark
+             without touching the 12px cluster gap. */
           <button
             aria-label="Menu"
             aria-expanded={mobileNavOpen}
             onClick={() => setMobileNavOpen((v) => !v)}
-            className="grid h-11 w-11 touch-manipulation place-items-center rounded-full text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)] hover:text-[var(--text)]"
+            className="grid h-8 w-8 touch-manipulation place-items-center rounded-full text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)] hover:text-[var(--text)]"
             style={{ touchAction: 'manipulation' } as any}
           >
-            <Icon name="list" size={16} />
+            <Icon name="menu" size={16} />
           </button>
           )}
         </div>
 
-        <div className="flex items-center gap-2 lg:gap-3">
+        {/* OWNER (2026-10-25): the mobile lane packs tighter — the search
+            trigger is a 32px bell-sized box (was 44px), so the glyph sits
+            8px closer to the bell at the same cluster gap; the 6px gap trims
+            the rest. Desktop keeps gap-3. */}
+        <div className="flex items-center gap-1.5 lg:gap-3">
           {navFits ? (
           <form onSubmit={onSearch} className="flex items-center">
             <div ref={searchRef} className="relative">
@@ -312,7 +353,7 @@ export function Navbar() {
                 aria-label="Search anime"
                 aria-expanded={showSuggestions}
                 aria-controls="search-suggestions"
-                className="h-8 w-[180px] rounded-full border border-[var(--border)] bg-[var(--text)]/[0.08] py-0 pl-8 pr-3 text-[13px] text-[var(--text)] placeholder:text-[var(--text-faint)] backdrop-blur focus:w-[240px] focus:border-[var(--border-strong)] focus:bg-[var(--text)]/[0.12] focus:outline-none lg:w-[200px] transition-all"
+                className="h-8 w-[150px] rounded-full border border-[var(--border)] bg-[var(--text)]/[0.08] py-0 pl-8 pr-3 text-[13px] text-[var(--text)] placeholder:text-[var(--text-faint)] backdrop-blur focus:border-[var(--border-strong)] focus:bg-[var(--text)]/[0.12] focus:outline-none lg:w-[200px] lg:focus:w-[240px] transition-all"
               />
               <Icon
                 name="search"
@@ -330,17 +371,19 @@ export function Navbar() {
           <button
             aria-label="Search"
             onClick={() => setMobileSearchOpen((v) => !v)}
-            className="grid h-11 w-11 touch-manipulation place-items-center rounded-full text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)] hover:text-[var(--text)]"
+            className="grid h-8 w-8 touch-manipulation place-items-center rounded-full text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)] hover:text-[var(--text)]"
             style={{ touchAction: 'manipulation' } as any}
           >
             <Icon name="search" size={16} />
           </button>
           )}
 
-          {/* BELL + DIVIDER STAY AT EVERY SCALING (owner 2026-10-19: "dont
-              make the notification button and small | disappear on small
-              scalings") — they used to be gated by navFits and vanished
-              exactly when the lane collapsed. */}
+          {/* BELL STAYS AT EVERY SCALING (owner 2026-10-19: "dont make the
+              notification button and small | disappear on small scalings").
+              OWNER (2026-10-25): the small `|` divider between the bell and
+              the profile is GONE — "remove the divider between the bell and
+              the profile". The bell itself remains at every scale; the right
+              cluster's own gap now does the separation. */}
           {isAuthenticated && (
             <div ref={scheduleRef}>
               <button
@@ -364,12 +407,10 @@ export function Navbar() {
             </div>
           )}
 
-          {isAuthenticated && <div className="h-6 w-px bg-[color-mix(in_srgb,var(--text)_10%,transparent)]" />}
-
           {!isAuthenticated ? (
             <button
               onClick={() => setSignInOpen(true)}
-              className="inline-flex h-7 touch-manipulation items-center rounded-full bg-[var(--text)] px-4 text-[13px] font-semibold text-[var(--on-text)] transition hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)] active:scale-[0.98] lg:h-8 lg:px-5"
+              className={`${pillSolid} touch-manipulation`}
               style={{ touchAction: 'manipulation' } as any}
               aria-label="Sign in"
             >
@@ -464,7 +505,7 @@ export function Navbar() {
 
       {mobileSearchOpen && !navFits && (
         <div ref={mobileSearchRef} className="absolute left-0 right-0 top-14 border-t border-[var(--border)] bg-[var(--bg)] px-4 py-3 shadow-lg shadow-black/20">
-          <form onSubmit={onSearch} className="flex gap-2">
+          <form onSubmit={onSearch} className="flex items-center gap-2">
             <input
               autoFocus
               value={query}
@@ -473,7 +514,7 @@ export function Navbar() {
               placeholder="Search anime"
               className="flex-1 rounded-full border border-[var(--border)] bg-[var(--text)]/[0.08] px-4 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-faint)] focus:border-[var(--border-strong)] focus:outline-none"
             />
-            <button type="submit" className="rounded-full bg-[var(--text)] px-5 text-sm font-medium text-[var(--on-text)]">
+            <button type="submit" className={pillSolid}>
               Go
             </button>
           </form>
@@ -513,7 +554,7 @@ export function Navbar() {
                   setMobileNavOpen(false)
                   setSignInOpen(true)
                 }}
-                className="mt-2 touch-manipulation rounded-full bg-[var(--text)] px-4 py-3 text-sm font-semibold text-[var(--on-text)]"
+                className={`${pillSolid} mt-2 touch-manipulation`}
                 style={{ touchAction: 'manipulation' } as any}
               >
                 Sign in
