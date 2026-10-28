@@ -56,7 +56,7 @@ export function Navbar() {
   const [signInOpen, setSignInOpen] = useState(false)
   const [profileOpen, setProfileOpen] = useState(false)
   const [scheduleOpen, setScheduleOpen] = useState(false)
-  // Incognito (owner 2026-10-23): profile-menu toggle, persisted pref.
+  // Incognito: profile-menu toggle, persisted pref.
   const [incognito, setIncognitoState] = useState(() => isIncognitoEnabled())
   const toggleIncognito = () => {
     const next = !incognito
@@ -82,9 +82,74 @@ export function Navbar() {
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10)
+    onScroll()
     window.addEventListener('scroll', onScroll, { passive: true })
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
+
+  // Reader progress: on /read/* the navbar's divider is a scroll progress
+  // bar instead of a hairline. The fill is written straight to the DOM from
+  // a rAF — a scroll-linked bar must not re-render the navbar every frame.
+  // The document height changes as reader images arrive, so a
+  // ResizeObserver repaints when the track grows, not just on scroll.
+  // GATE: while pages are still loading the document height is a moving
+  // target, so every ratio is wrong — Read.tsx publishes
+  // `aeri:reader-pages` (plus the dataset mirror) once every page has
+  // resolved, and the fill stays at zero until then.
+  const isReader = location.pathname.startsWith('/read/')
+  const readProgressRef = useRef<HTMLDivElement>(null)
+  const readerPagesReadyRef = useRef(false)
+  useEffect(() => {
+    if (!isReader) return
+    let raf = 0
+    const paint = () => {
+      raf = 0
+      const el = readProgressRef.current
+      if (!el) return
+      if (!readerPagesReadyRef.current) {
+        el.style.transform = 'scaleX(0)'
+        el.style.opacity = '0'
+        return
+      }
+      const doc = document.documentElement
+      const max = doc.scrollHeight - doc.clientHeight
+      const ratio = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0
+      el.style.transform = `scaleX(${ratio})`
+      // The fill carries the same neon glow as the Continue Watching bar.
+      // At scaleX(0) a box-shadow still paints at the element's origin, so
+      // the glow is only enabled once the bar actually has length — that
+      // was the old "boxy blob" at the left edge.
+      el.style.opacity = ratio > 0 ? '1' : '0'
+    }
+    const onScroll = () => { if (!raf) raf = requestAnimationFrame(paint) }
+    const onPages = (e: Event) => {
+      readerPagesReadyRef.current = (e as CustomEvent<{ ready?: boolean }>).detail?.ready === true
+      paint()
+    }
+    readerPagesReadyRef.current = document.documentElement.dataset.readerPagesReady === '1'
+    paint()
+    window.addEventListener('scroll', onScroll, { passive: true })
+    window.addEventListener('resize', onScroll)
+    window.addEventListener('aeri:reader-pages', onPages)
+    let ro: ResizeObserver | null = null
+    try {
+      ro = new ResizeObserver(paint)
+      ro.observe(document.documentElement)
+    } catch {
+      // No ResizeObserver: scroll + resize still keep the bar current.
+    }
+    return () => {
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onScroll)
+      window.removeEventListener('aeri:reader-pages', onPages)
+      if (raf) cancelAnimationFrame(raf)
+      try {
+        ro?.disconnect()
+      } catch {
+        // Already disconnected.
+      }
+    }
+  }, [isReader])
 
   // Reset mobile transient UI on any route change (prevents overlay persisting and intercepting clicks).
   // NOTE: the detail card is now the overlay route — it must NOT be cleared
@@ -172,7 +237,7 @@ export function Navbar() {
   // Desktop nav items — Settings lives in the profile menu, not the top bar.
   // Fixed gaps: the left cluster uses ONE gap value at all scales so logo↔nav
   // spacing never breathes during scaling transitions.
-  // MY LIST IS ALWAYS VISIBLE (owner 2026-10-25): signed-out visitors see the
+  // MY LIST IS ALWAYS VISIBLE: signed-out visitors see the
   // same nav as members; clicking it opens the sign-in modal instead of
   // navigating (see the /list guard in both nav renderers). Hiding the tab
   // made the product look like it had no list until you signed in.
@@ -204,11 +269,10 @@ export function Navbar() {
   ]
 
   // Fit-based breakpoint: show the inline nav only when everything fits in
-  // one row AND the viewport is at the hero's `sm` step (640px). OWNER RULE
-  // (2026-10-25): "the top bar only compacts at the same scaling as when the
-  // hero pills goes to the top right" — the hero's dot pill tucks into the
-  // top-right corner below 640 and returns to the bottom-center at 640, so
-  // the nav's compact (menu + search icon) mode must begin at that same
+  // one row AND the viewport is at the hero's `sm` step (640px) — the hero's
+  // dot pill tucks into the top-right corner below 640 and returns to the
+  // bottom-center at 640, so the nav's compact (menu + search icon) mode
+  // must begin at that same
   // scale. A pure width fit collapsed the bar around ~900px (30% breathing
   // factor + a measurer that over-counted the right cluster's tighter gaps),
   // which read as two different mobile breakpoints on one screen.
@@ -289,18 +353,58 @@ export function Navbar() {
     <>
     {measurer}
     <header
-      className={`fixed inset-x-0 top-0 z-50 h-14 touch-manipulation transition-colors duration-300 ${
-        scrolled
-          ? 'bg-[var(--bg)]/95 backdrop-blur-md border-b border-[var(--border)]'
-          : 'bg-gradient-to-b from-[color-mix(in_srgb,var(--bg)_70%,transparent)] via-[var(--bg)] to-transparent'
-      }`}
+      className="fixed inset-x-0 top-0 z-50 h-14 touch-manipulation"
       style={{ touchAction: 'manipulation' } as any}
       aria-label="Primary"
     >
-      <div ref={barRef} data-navbar-bar="true" className="mx-auto flex h-full max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-12 lg:gap-6">
+      {/* Two stacked background layers cross-faded instead of one class
+          swap. `transition-colors` cannot animate a gradient (background
+          images are not interpolable), so the old bar flipped from gradient
+          to solid in a single frame — read as a flash. The gradient now
+          stays put and the solid bar fades in over it. */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[color-mix(in_srgb,var(--bg)_70%,transparent)] via-[var(--bg)] to-transparent"
+      />
+      <div
+        aria-hidden
+        className={`pointer-events-none absolute inset-0 bg-[var(--bg)]/95 transition-opacity duration-300 ${
+          scrolled ? 'opacity-100 backdrop-blur-md' : 'opacity-0'
+        }`}
+      />
+      {/* Divider. Every page gets a hairline; the reader swaps it for a
+          scroll progress bar in the Continue Watching bar's language —
+          15% track, flat white fill WITH the same 6px neon glow
+          (`shadow-[0_0_6px_var(--text)]`). The glow is only painted once
+          the fill has length (opacity 0 at scaleX(0), set from the rAF
+          paint below), because a box-shadow on a zero-width fill still
+          paints a blob at the left edge — the old "boxy blur" artifact.
+          Both fade with `scrolled`, so the top of every page stays clean. */}
+      {isReader ? (
+        <div
+          aria-hidden
+          className={`pointer-events-none absolute inset-x-0 bottom-0 h-[2px] bg-[color-mix(in_srgb,var(--text)_15%,transparent)] transition-opacity duration-300 ${
+            scrolled ? 'opacity-100' : 'opacity-0'
+          }`}
+        >
+          <div
+            ref={readProgressRef}
+            data-testid="navbar-read-progress"
+            className="h-full w-full origin-left bg-[var(--text)] shadow-[0_0_6px_var(--text)]"
+            style={{ transform: 'scaleX(0)', opacity: 0 }}
+          />
+        </div>
+      ) : (
+        <div
+          aria-hidden
+          className={`pointer-events-none absolute inset-x-0 bottom-0 h-px bg-[var(--border)] transition-opacity duration-300 ${
+            scrolled ? 'opacity-100' : 'opacity-0'
+          }`}
+        />
+      )}
+      <div ref={barRef} data-navbar-bar="true" className="relative z-10 mx-auto flex h-full max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-12 lg:gap-6">
         {/* Left cluster: logo + nav/menu share ONE gap. The mobile (menu
-            collapsed) branch halves it — owner 2026-10-18: "half the
-            distance from aeri to the menu button" — the old gap-6 (24px)
+            collapsed) branch halves it — the old gap-6 (24px)
             read as detached on phones. Desktop keeps gap-6. */}
         <div className={navFits ? 'flex items-center gap-5 lg:gap-6' : 'flex items-center gap-3'}>
           {/* Logo — simple Aeri, unselectable */}
@@ -318,7 +422,7 @@ export function Navbar() {
           {navFits ? (
           <SectionLinks items={desktopNav} onSelect={onSectionClick} />
           ) : (
-          /* OWNER (2026-10-25): on small scalings the menu + search
+          /* on small scalings the menu + search
              triggers match the BELL — same 32px hitbox, same muted rest
              color — so the icon row reads as one control group. Lucide
              `menu` (three rules) replaces the old bulleted `list` glyph.
@@ -336,7 +440,7 @@ export function Navbar() {
           )}
         </div>
 
-        {/* OWNER (2026-10-25): the mobile lane packs tighter — the search
+        {/* The mobile lane packs tighter — the search
             trigger is a 32px bell-sized box (was 44px), so the glyph sits
             8px closer to the bell at the same cluster gap; the 6px gap trims
             the rest. Desktop keeps gap-3. */}
@@ -362,7 +466,7 @@ export function Navbar() {
               />
               {showSuggestions && query.trim().length >= 2 && (
                 <HeaderPopup anchorRef={searchInputRef} align="left" width={240} ariaLabel="Search suggestions" role="listbox">
-                  <SearchSuggestions query={query} onClose={() => setShowSuggestions(false)} onPreview={(a) => { if (!isAuthenticated) setSignInOpen(true); else openDetail(a) }} />
+                  <SearchSuggestions query={query} onClose={() => setShowSuggestions(false)} onPreview={openDetail} />
                 </HeaderPopup>
               )}
             </div>
@@ -378,12 +482,9 @@ export function Navbar() {
           </button>
           )}
 
-          {/* BELL STAYS AT EVERY SCALING (owner 2026-10-19: "dont make the
-              notification button and small | disappear on small scalings").
-              OWNER (2026-10-25): the small `|` divider between the bell and
-              the profile is GONE — "remove the divider between the bell and
-              the profile". The bell itself remains at every scale; the right
-              cluster's own gap now does the separation. */}
+          {/* BELL STAYS AT EVERY SCALING. The small `|` divider between the
+              bell and the profile is GONE; the bell itself remains at every
+              scale, and the right cluster's own gap does the separation. */}
           {isAuthenticated && (
             <div ref={scheduleRef}>
               <button
@@ -460,9 +561,9 @@ export function Navbar() {
                       </span>
                       <span className="text-xs font-medium text-[var(--text)]">Settings</span>
                     </Link>
-                    {/* Incognito (owner 2026-10-23, circle-only state
-                        2026-10-23): a plain on/off mode — automatic tracker
-                        writes stop and every tab reads "Incognito - Aeri".
+                    {/* Incognito (circle-only state): a plain on/off mode —
+                        automatic tracker writes stop and every tab reads
+                        "Incognito - Aeri".
                         Manual edits still sync. The ROW is always normal;
                         only the circle + icon invert: ON = --text circle
                         with --on-text icon (white/black on dark themes,
@@ -520,7 +621,7 @@ export function Navbar() {
           </form>
           {showSuggestions && query.trim().length >= 2 && (
             <div className="relative mt-2">
-              <SearchSuggestions query={query} onClose={() => { setShowSuggestions(false); setMobileSearchOpen(false) }} onPreview={(a) => { setMobileSearchOpen(false); if (!isAuthenticated) setSignInOpen(true); else openDetail(a) }} />
+              <SearchSuggestions query={query} onClose={() => { setShowSuggestions(false); setMobileSearchOpen(false) }} onPreview={(a) => { setMobileSearchOpen(false); openDetail(a) }} />
             </div>
           )}
         </div>

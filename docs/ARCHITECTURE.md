@@ -21,7 +21,7 @@ User Browser
 - `BrowserRouter` (D098 — path URLs are canonical). Paths: `/`, `/anime`, `/anime/:id` (overlay detail route), `/watch/:id/:episode`, `/list`, `/search`, `/settings`, `/manga`, `/manga/:id` (overlay detail route).
 - Why it's safe here: the Worker serves the SPA shell for every non-asset GET (`assets.binding: ASSETS` + `not_found_handling: "single-page-application"` in `wrangler.jsonc`; the Worker's own fallback block returns index.html for extension-less non-API paths). Refresh and deep links work natively; no `404.html` copy is involved.
 - **Legacy-hash shim (D098):** URLs shared before the swap (`/#/anime/123`, `/#/search?q=x`) are translated to their path form in `main.tsx` — at boot and again on `hashchange` (solely a same-document fragment edit while the app is open). A post-mount translation re-dispatches `popstate` so the mounted router syncs to the new path immediately. The fragment is then REMOVED from the address bar (one-time normalization, not a redirect).
-- **Detail overlay (D097):** `/anime/:id` + `/manga/:id` exist ONLY as overlay routes rendering `DetailRoute` (floating card via `DetailModal`) ON TOP of the page the card was opened from — `location.state.background` carries that page; bare deep links default to Home behind. The standalone `AnimeDetail` page is deleted. Every preview card / suggestion pick pushes the show's canonical URL; browser Back, Esc, ✕ or backdrop close it (Back hands the history entry back). Signed-out deep links redirect to Home with the sign-in popup (`/?signin=1` hop; members-only per pre-existing policy). Scroll reset is keyed on the background surface so open/close never yanks the page behind the card.
+- **Detail overlay (D097):** `/anime/:id` + `/manga/:id` exist ONLY as overlay routes rendering `DetailRoute` (floating card via `DetailModal`) ON TOP of the page the card was opened from — `location.state.background` carries that page; bare deep links default to Home behind. The standalone `AnimeDetail` page is deleted. Every preview card / suggestion pick pushes the show's canonical URL; browser Back, Esc, ✕ or backdrop close it (Back hands the history entry back). **Guests open the same card (D143):** signed-out deep links and card taps render the floating card (browsing/watching/reading are public); the card hides every tracker control, and only `/list`, `/settings`, `/profile` remain members-only (redirect Home). Scroll reset is keyed on the background surface so open/close never yanks the page behind the card.
 - AniList Authorization Code flow returns `?code=` + `?state=` (search params); handled in `AniListContext` effect (exchange via auth-proxy/Worker). MAL `?code=` likewise parsed in `MALContext` effect (plus the pre-router early handler in `main.tsx`, which only cleans error params). Each context ignores the other's callback by matching URL `state` against its own stored state (D042). All OAuth URL cleanups (`history.replaceState`) target the basename root — no `#/` anywhere.
 
 ## Data Flow
@@ -138,7 +138,8 @@ Watch.tsx (shell renders immediately with anime title/backdrop, episode list imm
 
 **Manga reader (`src/pages/Read.tsx`, `src/providers/manga/*`,
 `worker/src/mangadex.ts`, D128).** Providers resolve one SOURCE per title in
-registry order (MangaDex → WeebCentral → MangaPill → MangaHere → …), verified
+registry order (WeebCentral → MangaHere → MangaPill → MangaDex → …, owner
+default D144), verified
 + enabled only. A matched title is not automatically readable:
 
 - External-only units (licensed links, MangaDex placeholder pages ≤1) never

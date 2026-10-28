@@ -11,12 +11,10 @@ import { useDetailOpen } from '../hooks/useDetailOpen'
 import { ANILIST_GENRES } from '../lib/genres'
 import { pillSolid, pillSoft } from '../components/ui/buttonStyles'
 
-// STATUS = the STOLEN pill row (owner 2026-10-19: "remove all statuses. on
-// the anime page, steal the popular/trending/airing and replace that with
-// the statuses like all/plan to watch/watching..."). The pill row component
-// is Browse's category lane verbatim — same geometry/copy/active fill —
-// with statuses as labels, in the owner's listed order. NO Status dropdown
-// (statuses appear nowhere as a select; the four browse dropdowns remain).
+// STATUS = THE SAME PILL ROW as the Anime page: Browse's category lane
+// verbatim — same geometry/copy/active fill — with statuses as the labels,
+// in list order. NO Status dropdown (statuses appear nowhere as a select;
+// the four browse dropdowns remain).
 const statusTabs: { id: AnimeStatus | 'all'; label: string }[] = [
   { id: 'all', label: 'All' },
   { id: 'planned', label: 'Plan to Watch' },
@@ -121,15 +119,12 @@ export function MyList() {
         </div>
       )}
 
-      {/* Filter row = THE ANIME LANE (owner 2026-10-19, "remove all
-          statuses. on the anime page, steal the popular/trending/airing
-          and replace that with the statuses like all/plan to watch/
-          watching"): Browse's category-pills lane verbatim — same pill
-          geometry/copy/active fill — with STATUSES as the labels (owner's
-          order). Wide: pills LEFT, the four browse dropdowns RIGHT
-          (justify-between, as Browse). Narrow: one joined swipeable
+      {/* Filter row = THE ANIME LANE: Browse's category-pills lane verbatim
+          — same pill geometry/copy/active fill — with STATUSES as the
+          labels, in list order. Wide: pills LEFT, the four browse dropdowns
+          RIGHT (justify-between, as Browse). Narrow: one joined swipeable
           scroller, nothing clips. Statuses exist ONLY as pills — the
-          status dropdown is REMOVED (by owner request). */}
+          status dropdown is REMOVED. */}
       <div className="mt-4 hidden min-w-0 flex-nowrap items-center justify-between gap-4 py-0.5 lg:flex">
         <div className="flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto no-scrollbar">
           {statusTabs.map(t => (
@@ -216,9 +211,7 @@ export function MyList() {
       ) : !loading ? (
         <>
           {/* THE ANIME-PAGE GRID, verbatim: same columns/gaps/classes as
-              Browse and every card the DEFAULT variant (owner 2026-10-19:
-              "steal like how anime cards are displayed like in the anime
-              page, not like continue watching. same size and stuff") —
+              Browse and every card the DEFAULT variant —
               no continue-style caption/progress strip here; progress
               lives in the preview card. Anime List is anime-kind only. */}
           <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">

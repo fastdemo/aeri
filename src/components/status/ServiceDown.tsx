@@ -9,8 +9,7 @@ const SERVICE_LABEL: Record<ServiceKey, string> = {
 }
 
 /** Full-surface replacement for a page the currently-down service powers
- *  (D112, owner 2026-10-21: "a simple down page like the MAL/AniList
- *  website"). Deliberately plain: wordmark, one honest line, one button.
+ *  (D112). Deliberately plain: wordmark, one honest line, one button.
  *  No spinners, no countdowns, no promotions of broken content.
  *  Secondary link: signed-in → Settings (diagnostics live there);
  *  signed-out → Docs (Settings requires an account and would bounce the

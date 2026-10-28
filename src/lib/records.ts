@@ -1,9 +1,7 @@
 import type { Anime, AnimeListEntry } from '../types/anime'
 
 /**
- * Completeness gate (owner rule 2026-10-18: "don't load the entire preview
- * card when all the info is not enough yet — wait until all the metadata is
- * good to go, then load"). A record is good-to-go when its core metadata is
+ * Completeness gate. A record is good-to-go when its core metadata is
  * all fielded: real artwork plus a relations field (rail- and detail-fetched
  * AniList Media records always carry it; lite copies — tracker list rows,
  * related tiles, MAL-sourced entries — never do, so they fail this test).
@@ -17,7 +15,7 @@ export function isCompleteRecord(a: Anime | null | undefined): boolean {
 }
 
 /**
- * Richer-wins display pick (owner rule 2026-10-18). The preview card must
+ * Richer-wins display pick. The preview card must
  * never DOWNGRADE a complete AniList record to a lite tracker-list copy —
  * that unconditional swap was the sparse-card-then-fill regression: the
  * list copy won the display, and the MAL enrichment drip only "fixed" the

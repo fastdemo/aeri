@@ -3,16 +3,11 @@ import { seedTestAuth, routeTestMalIdentity } from './helpers/test-auth'
 import { routeTestAnilistMedia } from './helpers/test-anilist'
 
 /**
- * WATCH PAGE CONTROLS — the owner's components, restored (2026-10-26).
+ * WATCH PAGE CONTROLS — shape, not just size.
  *
- * "what the fuck did you do to the previous, episode 1 button. it should look
- * like the old one but with the same size as the other component. and the
- * sub/dub to. REVERT THAT TO THE OLD TOGGLE!! i just meant the same size, not
- * CHANGE COMPONENTS!"
- *
- * So this file pins the SHAPE, not just the size:
- *   - Prev / current / Next are three SOLID WHITE pills, semibold, the middle
- *     one a non-interactive span — exactly as before the size pass.
+ *   - Prev / Next are solid white pills at the shared 30px geometry.
+ *   - The middle control is the episode picker (the same dropdown as the
+ *     source picker), so the row both reports and changes position.
  *   - Sub/Dub is a TRACK + INNER PILL (the old segmented toggle), 30px tall
  *     overall.
  *   - The current episode tile no longer wears a "Now playing" chip: it wears
@@ -34,7 +29,6 @@ async function setup(page: Page): Promise<void> {
       localStorage.setItem('aeri:prefs', JSON.stringify({
         ...cur,
         customVideoApiUrl: 'https://aeri.fastdemo.workers.dev',
-        preferredProvider: 'aniwave',
         preferredAudio: 'sub',
         autoplay: false,
       }))
@@ -55,7 +49,7 @@ async function setup(page: Page): Promise<void> {
 }
 
 test.describe('Watch controls — old components, unified size', () => {
-  test('episode nav is the original white pill row at 30px', async ({ page }) => {
+  test('episode nav: white prev/next pills and a 30px episode picker', async ({ page }) => {
     test.setTimeout(180000)
     await setup(page)
     await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
@@ -66,7 +60,7 @@ test.describe('Watch controls — old components, unified size', () => {
         [...document.querySelectorAll('a,button,span')].find(
           (n) => (n.textContent || '').trim() === label,
         ) as HTMLElement | undefined
-      return ['← Previous', 'Episode 1', 'Next →'].map((label) => {
+      return ['← Previous', 'Next →'].map((label) => {
         const el = find(label)
         if (!el) return { label, missing: true }
         const cs = getComputedStyle(el)
@@ -89,6 +83,65 @@ test.describe('Watch controls — old components, unified size', () => {
       expect(pill.size, `${pill.label} size`).toBe('12px')
       expect(pill.padLeft, `${pill.label} keeps the original px-4`).toBe('16px')
     }
+
+    // Middle control: a real <select> over the episode list, on the same
+    // 30px pill geometry as its neighbours.
+    const picker = page.locator('[data-testid="episode-nav"] select')
+    await expect(picker).toHaveAttribute('aria-label', 'Select episode')
+    await expect(picker).toHaveValue('1')
+    const optionCount = await picker.locator('option').count()
+    expect(optionCount, 'every episode is offered').toBeGreaterThan(1)
+
+    const pickerHeight = await page.evaluate(() => {
+      const select = document.querySelector('[data-testid="episode-nav"] select')
+      const pill = select?.parentElement
+      return pill ? Math.round(pill.getBoundingClientRect().height * 10) / 10 : -1
+    })
+    expect(pickerHeight, 'picker pill height').toBeCloseTo(30, 0)
+
+    // Tone exception: the episode picker is a white button (white fill,
+    // --on-text label AND chevron, no visible border or focus ring). Every
+    // other dropdown — here the source picker — keeps the dark filter
+    // treatment. Focus the picker first: the ring used to appear on click
+    // and read as a dark border around the white pill.
+    await picker.focus()
+    const tones = await page.evaluate(() => {
+      const read = (selector: string) => {
+        const select = document.querySelector(selector) as HTMLSelectElement | null
+        const pill = select?.parentElement as HTMLElement | null
+        if (!pill) return null
+        const cs = getComputedStyle(pill)
+        const label = pill.querySelector('span[aria-hidden]') as HTMLElement | null
+        const chevron = pill.querySelector('svg') as SVGElement | null
+        return {
+          bg: cs.backgroundColor,
+          borderColor: cs.borderTopColor,
+          shadow: cs.boxShadow,
+          text: label ? getComputedStyle(label).color : null,
+          chevron: chevron ? getComputedStyle(chevron).color : null,
+          chevronStroke: chevron ? getComputedStyle(chevron).strokeWidth : null,
+        }
+      }
+      return {
+        episode: read('[data-testid="episode-nav"] select'),
+        source: read('select[aria-label="Select video source"]'),
+      }
+    })
+    expect(tones.episode, 'episode picker exists').not.toBeNull()
+    expect(tones.episode!.bg, 'episode picker is white').toBe('rgb(255, 255, 255)')
+    expect(tones.episode!.text, 'episode picker label uses --on-text').toBe('rgb(0, 0, 0)')
+    expect(tones.episode!.chevron, 'episode picker chevron matches the label').toBe('rgb(0, 0, 0)')
+    expect(tones.episode!.borderColor, 'episode picker has no visible border').toBe('rgba(0, 0, 0, 0)')
+    expect(tones.episode!.shadow, 'episode picker paints no focus ring').toBe('none')
+    expect(tones.episode!.chevronStroke, 'episode picker chevron matches the arrow weight').toBe('2.5px')
+    expect(tones.source, 'source picker still renders').not.toBeNull()
+    expect(tones.source!.bg, 'source picker stays dark').toBe('rgb(10, 10, 10)')
+    expect(tones.source!.text, 'source picker keeps --text').toBe('rgb(255, 255, 255)')
+    expect(tones.source!.chevron, 'source picker keeps the faint chevron').toBe('rgb(110, 110, 110)')
+    expect(tones.source!.chevronStroke, 'source picker keeps the standard 2 stroke').toBe('2px')
+
+    await picker.selectOption('2')
+    await expect(page).toHaveURL(/\/watch\/anilist-20\/2$/)
   })
 
   test('Sub/Dub is the original track + inner pill, 30px overall', async ({ page }) => {
@@ -110,6 +163,7 @@ test.describe('Watch controls — old components, unified size', () => {
         trackRadius: parseFloat(tcs.borderTopLeftRadius),
         trackBorder: tcs.borderTopWidth,
         trackPad: tcs.paddingTop,
+        trackBg: tcs.backgroundColor,
         innerH: Math.round(sub.getBoundingClientRect().height * 10) / 10,
         innerBg: scs.backgroundColor,
         innerRadius: parseFloat(scs.borderTopLeftRadius),
@@ -120,6 +174,10 @@ test.describe('Watch controls — old components, unified size', () => {
     expect(toggle!.trackRadius).toBeGreaterThanOrEqual(9999)
     expect(toggle!.trackBorder).toBe('1px')
     expect(toggle!.trackPad).toBe('4px')
+    // Track colour must be the SAME token as Settings' Sub/Dub toggle
+    // (--bg-soft #0a0a0a), not a 4%-white wash that composites differently
+    // over the player card.
+    expect(toggle!.trackBg, 'track matches Settings bg-[var(--bg-soft)]').toBe('rgb(10, 10, 10)')
     // The selected side is the inner white pill, not a standalone pill.
     expect(toggle!.innerH).toBeCloseTo(20, 0)
     expect(toggle!.innerBg).toBe('rgb(255, 255, 255)')

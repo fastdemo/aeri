@@ -1,5 +1,5 @@
 /**
- * Tab-title builder (owner 2026-10-18): `<NAME> - Aeri`, or plain "Aeri"
+ * Tab-title builder: `<NAME> - Aeri`, or plain "Aeri"
  * when a page has no natural name (unknown routes). Everything that sets
  * a tab title goes through here so the format has exactly one home.
  */
@@ -13,8 +13,8 @@ export function aeriTitle(name: string | null | undefined): string {
  * useAeriTitle). Static names come from the URL alone, so pages never
  * wire titles manually; live-data pages (detail overlays, Watch, Read)
  * override with the record's name via the same hook's 'override' slot.
- * `/search` uses the live `?q=` term, wrapped in quotes per the owner's
- * example (`"romance" - Aeri` — real quote characters).
+ * `/search` uses the live `?q=` term, wrapped in quotes
+ * (`"romance" - Aeri` — real quote characters).
  */
 export function routeDefaultTitle(pathname: string, search: string): string | null {
   const bare = pathname.replace(/\/+$/, '') || '/'

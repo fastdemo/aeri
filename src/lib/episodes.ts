@@ -154,7 +154,7 @@ function isValidHttpUrl(url: string): boolean {
 }
 
 /**
- * OWNER RULE (2026-10-23, tightened 2026-10-25): Kitsu may answer ONLY when
+ * Kitsu may answer ONLY when
  * AniList cannot render usable episode metadata for the entry. "Usable"
  * means at least one non-generic title or one real thumbnail AND that list
  * survives the season-pollution / range guards. Partial AniList data is
@@ -210,9 +210,7 @@ export function filterAndSortStreamingEpisodes(
 }
 
 /**
- * SEASON-POLLUTION GUARD (owner report 2026-10-18: "some shows have an
- * identity crisis between season 1 and 2, showing the same episodes, like
- * code geass or eighty six"). AniList frequently attaches ANOTHER season's
+ * SEASON-POLLUTION GUARD. AniList frequently attaches ANOTHER season's
  * crunchyroll listing to a sequel entry — verified upstream: Code Geass R2
  * (2904) carries S1's full 25-row list (identical titles AND crunchyroll
  * urls), and 86: Part 2 (131586) carries Part 1's 11 rows over its own 12.
@@ -279,7 +277,7 @@ export function sanitizeAnimeForDisplay(anime: Anime): Anime {
 }
 
 /**
- * OWNER RULE (2026-10-25, Code Geass R2): the Kitsu fallback is allowed when
+ * the Kitsu fallback is allowed when
  * AniList's episode metadata does NOT survive the display guards. The old
  * gate asked only "does the raw list contain a title/thumbnail?", so a
  * season-polluted list (AniList id 2904 carries S1's 25 Crunchyroll rows)
@@ -627,6 +625,36 @@ export function getAiredEpisodeCount(anime: Anime): number {
   // But to be safe for currently airing, if status is RELEASING and no schedule, we should not hide, show all
   // The user wants to hide future episodes only when we have air date info
   return anime.episodes ?? anime.streamingEpisodes?.length ?? 0
+}
+
+/**
+ * DISPLAY DENOMINATOR FOR PROGRESS. Airing shows are measured against the
+ * episodes that HAVE AIRED, not the
+ * planned season total — otherwise a fully caught-up viewer of a 12-episode
+ * show sitting on episode 3 reads as 25% instead of 3 of 3. Finished shows
+ * are unaffected: `getAiredEpisodeCount` returns the full episode count for
+ * them, so the denominator stays the real total.
+ *
+ * `plannedTotal` is the caller's known total (episodes for anime, chapters
+ * for manga) and is used as the fallback when there is no airing data at
+ * all. Never returns more than the planned total when one is known.
+ */
+export function getAiredTotal(anime: Anime, plannedTotal = 0): number {
+  const planned = plannedTotal > 0 ? plannedTotal : (anime.episodes ?? 0)
+  const aired = getAiredEpisodeCount(anime)
+  if (aired <= 0) return planned
+  return planned > 0 ? Math.min(aired, planned) : aired
+}
+
+/**
+ * Percentage of the AIRED units completed (0-100). `fallback` is returned
+ * when the denominator is unknown, so callers keep whatever the tracker
+ * supplied rather than inventing a number.
+ */
+export function getAiredProgressPercent(anime: Anime, watched: number, plannedTotal = 0, fallback = 0): number {
+  const total = getAiredTotal(anime, plannedTotal)
+  if (total <= 0 || watched <= 0) return fallback
+  return Math.min(100, Math.round((watched / total) * 100))
 }
 
 export function getEpisodeCount(

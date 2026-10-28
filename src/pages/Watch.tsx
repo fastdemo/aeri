@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, useCallback } from 'react'
-import { Link, useParams, useNavigate, useLocation, Navigate } from 'react-router-dom'
+import { Link, useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useTracking } from '../contexts/TrackingContext'
 import { useAnimeDetail } from '../hooks/useAnimeMetadata'
 import { useAeriTitle } from '../hooks/useAeriTitle'
@@ -52,7 +52,7 @@ export function Watch() {
   // streamingEpisodes). It supplies tracking state only — all display
   // data comes from the full Media record, or nothing renders yet.
   const anime = remote ?? null
-  // TAB TITLE (owner 2026-10-18): the show's own name, e.g. "Naruto - Aeri".
+  // TAB TITLE: the show's own name, e.g. "Naruto - Aeri".
   // HOOK PLACEMENT RULE: this call MUST sit above the component's early
   // returns (redirect/skeleton/not-found) — hooks are called on EVERY
   // render, and a call added after an early return crashes React with
@@ -64,7 +64,7 @@ export function Watch() {
   // floating detail card WITH the nav state (this page as background + the
   // record when held) so the card floats over the watch page and closing
   // returns here intact. A bare Link would swap the background to Home and
-  // remount the page on close — the "refresh" the owner reported.
+  // remount the page on close — the "refresh" users saw.
   const detailNav = anime
     ? { to: detailPath(anime), state: { background: { pathname: location.pathname, search: location.search }, anime } }
     : { to: `/anime/${id}`, state: { background: { pathname: location.pathname, search: location.search } } }
@@ -107,7 +107,7 @@ export function Watch() {
     }))
   }, [sanitizedAnimeForWatch, kitsu])
 
-  // PROGRESS VALIDITY (owner 2026-10-23): never write progress from an
+  // PROGRESS VALIDITY: never write progress from an
   // incomplete/broken record. A usable record has at least one tracker id,
   // a real title, a finite episode number and — when the total is known —
   // an episode inside 1..total. Anything else performs NO tracker write.
@@ -119,18 +119,18 @@ export function Watch() {
     (anime.episodes == null || anime.episodes <= 0 || epNum <= anime.episodes),
   )
 
-  // OWNER (2026-10-25): "reaching 80% advances progress by one." A write
+  // PROGRESS ONLY MOVES FORWARD. A write
   // must never REGRESS the tracker: rewatching an earlier episode (progress
   // 8, episode 3 at 80%) leaves progress at 8. Only a not-yet-counted
   // episode advances it.
   const trackedProgress = trackingEntry?.progress ?? anime?.progress?.episode ?? 0
   const canAdvanceProgress = canSyncProgress && epNum > trackedProgress
 
-  // NOTE (owner 2026-10-23): opening an episode does not mark it WATCHED.
+  // NOTE: opening an episode does not mark it WATCHED.
   // Progress advances exactly once per episode, when >= 80% of a genuinely
   // loaded video has played (below), or when the video ends.
   //
-  // OWNER (2026-10-25): opening an episode DOES put the title in Watching —
+  // opening an episode DOES put the title in Watching —
   // status + start date, even when the episode is unfinished. This is the
   // "I started this show" signal, separate from episode completion. Written
   // once per open, only when the entry is not already Watching (so a
@@ -193,7 +193,6 @@ export function Watch() {
   const [selectedSource, setSelectedSource] = useState<VideoSourceEnhanced | null>(null)
   const [triedProviders, setTriedProviders] = useState<string[]>([])
   const prefs = getPreferences()
-  const preferredProvider = prefs.preferredProvider
   const preferredAudio = prefs.preferredAudio
 
   useEffect(() => {
@@ -205,7 +204,7 @@ export function Watch() {
     setSources(null)
     setSelectedSource(null)
     setTriedProviders([])
-    resolveSourcesForLanguages(effectiveEpisode, { preferredProvider, preferredLanguage: preferredAudio, languages: ['sub', 'dub'], signal: controller.signal, ...matchHints })
+    resolveSourcesForLanguages(effectiveEpisode, { preferredLanguage: preferredAudio, languages: ['sub', 'dub'], signal: controller.signal, ...matchHints })
       .then(res => {
         if (cancelled || controller.signal.aborted) return
         const playable = res.sources.filter(isPlayableSource)
@@ -224,17 +223,16 @@ export function Watch() {
         setSourcesLoading(false)
       })
     return () => { cancelled = true; controller.abort() }
-  }, [effectiveEpisode?.id, effectiveEpisode?.providerEpisodeId, preferredProvider, preferredAudio])
+  }, [effectiveEpisode?.id, effectiveEpisode?.providerEpisodeId, preferredAudio])
 
   // Local watch position (resume)
   const [watchPos, setWatchPos] = useState<{ currentTime: number; duration: number; episode: number } | null>(null)
   const [showResume, setShowResume] = useState(false)
   const hasShownResume = useRef(false)
-  // EXPLICIT SEEK REQUESTS (owner 2026-10-25 "make the resume overlay work
-  // better"): `initialTime` only fires on mount, so Restart never actually
-  // rewound an already-playing video and Resume depended on the pill
-  // unmounting in the right order. Both now post a nonce'd seek to the
-  // player — the effect re-runs on every click, whatever the element's
+  // EXPLICIT SEEK REQUESTS: `initialTime` only fires on mount, so Restart
+  // never actually rewound an already-playing video and Resume depended on
+  // the pill unmounting in the right order. Both now post a nonce'd seek to
+  // the player — the effect re-runs on every click, whatever the element's
   // ready state.
   const [seekRequest, setSeekRequest] = useState<{ time: number; nonce: number } | null>(null)
   const seekNonce = useRef(0)
@@ -244,7 +242,9 @@ export function Watch() {
   }, [])
 
   useEffect(() => {
-    if (!anime) return
+    // GUEST MODE (owner 2026-10-28): signed-out viewing is a fresh session —
+    // never read a saved position (no Resume), never write one.
+    if (!anime || !isAuthenticated) return
     let cancelled = false
     getWatchPos(anime.identity.internalId).then(pos => {
       if (cancelled || !pos) return
@@ -258,7 +258,7 @@ export function Watch() {
       }
     }).catch(() => {})
     return () => { cancelled = true }
-  }, [anime?.identity.internalId, epNum])
+  }, [anime?.identity.internalId, epNum, isAuthenticated])
 
   // When episode changes, reset resume flag
   useEffect(() => { hasShownResume.current = false; setShowResume(false) }, [epNum])
@@ -269,7 +269,7 @@ export function Watch() {
 
   const handleTimeUpdate = useCallback((currentTime: number, duration: number) => {
     if (!anime || !Number.isFinite(duration) || duration < 30) return
-    // 80% rule (owner 2026-10-23): an episode counts as FINISHED — and only
+    // 80% rule: an episode counts as FINISHED — and only
     // then does tracker progress advance (+1) — once 80% of the loaded
     // video has played. Evaluated on every tick BEFORE the position-save
     // throttle so crossing the threshold is never skipped.
@@ -280,12 +280,14 @@ export function Watch() {
     const now = Date.now()
     if (now - lastSaveRef.current < 5000) return
     lastSaveRef.current = now
+    // Guests persist nothing (incognito-like fresh session).
+    if (!isAuthenticated) return
     putWatchPos({ id: anime.identity.internalId, episode: epNum, currentTime, duration, updatedAt: Date.now() }).catch(() => {})
   }, [anime, epNum, isAuthenticated, updateProgress, canAdvanceProgress])
 
   const handleEnded = useCallback(() => {
     if (!anime) return
-    clearWatchPos(anime.identity.internalId).catch(() => {})
+    if (isAuthenticated) clearWatchPos(anime.identity.internalId).catch(() => {})
     // End-of-video = 100% watched; same validity + no-regression gate as the
     // 80% path.
     if (isAuthenticated && canAdvanceProgress && !hasCompletedRef.current) {
@@ -313,12 +315,9 @@ export function Watch() {
     setShowResume(false)
     setWatchPos(null)
     requestSeek(0)
-    if (anime) clearWatchPos(anime.identity.internalId).catch(() => {})
+    if (anime && isAuthenticated) clearWatchPos(anime.identity.internalId).catch(() => {})
   }
 
-  if (!isAuthenticated) {
-    return <Navigate to="/" replace />
-  }
   if (loadingAnime && !anime) {
     return (
       <div className="mx-auto max-w-[1280px] px-0 sm:px-4 lg:px-6">
@@ -343,6 +342,17 @@ export function Watch() {
   const nextLocal = !isMovie && immediateEpisodes.length > 0 && epNum < immediateEpisodes.length ? epNum + 1 : null
   const prev = prevLocal
   const next = nextLocal
+  // Middle control of the episode nav: a picker over this entry's own
+  // episodes. The current episode is normally in the list; when it is not
+  // (a number past the known total, or a one-off special) it is added so the
+  // pill never renders blank.
+  const episodeOptions = immediateEpisodes.map(ep => ({
+    value: String(ep.displayNumber),
+    label: `Episode ${ep.displayNumber}`,
+  }))
+  if (!episodeOptions.some(o => o.value === String(epNum))) {
+    episodeOptions.unshift({ value: String(epNum), label: `Episode ${epNum}` })
+  }
   // Episode tiles use the same placeholder rule as EpisodeList: an episode
   // without its own artwork shows the show's own backdrop/cover — never a
   // bare empty box.
@@ -350,7 +360,7 @@ export function Watch() {
   // Watched boundary for the tile ticks — same rule as the preview card's
   // episode rows: everything up to the tracker's progress is seen.
   const watchedUpTo = trackedProgress
-  // Metadata line owner rule (2026-10-24): season + year, format, duration —
+  // Metadata line: season + year, format, duration —
   // never the playback provider. "Fall 2006 • TV • 24m".
   const seasonLabel = formatLabel(anime.season)
   const yearLabel = anime.year ? String(anime.year) : null
@@ -360,12 +370,12 @@ export function Watch() {
     formatLabel(anime.format) ?? anime.format ?? null,
     anime.duration ? `${anime.duration}m` : null,
   ].filter(Boolean).join(' • ') || '—'
-  // Episode nav pills — the ORIGINAL shape (owner 2026-10-26: "it should
-  // look like the old one but with the same size as the other component"):
-  // all three are solid white pills, the middle one a non-interactive span.
-  // Size comes from the shared 30px geometry (6px padding + 16px leading-4
-  // + 1px transparent border); the transparent border only pins the height,
-  // it draws nothing. Do not restyle these into another component.
+  // Episode nav pills — the ORIGINAL shape: all three controls sit on the
+  // same 30px geometry (6px padding + 16px leading-4 + 1px transparent
+  // border); the transparent border only pins the height, it draws nothing.
+  // Previous/next are solid white; the middle control is the shared
+  // FilterSelect dropdown, whose own 30px pill keeps the row aligned. Do not
+  // restyle these into another component.
   const navPill = 'inline-flex max-w-full items-center justify-center truncate rounded-full border border-transparent bg-[var(--text)] px-4 py-1.5 text-xs font-semibold leading-4 text-[var(--on-text)] transition disabled:cursor-not-allowed disabled:opacity-40'
   const navPillLink = `${navPill} hover:bg-[color-mix(in_srgb,var(--text)_90%,transparent)] active:scale-[0.98]`
   const titles = getTitleHierarchy(anime)
@@ -376,12 +386,10 @@ export function Watch() {
   return (
     <div className="min-h-screen bg-[var(--bg)]">
       <div className="mx-auto max-w-[1280px] px-0 sm:px-4 lg:px-6">
-        {/* Player area — PLAIN SURFACE (owner 2026-10-26): "just the plain
-            background and the media player on top". No wrapper fill and no
-            artwork poster behind the picture; the previous border-y "band"
-            hairlines are gone. The Video.js skin keeps its STOCK 28px corner
-            radius (owner follow-up: "return the media player corner radius to
-            the stock state"), and the player wears the hero's frosted frame
+        {/* Player area — PLAIN SURFACE: the plain background with the media
+            player on top. No wrapper fill and no artwork poster behind the
+            picture; the previous border-y "band" hairlines are gone. The Video.js skin keeps its STOCK 28px corner
+            radius, and the player wears the hero's frosted frame
             (`.frame-glass`: 1px --border-card hairline on a 3px blurred rim)
             instead of the skin's own 1px line, which `.aeri-player` keeps
             transparent so the edge never doubles. The loading state is the
@@ -423,7 +431,7 @@ export function Watch() {
           {/* Resume prompt — top center, clear of player controls.
               Shows whenever a saved position exists (not gated on video
               readiness, which can lag behind IDB on slow networks).
-              SKIN (owner 2026-10-25): the same frosted Aeri surface as the
+              SKIN: the same frosted Aeri surface as the
               player chrome — translucent base tint, hairline, deep shadow —
               plus z-30 so no player layer can cover it. */}
           {showResume && watchPos && (
@@ -466,7 +474,7 @@ export function Watch() {
                       if (effectiveEpisode) {
                         setSourcesLoading(true)
                         setSourcesError(null)
-                        resolveSourcesForLanguages(effectiveEpisode, { preferredProvider, preferredLanguage: preferredAudio, languages: ['sub', 'dub'], bypassCache: true, ...matchHints }).then(res => {
+                        resolveSourcesForLanguages(effectiveEpisode, { preferredLanguage: preferredAudio, languages: ['sub', 'dub'], bypassCache: true, ...matchHints }).then(res => {
                           setSources(res.sources)
                           setTriedProviders(res.tried)
                           if (res.sources.length) {
@@ -504,7 +512,7 @@ export function Watch() {
                       if (effectiveEpisode) {
                         setSourcesLoading(true)
                         setSourcesError(null)
-                        resolveSourcesForLanguages(effectiveEpisode, { preferredProvider, preferredLanguage: preferredAudio, languages: ['sub', 'dub'], bypassCache: true, ...matchHints }).then(res => {
+                        resolveSourcesForLanguages(effectiveEpisode, { preferredLanguage: preferredAudio, languages: ['sub', 'dub'], bypassCache: true, ...matchHints }).then(res => {
                           setSources(res.sources)
                           setTriedProviders(res.tried)
                           if (res.sources.length) {
@@ -536,7 +544,7 @@ export function Watch() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h1 className="text-[15px] font-semibold text-[var(--text)]">
-                {/* Owner 2026-10-25: the show NAME stands alone — the episode
+                {/* The show NAME stands alone — the episode
                     number lives in the Now-playing tile and the nav pills,
                     never appended to the title. */}
                 {titles.primary}
@@ -552,7 +560,7 @@ export function Watch() {
                   URL-keyed native select silently jumped to the first match —
                   the "picker does nothing" bug. */}
               {sources && sources.length > 0 && (() => {
-                // AUDIO IS A SEPARATE CONTROL (owner 2026-10-24): the source
+                // AUDIO IS A SEPARATE CONTROL: the source
                 // picker lists only the streams for the active Sub/Dub side.
                 // Its label is the provider alone (plus a REAL quality, never
                 // the "auto" placeholder) — the language lives on the toggle.
@@ -579,14 +587,12 @@ export function Watch() {
                 )
               })()}
               {/* SUB/DUB toggle when available — the ORIGINAL segmented
-                  toggle (owner 2026-10-26: "REVERT THAT TO THE OLD TOGGLE …
-                  i just meant the same size, not CHANGE COMPONENTS"). Track +
-                  inner pill, exactly as before; only the height is unified:
-                  1px border + 4px track padding + a 20px inner pill (16px
-                  leading-4 + 2px padding) = 30px, the same box as every
-                  other control. */}
+                  toggle: track + inner pill, exactly as before; only the
+                  height is unified — 1px border + 4px track padding + a 20px
+                  inner pill (16px leading-4 + 2px padding) = 30px, the same
+                  box as every other control. */}
               {sources && sources.some(s => s.language) && (
-                <div className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--text)]/[0.04] p-1">
+                <div className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--bg-soft)] p-1">
                   {(['sub','dub'] as const).map(lang => {
                     const hasLang = sources.some(s => s.language === lang)
                     const isActive = selectedSource?.language === lang || (!selectedSource?.language && preferredAudio === lang)
@@ -611,11 +617,10 @@ export function Watch() {
             </div>
           </div>
 
-          {/* Episode navigation — hidden for movies. The middle pill is the
-              current episode only: white like the side pills, but a
-              non-focusable span with no click handler and no hover. */}
+          {/* Episode navigation — hidden for movies. Previous/next are the
+              white pills; the middle control is the episode picker. */}
           {!isMovie && (
-            <div className="mt-4 flex flex-wrap items-center gap-2">
+            <div data-testid="episode-nav" className="mt-4 flex flex-wrap items-center gap-2">
               {prev ? (
                 <Link to={`/watch/${id}/${prev}`} className={navPillLink}>
                   ← Previous
@@ -626,9 +631,23 @@ export function Watch() {
                 </button>
               )}
 
-              <span aria-current="step" className={`${navPill} cursor-default select-none`}>
-                Episode {epNum}
-              </span>
+              {/* Middle control: the episode picker. Same 30px pill geometry
+                  as the prev/next links, but a dropdown — the current
+                  episode is the selected option, so the row both reports and
+                  changes position. */}
+              {immediateEpisodes.length > 0 ? (
+                <FilterSelect
+                  value={String(epNum)}
+                  onChange={v => { if (v && id) navigate(`/watch/${id}/${v}`) }}
+                  ariaLabel="Select episode"
+                  tone="solid"
+                  options={episodeOptions}
+                />
+              ) : (
+                <span aria-current="step" className={`${navPill} cursor-default select-none`}>
+                  Episode {epNum}
+                </span>
+              )}
 
               {next ? (
                 <Link to={`/watch/${id}/${next}`} className={navPillLink}>
@@ -651,7 +670,7 @@ export function Watch() {
             </Link>
           )}
 
-          {/* Synopsis — ABOVE the episode list (owner 2026-10-25): the page
+          {/* Synopsis — ABOVE the episode list: the page
               reads show → what it is → episodes → related. */}
           <div className="mt-6">
             <h2 className="mb-2 text-sm font-semibold text-[var(--text)]">Synopsis</h2>
@@ -659,7 +678,7 @@ export function Watch() {
           </div>
 
           {/* Episode list — this entry's own episodes, no season model.
-              Header (owner 2026-10-25): title left, count right — the exact
+              Header: title left, count right — the exact
               Home row header rhythm ("25 episodes"). */}
           {!isMovie && (
             <div className="mt-6">
@@ -674,14 +693,14 @@ export function Watch() {
               {immediateEpisodes.length > 0 ? (
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                   {immediateEpisodes.map(ep => {
-                    // CURRENT TILE (owner 2026-10-26): the white "Now
+                    // CURRENT TILE: the white "Now
                     // playing" chip is gone. The playing episode wears the
                     // SAME overlay as a watched one — 40% base scrim + glyph
                     // — but with `audio-lines` instead of the tick, so "this
                     // is playing" reads as sound, not as "already seen".
                     // aria-current stays for semantics.
                     const isCurrent = ep.number === epNum
-                    // WATCHED TICK (owner 2026-10-25): the exact overlay the
+                    // WATCHED TICK: the exact overlay the
                     // preview card's episode rows use — 40% base scrim + the
                     // check glyph — so "already seen" reads the same on both
                     // surfaces.
@@ -715,8 +734,7 @@ export function Watch() {
                         )}
                         {/* Same hover treatment as AnimeCard (D083): base-tinted
                             scrim + 8px frost + centered play glyph. The glyph
-                            is 22px — the same 25%-smaller box every card uses
-                            (owner 2026-10-25). */}
+                            is 22px — the same 25%-smaller box every card uses. */}
                         <div className="pointer-events-none absolute inset-0 bg-[color-mix(in_srgb,var(--bg)_50%,transparent)] opacity-0 backdrop-blur-[8px] transition-opacity duration-200 group-hover/tile:opacity-100 group-focus-visible/tile:opacity-100" />
                         {(isCurrent || isWatched) && (
                           <span

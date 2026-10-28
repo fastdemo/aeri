@@ -9,7 +9,7 @@
   --surface-elevated: #1e1e1e;
   --border: rgba(255,255,255,0.08);
   --border-strong: rgba(255,255,255,0.16);
-  /* CARD FRAME HAIRLINE (owner 2026-10-25): the hero and every artwork card
+  /* CARD FRAME HAIRLINE: the hero and every artwork card
      share one frame line, drawn at 50% of --border-strong's strength so the
      frame reads as an edge, not an outline. Keep hero + card in sync by
      using this token in both places. */
@@ -24,9 +24,20 @@
   --ok: #4ade80;
   --scrim: rgba(0,0,0,0.75);
   --shadow: rgba(0,0,0,0.6);
+  /* RADIUS SCALE — the stock values. Hero and media player are unaffected
+     (28px); everything else uses this three-step scale. */
   --radius-sm: 4px;
   --radius-md: 8px;
   --radius-lg: 12px;
+  /* DIVIDER: list separators are painted OPAQUE instead
+     of as 8%-alpha white. An alpha line composites with whatever background
+     the row has, so the same divider read as a different colour when the
+     row under it was hovered — and re-sorting the episode/chapter list
+     moves the hovered row, which made "the line under the first row change
+     color". This token is exactly `--border` pre-composited over
+     `--surface`, so the normal (unhovered) look is unchanged and the line
+     is now the same colour in every row, in both sort directions. */
+  --divider: color-mix(in srgb, var(--text) 8%, var(--surface));
   --nav-height: 56px;
 }
 
@@ -69,14 +80,12 @@ body {
   background: var(--border-strong);
 }
 
-/* NO-COPY (owner 2026-10-26): "i want this website to be uncopypastable like
-   you cant select anything. for the emtire website." Nothing outside a form
-   control can be selected, so page text and artwork cannot be dragged into
-   another app. Inputs, textareas, selects and contenteditable stay
-   selectable — the search box and every settings field would be unusable
-   otherwise — and clipboard buttons (navigator.clipboard) are unaffected by
-   user-select. Links and images also stop being drag sources, which would
-   otherwise still copy a URL or a picture. */
+/* NO-COPY: nothing outside a form control can be selected, so page text and
+   artwork cannot be dragged into another app. Inputs, textareas, selects and
+   contenteditable stay selectable — the search box and every settings field
+   would be unusable otherwise — and clipboard buttons (navigator.clipboard)
+   are unaffected by user-select. Links and images also stop being drag
+   sources, which would otherwise still copy a URL or a picture. */
 html,
 body {
   -webkit-user-select: none;
@@ -98,7 +107,7 @@ video {
   -webkit-user-drag: none;
 }
 
-/* FROSTED FRAME (owner 2026-10-25; player added 2026-10-26): the translucent
+/* FROSTED FRAME: the translucent
    hairline that wraps the hero, the media player and every artwork card sits
    on a blurred rim, matching the frosted glass used by the navbar, hero
    chips, and the card hover treatment. The
@@ -136,12 +145,54 @@ video {
     inset 0 0 10px -4px color-mix(in srgb, var(--text) 24%, transparent);
 }
 
-/* CRISP FRAME (Continue Watching only — owner 2026-10-25): "dont blur the
-   borders of the continue watching card". The continue tile stacks artwork
-   over a caption block on the page background, so the soft frame's inward
-   glow bleeds across that seam and reads as a blurred/out-of-focus border.
-   This variant draws the SAME hairline weight with zero glow: one clean 1px
-   edge. Every other card keeps .frame-soft. */
+/* CARD FROST (hover only — 2026-10-27 scroll pass): the hover scrim's
+   backdrop blur used to be always mounted, which gave every card its own
+   compositing layer (108 on Home) and cost ~18% of scroll main-thread time
+   on an emulated phone. It is now applied only while the card's art is
+   actually hovered, and only on hover-capable devices (touch never shows
+   the treatment). The scrim keeps its opacity fade, so the visible hover
+   result is unchanged. */
+.card-frost {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+@media (hover: hover) {
+  .card-art:hover .card-frost {
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+  }
+}
+
+/* SCROLL-QUIET (owner report 2026-10-28): while ANY scroller is moving
+   (html[data-scrolling="1"], set by lib/scrollQuiet.ts), a card sliding
+   under a parked cursor would toggle its hover frost on/off many times a
+   second — a large backdrop blur created and destroyed per frame, which
+   reads as the tile flashing. The hover treatment (frost, glyph, caption)
+   is suppressed for the duration of the scroll and fades back in when the
+   scroll settles, so the pointer position no longer repaints the artwork.
+   `:not([aria-expanded="true"])` keeps an OPEN card menu's trigger visible. */
+html[data-scrolling='1'] .card-frost {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+  opacity: 0 !important;
+  /* Instant, not a 200ms fade: a scroll must not animate the frost at all. */
+  transition: none !important;
+}
+html[data-scrolling='1'] .hover-only-control:not([aria-expanded='true']),
+html[data-scrolling='1'] .card-hover-caption {
+  opacity: 0 !important;
+}
+/* The hover brighten (0.96 → 1) is part of the same hover state; pinning it
+   during a scroll keeps a card passing under the cursor visually still. */
+html[data-scrolling='1'] .card-art img.img-fade.is-loaded {
+  opacity: 0.96 !important;
+}
+
+/* CRISP FRAME (Continue Watching only). The continue tile stacks artwork over
+   a caption block on the page background, so the soft frame's inward glow
+   bleeds across that seam and reads as a blurred/out-of-focus border. This
+   variant draws the SAME hairline weight with zero glow: one clean 1px edge.
+   Every other card keeps .frame-soft. */
 .frame-crisp {
   position: absolute;
   inset: 0;
@@ -150,12 +201,10 @@ video {
   box-shadow: inset 0 0 0 1px var(--border-card);
 }
 
-/* PLAYER SURFACE (owner 2026-10-26, revised same day): "just the plain
-   background and the media player on top", then "return the media player
-   corner radius to the stock state … same border for the hero for the media
-   player". So the page paints nothing behind the video (no wrapper fill, no
-   poster), the skin keeps its STOCK 28px corner radius, and its own 1px frame
-   line is made transparent because the player wears the hero's frosted frame
+/* PLAYER SURFACE: the page paints nothing behind the video (no wrapper fill,
+   no poster), the skin keeps its STOCK 28px corner radius, and its own 1px
+   frame line is made transparent because the player wears the hero's frosted
+   frame
    (`.frame-glass` in Watch.tsx) instead — two hairlines on the same edge
    would read as a double border. The skin's control gradient is untouched
    (it belongs to the player, not the page). */
@@ -177,7 +226,7 @@ video {
    every deep-link refresh focuses programmatically) are EXEMPT: the ring is
    for keyboard-navigable controls, not for a card that merely took focus.
    Without the exclusion the global ring paints a 2px "border" around the
-   whole preview card (owner fix 2026-10-23). */
+   whole preview card. */
 :focus-visible:not([tabindex="-1"]) {
   outline: 2px solid var(--text);
   outline-offset: 2px;
@@ -245,8 +294,8 @@ button.rounded-full:focus-visible {
   }
 }
 
-/* Hover-only controls (owner 2026-10-23: hover features DO NOT EXIST on
-   touch — no tap-to-reveal workaround). A control that is invisible on a
+/* Hover-only controls: hover features DO NOT EXIST on touch — no
+   tap-to-reveal workaround. A control that is invisible on a
    non-hover device must not keep hit-testing either, or it silently
    swallows taps meant for the card beneath it. Keyboard focus still
    reaches these (pointer-events never affects keyboard). */
@@ -311,7 +360,7 @@ img.img-fade.is-loaded { opacity: 0.96; }
   .hero-desc { display: -webkit-box; }
 }
 
-/* OWNER (2026-10-20): thumbnail-only hover for the ⋮ trigger. The ⋮
+/* thumbnail-only hover for the ⋮ trigger. The ⋮
    (QuickMenu trigger) must stay a frame-level sibling so its dropdown
    + shadow never clip inside the frame's overflow-hidden, and small
    cards would cut it under the art region — so a plain group-hover

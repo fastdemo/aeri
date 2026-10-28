@@ -1,5 +1,6 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 import { AnimeCard } from '../cards/AnimeCard'
+import { CardSkeleton } from '../ui/Skeleton'
 import type { RelatedEntry } from '../../hooks/useRelatedEntries'
 import { detailPath } from '../../hooks/useDetailOpen'
 import { formatLabel } from '../../lib/mediaLabels'
@@ -83,7 +84,7 @@ function RelatedGrid({
               mediaKind={isMangaFormat(anime.format) ? 'manga' : 'anime'}
               fullWidth
               disableLink={!onSelect}
-              // D113 (owner 2026-10-23): Related ANIME tiles carry NO hover
+              // D113: Related ANIME tiles carry NO hover
               // caption (name + meta already exist outside the art); the
               // Related MANGA portrait tiles keep their caption untouched.
               hideHoverCaption={!isMangaFormat(anime.format)}
@@ -164,8 +165,8 @@ export function RelatedEntries({
       {(!mangaOnly) && ((!loading && !shows.length && manga.length) ? null : (
         <section aria-label="Related Anime" className="mt-0">
           {!hideHeader && shows.length > 0 && (
-            // Same fixed 20px header geometry as Episodes/Chapters (2026-10-19
-            // owner note: headers must share one line, entries share one top).
+            // Same fixed 20px header geometry as Episodes/Chapters —
+            // headers must share one line, entries share one top.
             <div className="mb-2 flex h-5 items-center justify-between gap-2">
               <h3 className="min-w-0 flex-1 truncate text-[14px] font-semibold leading-5 text-[var(--text)]">
                 Related Anime
@@ -175,7 +176,7 @@ export function RelatedEntries({
           {loading && !entries ? (
             <div className="grid grid-cols-2 gap-3" aria-label="Loading related shows">
               {[1, 2].map(i => (
-                <div key={i} className="aspect-[16/9] w-full animate-pulse rounded-[6px] bg-[var(--surface)]" />
+                <CardSkeleton key={i} fullWidth flat />
               ))}
             </div>
           ) : shows.length ? (
@@ -227,7 +228,7 @@ function RelatedGridContents({
               mediaKind={isMangaFormat(anime.format) ? 'manga' : 'anime'}
               fullWidth
               disableLink={!onSelect}
-              // D113 (owner 2026-10-23): Related ANIME tiles carry NO hover
+              // D113: Related ANIME tiles carry NO hover
               // caption (name + meta already exist outside the art); the
               // Related MANGA portrait tiles keep their caption untouched.
               hideHoverCaption={!isMangaFormat(anime.format)}

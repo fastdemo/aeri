@@ -54,8 +54,8 @@ export interface TestListEntry {
   score?: number
   /**
    * MAL-side cover URL (node main_picture.large). Seeded so display tests
-   * can discriminate art SOURCES: after the AniList-metadata rule (owner
-   * 2026-10-20) a MAL-tracker card must carry AniList art, never this URL.
+   * can discriminate art SOURCES: after the AniList-metadata rule
+   * a MAL-tracker card must carry AniList art, never this URL.
    */
   picture?: string
 }
@@ -158,8 +158,8 @@ export async function seedTestAuth(page: Page): Promise<void> {
  * route.continue() — the broad handler swallows the request and the
  * earlier route NEVER fires (real upstream → 401). Therefore the
  * fail-closed test MUST NOT install its own broad regex; it reuses the
- * scoped `blockUpstreamMedia()` helper (single owner of the broad
- * pattern, registered LAST, allowlists worker/metadata/app URLs and
+ * scoped `blockUpstreamMedia()` helper (the only place that registers the
+ * broad pattern, registered LAST, allowlists worker/metadata/app URLs and
  * aborts only provider/media hosts). One broad route per page, ever.
  */
 export async function routeTestMalIdentity(page: Page, entries: TestListEntry[] = []): Promise<void> {

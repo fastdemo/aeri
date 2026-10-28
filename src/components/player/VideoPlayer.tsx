@@ -191,7 +191,7 @@ export function VideoPlayer({
   return (
     <div className="aeri-player h-full w-full">
       {/* No poster: the Watch surface is the plain page background with the
-          video on top (owner 2026-10-26). An artwork poster behind the
+          video on top. An artwork poster behind the
           picture is exactly the "background wrapping around" that was
           reported, so the skin starts on black. renderPoster returns null so
           the skin does not emit an empty <img class="media-poster-image">

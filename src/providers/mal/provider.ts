@@ -143,7 +143,7 @@ export class MALProvider implements TrackingProvider {
         currentStatus = current.listStatus
       }
       body.set('status', aeriStatusToMal(currentStatus ?? 'watching', isManga))
-      // NEW ENTRY (owner 2026-10-23): stamp the start date when this
+      // NEW ENTRY: stamp the start date when this
       // progress write is what adds the title to the list. Existing
       // entries keep their stored start date untouched.
       if (!currentStatus) {
@@ -178,7 +178,7 @@ export class MALProvider implements TrackingProvider {
     const malStatus = aeriStatusToMal(status, isManga)
     const body = new URLSearchParams()
     body.set('status', malStatus)
-    // Date stamps (owner rule 2026-10-18): watching → start_date today,
+    // Date stamps: watching → start_date today,
     // completed → finish_date today. MAL API v2 takes list dates as
     // 'YYYY-MM-DD' (same shape it returns them in).
     if (dates?.start) body.set('start_date', dates.start)

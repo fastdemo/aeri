@@ -86,8 +86,8 @@ export async function routeControlledHls(page: Page): Promise<void> {
  * CONSTRAINT (verified 2026-10-10): a later-registered `/^https?:\/\//`
  * handler swallows requests and earlier glob routes NEVER fire — so this
  * helper FULFILLS the identity endpoints itself (same doubles as
- * test-auth) instead of continue()ing into them. Single owner of the
- * broad pattern: call at most once per page, AFTER setupAuth's glob
+ * test-auth) instead of continue()ing into them. The only place that
+ * registers the broad pattern: call at most once per page, AFTER setupAuth's glob
  * routes (they become inert shadows — harmless, still unrouted in
  * afterEach). `blocked` records every aborted URL so tests can assert the
  * block actually did something (a vacuous no-op route would also yield

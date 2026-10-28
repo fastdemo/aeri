@@ -3,6 +3,11 @@ import { createRoot } from 'react-dom/client'
 import './styles/globals.css'
 import App from './App.tsx'
 import { applyTheme } from './lib/themes'
+import { installScrollQuiet } from './lib/scrollQuiet'
+
+// Scroll-quiet gate: mark the document while any scroller is moving so the
+// card hover frost never toggles mid-scroll (see lib/scrollQuiet.ts).
+installScrollQuiet()
 
 // Legacy in-app hash URLs (pre-BrowserRouter era; any link/bookmark copied
 // before the routing swap, e.g. `/#/anime/16498` or `/#/search?q=x`) are
@@ -14,7 +19,7 @@ import { applyTheme } from './lib/themes'
 // are the canonical form from here on.
 // (The 2026-10-18 ⟳ reload-after-card diagnostic that lived here — a
 // sessionStorage `aeri-detail-open` mark + 20s tab-title prefix — was
-// removed on the owner's request; every app-side reload path is gone.)
+// removed; every app-side reload path is gone.)
 
 function translateLegacyHash() {
   try {

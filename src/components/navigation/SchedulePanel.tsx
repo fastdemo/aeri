@@ -5,7 +5,7 @@ import { getTitleHierarchy } from '../../lib/titles'
 import type { Anime } from '../../types/anime'
 
 /**
- * Schedule bell: "what's airing soon for ME" (replaces the dead
+ * Schedule bell: what's airing soon for the active list (replaces the dead
  * notifications button). Priority 1: watching list entries with a
  * next-airing episode. Fallback: currently-airing rail titles (so the
  * panel is useful even with an empty list). Same dropdown language as

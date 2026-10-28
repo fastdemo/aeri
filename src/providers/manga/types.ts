@@ -40,8 +40,8 @@ export interface MangaChapter {
  */
 export function unitDisplayLabel(u: Pick<MangaChapter, 'label' | 'number' | 'kind' | 'unitType'>): string {
   // WeebCentral (and some mirrors) label manga units "Episode N" — their
-  // site vocabulary, not ours. A manga reader must read "Chapter N"
-  // (owner-facing vocabulary, 2026-10-26); this is display-only, the stored
+  // site vocabulary, not ours. A manga reader must read "Chapter N" (the
+  // reader's vocabulary); this is display-only, the stored
   // provider label is untouched. Any suffix after the number is preserved.
   const label = (u.label ?? '').trim().replace(/^episode\b/i, 'Chapter')
   if (label) return label

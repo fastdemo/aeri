@@ -3,11 +3,7 @@ import { seedTestAuth, routeTestMalIdentity } from './helpers/test-auth'
 import { routeTestAnilistMedia } from './helpers/test-anilist'
 
 /**
- * MANGA READER — MAL-BACKED IDS (regression, owner 2026-10-26)
- *
- * "the chapters did exist and shows it was fetched from weebcentral but when
- * i click on the chapter it says manga not found… happened to like most
- * mangas."
+ * MANGA READER — MAL-BACKED IDS (regression)
  *
  * Root cause: MAL tracker entries carry `internalId: mal-<malId>` (the list
  * mapper) and every Read/Continue link is built from `internalId`, but
@@ -67,10 +63,9 @@ test.describe('Manga reader — MAL-backed ids', () => {
     await expect(page.getByRole('heading', { name: 'Berserk' }).first()).toBeVisible({ timeout: 45000 })
     await page.waitForSelector('select[aria-label="Select chapter"]', { timeout: 45000 })
 
-    // Owner 2026-10-26: "remove the source:weeb central line … its not the
-    // dropdown my bad its the top left one that says 'chapter 1' under attack
-    // on titan". So the SUBTITLE under the title reads `Chapter 1 · WeebCentral`
-    // (middle dot) and the dropdown pill stays exactly as it was.
+    // The SUBTITLE under the title reads `Chapter 1 · WeebCentral` (middle
+    // dot) and the dropdown pill stays exactly as it was — the standalone
+    // "Source: …" line is gone.
     const header = await page.evaluate(() => {
       const h1 = document.querySelector('h1') as HTMLElement | null
       const subtitle = h1?.parentElement?.querySelector('p') as HTMLElement | null

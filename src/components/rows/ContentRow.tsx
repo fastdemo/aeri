@@ -1,18 +1,14 @@
 import { useRef, useEffect, useState, useCallback } from 'react'
+import { Icon } from '../ui/Icon'
 
 export function ContentRow({
   title,
   subtitle,
   children,
-  tailSpacer = true,
 }: {
   title: string
   subtitle?: string
   children: React.ReactNode
-  /** Trailing breathing room after the last card on touch widths. Rails
-      that size their cards to end exactly on the content edge pass `false`
-      so the final card's right border is not pushed off that line. */
-  tailSpacer?: boolean
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null)
   const [canLeft, setCanLeft] = useState(false)
@@ -60,25 +56,29 @@ export function ContentRow({
 
       <div className="relative">
         {/* Left/right controls — desktop only, on row hover, and only in the
-            direction that can actually scroll */}
+            direction that can actually scroll. z-30 keeps the scrim + glyph
+            above the card's hover play glyph (z-10) and dots trigger (z-20) —
+            the card paints later in DOM order, so an equal z-index would let
+            the play button swallow the click. The scrim is the only chrome:
+            no circle behind the chevron. */}
         {canLeft && (
           <button
             aria-label="Scroll left"
             onClick={() => scroll(-1)}
-            className="hover-only-control absolute left-0 top-1/2 z-10 hidden h-full -translate-y-1/2 items-center justify-center bg-gradient-to-r from-[color-mix(in_srgb,var(--bg)_60%,transparent)] to-transparent px-2 text-[var(--text)] opacity-0 transition hover:opacity-100 focus-visible:opacity-100 group-hover/row:opacity-100 md:flex"
+            className="hover-only-control absolute left-0 top-1/2 z-30 hidden h-full -translate-y-1/2 items-center justify-center bg-gradient-to-r from-[color-mix(in_srgb,var(--bg)_75%,transparent)] to-transparent px-2 text-[var(--text)] opacity-0 transition hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--border-strong)] group-hover/row:opacity-100 md:flex"
             style={{ width: 56 }}
           >
-            <span className="grid h-8 w-8 place-items-center rounded-full bg-[color-mix(in_srgb,var(--bg)_60%,transparent)] text-[var(--text)] backdrop-blur">‹</span>
+            <Icon name="chevron-left" size={24} className="[filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))]" />
           </button>
         )}
         {canRight && (
           <button
             aria-label="Scroll right"
             onClick={() => scroll(1)}
-            className="hover-only-control absolute right-0 top-1/2 z-10 hidden h-full -translate-y-1/2 items-center justify-center bg-gradient-to-l from-[color-mix(in_srgb,var(--bg)_60%,transparent)] to-transparent px-2 text-[var(--text)] opacity-0 transition hover:opacity-100 focus-visible:opacity-100 group-hover/row:opacity-100 md:flex"
+            className="hover-only-control absolute right-0 top-1/2 z-30 hidden h-full -translate-y-1/2 items-center justify-center bg-gradient-to-l from-[color-mix(in_srgb,var(--bg)_75%,transparent)] to-transparent px-2 text-[var(--text)] opacity-0 transition hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--border-strong)] group-hover/row:opacity-100 md:flex"
             style={{ width: 56 }}
           >
-            <span className="grid h-8 w-8 place-items-center rounded-full bg-[color-mix(in_srgb,var(--bg)_60%,transparent)] text-[var(--text)] backdrop-blur">›</span>
+            <Icon name="chevron-right" size={24} className="[filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))]" />
           </button>
         )}
 
@@ -89,7 +89,7 @@ export function ContentRow({
         >
           {children}
           {/* tail spacer */}
-          {tailSpacer && <div className="w-4 shrink-0 lg:w-0" aria-hidden />}
+          <div className="w-4 shrink-0 lg:w-0" aria-hidden />
         </div>
       </div>
     </section>

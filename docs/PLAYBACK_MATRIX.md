@@ -72,7 +72,7 @@ Episode cases per fixture: `1`, `2`, `5`, `late`, `final`. Plus **oob** (`final+
 | `dub` | `anikoto` (claims dub), `official` (returns same trailer with `language=dub`), `demo` | `preferredLanguage=dub` → `animepahe` must correctly return `[]` (sub-only) and `tried` must include fallback to official → not reported as dub failure if official dub trailer exists |
 | None/undefined | fallback | omit `language` query → worker default `sub` |
 
-Cover: `preferredProvider=anikoto` and `animepahe` explicitly, and `null` (auto).
+Cover: `preferredLanguage` sub/dub. Provider selection follows `providerOrder` + `enabledProviders`; there is no per-source pin (D141).
 
 ### 2.4 Player Probes (per source type)
 
@@ -97,7 +97,7 @@ All viewports assert `prefers-reduced-motion` disables `hls.js` worker churn onl
 | Case | Probe |
 |------|-------|
 | **Source switching** | Load `ep1 sub` → switch `<select>` to second quality or `dub` → assert old `hls` destroyed (`hlsRef.current===null` previous), new `video.src` differs, T2→T3 re-runs and passes, `currentTime` resets to 0 then advances, no `abort` leak |
-| **Fallback** | `preferredProvider=anikoto` on `16498/1/sub` → first `getSources` returns `[]` → registry must try `animepahe → official → demo` in order with `tried[]` length `≥2`, final `sources` from fallback provider, `provider` label in UI matches fallback (`Official Trailer` not `AniKoto`) |
+| **Fallback** | `providerOrder` first entry on `16498/1/sub` returns `[]` → registry must try the remaining enabled providers in order with `tried[]` length `≥2`, final `sources` from the fallback provider, `provider` label in UI matches that provider |
 | **Negative 200** | Direct `fetch` to `megaplay` `200 HTML Error` and `animepahe.ru/api?m=search` `200 HTML Domain for Sale` and `allanime clock.json` `Just a moment` — all must be classified `T1 ✗` not success |
 | **Cache** | Second visit to same `anilistId/ep` within 5 min must hit `video:*` `memoryCache`/`IDB` (no extra `fetch`), verified by `request` interceptor count |
 
@@ -139,8 +139,8 @@ Each row is a test case. `Expect` is with Worker unset (GH Pages live) unless no
 | 26 | official | `1` Cowboy Bebop | 1 | sub | [W] HLS fallback | `demo` HLS `PASS (PLAYABLE)` `readyState>=2 videoWidth>0 currentTime>0.5` | `test-streams.mux.dev/x36xhzz.m3u8` `content-type: application/vnd.apple.mpegurl` + `#EXTM3U` |
 | 27 | demo | `1` Cowboy Bebop | 1 | sub | no | `PASS (PLAYABLE)` HLS mux | T1 manifest sniff, T3 currentTime advances |
 | 28 | demo | `16498` AOT | 25 final | sub | no | `PASS (PLAYABLE)` HLS mux | same |
-| 29 | **fallback** | `16498` AOT | 1 | sub | no | `preferredProvider=anikoto` → `tried=['anikoto',…]` → fallback to `official` embed `PASS (PLAYABLE)` | assert `tried.length>=2` and final `provider==='official'` |
-| 30 | fallback | `154587` Frieren | 1 | dub | no | `preferredProvider=animepahe` (sub-only) + `preferredLanguage=dub` → `tried` includes `animepahe` then `official/dub` | dub filter correct |
+| 29 | **fallback** | `16498` AOT | 1 | sub | no | legacy `preferredProvider=anikoto` is ignored (D141) → anikoto never enters the verified chain; decision is a real source or honest no-source | assert `anikoto` appears nowhere in `tried`/UI |
+| 30 | fallback | `154587` Frieren | 1 | dub | no | `preferredLanguage=dub` only → sub-only providers must not report dub success; `tried` lists the real chain | dub filter correct |
 | 31 | switch | `1` Cowboy Bebop | 1 | sub→dub | [W]/no | load `sub` → switch to `dub` → T2→T3 re-verified, old url ≠ new url | `hlsRef.destroy` called, no leak |
 | 32 | switch | `1` Cowboy Bebop | 1 | 1080p→720p | [W] | load `1080p` → switch `720p` → new source `readyState>=2` | quality order |
 | 33 | mobile | `154587` Frieren | 1 | sub | no | same as #23 but viewport `375` | `playsInline`, no `overflow-x`, touch swipe, controls tappable |

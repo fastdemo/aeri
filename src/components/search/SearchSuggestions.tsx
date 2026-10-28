@@ -11,7 +11,7 @@ type Props = {
   onPreview?: (anime: Anime) => void
 }
 
-/** Owner 2026-10-23: hover features do not exist on touch — pointer/mouse
+/** Hover features do not exist on touch — pointer/mouse
  *  hover must never drive the active-row highlight there (a tap would flash
  *  it). Keyboard arrows and clicks are unaffected. */
 const CAN_HOVER =

@@ -10,8 +10,8 @@ import { Icon } from '../ui/Icon'
 import { pillSolid, pillSoft } from '../ui/buttonStyles'
 
 /**
- * AUTO-RETRY LADDER (owner rule 2026-10-18: never paint a half-populated
- * card). When the enrichment fetch is parked behind AniList's shared 429
+ * AUTO-RETRY LADDER (never paint a half-populated card). When the enrichment
+ * fetch is parked behind AniList's shared 429
  * cooldown and the card holds nothing complete, retry QUIETLY on this
  * ladder instead of falling through to the lite copy. THROTTLED fail-fasts
  * cost no network (the client refuses to send while cooling), so the ladder
@@ -25,8 +25,8 @@ const MAX_AUTO_RETRIES = 12 // ~60s ≈ the shared cooldown window
 /**
  * The route-driven floating card. /anime/:id and /manga/:id render THIS
  * (not the old standalone page): the card floats over the page it was
- * opened from, and deep links float it over Home by default (owner
- * decision). Replaces src/pages/AnimeDetail.tsx entirely — the modal
+ * opened from, and deep links float it over Home by default. Replaces
+ * src/pages/AnimeDetail.tsx entirely — the modal
  * holds every feature the page had (episodes, metadata sidebar, related
  * grid) plus Resume + tracker editing, which the page never had.
  *
@@ -40,7 +40,7 @@ export function DetailRoute({ kind }: { kind: 'anime' | 'manga' }) {
   const { id } = useParams<{ id: string }>()
   const location = useLocation()
   const navigate = useNavigate()
-  const { isAuthenticated, combinedList } = useTracking()
+  const { combinedList } = useTracking()
   // The record that rode in with THIS history entry — read fresh on every
   // render, never frozen in instance state. A related swap pushes the SAME
   // route instance (React Router reconciles identical elements; no remount
@@ -68,8 +68,8 @@ export function DetailRoute({ kind }: { kind: 'anime' | 'manga' }) {
   // related tiles, deep links). Complete rail records skip the network
   // entirely — the common row-click open stays instant. retryNonce re-runs
   // that fetch IN PLACE for the Retry button: the card must never reload
-  // the page (owner report 2026-10-18 — window.location.reload() here was
-  // a real full-refresh path in the exact open→fail→retry flow).
+  // the page — window.location.reload() here was a real full-refresh path
+  // in the exact open→fail→retry flow.
   const [retryNonce, setRetryNonce] = useState(0)
   const fetchId = isCompleteRecord(carriedAnime) ? undefined : id
   const animeQuery = useAnimeDetail(kind === 'anime' ? fetchId : undefined, retryNonce)
@@ -105,13 +105,9 @@ export function DetailRoute({ kind }: { kind: 'anime' | 'manga' }) {
     return () => clearTimeout(t)
   }, [throttleHold, retryNonce])
 
-  // Members-only, same policy the standalone page had — but the signed-out
-  // visitor now lands on Home WITH the sign-in popup open (owner decision),
-  // via a ?signin=1 hop Home reacts to once.
-  useEffect(() => {
-    if (isAuthenticated) return
-    navigate('/?signin=1', { replace: true })
-  }, [isAuthenticated, navigate])
+  // GUESTS OPEN THE CARD TOO (owner 2026-10-28): browsing, watching and
+  // reading are public. My List / Profile / Settings stay members-only;
+  // the card itself hides every tracker control while signed out.
 
   const close = useCallback(() => {
     // Pushed from in-app → hand the history entry back (Back semantics).
@@ -133,9 +129,6 @@ export function DetailRoute({ kind }: { kind: 'anime' | 'manga' }) {
     },
     [navigate, navState?.background],
   )
-
-  // Signed-out: nothing renders — the redirect effect above handles it.
-  if (!isAuthenticated) return null
 
   if (!resolved) {
     if (loading || throttleHold) {
@@ -173,7 +166,7 @@ export function DetailRoute({ kind }: { kind: 'anime' | 'manga' }) {
     )
   }
 
-  // READY GATE (owner rule): a record that fails the completeness test
+  // READY GATE: a record that fails the completeness test
   // (lite list copy, related tile) holds the skeleton while its enrichment
   // fetch runs; when the fetch settles, the best record we hold paints even
   // if incomplete — the card never blocks forever, and it never shows a
@@ -226,7 +219,7 @@ function DetailSkeleton() {
  */
 function DetailPanel({ children, onClose }: { children: ReactNode; onClose: () => void }) {
   return (
-    // Same click-out-anywhere mechanics as DetailModal (owner 2026-10-20):
+    // Same click-out-anywhere mechanics as DetailModal:
     // the veil closes the card directly instead of a fixed backdrop button
     // that the scroller's backdrop-filter traps in content coordinates.
     <div onClick={onClose} className="fixed inset-x-0 bottom-0 top-14 z-40 flex items-start justify-center overflow-y-auto bg-[color-mix(in_srgb,var(--bg)_75%,transparent)] p-2 backdrop-blur-[2px] anim-fade-in sm:p-6 lg:p-8">

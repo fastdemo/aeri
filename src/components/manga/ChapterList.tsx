@@ -113,7 +113,7 @@ export function ChapterList({ manga }: { manga: Anime }) {
           <span className="shrink-0 leading-5 text-[14px] text-[var(--text-faint)]">Loading chapters...</span>
         </div>
         {[1, 2, 3, 4, 5].map(i => (
-          <div key={i} className={`flex items-center gap-3 bg-[var(--surface)] px-3 py-3 ${i !== 5 ? 'border-b border-[var(--border)]' : ''} animate-pulse`}>
+          <div key={i} className={`flex items-center gap-3 bg-[var(--surface)] px-3 py-3 ${i !== 5 ? 'border-b border-[var(--divider)]' : ''} animate-pulse`}>
             <span className="h-4 w-14 rounded bg-[color-mix(in_srgb,var(--text)_5%,transparent)]" />
             <div className="flex-1 space-y-2">
               <div className="h-3 w-1/3 rounded bg-[color-mix(in_srgb,var(--text)_5%,transparent)]" />
@@ -155,8 +155,8 @@ export function ChapterList({ manga }: { manga: Anime }) {
           {ordered.length} available{nVolumes ? ` • ${nVolumes} ${nVolumes === 1 ? 'volume' : 'volumes'}` : ''}
         </span>
       </div>
-      <div className="overflow-hidden rounded-lg border border-[var(--border)]">
-        {ordered.map((ch, idx) => {
+      <div className="overflow-hidden rounded-lg border border-[var(--divider)]">
+        {ordered.map(ch => {
           // No next-up highlight (same reason as episodes: on desc-sort it
           // tints the top rows and reads as a rendering bug).
           const isRead = progressCh > 0 && ch.number != null && ch.number <= progressCh
@@ -166,18 +166,21 @@ export function ChapterList({ manga }: { manga: Anime }) {
           // badge — never a raw id fragment as a label.
           const prov = ch.id.split('-')[0] || ''
           const provName = prov === 'mangadex' ? 'MangaDex' : prov === 'weebcentral' ? 'WeebCentral' : prov === 'mangapill' ? 'MangaPill' : prov === 'mangahere' ? 'MangaHere' : prov === 'bato1' ? 'Bato1' : prov === 'kakalot' ? 'Kakalot' : prov === 'mangaread' ? 'MangaRead' : ''
+          // DIVIDER: always painted, removed on the last row with
+          // last:border-b-0 (same fix as EpisodeList — a position-toggled
+          // border animated 0→1px while still currentColor, so the row that
+          // moved from last to first flashed white).
           return (
             <Link
               key={ch.id}
               to={`/read/${manga.identity.internalId}/${encodeURIComponent(ch.providerChapterId)}`}
-              className={`flex items-center gap-3 bg-[var(--surface)] px-3 py-3 text-left transition hover:bg-[var(--text)]/[0.04] ${idx !== ordered.length - 1 ? 'border-b border-[var(--border)]' : ''}`}
+              className="flex items-center gap-3 border-b border-[var(--divider)] bg-[var(--surface)] px-3 py-3 text-left transition-colors last:border-b-0 hover:bg-[var(--text)]/[0.04]"
             >
-              {/* OWNER LAYOUT (2026-10-18 rethink): name left; the date is
+              {/* LIST LAYOUT: name left; the date is
                   gone — read-chapters carry the anime episode tick (check-lg)
                   + "Read" in its place, right-aligned immediately before the
                   source tag (which stays outermost right). */}
-              <span className="w-24 shrink-0 truncate text-[13px] font-medium text-[var(--text)]">{label}</span>
-              <span className="min-w-0 flex-1" />
+              <span data-testid="chapter-label" className="min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--text)]">{label}</span>
               {isRead && (
                 <span className="flex shrink-0 items-center gap-1 text-[11px] font-medium text-[var(--text-muted)]">
                   <Icon name="check-lg" size={14} />

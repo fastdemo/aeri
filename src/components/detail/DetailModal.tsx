@@ -12,7 +12,7 @@ import { getTitleHierarchy } from '../../lib/titles'
 import { useAeriTitle } from '../../hooks/useAeriTitle'
 import { Icon } from '../ui/Icon'
 import { pillSolid } from '../ui/buttonStyles'
-import { sanitizeAnimeForDisplay, getStreamingEpisodeTitle } from '../../lib/episodes'
+import { getAiredTotal, sanitizeAnimeForDisplay, getStreamingEpisodeTitle } from '../../lib/episodes'
 import { useKitsuEpisodes } from '../../hooks/useKitsuEpisodes'
 import { resolveDisplayRecord } from '../../lib/records'
 import { formatLabel, statusLabel } from '../../lib/mediaLabels'
@@ -44,12 +44,11 @@ export function DetailModal({
   const { isAuthenticated, combinedList, updateStatus, updateRating, updateProgress, removeEntry, error: trackingError, trackingProvider } = useTracking()
   const [syncing, setSyncing] = useState<string | null>(null)
   const [localError, setLocalError] = useState<string | null>(null)
-  // EXIT ANIMATION (owner 2026-10-19): "ensure however you close the
-  // preview cards it does the reverse animation of when it opens". Every
-  // dismiss path — ✕, click-outside, Esc — funnels through dismiss():
-  // run the reverse keyframes on the card (scale/fade out, mirroring
-  // aeri-pop-in) and on the scrim, THEN commit the real close. 190ms ≈
-  // the out duration; the guard keeps double-escapes single-flight.
+  // EXIT ANIMATION: every dismiss path — ✕, click-outside, Esc — funnels
+  // through dismiss(): run the reverse keyframes on the card (scale/fade
+  // out, mirroring aeri-pop-in) and on the scrim, THEN commit the real
+  // close. 190ms ≈ the out duration; the guard keeps double-escapes
+  // single-flight.
   const [closing, setClosing] = useState(false)
   const closingRef = useRef(false)
   const dismiss = useCallback(() => {
@@ -78,12 +77,12 @@ export function DetailModal({
   })()
 
   const currentScore = baseEntry?.score ?? null
-  // RICHER-WINS DISPLAY (owner rule 2026-10-18: nothing renders until the
-  // metadata is final). `baseEntry?.anime ?? anime` used to swap the list
+  // RICHER-WINS DISPLAY (nothing renders until the metadata is final).
+  // `baseEntry?.anime ?? anime` used to swap the list
   // copy in UNCONDITIONALLY — a MAL-lite row (no relations/season/streaming)
   // downgraded a complete AniList record the card already held, and the
   // enrichment drip only upgraded it again seconds later: the sparse-card-
-  // then-fill flip the owner reported. Now the complete record wins the
+  // then-fill flip. Now the complete record wins the
   // display; the list entry still owns tracking truth; identity ids are
   // unioned so tracker writes resolve through either provider.
   //
@@ -103,7 +102,7 @@ export function DetailModal({
   // metadata. AniList titles/thumbs always win when present.
   const kitsuEpisodes = useKitsuEpisodes(displayAnime, rawDisplayAnime)
   const titles = getTitleHierarchy(displayAnime)
-  // TAB TITLE (owner 2026-10-18): the overlay carries the ENTRY's name —
+  // TAB TITLE: the overlay carries the ENTRY's name —
   // "Assassination Classroom - Aeri" — and the stack restores the page
   // beneath ("Home - Aeri") when the card closes.
   useAeriTitle(titles.primary || null, 'override')
@@ -144,6 +143,11 @@ export function DetailModal({
   const knownTotal = isMangaKind
     ? (displayAnime.chapters && displayAnime.chapters > 0 ? displayAnime.chapters : 0)
     : (displayAnime.episodes && displayAnime.episodes > 0 ? displayAnime.episodes : 0)
+  // AIRED TOTAL: the progress readout and bar are measured
+  // against episodes that HAVE AIRED — "3 of 3" when a show has aired 3 and
+  // the viewer watched 3, never "3 of 12". Manga keeps its chapter total
+  // (there is no airing schedule for chapters).
+  const airedTotal = isMangaKind ? knownTotal : getAiredTotal(displayAnime, knownTotal)
   // RESUME vs RESTART: one pure rule (`planResume`) owns the decision so the
   // modal, card actions, and tests can never drift apart.
   //   • something left  → open unit progress+1, label "Resume"
@@ -156,9 +160,13 @@ export function DetailModal({
   const restart = resumePlan.restart
   const resumeEpisodeNumber = resumePlan.target
   const resumeLabel = resumePlan.resumable ? 'Resume' : isMangaKind ? 'Read' : 'Play'
-  // Finished entries always render a full bar even when no percent survived mapping
+  // Finished entries always render a full bar even when no percent survived
+  // mapping. AIRING TITLES are measured against aired episodes, so a
+  // caught-up viewer of a releasing show sees a full bar
+  // instead of a fraction of the planned season.
   const barPercent = (() => {
     if (!entry) return 0
+    if (airedTotal > 0 && numEp > 0) return Math.min(100, Math.round((numEp / airedTotal) * 100))
     const p = entry.anime.progress?.percent
     if (typeof p === 'number' && p > 0) return Math.min(100, p)
     if (entry.status === 'completed') return 100
@@ -166,13 +174,13 @@ export function DetailModal({
   })()
 
   // E-line (E1 • title) — ALWAYS the episode Resume/continue will open: the
-  // NEXT episode (owner 2026-10-18: "I watched episode 20, it should be
-  // displaying info of the next episode which is e21 on top of
-  // description"). 1 for an unstarted show, clamped to the known total,
+  // NEXT episode — one past the last completed episode, so a viewer who
+  // finished episode 20 sees e21's info above the
+  // description. 1 for an unstarted show, clamped to the known total,
   // hidden entirely when fully caught up. The show description paragraph
   // below stays the SHOW's description — never a placeholder.
-  // The NAME comes from the ANILIST record (owner rule: AniList owns all
-  // names). The record reaching the modal rarely carries streamingEpisodes
+  // The NAME comes from the ANILIST record — AniList owns all names.
+  // The record reaching the modal rarely carries streamingEpisodes
   // (pool/list copies don't), so resolve it eagerly — same AniList-first
   // record the cards mount-fetch (shared IDB cache + inflight dedupe +
   // patient 429 retry, so bursts can starve it only temporarily).
@@ -247,18 +255,17 @@ export function DetailModal({
     dialogRef.current?.focus({ preventScroll: true })
   }, [displayKey])
 
-  // OWNER 2026-10-19: "in the tv-2026-fall-airing line i dont want it to
-  // show like that i wanna combine 2026 and fall so it should be showing
-  // 'TV - Fall 2026 - Airing' just join them" — season+year collapse into
-  // ONE segment ("Fall 2026") in the year's slot; everything else stays.
+  // SEASON + YEAR COLLAPSE: a releasing TV entry renders "TV • Fall 2026 •
+  // Airing" — season and year share ONE segment ("Fall 2026") in the year's
+  // slot; everything else keeps its own.
   const seasonYear = displayAnime.season && displayAnime.year
     ? `${displayAnime.season.charAt(0)}${displayAnime.season.slice(1).toLowerCase()} ${displayAnime.year}`
     : (displayAnime.year ? String(displayAnime.year) : null)
   const metaParts = [formatLabel(displayAnime.format), seasonYear, !isMovie && !isMangaKind && displayAnime.episodes ? `${displayAnime.episodes} Episodes` : null, isMangaKind && displayAnime.chapters ? `${displayAnime.chapters} Chapters` : null, isMangaKind && displayAnime.volumes ? `${displayAnime.volumes} Volumes` : null, statusLabel(displayAnime.status)].filter(Boolean).join(' • ')
 
   return (
-    // CLICK-OUT ANYWHERE (owner 2026-10-20: "if you just click out anywhere
-    // even the bottom part it would still close"): the VEIL itself is the
+    // CLICK-OUT ANYWHERE: clicking the veil — including the
+    // bottom part of the overlay — closes the card. The VEIL itself is the
     // close target. The old `<button fixed inset-0>` backdrop was trapped
     // by this scroller's `backdrop-blur` — blur (like filter) makes the
     // scroller the containing block for fixed descendants, so the button
@@ -277,12 +284,10 @@ export function DetailModal({
         tabIndex={-1}
         className={`relative my-2 flex max-h-none w-full max-w-[980px] flex-col overflow-visible rounded-xl bg-[var(--bg-soft)] shadow-[0_24px_64px_var(--shadow)] outline-none sm:my-6 ${closing ? 'anim-pop-out-center' : 'anim-pop-in-center'}`}
       >
-        {/* OWNER 2026-10-19: bare ✕ — the circular dark bg is REMOVED ("remove
-            the background (the circle)"), the glyph is CONSIDERABLE now
-            (14 → 20), and a soft shadow in the THEME's own shadow color
-            keeps it legible over bright art ("add a bit of shadow of the
-            same color as the theme"). No scale/motion on hover — a quiet
-            opacity ease only. */}
+        {/* Bare ✕ — no circular background, the glyph is 20px (up from 14),
+            and a soft shadow in the THEME's own shadow color
+            keeps it legible over bright art. No scale/motion on hover — a
+            quiet opacity ease only. */}
         <button
           onClick={dismiss}
           aria-label="Close"
@@ -321,7 +326,7 @@ export function DetailModal({
                 to={`/read/${displayAnime.identity.internalId}/${hasWatched && !restart ? `ch-${resumeEpisodeNumber}` : restart ? 'ch-1' : 'first'}`}
                 className={pillSolid}
               >
-                {/* OWNER (2026-10-25): open-book art, matching the cards. */}
+                {/* Open-book art, matching the cards. */}
                 <Icon name="book-open" size={14} />
                 {resumeLabel}
               </Link>
@@ -334,15 +339,15 @@ export function DetailModal({
                 {resumeLabel}
               </Link>
             )}
-            {/* OWNER (2026-10-25): the progress line reports what WAS
-                WATCHED (numEp), never the resume target (progress+1) — "6 of
-                25" means six watched, not "you are about to watch 6". Manga
-                reads "N of M chapters"; anime keeps "N of M • P% watched". */}
+            {/* The progress line reports what WAS WATCHED (numEp), never the
+                resume target (progress+1) — "6 of 25" means six watched, not
+                "you are about to watch 6". Manga reads "N of M chapters";
+                anime keeps "N of M • P% watched". */}
             {hasWatched && (
               <span className="text-xs text-[var(--text-muted)]">
                 {isMangaKind
                   ? `${numEp} of ${knownTotal > 0 ? knownTotal : '—'}`
-                  : (<>{numEp}{knownTotal > 0 ? ` of ${knownTotal}` : ''} • {barPercent}% watched</>)}
+                  : (<>{numEp}{airedTotal > 0 ? ` of ${airedTotal}` : ''} • {barPercent}% watched</>)}
               </span>
             )}
 
@@ -352,39 +357,36 @@ export function DetailModal({
                 (TrackerCompact) already owns every status change AND removal —
                 the old popup duplicated those writes one tap away. One button,
                 two functions: add, remove. */}
-            <div className="ml-auto flex items-center gap-2">
-              <button
-                aria-label={currentStatus ? 'Remove from My List' : 'Add to My List'}
-                onClick={async () => {
-                  if (!isAuthenticated) {
-                    setLocalError('Sign in with AniList or connect MyAnimeList in Settings to track.')
-                    setTimeout(() => setLocalError(null), 2500)
-                    return
-                  }
-                  setSyncing('status')
-                  try {
-                    if (currentStatus) {
-                      await removeEntry(displayAnime)
-                    } else {
-                      await updateStatus(displayAnime, 'planned')
+            {isAuthenticated && (
+              <div className="ml-auto flex items-center gap-2">
+                <button
+                  aria-label={currentStatus ? 'Remove from My List' : 'Add to My List'}
+                  onClick={async () => {
+                    setSyncing('status')
+                    try {
+                      if (currentStatus) {
+                        await removeEntry(displayAnime)
+                      } else {
+                        await updateStatus(displayAnime, 'planned')
+                      }
+                    } catch (e) {
+                      setLocalError(e instanceof Error ? e.message : 'Couldn’t update My List')
+                    } finally {
+                      setSyncing(null)
                     }
-                  } catch (e) {
-                    setLocalError(e instanceof Error ? e.message : 'Couldn’t update My List')
-                  } finally {
-                    setSyncing(null)
-                  }
-                }}
-                className={`grid h-8 w-8 place-items-center rounded-full border border-[var(--border-strong)] bg-[color-mix(in_srgb,var(--bg)_30%,transparent)] text-[var(--text)] backdrop-blur hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)] ${currentStatus ? 'bg-[color-mix(in_srgb,var(--text)_10%,transparent)]' : ''}`}
-              >
-                {syncing === 'status' ? (
-                  <span className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--border-strong)] border-t-[var(--text)]" />
-                ) : currentStatus ? (
-                  <Icon name="check-lg" size={14} />
-                ) : (
-                  <Icon name="plus-lg" size={14} />
-                )}
-              </button>
-            </div>
+                  }}
+                  className={`grid h-8 w-8 place-items-center rounded-full border border-[var(--border-strong)] bg-[color-mix(in_srgb,var(--bg)_30%,transparent)] text-[var(--text)] backdrop-blur hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)] ${currentStatus ? 'bg-[color-mix(in_srgb,var(--text)_10%,transparent)]' : ''}`}
+                >
+                  {syncing === 'status' ? (
+                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--border-strong)] border-t-[var(--text)]" />
+                  ) : currentStatus ? (
+                    <Icon name="check-lg" size={14} />
+                  ) : (
+                    <Icon name="plus-lg" size={14} />
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -457,8 +459,7 @@ export function DetailModal({
                 Episode {eplineNumber} {eplineTitle ? `• ${eplineTitle}` : ''}
               </p>
             )}
-            {/* Manga mirror of the E-line (owner 2026-10-18: "the same
-                behavior also applied to manga"): the NEXT chapter's info
+            {/* Manga mirror of the E-line: the NEXT chapter's info
                 above the description — Chapter <next> + the provider unit's
                 own title when it carries one. Hidden when nothing new is
                 left (the button restarts at chapter 1 instead). */}

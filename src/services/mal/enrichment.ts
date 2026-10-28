@@ -2,12 +2,10 @@ import type { Anime, AnimeListEntry } from '../../types/anime'
 import { anilistMetadataProvider } from '../../providers/metadata/anilistMetadata'
 import { getAnilistStats } from '../../services/anilist/client'
 
-// ANILIST IS THE SOLE METADATA BACKEND (owner 2026-10-20: "anilist for
-// metadata, ALWAYS. no mal metadata") WITH ONE GUARANTEE ON TOP (owner
-// 2026-10-21: "the continue watching row would just appear immediately...
-// it didn't even show all the shows"): entries tracked via MyAnimeList keep
-// their tracking truth (status/progress/score writes from MAL) but take ALL
-// display metadata from AniList via idMal lookup — anime ids through the
+// ANILIST IS THE SOLE METADATA BACKEND, WITH ONE GUARANTEE ON TOP: entries
+// tracked via MyAnimeList keep their tracking truth (status/progress/score
+// writes from MAL) but take ALL display metadata from AniList via idMal
+// lookup — anime ids through the
 // ANIME-type space, manga entries through the MANGA-type space.
 //
 // D111 RESOLUTION STRATEGY — batch first, per-entry as failsafe:

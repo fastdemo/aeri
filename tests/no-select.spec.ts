@@ -1,8 +1,7 @@
 import { test, expect } from '@playwright/test'
 
 /**
- * NO-COPY (owner 2026-10-26): "i want this website to be uncopypastable like
- * you cant select anything. for the emtire website."
+ * NO-COPY SURFACE.
  *
  * The whole document is non-selectable, including links and artwork, and
  * links/images are not drag sources. Form controls are the deliberate

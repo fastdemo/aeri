@@ -26,8 +26,7 @@ const stats = {
   cooldownUntil: 0,
 }
 
-// --- Service-status telemetry (D112, owner 2026-10-21: "when anilist or mal
-// is down, aeri should have a down page") — counted classes are TRUE
+// --- Service-status telemetry (D112) — counted classes are TRUE
 // unreachability only: network refused/timed out, server errors, or
 // AniList's own global API-off 403. Throttles (429/cooldown fast path),
 // auth failures and GraphQL errors do NOT mean the service is down. A live

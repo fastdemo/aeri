@@ -2,10 +2,10 @@ import { test, expect, type Page } from '@playwright/test'
 import { seedTestAuth, routeTestMalIdentity } from './helpers/test-auth'
 
 /**
- * TOP BAR COMPACTION CONTRACT (owner 2026-10-25)
+ * TOP BAR COMPACTION CONTRACT
  *
- * "make sure the top bar only compacts at the same scaling as when the hero
- * pills goes to the top right."
+ * The top bar compacts at the SAME scaling step as the hero pills moving to
+ * the top right.
  *
  * The hero dot pill is bottom-center from `sm` (640px) up and tucks into the
  * hero's top-right corner below it (Hero.tsx: `absolute right-3 top-3 …
@@ -14,8 +14,8 @@ import { seedTestAuth, routeTestMalIdentity } from './helpers/test-auth'
  *   ≥ 640px → inline section links + search input (never compacted above)
  *
  * Also pinned here:
- *   - the bell↔profile divider is gone (owner: "REMOVE THE divider between
- *     the bell and the profile") in every auth state and at every width;
+ *   - the bell↔profile divider is gone in every auth state and at every
+ *     width;
  *   - the bar never causes horizontal page overflow, including the tightest
  *     inline width (640px, signed out — the widest case: search + Sign in);
  *   - the right cluster order is search → bell → profile.

@@ -54,11 +54,9 @@ function FaviconGuard() {
 // <Routes> matches the detail path. Browser Back closes the card.
 const DETAIL_ROUTE_RE = /^\/(anime|manga)\/([^/]+)$/
 
-// --- D112 service gate (owner 2026-10-21: "when anilist or mal is down,
-// aeri should have a simple down page like the MAL/AniList one") — which
-// data services each surface REQUIRES for its primary content. A page is
-// replaced by the down page ONLY when one of its own services is
-// definitively down; every other surface keeps working (never a
+// --- D112 service gate — which data services each surface REQUIRES for its
+// primary content. A page is replaced by a down page ONLY when one of its own
+// services is definitively down; every other surface keeps working (never a
 // blanket app replacement — MAL-down must not blank discovery, reader is
 // MangaDex-side and stays open). Overlay needs are UNIONed with the
 // background page's: a detail card opened over My List still needs both
@@ -97,7 +95,7 @@ function Layout() {
   // Background page the card was opened from: explicit when pushed from a
   // list page (history state rides along); Home for bare show URLs.
   const navState = (location.state ?? null) as DetailNavState | null
-  // CARD ≠ PAGE CONTROLS (owner 2026-10-18): the base <Routes> must ALWAYS
+  // CARD ≠ PAGE CONTROLS: the base <Routes> must ALWAYS
   // receive an explicit `location` prop. react-router's useRoutesImpl
   // returns matched elements BARE when location is undefined but wraps them
   // in a LocationContext.Provider when it is set (dist line
@@ -177,7 +175,7 @@ function Layout() {
           </>
         )}
       </main>
-      {/* OWNER 2026-10-18: hidden below the `sm` boundary (640px) — the
+      {/* Hidden below the `sm` boundary (640px) — the
           same scaling where the hero carousel dots-pill moves to the
           top-right (Hero.tsx comment: "<640"): on the tightest layouts
           the footer is noise. KEEP THE BREAKPOINT IN SYNC with the hero

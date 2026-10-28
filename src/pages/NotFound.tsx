@@ -3,7 +3,7 @@ import { useAeriTitle } from '../hooks/useAeriTitle'
 import { pillSolid } from '../components/ui/buttonStyles'
 
 export function NotFound() {
-  // TAB TITLE (owner 2026-10-18): unknown routes read "Not Found - Aeri".
+  // TAB TITLE: unknown routes read "Not Found - Aeri".
   useAeriTitle('Not Found', 'override')
   return (
     <div className="mx-auto grid max-w-[1200px] place-items-center px-4 py-24 text-center sm:px-6">

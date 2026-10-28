@@ -1,9 +1,9 @@
 /**
- * RESUME / RESTART DECISION (owner 2026-10-25).
+ * RESUME / RESTART DECISION.
  *
  * The preview card's Play/Read action is "the next unit" — one past the last
- * completed episode/chapter (owner 2026-10-18: "if I watched 20 episodes, the
- * resume button is episode 21"). But when NOTHING NEW is left, that rule has
+ * completed episode/chapter (watching 20 episodes resumes at episode 21). But
+ * when NOTHING NEW is left, that rule has
  * no valid target: the old code clamped to the known total and parked the
  * button on the finale forever, so Resume replayed the last episode.
  *

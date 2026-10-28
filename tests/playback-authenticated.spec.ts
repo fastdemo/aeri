@@ -165,7 +165,7 @@ test.describe('Authenticated entry — guards pass, episode grid works', () => {
 
   test('Watch loads for the test user (no redirect to Home)', async ({ page }) => {
     test.setTimeout(120000)
-    await setPrefs(page, { preferredProvider: 'aniwave', preferredAudio: 'sub' })
+    await setPrefs(page, { preferredAudio: 'sub' })
     await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
     const s = await waitForDecision(page, 'watch-loads')
     expect(s.path).toContain('/watch/anilist-20/1')
@@ -184,7 +184,7 @@ test.describe('Authenticated entry — guards pass, episode grid works', () => {
 
   test('Episode selection navigates the grid', async ({ page }) => {
     test.setTimeout(120000)
-    await setPrefs(page, { preferredProvider: 'aniwave', preferredAudio: 'sub' })
+    await setPrefs(page, { preferredAudio: 'sub' })
     await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
     await waitForDecision(page, 'ep-grid')
     // Episode grid renders from AniList metadata (220 eps for Naruto).
@@ -206,7 +206,7 @@ test.describe('Authenticated entry — guards pass, episode grid works', () => {
     // Bound: one mount write for the episode; the 80%-completion write
     // may add at most one more. Anything above proves a refire loop.
     test.setTimeout(180000)
-    await setPrefs(page, { preferredProvider: 'aniwave', preferredAudio: 'sub' })
+    await setPrefs(page, { preferredAudio: 'sub' })
     let puts = 0
     page.on('request', (r) => {
       if (r.url().includes('my_list_status') && r.method() === 'PUT') puts++
@@ -245,7 +245,7 @@ test.describe('Deterministic playback — provider resolves, player advances', (
     // match→sources→signed-relay runs for real, frames decode, currentTime
     // advances. No byte doubles anywhere in this path.
     test.setTimeout(180000)
-    await setPrefs(page, { preferredProvider: 'aniwave', preferredAudio: 'sub' })
+    await setPrefs(page, { preferredAudio: 'sub' })
     await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
     const s = await waitForDecision(page, 'aniwave-e1')
     expect(s.hasNoSource, `Aniwave must resolve (upstream live?) — ${s.tried || s.body.slice(0, 200)}`).toBeFalsy()
@@ -261,7 +261,7 @@ test.describe('Deterministic playback — provider resolves, player advances', (
     // RENDERED tried-list: the registry records every provider it actually
     // attempted, so "Tried: X • Y" is first-party proof of what was (and
     // was not) requested. Dead/unverified ids must never appear there.
-    await setPrefs(page, { preferredProvider: 'aniwave', preferredAudio: 'sub' })
+    await setPrefs(page, { preferredAudio: 'sub' })
     await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
     const s = await waitForDecision(page, 'dead-never-requested')
     // The tried-list renders ONLY in the no-source box. On success the
@@ -282,7 +282,7 @@ test.describe('Deterministic playback — provider resolves, player advances', (
 
   test('YouTube trailers never appear as episode playback', async ({ page }) => {
     test.setTimeout(180000)
-    await setPrefs(page, { preferredProvider: 'aniwave', preferredAudio: 'sub' })
+    await setPrefs(page, { preferredAudio: 'sub' })
     await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
     await waitForDecision(page, 'no-trailer')
     const src = await page.evaluate(() => (document.querySelector('iframe') as HTMLIFrameElement | null)?.src ?? '')
@@ -307,7 +307,7 @@ test.describe('HLS wiring — app player advances on live relay bytes', () => {
 
   test('App VideoPlayer advances on aniwave relay bytes', async ({ page }) => {
     test.setTimeout(180000)
-    await setPrefs(page, { preferredProvider: 'aniwave', preferredAudio: 'sub', volume: 0.35 })
+    await setPrefs(page, { preferredAudio: 'sub', volume: 0.35 })
     await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
     const s = await waitForDecision(page, 'app-player-hls')
     expect(s.hasVideo, `expected the app player — ${s.body.slice(0, 300)}`).toBeTruthy()
@@ -377,7 +377,7 @@ test.describe('Direct-source paths — HlsJsVideo (deterministic)', () => {
 
   test('direct MP4 plays through the single Video.js player', async ({ page }) => {
     test.setTimeout(180000)
-    await setPrefs(page, { preferredProvider: 'aniwave', preferredAudio: 'sub', autoplay: true, volume: 0.25 })
+    await setPrefs(page, { preferredAudio: 'sub', autoplay: true, volume: 0.25 })
     await routeDirectSource(page, { url: FLOWER_MP4, type: 'mp4' })
     await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
     const s = await waitForDecision(page, 'direct-mp4')
@@ -401,7 +401,7 @@ test.describe('Direct-source paths — HlsJsVideo (deterministic)', () => {
 
   test('embed-only sources are filtered, never rendered as an iframe', async ({ page }) => {
     test.setTimeout(180000)
-    await setPrefs(page, { preferredProvider: 'aniwave', preferredAudio: 'sub', autoplay: false })
+    await setPrefs(page, { preferredAudio: 'sub', autoplay: false })
     await routeDirectSource(page, { url: 'https://example.com/embed/1', type: 'embed', embed: true })
     await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
     const s = await waitForDecision(page, 'embed-filtered')
@@ -415,7 +415,6 @@ test.describe('Direct-source paths — HlsJsVideo (deterministic)', () => {
     test.setTimeout(180000)
     const vtt = `data:text/vtt;charset=utf-8,${encodeURIComponent('WEBVTT\n\n00:00:00.000 --> 00:00:04.000\nHello from Aeri\n')}`
     await setPrefs(page, {
-      preferredProvider: 'aniwave',
       preferredAudio: 'sub',
       autoplay: false,
       subtitles: true,
@@ -443,7 +442,7 @@ test.describe('Direct-source paths — HlsJsVideo (deterministic)', () => {
 
   test('saved position seeks after Resume on a direct HLS source', async ({ page }) => {
     test.setTimeout(180000)
-    await setPrefs(page, { preferredProvider: 'aniwave', preferredAudio: 'sub', autoplay: false })
+    await setPrefs(page, { preferredAudio: 'sub', autoplay: false })
     await routeDirectSource(page, { url: MUX_HLS, type: 'hls' })
     await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
     await page.waitForSelector('video', { timeout: 90000 })
@@ -496,7 +495,7 @@ test.describe('LIVE provider playback (real upstream bytes — may fail on outag
 
   test('LIVE: AniWave Naruto E1 sub resolves and advances', async ({ page }) => {
     test.setTimeout(180000)
-    await setPrefs(page, { preferredProvider: 'aniwave', preferredAudio: 'sub' })
+    await setPrefs(page, { preferredAudio: 'sub' })
     await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
     const s = await waitForDecision(page, 'live-aniwave')
     expect(s.hasNoSource, `provider must resolve live — ${s.tried || s.body.slice(0, 200)}`).toBeFalsy()
@@ -519,7 +518,7 @@ test.describe('LIVE provider playback (real upstream bytes — may fail on outag
     // emptiness) and no YouTube trailer appears.
     test.setTimeout(180000)
     await page.route('**://aeri.fastdemo.workers.dev/api/stream**', r => r.abort('blockedbyclient'))
-    await setPrefs(page, { preferredProvider: 'aniwave', preferredAudio: 'sub' })
+    await setPrefs(page, { preferredAudio: 'sub' })
     await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
     const s = await waitForDecision(page, 'live-fallback')
     expect(s.hasVideo || s.hasNoSource, 'must reach a decision with relay blocked').toBeTruthy()
@@ -566,7 +565,7 @@ test.describe('LIVE provider playback (real upstream bytes — may fail on outag
     // episodes, sources, playlists, segments all die upstream.
     const blocked: string[] = []
     await blockUpstreamMedia(page, blocked)
-    await setPrefs(page, { preferredProvider: 'aniwave', preferredAudio: 'sub' })
+    await setPrefs(page, { preferredAudio: 'sub' })
     await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
     const s = await waitForDecision(page, 'live-fail-closed')
     // Guards still pass (auth + metadata fixtures are test-scoped and live);
@@ -601,7 +600,7 @@ test.describe('Watch interactivity during playback', () => {
   })
 
   async function gotoPlayingWatch(page: Page) {
-    await setPrefs(page, { preferredProvider: 'aniwave', preferredAudio: 'sub' })
+    await setPrefs(page, { preferredAudio: 'sub' })
     await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
     await page.waitForFunction(() => !!document.querySelector('video'), null, { timeout: 90000 })
     await page.evaluate(() => { const v = document.querySelector('video') as HTMLVideoElement | null; if (v) { v.muted = true; v.play().catch(() => {}) } })
@@ -671,7 +670,7 @@ test.describe('Watch interactivity during playback', () => {
     const mpage = await touchCtx.newPage()
     try {
       await setupAuth(mpage)
-      await setPrefs(mpage, { preferredProvider: 'aniwave', preferredAudio: 'sub' })
+      await setPrefs(mpage, { preferredAudio: 'sub' })
       await mpage.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
       await mpage.waitForFunction(() => !!document.querySelector('video'), null, { timeout: 90000 })
       await mpage.evaluate(() => { const v = document.querySelector('video') as HTMLVideoElement | null; if (v) { v.muted = true; v.play().catch(() => {}) } })

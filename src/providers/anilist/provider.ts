@@ -30,7 +30,7 @@ export interface TrackingProvider {
 }
 
 /**
- * Tracker date stamps (owner rule 2026-10-18): flipping a title to watching
+ * Tracker date stamps: flipping a title to watching
  * stamps its start date with today, completing stamps its finish date.
  * 'YYYY-MM-DD' both providers normalize from; undefined keys leave the
  * stored date untouched.
@@ -81,7 +81,7 @@ query ($userId: Int!, $type: MediaType) {
         status
         progress
         score
-        # SCORE NORMALIZATION (owner 2026-10-25): the raw score field is
+        # SCORE NORMALIZATION: the raw score field is
         # stored in the USER scoring format (POINT_100 = 0-100,
         # POINT_10_DECIMAL = 0-10 float, POINT_5 = 0-5). This alias asks
         # AniList for the same value on a FIXED 0-10 decimal scale, so
@@ -103,6 +103,11 @@ query ($userId: Int!, $type: MediaType) {
           episodes
           duration
           status
+          # AIRING PROGRESS: the Continue Watching bar and
+          # the preview card measure progress against episodes that HAVE
+          # AIRED ("3 of 3" when 3 aired and 3 watched), so the list record
+          # needs the next-airing marker — not just the planned total.
+          nextAiringEpisode { airingAt timeUntilAiring episode }
           averageScore
           genres
           studios { edges { isMain } nodes { name isAnimationStudio } }
@@ -363,7 +368,7 @@ export class AniListProvider implements TrackingProvider {
     if (entryId) {
       mutationId = { id: entryId, progress: episode }
     } else {
-      // NEW ENTRY (owner 2026-10-23): a progress write that creates the
+      // NEW ENTRY: a progress write that creates the
       // entry must also stamp today's start date — otherwise the title
       // lands in Watching with no start date, and a later explicit
       // "Watching" re-save used to be a no-op.
@@ -392,7 +397,7 @@ export class AniListProvider implements TrackingProvider {
     const anilistStatus = aeriStatusToAnilist(status)
     const entryId = await this.findEntryIdForMedia(anilistId, t, isManga).catch(() => null)
     const vars: any = entryId ? { id: entryId, status: anilistStatus } : { mediaId: anilistId, status: anilistStatus }
-    // Date stamps (owner rule): watching → startedAt today, completed →
+    // Date stamps: watching → startedAt today, completed →
     // completedAt today. Sent only when the caller detected a real status
     // transition, so re-saving a status never rewrites the user's dates.
     if (dates?.start) vars.startedAt = isoToFuzzyDate(dates.start)

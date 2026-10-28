@@ -149,15 +149,16 @@ export function Home() {
 
   // Card taps push a detail URL (/anime/<id> or /manga/<id>) — the floating
   // card renders as an overlay route on top of this page, so component
-  // state (rows, scroll) survives open/close.
+  // state (rows, scroll) survives open/close. Guests open the same card:
+  // browsing + watching/reading is public (owner 2026-10-28); only My List,
+  // Profile and Settings stay members-only.
   const handleSelect = (a: Anime) => {
-    // Signed-out users get the sign-in gate, not the preview card.
-    if (!isAuthenticated) { setSignInOpen(true); return }
     openDetail(a)
   }
 
-  // Signed-out deep link landing: /?signin=1 arrives from the detail route's
-  // members-only redirect — pop the sign-in popup once, then strip the hint.
+  // Signed-out deep link landing: /?signin=1 opens the sign-in popup once,
+  // then strips the hint. No route emits it any more (guests open detail
+  // cards directly), but old links/bookmarks keep working.
   useEffect(() => {
     if (!location.search.includes('signin=1')) return
     setSignInOpen(true)
@@ -282,9 +283,9 @@ export function Home() {
       if (!first) return 0
       return allPool.filter(a => !listIds.has(a.identity.internalId) && a.genres[0]?.toLowerCase() === first).length
     }
-    // OWNER (2026-10-18): "because you watched on the home screen should
-    // only take ANIMES" — the reference entry (the title in the row header)
-    // must be an anime; manga entries never become the reference. (The row
+    // "Because you watched" only takes ANIMES — the reference entry (the
+    // title in the row header) must be an anime; manga entries never become
+    // the reference. (The row
     // items always were pool-anime; it was the header that went manga.)
     const isAnimeEntry = (f?: string) => !['MANGA', 'NOVEL', 'ONE_SHOT'].includes(f?.toUpperCase() ?? '')
     const eligible = combinedList.filter(e => e.anime.genres?.length && isAnimeEntry(e.anime.format) && matchCount(e.anime.genres) >= 2)
@@ -348,7 +349,7 @@ export function Home() {
   // never reshuffled by background refetches mid-session)
   const middleSections = useMemo(() => {
     const used = new Set<string>()
-    // OWNER (2026-10-18): EVERY home row shows at least 10 shows — more
+    // EVERY home row shows at least 10 shows — more
     // when data allows. After under-12 sampling from a category page and
     // cross-row dedupe, ensureMinRow pads any thin line-up from the full
     // pool (used-aware) so no row ends visibly short.
@@ -409,7 +410,7 @@ export function Home() {
     // Because row: ONE reference show + right-side genre subheading.
     if (becauseRecommendations && becauseRecommendations.items.length >= 2) {
       // Pad to the row minimum from the pool when the true genre matches
-      // run short (owner 2026-10-18: every home row ≥ 10).
+      // run short (every home row ≥ 10).
       const padded = ensureMinRow(becauseRecommendations.items, allPool, 12, used, 'pad:because', stableOrder)
       if (padded.length) personalized.push({ key: 'because', title: `Because you watched ${becauseRecommendations.refTitle}`, subtitle: becauseRecommendations.subtitle, data: padded })
     }
@@ -431,7 +432,7 @@ export function Home() {
 
   const trackerName = trackingProvider === 'mal' ? 'MyAnimeList' : 'AniList'
 
-  // Above-the-fold ART PRIORITY (owner 2026-10-25): tiles the user sees
+  // Above-the-fold ART PRIORITY: tiles the user sees
   // first (Continue Watching + the top row immediately under the hero) load
   // eagerly at high priority; every other tile is viewport-gated in
   // AnimeCard, so the first screenful never competes with ~100 offscreen
@@ -457,7 +458,7 @@ export function Home() {
               </div>
             </div>
           ) : heroes.length ? (
-            <HeroCarousel animes={heroes} onMoreInfo={(a) => { if (!isAuthenticated) setSignInOpen(true); else openDetail(a) }} trackingProvider={trackingProvider} />
+            <HeroCarousel animes={heroes} onMoreInfo={openDetail} trackingProvider={trackingProvider} />
           ) : (
             <div className="flex aspect-[21/9] w-full items-center justify-center rounded-xl bg-[var(--text)]/[0.03] lg:min-h-[460px]">
               <p className="text-sm text-[var(--text-faint)]">No hero available</p>

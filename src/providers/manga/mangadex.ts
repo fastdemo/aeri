@@ -195,32 +195,33 @@ import { mangaHereProvider, bato1Provider, kakalotFunProvider, mangaReadProvider
 
 export const mangaDexProvider = new MangaDexProvider()
 
-// FINAL MANGA PRIORITY (verified reliability first — 2026-09-27 live pass):
-// 1. MangaDex (Tier 1: official API, primary)
-// 2. WeebCentral (Tier 1: /images fragment, PNGs)
+// FINAL MANGA PRIORITY (owner default, 2026-10-28 — D144):
+// 1. WeebCentral (Tier 1: /images fragment, PNGs)
+// 2. MangaHere (Tier 2: packed-JS decode, JPEGs)
 // 3. MangaPill (Tier 1: server-rendered, JPEGs)
-// 4. MangaHere (Tier 2: packed-JS decode, JPEGs)
+// 4. MangaDex (Tier 1: official API)
 // 5. Bato1 (Tier 2: working bato1.com mirror, WEBPs)
 // 6. MangaKakalot.fun (Tier 2: working .fun mirror, PNGs)
 // 7. MangaRead (Tier 2: MangaBuddy replacement, JPEGs)
 // Dead/broken (canonical mangabuddy/mangakakalot/bato.to, mangapark,
 // comick pages) are NOT in this array — zero requests, zero timeout spent.
-export const mangaProviders: MangaProvider[] = [mangaDexProvider, weebCentralProvider, mangaPillProvider, mangaHereProvider, bato1Provider, kakalotFunProvider, mangaReadProvider]
+// Settings ↑/↓ persists `mangaProviderOrder` and overrides this default.
+export const mangaProviders: MangaProvider[] = [weebCentralProvider, mangaHereProvider, mangaPillProvider, mangaDexProvider, bato1Provider, kakalotFunProvider, mangaReadProvider]
 
 /**
  * Registry of ALL manga provider instances (verified or not). Settings
  * derives its Manga section from this via verifiedMangaProviders() —
  * never a hardcoded list. Resolution priority follows the user's
  * Settings → Providers order (`mangaProviderOrder` pref) when set,
- * else the default priority: MangaDex → WeebCentral → MangaPill →
- * MangaHere → Bato1 → MangaKakalot.fun → MangaRead.
+ * else the default priority: WeebCentral → MangaHere → MangaPill →
+ * MangaDex → Bato1 → MangaKakalot.fun → MangaRead.
  */
 export function allMangaProviders(): MangaProvider[] {
   return [...mangaProviders]
 }
 
-/** Default resolution priority (verified reliability first — 2026-09-27). */
-export const DEFAULT_MANGA_ORDER = ['mangadex', 'weebcentral', 'mangapill', 'mangahere', 'bato1', 'kakalot', 'mangaread']
+/** Default resolution priority (owner default, 2026-10-28 — D144). */
+export const DEFAULT_MANGA_ORDER = ['weebcentral', 'mangahere', 'mangapill', 'mangadex', 'bato1', 'kakalot', 'mangaread']
 
 /** Effective resolution order: user order first (valid ids only), then the rest in default priority. */
 export function orderedMangaProviders(): MangaProvider[] {
@@ -296,7 +297,7 @@ export async function resolveChaptersWithFallback(manga: Anime, signal?: AbortSi
   }
   const opts = { ...options, signal }
   let lastError: string | undefined
-  // Single-source rule (OWNER 2026-10-18): ONE source per manga — the
+  // Single-source rule: ONE source per manga — the
   // highest-priority ENABLED provider wins outright. The next enabled
   // provider is attempted only when the first hosts NOTHING readable (no
   // match, zero units, only off-site licensed units, a sliver of a long
@@ -307,7 +308,7 @@ export async function resolveChaptersWithFallback(manga: Anime, signal?: AbortSi
   const enabled = orderedMangaProviders().filter(p => p.status === 'verified' && mangaEnabled(p.id))
   const attempts: { providerId: string; units: number; error?: string }[] = []
   let externalUnits: { label: string; url: string }[] | undefined
-  // COMPLETENESS GUARD (owner 2026-10-25). A long series served by a source
+  // COMPLETENESS GUARD. A long series served by a source
   // that holds a SLIVER of it is not a working source. Live example: One
   // Piece has ~1,100 chapters; MangaDex returned 5 English rows, four of
   // them off-site licensed links and the fifth a removed upload whose
@@ -321,12 +322,12 @@ export async function resolveChaptersWithFallback(manga: Anime, signal?: AbortSi
   for (const p of enabled) {
     try {
       const chapters = await p.getChapters(manga, opts)
-      // READABLE UNITS ONLY (owner 2026-10-25). A provider can match a title
+      // READABLE UNITS ONLY. A provider can match a title
       // and still host nothing: MangaDex lists licensed series (One Piece as
       // of 2026) as EXTERNAL chapters with a placeholder page count, and
       // every one of them returns zero pages. Counting those as "units"
       // declared the title resolvable and opened a reader that could never
-      // show a page — the "chapter not found" wall the owner hit. External
+      // show a page — the "chapter not found" wall. External
       // units are never readable, so an all-external list means this source
       // hosts nothing and resolution continues to the next provider.
       const readable = chapters.filter(c => !c.externalOnly)
@@ -337,7 +338,7 @@ export async function resolveChaptersWithFallback(manga: Anime, signal?: AbortSi
         ...(partial ? { error: `partial catalogue (${readable.length}/${expectedChapters})` } : {}),
       })
       if (readable.length && !partial) {
-        // HOSTED-PAGES PROBE (owner 2026-10-25). A unit list can be real
+        // HOSTED-PAGES PROBE. A unit list can be real
         // metadata for chapters that no longer exist: MangaDex returned
         // Chapter 1191 for One Piece with `pages: 14`, and its at-home
         // endpoint answers 404 — the reader opened on a single dead chapter

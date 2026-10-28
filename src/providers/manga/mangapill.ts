@@ -74,7 +74,7 @@ class MangaPillProvider implements MangaProvider {
   name = 'MangaPill'
   kind = 'manga' as const
   // Verified 2026-09-20: 405 units + 24 relayed pages (Berserk), SxF/HxH/
-  // Uzumaki matches + rendered JPEG bytes. ON BY DEFAULT (owner 2026-10-25):
+  // Uzumaki matches + rendered JPEG bytes. ON BY DEFAULT:
   // a live production pass found MangaDex ambiguous/no-match for the biggest
   // titles, WeebCentral matching none of them, and MangaHere matching but
   // returning 502 "empty page list". MangaPill matched ALL five sampled

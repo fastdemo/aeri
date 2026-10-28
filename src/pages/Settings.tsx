@@ -8,7 +8,6 @@ import { clearAnilistMemoryCache, getAnilistStats } from '../services/anilist/cl
 import { clearMalMemoryCache } from '../services/mal/client'
 import { getProviderCapabilities, checkProviderHealth, verifiedVideoProviders } from '../providers/video/registry'
 import { verifiedMangaProviders } from '../providers/manga/mangadex'
-import { FilterSelect } from '../components/ui/FilterSelect'
 import { THEMES, applyTheme } from '../lib/themes'
 import { Icon } from '../components/ui/Icon'
 import { pillSolid, pillSoft } from '../components/ui/buttonStyles'
@@ -68,7 +67,6 @@ export function Settings() {
     try {
       const { clearAllWatchPos } = await import('../storage/db')
       await clearAllWatchPos()
-      localStorage.removeItem('aeri:progress:anilist-154587')
     } catch {}
   }
 
@@ -78,9 +76,17 @@ export function Settings() {
       // Clear cache and watchPos as above
       await handleClearCache()
       await handleClearWatchPos()
-      // Reset prefs to defaults
+      // Reset prefs to defaults. The theme is painted on <html> (dataset +
+      // inline vars), so it must be re-applied explicitly — removing the
+      // stored key alone would leave the old theme until the next reload.
+      // The key is deleted first so stale/legacy fields cannot survive,
+      // then clean defaults are re-persisted.
       localStorage.removeItem('aeri:prefs')
-      setPrefs(getPreferences())
+      const next = setPreferences({})
+      setPrefs(next)
+      applyTheme(next.theme)
+      // Live surfaces (chapter lists, reader selectors) re-read prefs.
+      try { window.dispatchEvent(new CustomEvent('aeri:prefs-changed')) } catch {}
     } catch {}
   }
 
@@ -97,13 +103,7 @@ export function Settings() {
   }, [])
   const isEnabled = (id: string) => prefs.enabledProviders?.[id] !== false
   const toggleProvider = (id: string, enabled: boolean) => {
-    const next = { ...(prefs.enabledProviders ?? {}), [id]: enabled }
-    // If disabling preferred provider, clear preference
-    if (!enabled && prefs.preferredProvider === id) {
-      updatePref({ enabledProviders: next, preferredProvider: null })
-    } else {
-      updatePref({ enabledProviders: next })
-    }
+    updatePref({ enabledProviders: { ...(prefs.enabledProviders ?? {}), [id]: enabled } })
   }
   // Manga providers shown in Settings = verified ONLY, derived from the
   // manga registry (never hardcoded). Toggle state persists in
@@ -112,10 +112,10 @@ export function Settings() {
   const mangaProviders = verifiedMangaProviders()
   const orderedMangaProviders = (() => {
     const order = prefs.mangaProviderOrder
-    if (!order) {
-      const prio = ['weebcentral', 'mangadex', 'mangapill']
-      return [...mangaProviders].sort((a, b) => prio.indexOf(a.id) - prio.indexOf(b.id))
-    }
+    // No saved order: the registry array IS the default priority
+    // (WeebCentral → MangaHere → MangaPill → MangaDex, D144). Never sort by
+    // a local id list — that is how MangaHere used to land first.
+    if (!order) return mangaProviders
     const map = new Map(mangaProviders.map(p => [p.id, p] as const))
     const out: typeof mangaProviders = []
     for (const id of order) { const p = map.get(id); if (p) { out.push(p); map.delete(id) } }
@@ -172,11 +172,6 @@ export function Settings() {
     <div className="mx-auto max-w-[900px] px-4 py-6 sm:px-6 lg:px-12">
       <h1 className="text-[18px] font-semibold tracking-tight text-[var(--text)]">Settings</h1>
       <p className="text-xs text-[var(--text-faint)]">Accounts, playback, and your data.</p>
-      {!isAuthenticated && (
-        <div className="mt-4 rounded-lg border border-[var(--border)] bg-[var(--text)]/[0.02] px-4 py-3 flex items-center justify-between gap-3">
-          <p className="text-xs text-[var(--text-muted)]">Sign in with AniList or connect MyAnimeList to sync your list and enable tracking. Playback preferences work without an account.</p>
-        </div>
-      )}
 
       {/* About — first: identity before configuration. */}
       <section className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--text)]/[0.02] p-4 sm:p-5">
@@ -184,7 +179,7 @@ export function Settings() {
         <p className="mt-1 text-xs text-[var(--text-faint)]">Aeri is a quiet anime discovery, tracking, and watching app. No tracking, no ads — your data stays in this browser.</p>
         <div className="mt-3 space-y-2 text-xs leading-5">
           <p><span className="text-[var(--text-faint)]">Metadata:</span> <span className="text-[var(--text)]">AniList</span><span className="mx-2 text-[color-mix(in_srgb,var(--text)_20%,transparent)]">•</span><span className="text-[var(--text-faint)]">Tracking:</span> <span className="text-[var(--text)]">{trackingProvider === 'mal' ? 'MyAnimeList' : trackingProvider === 'anilist' ? 'AniList' : 'Not connected'}</span></p>
-          <p><span className="text-[var(--text-faint)]">Video:</span> <span className="text-[var(--text)]">{prefs.preferredProvider ? prefs.preferredProvider : 'Auto'} {health ? (Object.values(health).includes('available') ? '' : '(checking…)') : ''}</span><span className="mx-2 text-[color-mix(in_srgb,var(--text)_20%,transparent)]">•</span><span className="text-[var(--text-faint)]">Storage:</span> <span className="text-[var(--text)]">This browser only</span></p>
+          <p><span className="text-[var(--text-faint)]">Video:</span> <span className="text-[var(--text)]">{orderedCaps.find(c => isEnabled(c.id))?.displayName ?? 'Auto'}</span><span className="mx-2 text-[color-mix(in_srgb,var(--text)_20%,transparent)]">•</span><span className="text-[var(--text-faint)]">Storage:</span> <span className="text-[var(--text)]">This browser only</span></p>
           <p className="pt-2">
             <a href="https://github.com/fastdemo/aeri" className="underline hover:text-[var(--text)] text-[var(--text-faint)]">GitHub</a>
             <span className="mx-2 text-[color-mix(in_srgb,var(--text)_20%,transparent)]">•</span>
@@ -373,8 +368,8 @@ export function Settings() {
           <div>
             <p className="text-xs font-medium text-[var(--text)]">Preferred audio</p>
             <p className="text-[11px] text-[var(--text-faint)]">Sub: Japanese with subtitles. Dub: English where available. Falls back if missing.</p>
-            {/* ORIGINAL segmented toggle (owner 2026-10-26: size only, do
-                not change the component). Track + inner pill; 1px border +
+            {/* ORIGINAL segmented toggle — size only, never a different
+                component. Track + inner pill; 1px border +
                 4px track padding + 20px inner pill = the same 30px box as
                 every other control. */}
             <div className="mt-2 inline-flex rounded-full border border-[var(--border)] bg-[var(--bg-soft)] p-1" role="radiogroup" aria-label="Preferred audio">
@@ -390,20 +385,6 @@ export function Settings() {
                 </button>
               ))}
             </div>
-          </div>
-          <div>
-            <p className="text-xs font-medium text-[var(--text)]">Preferred source</p>
-            <p className="text-[11px] text-[var(--text-faint)]">Auto tries your choice first, then others.</p>
-            <FilterSelect
-              value={prefs.preferredProvider ?? ''}
-              onChange={v => updatePref({ preferredProvider: v || null })}
-              ariaLabel="Preferred source"
-              placeholder="Auto (Recommended)"
-              options={orderedCaps.filter(c=>isEnabled(c.id)).map(c => ({ value: c.id, label: c.displayName }))}
-            />
-            <p className="mt-1 text-[11px] text-[color-mix(in_srgb,var(--text)_30%,transparent)]">
-              {prefs.preferredProvider ? `Trying ${prefs.preferredProvider} first, then fallback.` : 'Auto picks the best available source.'}
-            </p>
           </div>
           <div className="space-y-2 pt-2">
             <p className="text-xs font-medium text-[var(--text)]">Anime providers</p>
@@ -436,7 +417,7 @@ export function Settings() {
                 )
               })}
             </div>
-            <p className="text-[11px] text-[color-mix(in_srgb,var(--text)_30%,transparent)]">Disable providers you don’t want to try. Reorder with ↑/↓ — preferred source still tried first.</p>
+            <p className="text-[11px] text-[color-mix(in_srgb,var(--text)_30%,transparent)]">Disable providers you don’t want to try. Reorder with ↑/↓ — resolution follows this order.</p>
           </div>
           <div className="space-y-2 pt-4 border-t border-[var(--border)]">
             <p className="text-xs font-medium text-[var(--text)]">Custom video server (optional)</p>

@@ -98,11 +98,10 @@ export function TrackingProvider({ children }: { children: React.ReactNode }) {
     : trackingProvider === 'mal' ? mal.animeList
     : null
 
-  // MAL tracker (owner 2026-10-20 "anilist for metadata, ALWAYS. no mal
-  // metadata" + 2026-10-21 show-everything rule): the combined list renders
-  // AniList-backed records and entries the batch PROVED have no AniList
-  // record (`noAniListRecord` — stable MAL identity, nothing to flip to)
-  // while the batch is in flight. The enrichment array stays RESIDENT
+  // MAL tracker: AniList is the metadata backend, ALWAYS — the combined list
+  // renders AniList-backed records and entries the batch PROVED have no
+  // AniList record (`noAniListRecord` — stable MAL identity, nothing to flip
+  // to) while the batch is in flight. The enrichment array stays RESIDENT
   // across re-fires (never reset to raw MAL): every fresh pass re-commits
   // AniList-backed records, so a re-render can never regress a card to its
   // MAL-titled/MAL-art state — that regression WAS the "identity crisis".
@@ -156,7 +155,7 @@ export function TrackingProvider({ children }: { children: React.ReactNode }) {
     anime.identity.mediaType === 'MANGA' ||
     ['MANGA', 'NOVEL', 'ONE_SHOT'].includes((anime.format ?? '').toUpperCase())
 
-  // DATE STAMPS (owner rules 2026-10-18 + 2026-10-23): setting a title to
+  // DATE STAMPS: setting a title to
   // WATCHING always stamps today's start date; COMPLETED always stamps
   // today's finish date. The 10-23 tightening makes this unconditional —
   // entries auto-created by a progress write used to land in watching with
@@ -195,7 +194,7 @@ export function TrackingProvider({ children }: { children: React.ReactNode }) {
   }, [combinedList])
 
   const updateProgress = useCallback(async (anime: Anime, ep: number, opts?: { manual?: boolean }) => {
-    // INCOGNITO GATE (owner 2026-10-23): automatic progress writes from
+    // INCOGNITO GATE: automatic progress writes from
     // watching/reading never reach the tracker while incognito is on.
     // Manual, user-initiated edits pass `{ manual: true }` and still sync.
     if (!opts?.manual && isIncognitoEnabled()) return
@@ -212,7 +211,7 @@ export function TrackingProvider({ children }: { children: React.ReactNode }) {
       if (malId) { try { await mal.updateProgress(malId, ep, isManga); wrote = true } catch { /* no write */ } }
       else if (anime.identity.malId) { try { await mal.updateProgress(`mal-${anime.identity.malId}`, ep, isManga); wrote = true } catch { /* no write */ } }
     }
-    // AUTO-COMPLETE (owner 2026-10-23): reaching 100% of a KNOWN total
+    // AUTO-COMPLETE: reaching 100% of a KNOWN total
     // flips the entry to completed — which stamps the finish date. An
     // unknown total (airing show, ongoing manga) or a malformed count means
     // NO status write at all: incomplete data must never fake completion.

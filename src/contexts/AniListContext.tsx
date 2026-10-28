@@ -179,9 +179,9 @@ export function AniListProvider({ children }: { children: React.ReactNode }) {
     // Pull-sync: external changes (site/app) surface on focus, reconnect,
     // and visibility return. No webhooks exist — this is the sync path.
     // Bounded: 60s cooldown, token-gated, failures silent (stale list kept).
-    // FORCED (owner 2026-10-25): a pull-sync that reads the 24h IDB snapshot
-    // can never see a score added on anilist.co — exactly the "my scores
-    // don't show up" report. Focus/online/visibility now re-ask AniList.
+    // FORCED: a pull-sync that reads the 24h IDB snapshot can never see a
+    // score added on anilist.co — the snapshot goes stale the moment a score
+    // is set there. Focus/online/visibility now re-ask AniList.
     const lastSyncRef = { current: 0 }
     const pullSync = () => {
       try {

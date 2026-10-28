@@ -4,7 +4,7 @@ import { getCache, putCache } from '../../storage/db'
 /**
  * Kitsu is a NARROW fallback for episode names and thumbnails ONLY.
  *
- * Owner rule (2026-10-23): AniList always owns episode metadata. Kitsu is
+ * AniList always owns episode metadata. Kitsu is
  * consulted only when the AniList record has absolutely no usable episode
  * title or thumbnail for the whole entry (for example Monster, Berserk
  * 1997, Evangelion TV). It never supplies identity, totals, tracking,

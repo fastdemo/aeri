@@ -85,7 +85,7 @@ export function Docs() {
         <>Chapter lists run oldest-first by default, toggleable to newest-first.</>,
         <>The reader scrolls vertically and remembers chapter + page — reopening a title resumes where you stopped.</>,
         <>A chapter counts as read when you reach 80% of its pages; progress saves are quiet and instant.</>,
-        <>If one source lags, enable another in Settings → Providers (MangaDex, Weeb Central, and MangaPill are supported).</>,
+        <>If one source lags, enable another in Settings → Providers (Weeb Central, MangaHere, MangaPill, and MangaDex are supported).</>,
       ]} />
 
       <H>Your list &amp; tracking</H>
@@ -121,8 +121,8 @@ export function Docs() {
         failing. MAL runs through PKCE OAuth via the Worker's token proxy (anime and manga lists, same
         <Code>my_list_status</Code> writes). Video: a provider registry resolves episodes → sources, then the
         Worker signs a relay URL and Aeri's Video.js v10 player (HlsJsVideo; HLS via MSE, native fallback)
-        plays it. Only direct HLS/MP4 sources are offered. Manga: MangaDex (primary) +
-        Weeb Central + MangaPill resolve chapters → page images through the signed <Code>/api/manga/img</Code> relay.
+        plays it. Only direct HLS/MP4 sources are offered. Manga: Weeb Central (default) +
+        MangaHere + MangaPill + MangaDex resolve chapters → page images through the signed <Code>/api/manga/img</Code> relay.
       </P>
       <P>
         <strong className="font-medium text-[var(--text)]">Build, test, deploy.</strong> Source the env first, then

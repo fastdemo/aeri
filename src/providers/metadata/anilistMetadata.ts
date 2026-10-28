@@ -68,8 +68,7 @@ const UPCOMING_QUERY = buildPageQuery('POPULARITY_DESC', ', status: NOT_YET_RELE
 const FINISHED_QUERY = buildPageQuery('END_DATE_DESC', ', status: FINISHED')
 
 /**
- * HOME FEED (owner 2026-10-25: Home "takes forever and shows many blank
- * cards"). Home used to fire FOUR separate page queries carrying the full
+ * HOME FEED. Home used to fire FOUR separate page queries carrying the full
  * detail field set — description HTML, every relation edge, streaming
  * episodes, airing schedule — for a page that only paints tiles. Measured
  * against the live API on 2026-10-25:
@@ -157,8 +156,7 @@ query ($id: Int) {
 }
 `
 
-// BY-MAL LOOKUPS ARE TYPE-SCOPED IN BOTH THE QUERY AND THE CACHE KEY (owner
-// rule 2026-10-20: "anilist for metadata, ALWAYS. no mal metadata"). MAL ids
+// BY-MAL LOOKUPS ARE TYPE-SCOPED IN BOTH THE QUERY AND THE CACHE KEY. MAL ids
 // and AniList anime/manga ids are three separate numeric spaces; a number can
 // be a valid animal id AND manga id in AniList simultaneously. Anime entries
 // must never resolve a MAL lookup to a manga work (or vice versa) — separate
@@ -180,11 +178,11 @@ query ($malId: Int) {
 }
 `
 
-// BATCHED BY-MAL LOOKUPS (D111 2026-10-21, owner: "the continue watching row
-// would just appear immediately... it didn't even show all the shows"): ONE
+// BATCHED BY-MAL LOOKUPS (D111): ONE
 // request per ≤50-id chunk resolves the ENTIRE tracker list, instead of one
 // request per entry (which crawled through the rate limit and let throttled
-// shows vanish). An id ABSENT from a chunk that completed is a DEFINITIVE
+// shows vanish — the continue row appeared late and incomplete). An id ABSENT
+// from a chunk that completed is a DEFINITIVE
 // non-mapping — the filter matched and found nothing — not a failure, so the
 // negative is seeded under the same kind-scoped per-id key (24h, like every
 // cache) and the entry can keep a stable identity until AniList maps it.
@@ -453,7 +451,7 @@ export class AniListMetadataProvider implements AnimeMetadataProvider {
     // Read link is built from that internalId — without this branch
     // `Number('mal-23390')` is NaN, so /read/mal-23390/… answered "Manga not
     // found" for every signed-in MAL manga even though the detail page had
-    // just listed its chapters (owner report 2026-10-26).
+    // just listed its chapters.
     if (id.startsWith('mal-')) {
       const malId = Number(id.replace('mal-', ''))
       if (Number.isNaN(malId)) throw new ProviderError('NOT_FOUND', 'We couldn’t find that manga.', false)
@@ -614,9 +612,8 @@ export class AniListMetadataProvider implements AnimeMetadataProvider {
 export const anilistMetadataProvider = new AniListMetadataProvider()
 
 /**
- * Patient anime lookup — the reliability upgrade for NAME surfaces (owner
- * 2026-10-18: "it only works half the time and i want reliability" about
- * next-episode names). Same provider `getAnime`, but THROTTLED attempts
+ * Patient anime lookup — the reliability upgrade for NAME surfaces. Same
+ * provider `getAnime`, but THROTTLED attempts
  * (AniList 429 / burst cooldown) retry after the shared cooldown lifts,
  * up to `maxAttempts`. Other error kinds never retry (404, AUTH…). Late
  * names beat bare captions, so this is deliberately long-limbed; it is

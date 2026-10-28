@@ -11,7 +11,7 @@ import { useDetailOpen } from '../hooks/useDetailOpen'
 import type { Anime, AnimeListEntry } from '../types/anime'
 import { pillSolid, pillSoft } from '../components/ui/buttonStyles'
 
-// Profile (owner 2026-10-20): the home page's row MATERIALS on the user's
+// Profile: the home page's row MATERIALS on the user's
 // own page — a home-styled "Currently Watching" row with NORMAL cards (not
 // the continue variant), user-score-sorted "Highest Rated" / "Lowest Rated"
 // rows, and the home page's "My List" row verbatim at the bottom. All four
@@ -28,8 +28,8 @@ export function Profile() {
   const user = trackingProvider === 'mal' ? (malUser ?? anilistUser) : (anilistUser ?? malUser)
   const trackerName = trackingProvider === 'mal' ? 'MyAnimeList' : 'AniList'
 
-  // REAL PROFILE LINK (owner: "when i click on my username ... lead to my
-  // real profile (on mal/anilist)"). URLs verified per provider:
+  // REAL PROFILE LINK: the username leads to the
+  // real profile (on MAL/AniList). URLs verified per provider:
   // MAL profile is name-addressed (https://myanimelist.net/profile/<name>,
   // name from /users/@me), AniList is id-addressed
   // (https://anilist.co/user/<id>, numeric id from Viewer).
@@ -62,7 +62,7 @@ export function Profile() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [combinedList])
 
-  // User-score rows with the owner's TIER-FILL rule (2026-10-20): take whole
+  // User-score rows with the TIER-FILL rule: take whole
   // score tiers starting from the extreme until the row holds AT LEAST 10
   // titles — the tier that crosses the minimum is included whole ("8×10★ +
   // 2×9★ → 10 shows; 11×10★ → 11; 1×10★ + 13×9★ → 14"). Fewer than 10
@@ -113,7 +113,7 @@ export function Profile() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [combinedList])
 
-  // HONEST EMPTY STATE (owner 2026-10-25). Both score rows are hidden when
+  // HONEST EMPTY STATE. Both score rows are hidden when
   // nothing is scored — that is correct, but on its own it reads as "the
   // rows are broken" (the reported Highest/Lowest bug). Report the real
   // reason instead: the rows need scores, and scores added on anilist.co are
@@ -156,7 +156,7 @@ export function Profile() {
           </div>
         )}
         <div className="min-w-0 flex-1">
-          {/* OWNER (2026-10-20): the username opens the real profile on the
+          {/* The username opens the real profile on the
               active tracker (new tab). Plain-text fallback when the
               identity has no usable id/name yet. */}
           {profileUrl && user?.name ? (
@@ -198,7 +198,7 @@ export function Profile() {
       {/* Statistics (kept, same numbers) */}
       <section aria-label="Statistics" className="mt-6">
         <h2 className="mb-2 text-[14px] font-semibold text-[var(--text)]">Statistics</h2>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
           {[
             { label: 'Watching', value: stats.watching },
             { label: 'Completed', value: stats.completed },
@@ -231,14 +231,11 @@ export function Profile() {
           </>
         ) : (
           <>
-            {/* OWNER (2026-10-20): right-side descriptions are personal
-                labels, replacing the "N titles • tracker" count — exactly
-                these three; the row TITLES keep the functional names.
-                OWNER (2026-10-19): "rip a row from the home page to replace
-                the 'Currently Watching', stylize like that too" — home's
-                Continue Watching muscle (same filter + ordering + row
-                chrome) on normal cards. "that will also act as currently
-                watching". */}
+            {/* Right-side descriptions are personal labels, replacing the
+                "N titles • tracker" count — exactly these three; the row
+                TITLES keep the functional names. Currently Watching borrows
+                home's Continue Watching muscle (same filter + ordering + row
+                chrome) on normal cards. */}
             {currentlyWatching.length > 0 ? (
               <ContentRow title="Currently Watching" subtitle="Shows I'm binging">
                 {currentlyWatching.map(a => (
@@ -258,7 +255,7 @@ export function Profile() {
               </div>
             )}
 
-            {/* OWNER (2026-10-20): score-sorted rows from the active
+            {/* Score-sorted rows from the active
                 tracker's list (MAL 0–10 / AniList 0–100 → 0–10 at the
                 boundary). Hidden until at least one title is scored. */}
             {highestRated.length > 0 && (
@@ -300,7 +297,7 @@ export function Profile() {
               </div>
             )}
 
-            {/* OWNER (2026-10-20): the home page's "My List" row, directly
+            {/* The home page's "My List" row, directly
                 ripped and placed at the bottom (same filter, chrome, and
                 empty state). */}
             {myList.length ? (

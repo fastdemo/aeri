@@ -42,7 +42,7 @@ const ICONS: Record<string, LucideIcon> = {
   'play-circle': CirclePlay,
   'three-dots-vertical': EllipsisVertical,
   'check-lg': Check,
-  // Owner 2026-10-26: the Watch grid marks the CURRENT episode with the
+  // The Watch grid marks the CURRENT episode with the
   // same overlay as a watched one, but an audio-bars glyph instead of the
   // tick — "now playing" reads as sound, not as "already seen".
   'audio-lines': AudioLines,
@@ -51,7 +51,7 @@ const ICONS: Record<string, LucideIcon> = {
   'plus-circle': CirclePlus,
   'dash-lg': Minus,
   list: List,
-  // Owner 2026-10-25: the collapsed nav trigger is Lucide's `menu`
+  // The collapsed nav trigger is Lucide's `menu`
   // (three rules), not the `list` glyph (bulleted rows). `list` stays for
   // its historical call sites.
   menu: Menu,
@@ -76,11 +76,16 @@ export function Icon({
   size = 14,
   className,
   label,
+  strokeWidth,
 }: {
   name: IconName
   size?: number
   className?: string
   label?: string
+  /** Optional override for stroke glyphs. Small icons need a heavier
+   *  viewBox stroke to carry the same optical weight as 12px text arrows:
+   *  the 24-unit viewBox scales a 2-unit stroke down to 1px at size 12. */
+  strokeWidth?: number
 }) {
   const Glyph = ICONS[name] ?? Book
   // The play glyph is the one solid icon in the app; everything else is a
@@ -90,7 +95,7 @@ export function Icon({
     <Glyph
       width={size}
       height={size}
-      strokeWidth={solid ? 0 : 2}
+      strokeWidth={solid ? 0 : (strokeWidth ?? 2)}
       fill={solid ? 'currentColor' : 'none'}
       className={className}
       aria-hidden={label ? undefined : true}

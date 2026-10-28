@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import type { Anime } from '../../types/anime'
 import { getPrimaryTitle } from '../../lib/titles'
-import { cleanEpisodeTitle, getDisplayEpisodeNumber, getStreamingEpisodeTitle, sanitizeAnimeForDisplay } from '../../lib/episodes'
+import { cleanEpisodeTitle, getAiredProgressPercent, getDisplayEpisodeNumber, getStreamingEpisodeTitle, sanitizeAnimeForDisplay } from '../../lib/episodes'
 import { findFallbackEpisode } from '../../lib/episodes'
 import { useKitsuEpisodes } from '../../hooks/useKitsuEpisodes'
 import { formatLabel } from '../../lib/mediaLabels'
@@ -12,6 +12,7 @@ import { getReadPos } from '../../storage/db'
 import { detailPath } from '../../hooks/useDetailOpen'
 import { useNearViewport } from '../../hooks/useNearViewport'
 import { planResume } from '../../lib/resume'
+import { CARD_ART_ASPECT, CARD_ART_DIMS, CARD_WIDTH } from './cardGeometry'
 
 type Variant = 'default' | 'continue' | 'compact'
 
@@ -63,15 +64,15 @@ function QuickMenu({ anime }: { anime: Anime }) {
           e.preventDefault()
           setOpen((v) => !v)
         }}
-        // OWNER (2026-10-18, same style as the play/read glyphs): bare
-        // dots — no glass chip, no border — with a DOUBLE drop-shadow for
-        // contrast on bright thumbnails. 24px box as restored.
-        // OWNER (2026-10-19): "play button and 3 dots menu shall only
-        // appear on hover. that should always be the case, also on mobile.
-        // hovering on mobile just doesnt exist at all fyi" — the glyphs
-        // and dots are hover/focus-only at EVERY width now; touch never
-        // shows them (tapping a card opens its preview instead).
-        // OWNER (2026-10-20): the ⋮ stays OUTSIDE the frame (menu + shadow
+        // BARE DOTS — no glass chip, no border — with a DOUBLE drop-shadow
+        // for contrast on bright thumbnails. 24px box.
+        // z-40: the row's scroll arrow is z-30 (D141) and covers the right
+        // edge of a partially visible continue card. The ⋮ is a legitimate
+        // 24px control in that strip and must stay clickable; only the
+        // large centre play glyph is meant to lose to the arrow.
+        // The glyphs and dots are hover/focus-only at EVERY width; touch
+        // never shows them (tapping a card opens its preview instead).
+        // The ⋮ stays OUTSIDE the frame (menu + shadow
         // must not clip), so its ART-hover reveal is driven from
         // globals.css: `.group\/card:has(.group\/art:hover)
         // .card-dots-trigger` — the card ROOT carries `group/card`, the
@@ -82,7 +83,7 @@ function QuickMenu({ anime }: { anime: Anime }) {
         // which rests outside the art hover region). Keyboard: the
         // `:focus-within` branch in globals.css reveals regardless of
         // caption/art geometry.
-        className={`absolute right-1 top-1 z-20 grid h-6 w-6 place-items-center rounded-full card-dots-trigger hover-only-control text-[var(--text)] opacity-0 group-focus-visible/card:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100 transition duration-200 hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)] [filter:drop-shadow(0_1px_3px_rgba(0,0,0,1))_drop-shadow(0_3px_18px_rgba(0,0,0,0.9))]`}
+        className={`absolute right-1 top-1 z-40 grid h-6 w-6 place-items-center rounded-full card-dots-trigger hover-only-control text-[var(--text)] opacity-0 group-focus-visible/card:opacity-100 focus-visible:opacity-100 aria-expanded:opacity-100 transition duration-200 hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)] [filter:drop-shadow(0_1px_3px_rgba(0,0,0,1))_drop-shadow(0_3px_18px_rgba(0,0,0,0.9))]`}
       >
         <Icon name="three-dots-vertical" size={12} />
       </button>
@@ -160,7 +161,7 @@ export function AnimeCard({
       (e.g. RelatedEntries grids) where a nested anchor would be invalid HTML
       and cause hydration errors + ambiguous taps on mobile. */
   disableLink?: boolean
-  /** D113 (owner 2026-10-23): Related ANIME tiles show no hover caption at
+  /** D113: Related ANIME tiles show no hover caption at
       all — name and meta both live outside the art (name in the aria-label
       and the grid's meta line below). Manga tiles keep their caption. */
   hideHoverCaption?: boolean
@@ -172,21 +173,23 @@ export function AnimeCard({
   const kind = kindOf(anime, mediaKind)
   const isManga = kind === 'manga'
   const navigate = useNavigate()
+  const { isAuthenticated } = useTracking()
   const width = fullWidth
-    ? 'w-full'
+    ? CARD_WIDTH.full
     : variant === 'compact'
-      ? 'w-[148px] sm:w-[180px]'
-      : 'w-[168px] sm:w-[200px] lg:w-[236px]'
+      ? CARD_WIDTH.compact
+      : CARD_WIDTH.rail
 
   // Manga uses portrait cover art; anime uses landscape backdrop art.
   // All other card language (ring, hover, caption, progress) is shared.
+  // Shape lives in cardGeometry.ts so skeletons cannot drift from cards.
   const fallbackSrc = isManga
     ? (anime.coverImage || anime.backdropImage || '')
     : (anime.backdropImage || anime.coverImage || '')
-  const artAspect = isManga ? 'aspect-[3/4]' : 'aspect-[16/9]'
-  const artDims = isManga ? { width: 300, height: 400 } : { width: 400, height: 225 }
+  const artAspect = CARD_ART_ASPECT[kind]
+  const artDims = CARD_ART_DIMS[kind]
   const primaryTitle = getPrimaryTitle(anime)
-  // ART LOADING (owner 2026-10-25): the tile only asks for its artwork once
+  // ART LOADING: the tile only asks for its artwork once
   // it is near the viewport. `loading="lazy"` alone queued ~50 full-size
   // banners on a cold Home (every row is a scroller and Chrome's lazy
   // distance spans the whole feed), so in-view tiles stayed blank behind
@@ -205,14 +208,13 @@ export function AnimeCard({
   }, [fallbackSrc])
   const progressEp = anime.progress?.episode ?? 0
   const displayEp = progressEp > 0 ? getDisplayEpisodeNumber(anime, progressEp) : 0
-  // CONTINUE = NEXT EPISODE (owner 2026-10-18): "if I watched 20 episodes,
-  // the card should show episode 21". Caption + play target both point at
-  // progress+1 (episode 1 for an unstarted show). Episode NAMES and the
-  // true episode count come from the ANILIST RECORD ALWAYS — the tracker
-  // (MAL or AniList) is only the progress source. The tracker's thin list
-  // copy rarely carries streamingEpisodes, which is why names worked "half
-  // the time": they appeared only after a hover prewarm filled the cache.
-  // Fetching the full AniList record on mount (shared cache, inflight
+  // CONTINUE = NEXT EPISODE: the caption + play target both point at
+  // progress+1 (episode 1 for an unstarted show) — watching 20 episodes
+  // resumes at 21. Episode NAMES and the true episode count come from the
+  // ANILIST RECORD ALWAYS — the tracker (MAL or AniList) is only the progress
+  // source. The tracker's thin list copy rarely carries streamingEpisodes,
+  // which is why names used to appear only after a hover prewarm filled the
+  // cache. Fetching the full AniList record on mount (shared cache, inflight
   // dedupe) makes the name deterministic for every card.
   const [episodeMeta, setEpisodeMeta] = useState<Anime | null>(null)
   useEffect(() => {
@@ -231,7 +233,7 @@ export function AnimeCard({
     return () => { cancelled = true }
   }, [variant, isManga, anime.identity.anilistId, anime.identity.malId])
   const meta = episodeMeta ?? anime
-  // DISPLAY RECORD (owner 2026-10-25): the fetched AniList record must pass
+  // DISPLAY RECORD: the fetched AniList record must pass
   // the SAME display guards as every other surface. Code Geass R2's AniList
   // entry carries season 1's 25 Crunchyroll rows — reading them raw showed
   // S1 episode 4's name on an R2 continue card. sanitizeAnimeForDisplay
@@ -242,7 +244,13 @@ export function AnimeCard({
     [episodeMeta, anime],
   )
   const epTotal = typeof meta.episodes === 'number' && meta.episodes > 0 ? meta.episodes : 0
-  // RESUME / RESTART (owner 2026-10-25): the same pure rule as the preview
+  // AIRED DENOMINATOR: the continue bar measures against episodes that HAVE
+  // AIRED, not the planned season total, so a caught-up airing show reads
+  // full instead of a quarter-full. Uses the enriched AniList record when it
+  // has landed (MAL list copies carry no airing schedule) and falls back to
+  // the list record until then.
+  const barPercent = getAiredProgressPercent(displayMeta, progressEp, epTotal, anime.progress?.percent ?? 0)
+  // RESUME / RESTART: the same pure rule as the preview
   // card. A part-watched show opens progress+1; a show with nothing new
   // left (finished, or airing-and-caught-up) restarts at episode 1 instead
   // of pointing the glyph at a finale — or at an episode that has not aired.
@@ -253,7 +261,7 @@ export function AnimeCard({
   })
   const watchEp = resume.target
   const displayWatchEp = getDisplayEpisodeNumber(meta, watchEp)
-  // KITSU FALLBACK (owner 2026-10-25): only when the AniList record resolved
+  // KITSU FALLBACK: only when the AniList record resolved
   // AND the display guards discard its episode metadata (CG R2). Gating on
   // `episodeMeta` keeps cold Home loads at zero extra requests: thin
   // tracker copies never trigger a Kitsu lookup, and cards whose AniList
@@ -273,8 +281,8 @@ export function AnimeCard({
       ? `anilist-${w.identity.anilistId}`
       : w.identity.internalId
   })()
-  // Manga READ target (owner 2026-10-18 — same next-unit semantics as the
-  // anime play button): the first unread chapter — progress+1, clamped to
+  // Manga READ target — same next-unit semantics as the
+  // anime play button: the first unread chapter — progress+1, clamped to
   // the tracker's chapter count — or 'first' for an unstarted OR exhausted
   // title (Netflix restart). The Read route contract is the same one
   // DetailModal's Resume uses: 'ch-N' targets unit number N, 'first' the
@@ -285,31 +293,25 @@ export function AnimeCard({
     if (plan.restart || progressEp <= 0) return 'first'
     return `ch-${plan.target}`
   })()
-  // OWNER (2026-10-18 evening): one overlay language for EVERY card on
-  // EVERY surface (home rows, /anime, /manga browse, My List, Search,
-  // profile, related tiles — they all render AnimeCard). A background-free
-  // glyph — play for anime, book for manga — 30px (owner: "+25%").
-  // 2026-10-19 (owner): NO shadow on the glyphs ("remove the shadow for
-  // the read and play icon") and no self-scale ("when i hover over
-  // play/read button dont make it bigger just let it still") — the
-  // hover:scale-110 and the double drop-shadow filter are gone. The dark
-  // ~50% card scrim + 8px blur behind them (the hover treatment above)
-  // now carries legibility on bright art. HOVER/FOCUS-ONLY AT EVERY
-  // WIDTH (owner later same day: "play button and 3 dots menu shall only
-  // appear on hover. that should always be the case, also on mobile.
-  // hovering on mobile just doesnt exist at all fyi"): no md: gate and no
-  // touch fallback — the glyph is invisible until the card is hovered or
-  // focus is within it, on desktop and phone alike. Tap still opens the
-  // preview card; play/read live in the preview on touch. 2026-10-20: the
-  // hover trigger is the ART div (`group-hover/art` — hovering a continue
-  // card's bottom caption must not reveal the treatment); the card ROOT
-  // carries `group/card`, whose focus-within keeps keyboard reveal.
-  // D113 (owner-revised 2026-10-23): the glyph is DEAD CENTER on every
+  // ONE overlay language for EVERY card on EVERY surface (home rows, /anime,
+  // /manga browse, My List, Search, profile, related tiles — they all render
+  // AnimeCard). A background-free glyph — play for anime, book for manga —
+  // 30px, 25% larger than the original 24px box. No shadow and no
+  // self-scale: the dark ~50% card scrim + 8px blur behind them (the hover
+  // treatment above) carries legibility on bright art.
+  // HOVER/FOCUS-ONLY AT EVERY WIDTH: no md: gate and no touch fallback — the
+  // glyph is invisible until the card is hovered or focus is within it, on
+  // desktop and phone alike. Tap still opens the preview card; play/read
+  // live in the preview on touch. The hover trigger is the ART div
+  // (`group-hover/art` — hovering a continue card's bottom caption must not
+  // reveal the treatment); the card ROOT carries `group/card`, whose
+  // focus-within keeps keyboard reveal.
+  // D113 (revised 2026-10-23): the glyph is DEAD CENTER on every
   // card, at every size, for both kinds — no exceptions. The narrow-tile
   // overlap fix lives in the hover band instead (bottom gradient gets
   // tighter, meta line drops) and applies to ANIME tiles only: portrait
   // manga art is tall enough that the collision never existed there.
-  // TOUCH POLICY (owner 2026-10-23): hover affordances DO NOT EXIST on
+  // TOUCH POLICY: hover affordances DO NOT EXIST on
   // devices without hover — no tap fallback, no reveal. Tailwind v4 already
   // media-gates `group-hover/*` reveal; `hover-only-control` (globals.css)
   // also removes pointer hit-testing there, so the invisible glyph can
@@ -320,7 +322,7 @@ export function AnimeCard({
     'absolute left-1/2 top-1/2 z-10 -translate-x-1/2 -translate-y-1/2 grid place-items-center text-[var(--text)] hover-only-control ' +
     'opacity-0 group-hover/art:opacity-100 group-focus-visible/card:opacity-100 focus-visible:opacity-100 ' +
     'transition duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)]'
-  // OWNER (2026-10-25): the hover glyph is 25% SMALLER than the 30px box
+  // the hover glyph is 25% SMALLER than the 30px box
   // (30 → 22) and the manga read glyph keeps the SAME size as play. The
   // 30px art read as a billboard over the thumbnail.
   const GLYPH_ICON_PX = 22
@@ -330,13 +332,15 @@ export function AnimeCard({
   // a volume renamed to a chapter. Falls back to tracker progress text.
   const [mangaUnitLabel, setMangaUnitLabel] = useState<string | null>(null)
   useEffect(() => {
-    if (variant !== 'continue' || !isManga) return
+    // GUEST MODE (owner 2026-10-28): no local read-position lookup while
+    // signed out — a guest's card language comes from the record only.
+    if (variant !== 'continue' || !isManga || !isAuthenticated) return
     let cancelled = false
     getReadPos(anime.identity.internalId.replace(/^read:/, ''))
       .then(pos => { if (!cancelled && pos?.chapterLabel) setMangaUnitLabel(pos.chapterLabel) })
       .catch(() => {})
     return () => { cancelled = true }
-  }, [variant, isManga, anime.identity.internalId])
+  }, [variant, isManga, anime.identity.internalId, isAuthenticated])
 
   // Captions exist ONLY on Continue Watching cards (below). All other
   // rows are clean thumbnails; name/year/category appear in the hover
@@ -359,7 +363,7 @@ export function AnimeCard({
   // utilities below only work because the plain classes won the cascade
   // or nothing overrides them — see globals.css for the full mechanism.
   const content = (
-    // OWNER (2026-10-20, continue cards): the hover treatment must trigger
+    // the hover treatment must trigger
     // from the THUMBNAIL only — hovering the bottom caption block of a
     // continue card never reveals the scrim/glyph/⋮. So the hover trigger
     // is the ART div via `group/art` (the thumbnail), NOT the card root;
@@ -374,10 +378,17 @@ export function AnimeCard({
       <div
         className={`relative w-full min-w-0 flex-shrink-0 overflow-hidden rounded-[6px] bg-[var(--surface)] ${width}`}
       >
-      <div ref={artRef} className={`group/art relative ${artAspect} w-full min-w-0 overflow-hidden bg-[var(--surface-elevated)] @container`}>
+      <div ref={artRef} className={`card-art group/art relative ${artAspect} w-full min-w-0 overflow-hidden bg-[var(--surface-elevated)] @container`}>
         {/* Quiet placeholder while the art is gated/loading — a flat empty
-            box read as a broken card. Same final box, so nothing shifts. */}
-        {!artLoaded && (
+            box read as a broken card. Same final box, so nothing shifts.
+            SCROLL COST: this pulse only renders when the card is actually near the
+            viewport. An offscreen card is never visible, so its skeleton
+            does not need to animate — and 80+ simultaneous infinite
+            animations were the single largest scroll cost on Home
+            (measured: 6.61s → 0.86s main-thread task time with the pulse
+            animations off). The art div's own background is the same
+            colour, so the resting state is unchanged. */}
+        {!artLoaded && artNear && (
           <div aria-hidden className="absolute inset-0 animate-pulse bg-[var(--surface-elevated)]" />
         )}
         {artNear && imgSrc && (
@@ -409,17 +420,25 @@ export function AnimeCard({
           />
         )}
 
-        {/* HOVER TREATMENT (owner 2026-10-19): the old bottom-up gradient
+        {/* HOVER TREATMENT: the old bottom-up gradient
             is REPLACED by a uniform whole-card treatment — the card
             darkens (~50% of the theme bg) and frosts (backdrop-blur
             ~8px) on hover, with the centered play/read glyph staying on
             top. Fades in via opacity so the blur eases rather than
             snapping. Same on EVERY card — it lives in the shared card.
             2026-10-20: triggered by the ART group only (continue cards'
-            caption hover must not trigger it). */}
-        <div className="pointer-events-none absolute inset-0 bg-[color-mix(in_srgb,var(--bg)_50%,transparent)] opacity-0 backdrop-blur-[8px] transition-opacity duration-200 group-hover/art:opacity-100" />
+            caption hover must not trigger it).
+            2026-10-27 (scroll perf): the blur is applied ONLY while the
+            card is hovered, and only on devices that can hover. An
+            always-mounted `backdrop-filter` gave every card its own
+            compositing layer (108 on Home) and cost ~18% of scroll
+            main-thread time; touch devices never hover, so they no
+            longer pay for a treatment they cannot see. The scrim itself
+            keeps its 200ms opacity fade, so the visible hover result is
+            the same. */}
+        <div className="card-frost pointer-events-none absolute inset-0 bg-[color-mix(in_srgb,var(--bg)_50%,transparent)] opacity-0 transition-opacity duration-200 group-hover/art:opacity-100" />
 
-        {/* Hover affordance — UNIFIED (owner 2026-10-18): play for anime,
+        {/* Hover affordance — UNIFIED: play for anime,
             book for manga, on EVERY card (default + continue + compact).
             Hover/focus-revealed at pointer widths, always visible on
             touch. Tap → straight to the next watch/read target; Artwork
@@ -450,7 +469,7 @@ export function AnimeCard({
             }}
             className={HOVER_GLYPH}
           >
-            {/* OWNER 2026-10-24: open-book art at the play button's size. */}
+            {/* Open-book art at the play button's size. */}
             <Icon name="book-open" size={BOOK_GLYPH_ICON_PX} />
           </button>
         )}
@@ -463,19 +482,19 @@ export function AnimeCard({
             getBoundingClientRect().left = 0, which trips overflow/clip
             audits and can paint during scroll. can-hover gate renders it
             only where a real hover exists (see globals.css).
-            OWNER (2026-10-25): the band NO LONGER paints its own bottom-up
+            The band NO LONGER paints its own bottom-up
             gradient. It doubled the whole-card scrim into a heavy strip with
             a hard horizontal edge — the blur looked like an artifact on both
             anime and manga tiles. One uniform hover treatment carries the
             text instead (the player's own bottom gradient is unrelated). */}
         {variant !== 'continue' && !hideHoverCaption && (
           <div
-            className={`absolute inset-x-0 bottom-0 hidden translate-y-1 p-2 opacity-0 transition can-hover:block group-hover/art:translate-y-0 group-hover/art:opacity-100 ${!isManga ? '@max-[160px]:py-1' : ''}`}
+            className={`card-hover-caption absolute inset-x-0 bottom-0 hidden translate-y-1 p-2 opacity-0 transition can-hover:block group-hover/art:translate-y-0 group-hover/art:opacity-100 ${!isManga ? '@max-[160px]:py-1' : ''}`}
           >
             <p className="line-clamp-1 text-[11px] font-medium leading-tight text-[var(--text)]">
               {primaryTitle}
             </p>
-            {/* D113 (owner-revised): on NARROW ANIME tiles this meta line
+            {/* D113 (revised): on NARROW ANIME tiles this meta line
                 only lengthens the band toward the dead-center glyph — and
                 related grids already print relation/format/episodes UNDER
                 the card. Manga bands are untouched (portrait art never
@@ -488,14 +507,13 @@ export function AnimeCard({
             thumbnail's bottom edge */}
         {variant === 'continue' && anime.progress && (
           <div className="absolute inset-x-0 bottom-0 h-[2px] bg-[color-mix(in_srgb,var(--text)_15%,transparent)]" aria-hidden>
-            <div className="h-full bg-[var(--text)] shadow-[0_0_6px_var(--text)] transition-[width] duration-300" style={{ width: `${Math.min(100, Math.max(0, anime.progress.percent))}%` }} />
+            <div className="h-full bg-[var(--text)] shadow-[0_0_6px_var(--text)] transition-[width] duration-300" style={{ width: `${Math.min(100, Math.max(0, barPercent))}%` }} />
           </div>
         )}
 
-        {/* CONTINUE cards previously carried a persistent play glyph;
-            owner 2026-10-18: the SAME unified glyph (above) covers them —
-            hover-revealed at pointer widths like every other card, with
-            the same next-episode target. */}
+        {/* CONTINUE cards previously carried a persistent play glyph; the SAME
+            unified glyph (above) covers them — hover-revealed at pointer
+            widths like every other card, with the same next-episode target. */}
       </div>
 
       {/* Captions ONLY on Continue Watching (clean rows everywhere else).
@@ -524,12 +542,12 @@ export function AnimeCard({
           tiled the artwork and cost paint time on Home. The hero keeps the
           literal frosted rim; cards match it visually and frost fully on
           hover via the existing whole-card treatment.
-          CONTINUE CARDS (owner 2026-10-25): crisp hairline only — the soft
+          CONTINUE CARDS: crisp hairline only — the soft
           frame's inward glow crossed the art/caption seam and read as a
           blurred border. Every other card keeps .frame-soft. */}
       <div aria-hidden className={variant === 'continue' ? 'frame-crisp z-20' : 'frame-soft z-20'} />
       </div>
-      {/* OWNER (2026-10-20): the ⋮ QuickMenu stays a SIBLING of the frame
+      {/* The ⋮ QuickMenu stays a SIBLING of the frame
           (content-level) on purpose — its dropdown + 48px shadow must not
           clip inside the frame's overflow-hidden. Its REVEAL is driven
           from the thumbnail via the `.card-dots-trigger` globals.css rule
@@ -585,7 +603,7 @@ export function AnimeCard({
   // the card floats over THIS page and opens instantly — identical to what
   // useDetailOpen does for onSelect hosts. Raw <Link> without state would
   // swap the background to Home and re-shuffle it — the "page refresh"
-  // the owner reported (2026-10-18).
+  // users saw.
   const linkTo = detailPath(anime)
   const location = useLocation()
 

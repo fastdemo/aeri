@@ -24,7 +24,7 @@ VideoProvider (interface)
         Watch.tsx + VideoPlayer.tsx (never knows provider impl)
 ```
 
-`src/storage/preferences.ts:customVideoApiUrl` + `VITE_VIDEO_API_URL` already allow a self-hosted backend to be injected without rebuild: `GET /health`, `GET /episodes/:id`, `GET /sources/:id?language=`. The player prefers `preferredProvider` / `preferredAudio` / `preferredQuality` from `preferences`.
+`src/storage/preferences.ts:customVideoApiUrl` + `VITE_VIDEO_API_URL` already allow a self-hosted backend to be injected without rebuild: `GET /health`, `GET /episodes/:id`, `GET /sources/:id?language=`. The player reads `preferredAudio` / `preferredQuality` from `preferences`, and provider selection follows `enabledProviders` + `providerOrder` (D141 — there is no per-source pin).
 
 The goal below is to list **viable, maintainable, legitimate** architectures that fit this model.
 
@@ -229,6 +229,7 @@ but deliberately unbuilt: it needs an owner-provisioned VPS or equivalent,
 which does not exist. If one appears, the worker provider code ports 1:1
 (same JSON APIs work from clean IPs).
 
-**To verify playback:** Settings → Preferred source → AniKoto → open any
-episode. On a network the CDN accepts, it plays with subtitles; otherwise the
-existing no-source UI appears (never a fake success).
+**To verify playback:** Settings → Anime providers → put the provider you
+want first (↑), then open any episode. On a network the CDN accepts, it plays
+with subtitles; otherwise the existing no-source UI appears (never a fake
+success).

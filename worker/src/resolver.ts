@@ -39,6 +39,8 @@ const CDN_SUFFIXES = [
   'echovideo.to',
   'play.echovideo.ru',
   'st2.dpopdrop89.store',
+  // AnimeParadise HLS + subtitle hosts (stream./api.)
+  'animeparadise.moe',
 ]
 const CDN_REGEXES = [
   /^megap[a-z0-9-]*\.[a-z0-9.-]+$/i,
@@ -196,9 +198,17 @@ async function isPrivateHost(hostname: string): Promise<boolean> {
 
 async function fetchUpstream(
   url: string,
-  opts: { headers?: Record<string, string>; range?: string | null; timeoutMs?: number; signal?: AbortSignal | null } = {},
+  opts: {
+    headers?: Record<string, string>
+    range?: string | null
+    timeoutMs?: number
+    signal?: AbortSignal | null
+    /** Only GET is used for provider reads; POST exists for Next.js server actions. */
+    method?: 'GET' | 'POST'
+    body?: string
+  } = {},
 ): Promise<Response> {
-  const { headers = {}, range, timeoutMs = FETCH_TIMEOUT_MS, signal } = opts
+  const { headers = {}, range, timeoutMs = FETCH_TIMEOUT_MS, signal, method = 'GET', body } = opts
   const ctrl = new AbortController()
   const tid = setTimeout(() => ctrl.abort(new Error('upstream timeout')), timeoutMs)
   const onAbort = () => {
@@ -211,7 +221,7 @@ async function fetchUpstream(
   try {
     const h: Record<string, string> = { 'User-Agent': UA, ...headers }
     if (range) h.Range = range
-    return await fetch(url, { headers: h, signal: ctrl.signal, redirect: 'follow' })
+    return await fetch(url, { method, body, headers: h, signal: ctrl.signal, redirect: 'follow' })
   } finally {
     clearTimeout(tid)
     if (signal) signal.removeEventListener?.('abort', onAbort)
@@ -227,6 +237,26 @@ function contentTypeFor(url: string, upstreamCt: string | null): string {
   if (/\.m4s(\?|$)/i.test(url)) return 'video/iso.segment'
   if (/\.mpd(\?|$)/i.test(url)) return 'application/dash+xml'
   return upstreamCt || 'application/octet-stream'
+}
+
+/**
+ * Final Content-Type for a BINARY relayed body, from the buffered head.
+ *
+ * Upstream MIME headers are unreliable: AnimeParadise's /ts endpoint serves
+ * valid MPEG-TS as `image/jpeg` on most segments and `text/html` on the
+ * rest. Container magic beats the header — a TS sync byte at 0 and 188 is
+ * unambiguous — so mislabeled media is normalized to video/mp2t instead of
+ * being handed to the player as an image or a block page. Genuine media
+ * types are otherwise preserved.
+ */
+function mediaContentType(upstreamCt: string, head: Uint8Array): string {
+  const isTs = head.length >= 189 && head[0] === 0x47 && head[188] === 0x47
+  if (isTs) return 'video/mp2t'
+  if (head.length >= 8 && head[4] === 0x66 && head[5] === 0x74 && head[6] === 0x79 && head[7] === 0x70) return 'video/mp4'
+  if (head.length >= 4 && head[0] === 0x1a && head[1] === 0x45 && head[2] === 0xdf && head[3] === 0xa3) return 'video/webm'
+  const ct = upstreamCt.toLowerCase()
+  if (ct.startsWith('video/') || ct.startsWith('audio/') || ct.startsWith('image/')) return upstreamCt
+  return 'application/octet-stream'
 }
 
 // ---------- AniKoto/MegaPlay resolution ----------
@@ -675,6 +705,249 @@ async function anikotoResolve(
   return { file, subs, intro: gj?.intro ?? null, outro: gj?.outro ?? null, kind: 'hls', providerAnimeId: seriesId, providerTitle }
 }
 
+// ---------- AnimeParadise resolution (verified 2026-10-26) ----------
+//
+// Chain: api.animeparadise.moe/search?q= → /anime/<link> (mappings.anilist is
+// an EXACT identity) → /anime/<_id>/episode (episodes only resolve via the
+// internal _id; the public link form returns []) → Next.js server action
+// POST on /watch/<uid>?origin=<_id> → { streamLink, subData } →
+// stream.animeparadise.moe/m3u8?url=<streamLink> (1080p HLS master, CORS *,
+// English VTT captions). Sub-only: the payload exposes no dub fields.
+//
+// The server-action id is build-specific and only discoverable by scanning
+// the page's JS chunks, so it is cached and re-scraped once on failure.
+
+const AP_API = 'https://api.animeparadise.moe'
+const AP_SITE = 'https://www.animeparadise.moe'
+const AP_STREAM = 'https://stream.animeparadise.moe'
+const AP_CACHE_TTL_MS = 10 * 60 * 1000
+const AP_ACTION_TTL_MS = 30 * 60 * 1000
+
+const apActionCache = { id: null as string | null, at: 0 }
+const apAnimeCache = new Map<string, { at: number; anime: ApAnime }>()
+
+interface ApEpisode { uid: string; number: number; title?: string }
+interface ApAnime {
+  id: string
+  link: string
+  title: string
+  year: number
+  anilistId: number | null
+  episodes: ApEpisode[]
+}
+
+async function apGetJson(path: string, signal?: AbortSignal | null): Promise<any> {
+  const url = `${AP_API}${path}${path.includes('?') ? '&' : '?'}v=1`
+  const res = await fetchUpstream(url, {
+    headers: { 'User-Agent': UA, Accept: 'application/json' },
+    timeoutMs: 9000,
+    signal,
+  })
+  if (!res.ok) throw new Error(`ap ${path.split('?')[0]} ${res.status}`)
+  const j: any = await res.json().catch(() => null)
+  if (!j || j.success === false) throw new Error(`ap ${path.split('?')[0]} bad payload`)
+  return j.data
+}
+
+function apEpisodeActionId(body: string): string | null {
+  // createServerReference("<id>", callServer, void 0, findSourceMapURL, "getEpisode")
+  const at = body.indexOf('"getEpisode"')
+  if (at < 0) return null
+  const win = body.slice(Math.max(0, at - 260), at)
+  const runs = win.match(/[0-9a-f]{40,44}/g)
+  return runs && runs.length ? runs[runs.length - 1] : null
+}
+
+async function apResolveActionId(watchHtml: string, signal?: AbortSignal | null): Promise<string> {
+  if (apActionCache.id && Date.now() - apActionCache.at < AP_ACTION_TTL_MS) return apActionCache.id
+  const chunks = [...new Set([...watchHtml.matchAll(/\/_next\/static\/chunks\/[a-zA-Z0-9_.-]+\.js/g)].map(m => m[0]))]
+  const bodies = await Promise.all(chunks.map(p => fetchUpstream(`${AP_SITE}${p}`, {
+    headers: { 'User-Agent': UA }, timeoutMs: 8000, signal,
+  }).then(r => r.text()).catch(() => '')))
+  for (const b of bodies) {
+    const id = apEpisodeActionId(b)
+    if (id) {
+      apActionCache.id = id
+      apActionCache.at = Date.now()
+      return id
+    }
+  }
+  throw new Error('ap action id not found')
+}
+
+async function apWatchData(
+  uid: string, origin: string, signal?: AbortSignal | null,
+): Promise<{ streamLink: string; subs: { label: string; file: string }[] }> {
+  const pageUrl = `${AP_SITE}/watch/${uid}?origin=${origin}`
+  const page = await fetchUpstream(pageUrl, {
+    headers: { 'User-Agent': UA, Accept: 'text/html' }, timeoutMs: 9000, signal,
+  })
+  if (!page.ok) throw new Error(`ap watch ${page.status}`)
+  const html = await page.text()
+  const action = await apResolveActionId(html, signal)
+  const tree = encodeURIComponent(JSON.stringify([
+    '', {
+      children: ['watch', {
+        children: [['id', uid, 'd', null], { children: ['__PAGE__', {}, null, null, 4096] }, null, null, 4096],
+      }, null, null, 4096],
+    }, null, null, 4112,
+  ]))
+  const post = async (id: string): Promise<string> => {
+    const res = await fetchUpstream(pageUrl, {
+      method: 'POST',
+      body: JSON.stringify([uid, origin]),
+      headers: {
+        'User-Agent': UA,
+        Accept: 'text/x-component',
+        'Content-Type': 'text/plain;charset=UTF-8',
+        Referer: pageUrl,
+        'Next-Action': id,
+        'Next-Router-State-Tree': tree,
+      },
+      timeoutMs: 12000,
+      signal,
+    })
+    return res.text()
+  }
+  let text = await post(action)
+  if (!text.includes('streamLink')) {
+    // Build rotated: the cached action id is stale. Re-scrape once.
+    apActionCache.id = null
+    const fresh = await apResolveActionId(html, signal)
+    if (fresh !== action) text = await post(fresh)
+  }
+  const m = text.match(/"streamLink":"([^"]+)"/)
+  if (!m) throw new Error('ap no stream link')
+  const subs: { label: string; file: string }[] = []
+  const subRaw = text.match(/"subData":(\[[^\]]*\])/)
+  if (subRaw) {
+    try {
+      const arr = JSON.parse(subRaw[1])
+      if (Array.isArray(arr)) {
+        for (const t of arr) {
+          if (!t || t.type !== 'vtt' || typeof t.src !== 'string' || !/^https:\/\//.test(t.src)) continue
+          const label = String(t.label || '')
+          if (!/english/i.test(label)) continue
+          subs.push({ label, file: t.src })
+        }
+      }
+    } catch {}
+  }
+  return { streamLink: m[1], subs }
+}
+
+async function apFindAnime(
+  anilistId: number, title: string, signal?: AbortSignal | null, hints?: MatchHints | null,
+): Promise<ApAnime> {
+  const key = `ap:${anilistId}`
+  const hit = apAnimeCache.get(key)
+  if (hit && Date.now() - hit.at < AP_CACHE_TTL_MS) return hit.anime
+
+  const { romaji, english } = splitTitles(title)
+  const variants = [romaji, english, hints?.english || '', hints?.native || ''].map(v => String(v || '').trim()).filter(Boolean)
+  const queries = [...new Set([romaji, english].map(q => String(q || '').trim()).filter(Boolean))]
+  const seen = new Set<string>()
+  const candidates: { link: string; title: string; score: number; year: number }[] = []
+  for (const q of queries) {
+    let list: any[] = []
+    try {
+      const d = await apGetJson(`/search?q=${encodeURIComponent(q)}`, signal)
+      if (Array.isArray(d)) list = d
+    } catch { continue }
+    for (const c of list) {
+      if (!c || typeof c.link !== 'string' || seen.has(c.link)) continue
+      seen.add(c.link)
+      candidates.push({
+        link: c.link,
+        title: String(c.title || ''),
+        score: titleScore(String(c.title || ''), variants),
+        year: Number(c?.animeSeason?.year || 0),
+      })
+    }
+  }
+  if (!candidates.length) throw new Error('ap no search results')
+  candidates.sort((a, b) => b.score - a.score)
+
+  const wantYear = Number(hints?.year || 0)
+  const yearOk = (y: number) => !(wantYear > 1900 && y > 1900) || Math.abs(y - wantYear) <= 1
+
+  let picked: { id: string; link: string; title: string; anilistId: number | null } | null = null
+  // Exact identity wins: mappings.anilist is the same id space as Aeri's.
+  for (const c of candidates.slice(0, 5)) {
+    let detail: any = null
+    try { detail = await apGetJson(`/anime/${c.link}`, signal) } catch { continue }
+    if (!detail || typeof detail._id !== 'string') continue
+    const mapped = Number(detail?.mappings?.anilist || 0)
+    if (mapped === anilistId) {
+      picked = { id: detail._id, link: c.link, title: String(detail.title || c.title), anilistId: mapped }
+      break
+    }
+    if (!picked && !mapped && c.score >= 60 && yearOk(c.year)) {
+      picked = { id: detail._id, link: c.link, title: String(detail.title || c.title), anilistId: null }
+    }
+  }
+  if (!picked) {
+    // No mapping matched and no confident title fallback.
+    const top = candidates[0]
+    if (top && top.score >= 60 && yearOk(top.year)) {
+      const detail: any = await apGetJson(`/anime/${top.link}`, signal).catch(() => null)
+      const mapped = Number(detail?.mappings?.anilist || 0)
+      if (detail && typeof detail._id === 'string' && (!mapped || mapped === anilistId)) {
+        picked = { id: detail._id, link: top.link, title: String(detail.title || top.title), anilistId: mapped || null }
+      }
+    }
+  }
+  if (!picked) throw new Error('ap no confident match')
+
+  const epsRaw = await apGetJson(`/anime/${picked.id}/episode`, signal)
+  const episodes: ApEpisode[] = []
+  if (Array.isArray(epsRaw)) {
+    for (const e of epsRaw) {
+      const number = Number(e?.number)
+      if (!e || typeof e.uid !== 'string' || !Number.isFinite(number) || number <= 0) continue
+      if (episodes.some(x => x.number === number)) continue
+      episodes.push({ uid: e.uid, number, title: typeof e.title === 'string' ? e.title : undefined })
+    }
+  }
+  episodes.sort((a, b) => a.number - b.number)
+  const anime: ApAnime = {
+    id: picked.id,
+    link: picked.link,
+    title: picked.title,
+    year: candidates.find(c => c.link === picked!.link)?.year || 0,
+    anilistId: picked.anilistId,
+    episodes,
+  }
+  apAnimeCache.set(key, { at: Date.now(), anime })
+  if (apAnimeCache.size > 200) {
+    const oldest = apAnimeCache.keys().next().value as string | undefined
+    if (oldest !== undefined) apAnimeCache.delete(oldest)
+  }
+  return anime
+}
+
+async function animeParadiseResolve(
+  anilistId: number, title: string, episode: number, language: string,
+  signal?: AbortSignal | null, hints?: MatchHints | null,
+): Promise<ResolveResult> {
+  if (language === 'dub') throw new Error('ap sub only')
+  const anime = await apFindAnime(anilistId, title, signal, hints)
+  const ep = anime.episodes.find(e => e.number === episode)
+  if (!ep) throw new Error(`ap episode ${episode} not listed for "${anime.title}" (has ${anime.episodes.length})`)
+  const data = await apWatchData(ep.uid, anime.id, signal)
+  const file = `${AP_STREAM}/m3u8?url=${encodeURIComponent(data.streamLink)}`
+  log({ ev: 'resolve-ap', anilistId, episode, title: anime.title, eps: anime.episodes.length, subs: data.subs.length })
+  return {
+    file,
+    subs: data.subs,
+    intro: null,
+    outro: null,
+    kind: 'hls',
+    providerAnimeId: anime.anilistId,
+    providerTitle: anime.title,
+  }
+}
+
 // ---------- public API ----------
 
 export interface ResolvedSource {
@@ -691,7 +964,7 @@ export interface ResolvedSource {
 }
 
 export async function resolveSource(opts: {
-  provider: 'aniwave' | 'anikoto'
+  provider: 'aniwave' | 'anikoto' | 'animeparadise'
   anilistId: number
   title: string
   episode: number
@@ -710,7 +983,9 @@ export async function resolveSource(opts: {
   try {
     const r = provider === 'aniwave'
       ? await aniwaveResolve(anilistId, title, episode, lang, signal, hints)
-      : await anikotoResolve(anilistId, title, episode, lang, signal, hints)
+      : provider === 'anikoto'
+        ? await anikotoResolve(anilistId, title, episode, lang, signal, hints)
+        : await animeParadiseResolve(anilistId, title, episode, lang, signal, hints)
     const exp = Math.floor(Date.now() / 1000) + TOKEN_TTL_S
     const mint = async (cdnUrl: string): Promise<string | null> => {
       try {
@@ -755,6 +1030,19 @@ export async function findAniwaveEpisodes(
     title: found.name,
     count: found.count,
     episodes: Array.from({ length: found.count }, (_, i) => ({ number: i + 1 })),
+  }
+}
+
+export async function findAnimeParadiseEpisodes(
+  anilistId: number, title: string, signal?: AbortSignal | null, hints?: MatchHints | null,
+): Promise<{ provider: string; title: string; count: number; episodes: { number: number }[] }> {
+  const anime = await apFindAnime(anilistId, title, signal, hints)
+  log({ ev: 'episodes', provider: 'animeparadise', title: anime.title, count: anime.episodes.length })
+  return {
+    provider: 'animeparadise',
+    title: anime.title,
+    count: anime.episodes.length,
+    episodes: anime.episodes.map(e => ({ number: e.number })),
   }
 }
 
@@ -809,14 +1097,13 @@ export async function handleStream(request: Request, cors: Record<string, string
       return plainTextResponse(cors, 502, 'Upstream failed')
     }
     const ct = contentTypeFor(target, up.headers.get('content-type'))
-    if (ct === 'text/html') {
-      try { await up.body?.cancel() } catch {}
-      log({ ev: 'stream-blocked', host })
-      return plainTextResponse(cors, 502, 'Upstream blocked')
-    }
     // Content sniffing (not URL/headers): variant playlists often arrive as
     // application/octet-stream with no .m3u8 extension. Buffer a small head,
     // sniff for playlist/VTT magic, then process text (cap 5MB) or relay bytes.
+    // The block-page guard also runs on the BODY, not the header: some
+    // upstreams label real media as text/html (AnimeParadise's /ts endpoint
+    // does this for a third of its segments), so a header-only check turned
+    // playable bytes into 502s. HTML block pages still start with '<'.
     const reader = up.body?.getReader()
     if (!reader) throw new Error('no body')
     const headChunks: Uint8Array[] = []
@@ -833,17 +1120,24 @@ export async function handleStream(request: Request, cors: Record<string, string
       throw e
     }
     let headText = ''
+    let headBytes = new Uint8Array(0)
     try {
       const cat = new Uint8Array(headLen)
       let off = 0
       for (const c of headChunks) { cat.set(c, off); off += c.length }
+      headBytes = cat
       headText = new TextDecoder().decode(cat).slice(0, 200)
     } catch {}
     const isTextBody = /^\s*(#EXTM3U|WEBVTT)/i.test(headText)
+    if (!isTextBody && /^\s*</.test(headText)) {
+      try { await reader.cancel() } catch {}
+      log({ ev: 'stream-blocked', host, ct })
+      return plainTextResponse(cors, 502, 'Upstream blocked')
+    }
     if (!isTextBody) {
       // Binary: relay head + rest with Range passthrough, no buffering.
       const headers = new Headers(cors)
-      headers.set('Content-Type', ct)
+      headers.set('Content-Type', mediaContentType(ct, headBytes))
       headers.set('Cache-Control', 'no-store')
       headers.set('Accept-Ranges', 'bytes')
       const cr = up.headers.get('content-range')

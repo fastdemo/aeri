@@ -22,7 +22,7 @@ providers supply playback only.
 | Episode / chapter totals | AniList | the active tracker's own count for an entry with no AniList record; the video-provider catalog may widen the count when AniList has none or is clearly incomplete | Kitsu |
 | Episode names + episode thumbnails | AniList | Kitsu, **whole-entry only**, under the gate in §3 | MAL, video providers |
 | User's list, progress, status, score, tracker dates | Active tracker: AniList **or** MAL | none — no merge, no fan-out | Kitsu |
-| Playback sources, source mapping, duration hints | Video-provider registry (AniWave / AnimeGG) | next enabled provider | Kitsu |
+| Playback sources, source mapping, duration hints | Video-provider registry (AniWave / AnimeGG / AnimeParadise) | next enabled provider | Kitsu |
 
 Two deliberate edge cases, both verified in code:
 
@@ -196,8 +196,10 @@ and discarded rows are exactly what opens the fallback (D127).
 ## 4. Video providers
 
 `src/providers/video/registry.ts` owns playback. Verified providers are
-AniWave (Worker resolver HLS; Tier 1) and AnimeGG (browser-direct MP4;
-Tier 2 fallback), subject to Settings toggles/order. **MegaVid was removed
+AniWave (Worker resolver HLS; Tier 1), AnimeParadise (Worker resolver HLS +
+English VTT; Tier 1, sub-only — D136), and AnimeGG (browser-direct MP4;
+Tier 2 fallback). **Default resolution order (owner, D144):
+AniWave → AnimeParadise → AnimeGG**, subject to Settings toggles/order. **MegaVid was removed
 entirely (D124, 2026-10-24):** its JSON returns
 `Access-Control-Allow-Origin: https://megavid.buzz`, so the browser can
 never read it. The old `25 episodes • megavid` text was the episode-list
@@ -245,6 +247,8 @@ blocked (D124). AnimeGG remains the verified Tier-2 fallback but currently
 fails Playwright with `ERR_CERT_AUTHORITY_INVALID` (and its CORS error is
 visible in the console while tried); the picker and resolver are
 provider-count agnostic, but no fake alternatives are surfaced.
+AnimeParadise joined AniWave as a verified relay provider on 2026-10-27
+(D136, below).
 
 Episode tiles in Watch use `ep.thumbnail || anime.backdropImage ||
 anime.coverImage` (the EpisodeList rule). AniList/Kitsu own the thumbnail
@@ -253,6 +257,37 @@ placeholder. Tiles label `Episode N` (not `EN`), fade into `var(--bg)` at
 the bottom, use the same 6px border/radius frame as Related Anime, and use
 the AnimeCard hover frost + 30px play glyph; the current tile is marked by
 a white top-left `Now playing` chip, not a ring/bar/dot (D124).
+
+### AnimeParadise (D136, 2026-10-27)
+
+AnimeParadise (`animeparadise.moe` / `stream.animeparadise.moe`) is a
+verified **sub-only Tier-1** source. It resolves entirely in the Worker
+(`animeParadiseResolve` in `worker/src/resolver.ts`) and plays through the
+same signed `/api/stream` relay as AniWave, so the browser never talks to
+the upstream origin.
+
+- **Identity:** search results carry no `mappings`; the anilistId comes from
+  the series page (`/anime/<link>?v=1` → `data.mappings.anilist`), then
+  episodes resolve by the site's internal `_id` (the public
+  `/anime/<link>/episode` endpoint returns `[]`).
+- **Stream:** the watch page is a Next.js app; `streamLink` + `subData` are
+  returned by a server-action POST (`Next-Action` id scraped from the
+  bundle, 40–44 hex chars, re-scraped once if the POST fails). Body is
+  `["<uid>","<animeId>"]` with a `Referer` matching the watch URL.
+- **Playback:** 1080p HLS master (353 TS segments for Bebop E1) plus an
+  English VTT (`/captions?url=`); only `type:'vtt'` tracks labelled English
+  are used. Sub-only — the Dub toggle stays disabled for this source.
+- **Upstream MIME wart:** `/ts` returns valid MPEG-TS bytes as
+  `image/jpeg` on most segments and `text/html` on ~10% of them. The relay
+  therefore sniffs the buffered head (`mediaContentType`): TS sync bytes at
+  0 and 188 win over the header, and a block page is only declared when the
+  body itself starts with `<`. Before that fix, 34/353 segments 502'd and
+  playback stalled; after it, 353/353 relay 200.
+- **Caching:** anime id 10 min, server-action id 30 min.
+- **Known limitation:** AnimeHeaven (`animeheaven.me`) was proven locally
+  and then rejected: its origin returns a 14-byte stub to any request
+  carrying Cloudflare's automatic `CF-Worker` header, which Workers cannot
+  strip. No AnimeHeaven code remains.
 
 ---
 
@@ -320,3 +355,23 @@ a white top-left `Now playing` chip, not a ring/bar/dot (D124).
   hover, first-episode nav, and 375 layout all passed. Screenshot files were
   deleted at the owner's request (2026-10-24); the probe assertions and
   measured geometry above are the evidence.
+
+### AnimeParadise (D136, production 2026-10-27)
+
+- `/api/health` lists `animeparadise` (`languages:['sub']`, `hls:true`,
+  `subtitles:true`) and no `animeheaven`.
+- `/api/episodes/1?provider=animeparadise&title=Cowboy%20Bebop&episodes=26&format=TV&year=1998`
+  → 26 episodes (the title hint is required; Worker egress cannot rely on
+  AniList).
+- `/api/sources/animeparadise-1-1?…` → one HLS source through `/api/stream`
+  plus an English VTT subtitle, all relayed same-origin.
+- Relay chain: master 200 `application/vnd.apple.mpegurl` → variant 200
+  (353 segments) → segment 200 159,800B, sync `0x47` → subtitle 200
+  `text/vtt` with real cues. All 353 segments relay 200 after the
+  `mediaContentType` fix.
+- `tests/animeparadise.spec.ts` (2/2, production): real `<video>`
+  `readyState ≥ 2` with advancing `currentTime`, every relay response
+  200/206, English track present from the real VTT, and Settings lists
+  AnimeParadise exactly once with `Available`.
+- Regression: `tests/streaming-production.spec.ts` 4/4 (AoT, Bebop,
+  Frieren, Naruto) still play through the shared relay.

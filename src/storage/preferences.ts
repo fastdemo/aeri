@@ -8,7 +8,6 @@ export interface Preferences {
   volume: number
   theme: string
   preferredAudio: VideoLanguage
-  preferredProvider: string | null
   enabledProviders?: Record<string, boolean> | null
   providerOrder?: string[] | null
   /**
@@ -20,7 +19,8 @@ export interface Preferences {
   /**
    * Manga provider resolution order (provider ids, highest priority first).
    * Mirrors anime `providerOrder`. null = default priority
-   * (WeebCentral → MangaDex → MangaPill). Persisted from Settings ↑/↓.
+   * (WeebCentral → MangaHere → MangaPill → MangaDex). Persisted from
+   * Settings ↑/↓.
    */
   mangaProviderOrder?: string[] | null
   customVideoApiUrl?: string | null
@@ -52,7 +52,7 @@ export interface Preferences {
   // connected, else MAL). AniList remains the metadata backbone either way.
   trackingProvider?: 'anilist' | 'mal' | null
   /**
-   * Incognito (owner 2026-10-23): while on, AUTOMATIC tracker writes are
+   * Incognito: while on, AUTOMATIC tracker writes are
    * suppressed — watching an episode / reading a chapter never updates the
    * active tracker. Manual edits (progress stepper, status menus, ratings)
    * still sync, and the tab title reads "Incognito - Aeri" everywhere.
@@ -67,7 +67,6 @@ const defaults: Preferences = {
   volume: 1,
   theme: 'aeri-dark',
   preferredAudio: 'sub',
-  preferredProvider: null,
   enabledProviders: null,
   providerOrder: null,
   enabledMangaProviders: null,
@@ -159,7 +158,7 @@ export function setTrackingProvider(p: TrackingProviderId | null) {
   return next
 }
 
-/** Incognito mode (owner 2026-10-23). Read synchronously at the write
+/** Incognito mode. Read synchronously at the write
  *  choke points (TrackingContext progress gate, tab-title apply) — no
  *  provider plumbing needed. Persists like any other preference. */
 export function isIncognitoEnabled(): boolean {

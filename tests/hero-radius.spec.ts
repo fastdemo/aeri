@@ -1,8 +1,8 @@
 import { test, expect } from '@playwright/test'
 
 /**
- * HERO RADIUS (owner 2026-10-26, D133): "apply the same corner radius for the
- * media player to the hero." The player's stock Video.js radius is 28px, so
+ * HERO RADIUS (D133): the hero uses the same corner radius as the media
+ * player. The player's stock Video.js radius is 28px, so
  * the hero's three clip layers and its .frame-glass rim must compute 28px at
  * every viewport — not the old 12px / 14px pair.
  */

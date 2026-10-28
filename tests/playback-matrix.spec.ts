@@ -262,17 +262,16 @@ for (const provider of PROVIDERS) {
             // Worker era (D065): real resolution takes 5-20s cold, so these
             // cases get a 90s budget. The GH-Pages-era 22s budget is stale.
             test.setTimeout(90_000)
-            // Set preferred provider + language via localStorage before navigation
+            // Set audio language via localStorage before navigation
             await page.goto('/aeri/', { waitUntil: 'domcontentloaded' }).catch(() => page.goto('/', { waitUntil: 'domcontentloaded' }))
-            await page.evaluate(({ p, l }: { p: string; l: Lang }) => {
+            await page.evaluate(({ l }: { l: Lang }) => {
               try {
                 const raw = localStorage.getItem('aeri:prefs')
                 const prefs = raw ? JSON.parse(raw) : {}
-                prefs.preferredProvider = p
                 prefs.preferredAudio = l
                 localStorage.setItem('aeri:prefs', JSON.stringify(prefs))
               } catch {}
-            }, { p: provider, l: lang })
+            }, { l: lang })
 
             await gotoWatch(page, anime.anilistId, ep)
             await dismissResumeIfPresent(page)
@@ -357,17 +356,16 @@ for (const provider of PROVIDERS) {
 // The 10-minute continuous soak remains manual acceptance (PLAYBACK_MATRIX §8-9).
 // ---------------------------------------------------------------------------
 
-async function setPreferredProvider(page: Page, p: string, l: 'sub' | 'dub' = 'sub') {
+async function setAudioPref(page: Page, l: 'sub' | 'dub' = 'sub') {
   await page.goto('/aeri/', { waitUntil: 'domcontentloaded' }).catch(() => page.goto('/', { waitUntil: 'domcontentloaded' }))
-  await page.evaluate(({ pp, ll }: { pp: string; ll: 'sub' | 'dub' }) => {
+  await page.evaluate(({ ll }: { ll: 'sub' | 'dub' }) => {
     try {
       const raw = localStorage.getItem('aeri:prefs')
       const prefs = raw ? JSON.parse(raw) : {}
-      prefs.preferredProvider = pp
       prefs.preferredAudio = ll
       localStorage.setItem('aeri:prefs', JSON.stringify(prefs))
     } catch {}
-  }, { pp: p, ll: l })
+  }, { ll: l })
 }
 
 async function warmUpPlayback(page: Page, label: string) {
@@ -408,7 +406,7 @@ async function waitForDecision(page: Page, label: string) {
 test.describe('Worker era — in-worker resolver smoke', () => {
   test('aniwave Bebop E1 sub → real playback (T2/T3)', async ({ page }) => {
     test.setTimeout(120_000)
-    await setPreferredProvider(page, 'aniwave', 'sub')
+    await setAudioPref(page, 'sub')
     await gotoWatch(page, 1, 1)
     await dismissResumeIfPresent(page)
     const state = await waitForDecision(page, 'bebop-e1')
@@ -419,7 +417,7 @@ test.describe('Worker era — in-worker resolver smoke', () => {
 
   test('aniwave Bebop E2 switch → plays', async ({ page }) => {
     test.setTimeout(120_000)
-    await setPreferredProvider(page, 'aniwave', 'sub')
+    await setAudioPref(page, 'sub')
     await gotoWatch(page, 1, 2)
     await dismissResumeIfPresent(page)
     const state = await waitForDecision(page, 'bebop-e2')
@@ -430,7 +428,7 @@ test.describe('Worker era — in-worker resolver smoke', () => {
 
   test('aniwave Frieren E1 sub → resolves to video', async ({ page }) => {
     test.setTimeout(120_000)
-    await setPreferredProvider(page, 'aniwave', 'sub')
+    await setAudioPref(page, 'sub')
     await gotoWatch(page, 154587, 1)
     await dismissResumeIfPresent(page)
     const state = await waitForDecision(page, 'frieren-e1')
@@ -441,7 +439,7 @@ test.describe('Worker era — in-worker resolver smoke', () => {
 
   test('legacy paths never masquerade (no demo-as-real)', async ({ page }) => {
     test.setTimeout(120_000)
-    await setPreferredProvider(page, 'anikoto', 'sub')
+    await setAudioPref(page, 'sub')
     await gotoWatch(page, 1, 1)
     await dismissResumeIfPresent(page)
     const state = await waitForDecision(page, 'masquerade-check')
@@ -538,48 +536,47 @@ test.describe('Source switching & fallback', () => {
   // Trailer fallback retired 2026-10-10: no trailer provider exists in the
   // chain. Fallback is between full-episode providers only (aniwave →
   // animegg); when all fail the honest state is "No playable source".
-  test('fallback: preferred anikoto → falls back within episode providers (no trailer masquerade)', async ({ page }) => {
+  test('legacy source pinning is gone — resolution follows the enabled order', async ({ page }) => {
     test.setTimeout(22_000)
     await page.goto('/aeri/', { waitUntil: 'domcontentloaded' }).catch(() => page.goto('/', { waitUntil: 'domcontentloaded' }))
     await page.evaluate(() => {
       try {
         const raw = localStorage.getItem('aeri:prefs')
         const p = raw ? JSON.parse(raw) : {}
+        // Pre-D141 key: may still exist in a returning browser's storage.
+        // It must be ignored — provider order is the only mechanism now.
         p.preferredProvider = 'anikoto'
         p.preferredAudio = 'sub'
         localStorage.setItem('aeri:prefs', JSON.stringify(p))
       } catch {}
     })
-    await gotoWatch(page, 1, 1) // Cowboy Bebop: dead-provider preferred → honest no-source or episode-provider fallback
+    await gotoWatch(page, 1, 1) // Cowboy Bebop
     await dismissResumeIfPresent(page)
     await page.waitForTimeout(4500)
     const state = await getWatchState(page)
-    // Must have tried anikoto at least
     const body = await page.evaluate(() => document.body.innerText)
-    const triedHasAnikoto = /anikoto/i.test(body)
+    // A dead provider id can never enter the verified chain, pinned or not.
+    expect(/anikoto/i.test(body), 'anikoto is not a verified provider and must never be tried').toBeFalsy()
     // No trailer fallback: success means a full-episode provider won; else
-    // the honest no-source state names what was tried.
+    // the honest no-source state.
     if (state.hasIframe || state.hasVideo) {
-      expect(triedHasAnikoto || body.includes('Tried'), 'fallback should have tried anikoto before succeeding').toBeTruthy()
       if (state.hasVideo) await assertVideoElementPlayback(page)
       else await assertEmbedPlayback(page)
     } else {
       expect(body).toContain('Tried')
-      expect(triedHasAnikoto).toBeTruthy()
       // Trailers must never appear as the fallback: no YouTube iframe.
       const src = await page.evaluate(() => (document.querySelector('iframe') as HTMLIFrameElement | null)?.src ?? '')
       expect(src).not.toMatch(/youtube/)
     }
   })
 
-  test('fallback: animepahe dub → correctly no dub, honest no-source when episode providers fail', async ({ page }) => {
+  test('dub preference → honest no-source or a real dub source (never a false dub)', async ({ page }) => {
     test.setTimeout(22_000)
     await page.goto('/aeri/', { waitUntil: 'domcontentloaded' }).catch(() => page.goto('/', { waitUntil: 'domcontentloaded' }))
     await page.evaluate(() => {
       try {
         const raw = localStorage.getItem('aeri:prefs')
         const p = raw ? JSON.parse(raw) : {}
-        p.preferredProvider = 'animepahe'
         p.preferredAudio = 'dub'
         localStorage.setItem('aeri:prefs', JSON.stringify(p))
       } catch {}
@@ -588,7 +585,7 @@ test.describe('Source switching & fallback', () => {
     await dismissResumeIfPresent(page)
     await page.waitForTimeout(4500)
     const body = await page.evaluate(() => document.body.innerText)
-    // Must not claim dub success from pahe (sub-only); either an episode
+    // A sub-only provider must not claim dub success; either a dub-capable
     // provider wins or the honest no-source state shows (never a trailer).
     const hasVideo = await page.evaluate(() => !!document.querySelector('video'))
     const hasIframe = await page.evaluate(() => !!document.querySelector('iframe'))
@@ -610,7 +607,6 @@ test.describe('Source switching & fallback', () => {
       try {
         const raw = localStorage.getItem('aeri:prefs')
         const p = raw ? JSON.parse(raw) : {}
-        p.preferredProvider = 'demo'
         p.preferredAudio = 'sub'
         localStorage.setItem('aeri:prefs', JSON.stringify(p))
       } catch {}

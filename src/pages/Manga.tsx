@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef } from 'react'
 import { AnimeCard } from '../components/cards/AnimeCard'
+import { CardSkeleton } from '../components/ui/Skeleton'
 import { FilterSelect } from '../components/ui/FilterSelect'
 import type { Anime } from '../types/anime'
 import { useMangaBrowse } from '../hooks/useAnimeMetadata'
-import { useTracking } from '../contexts/TrackingContext'
 import { useDetailOpen } from '../hooks/useDetailOpen'
+import { useLaneFit } from '../hooks/useLaneFit'
 import { ANILIST_GENRES } from '../lib/genres'
-import { SignInModal } from '../components/auth/SignInModal'
 import { pillSolid, pillSoft } from '../components/ui/buttonStyles'
 
 const categories = [
@@ -59,11 +59,8 @@ function shuffle<T>(arr: T[]): T[] {
 const PAGE_SIZE = 30
 
 export function Manga() {
-  const [signInOpen, setSignInOpen] = useState(false)
-  // Same gate as anime Browse: signed-out card clicks prompt onboarding
-  // signup instead of opening the detail card. Card taps push /manga/<id>
-  // — the floating card is an overlay route on top of this page.
-  const { isAuthenticated } = useTracking()
+  // Card taps push /manga/<id> — the floating card is an overlay route on
+  // top of this page.
   const [category, setCategory] = useState<(typeof categories)[number]['id']>('popular')
   const openDetail = useDetailOpen()
   const [genre, setGenre] = useState('All')
@@ -119,55 +116,14 @@ export function Manga() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sentinelActive, browse.data?.length, browse.page])
 
-  return (
-    <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-12">
-      <h1 className="text-[18px] font-semibold tracking-tight text-[var(--text)]">Manga</h1>
-      <p className="text-xs text-[var(--text-faint)]">Discover manga by category and filters • AniList</p>
+  const { rowRef, measurerRef, fits } = useLaneFit()
 
-      {/* Wide: categories left, filters right. Narrow: one joined horizontal
-          scroller (categories + filters as a single unit) — nothing clips,
-          wraps, or overlaps. Switch at the lg breakpoint; below it the lanes
-          merge into one swipeable strip. */}
-      <div className="mt-4 hidden min-w-0 flex-nowrap items-center justify-between gap-4 py-0.5 lg:flex">
-        <div className="flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto no-scrollbar">
-          {categories.map(c => (
-            <button
-              key={c.id}
-              onClick={() => setCategory(c.id)}
-              className={`shrink-0 ${category === c.id ? pillSolid : pillSoft}`}
-            >
-              {c.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex shrink-0 flex-nowrap items-center gap-2">
-          {[
-            { value: genre, set: (v: string) => setGenre(v), label: 'Genre', options: [{ label: 'All Genres', value: 'All' }, ...genres.slice(1).map(g => ({ label: g, value: g }))] },
-            { value: yearKey, set: (v: string) => setYearKey(v), label: 'Year', options: yearPresets.map(y => ({ label: y.label, value: y.label })) },
-            { value: format, set: (v: string) => setFormat(v as any), label: 'Format', options: formats.map(f => ({ label: formatLabels[f] ?? f, value: f })) },
-          ].map(f => (
-            <FilterSelect
-              key={f.label}
-              value={f.value}
-              onChange={f.set}
-              ariaLabel={`Filter by ${f.label}`}
-              options={f.options}
-            />
-          ))}
-
-          {(genre !== 'All' || yearKey !== 'All Years' || format !== 'All') && (
-            <button
-              onClick={() => { setGenre('All'); setYearKey('All Years'); setFormat('All') }}
-              className={`${pillSoft} shrink-0`}
-            >
-              Clear
-            </button>
-          )}
-        </div>
-      </div>
-
-      <div className="mt-4 flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto no-scrollbar py-0.5 lg:hidden">
+  // Categories (left lane) and filters (right lane), built once and rendered
+  // twice: in the live row and in the hidden measurer that decides whether
+  // the lanes still fit side by side.
+  const filterBar = (
+    <>
+      <div className="flex shrink-0 flex-nowrap items-center gap-2">
         {categories.map(c => (
           <button
             key={c.id}
@@ -177,7 +133,9 @@ export function Manga() {
             {c.label}
           </button>
         ))}
+      </div>
 
+      <div className="flex shrink-0 flex-nowrap items-center gap-2">
         {[
           { value: genre, set: (v: string) => setGenre(v), label: 'Genre', options: [{ label: 'All Genres', value: 'All' }, ...genres.slice(1).map(g => ({ label: g, value: g }))] },
           { value: yearKey, set: (v: string) => setYearKey(v), label: 'Year', options: yearPresets.map(y => ({ label: y.label, value: y.label })) },
@@ -201,12 +159,42 @@ export function Manga() {
           </button>
         )}
       </div>
+    </>
+  )
+
+  return (
+    <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-12">
+      <h1 className="text-[18px] font-semibold tracking-tight text-[var(--text)]">Manga</h1>
+      <p className="text-xs text-[var(--text-faint)]">Discover manga by category and filters</p>
+
+      <div className="mt-4">
+        {/* Hidden copy of both lanes at their natural width. Fixed and
+            invisible so it never affects layout or the page's scroll width. */}
+        <div
+          ref={measurerRef}
+          aria-hidden
+          className="pointer-events-none invisible fixed left-0 top-0 -z-10 flex w-max items-center gap-2"
+        >
+          {filterBar}
+        </div>
+
+        {/* Split: categories left, filters right — the space between them
+            closes continuously as the window narrows. Merged: one swipeable
+            strip, entered only once the lanes would actually touch. */}
+        <div
+          ref={rowRef}
+          data-testid="filter-bar"
+          className={`flex min-w-0 flex-nowrap items-center gap-2 py-0.5 ${fits ? 'justify-between' : 'overflow-x-auto no-scrollbar'}`}
+        >
+          {filterBar}
+        </div>
+      </div>
 
       {browse.loading && !browse.data ? (
         <div className="mt-6">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {Array.from({ length: cols * 5 }).map((_, i) => (
-              <div key={i} className="aspect-[16/9] animate-pulse rounded bg-[color-mix(in_srgb,var(--text)_5%,transparent)]" />
+              <CardSkeleton key={i} mediaKind="manga" fullWidth flat />
             ))}
           </div>
           <p className="sr-only">Loading</p>
@@ -226,7 +214,7 @@ export function Manga() {
           <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
             {visible.map(a => (
               <div key={a.identity.internalId} className="min-w-0">
-                <AnimeCard anime={a} mediaKind="manga" onSelect={(picked) => { if (!isAuthenticated) setSignInOpen(true); else openDetail(picked) }} fullWidth />
+                <AnimeCard anime={a} mediaKind="manga" onSelect={openDetail} fullWidth />
               </div>
             ))}
           </div>
@@ -250,8 +238,6 @@ export function Manga() {
           )}
         </>
       )}
-
-      {signInOpen && <SignInModal onClose={() => setSignInOpen(false)} />}
     </div>
   )
 }

@@ -3,7 +3,7 @@ import { aeriTitle } from '../lib/pageTitle'
 import { isIncognitoEnabled } from '../storage/preferences'
 
 /**
- * Tab-title system (owner 2026-10-18): EVERY page's tab reads
+ * Tab-title system: EVERY page's tab reads
  * "<NAME> - Aeri". One coordinator, two slots:
  *
  * - 'base' (shell-only in App): the ROUTE fallback mapped from the
@@ -29,7 +29,7 @@ const overrideStack: StackEntry[] = []
 function apply(): void {
   const top = overrideStack.length ? overrideStack[overrideStack.length - 1].name : null
   try {
-    // Incognito (owner 2026-10-23): EVERY page's tab reads exactly
+    // Incognito: EVERY page's tab reads exactly
     // "Incognito - Aeri" while the mode is on — the incognito signal is
     // the whole title, no route/show names leak into it.
     document.title = isIncognitoEnabled() ? 'Incognito - Aeri' : aeriTitle(top ?? baseName)

@@ -137,7 +137,7 @@ const MEM_MAX = 100
 // instead of each firing its own 12-hop fan (the old scope-namespaced keys
 // multiplied cold card opens into ~26 GraphQL requests and drove AniList
 // 429 storms — the shared cooldown then parked everything for ~60s, which
-// is exactly the "50/50 failures, 30s waits" the owner reported).
+// is exactly the observed 50/50 failures and 30s waits).
 const mem = new Map<string, { at: number; data: RelatedEntry[] }>()
 const inflight = new Map<string, Promise<RelatedEntry[]>>()
 

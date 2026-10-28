@@ -24,6 +24,8 @@ Quiet UI, loud artwork. Aeri borrows Netflix's cinematic browsing contract: hero
   --text-faint: #6b6b70;
   --accent: #e50914;
   --accent-hover: #f40612;
+  /* opaque list separator: the old 8% alpha line over --surface (D134) */
+  --divider: color-mix(in srgb, var(--text) 8%, var(--surface));
 }
 ```
 Page background: near-black (#070708). Surfaces are subtly lighter, not cards with heavy borders.
@@ -45,6 +47,36 @@ because its inward glow read as a blurred edge on a mostly still frame;
 every other card, hero slot, and Watch tile stays `.frame-soft`. None is a
 CSS `border`: cards avoid layout inflation, and the composited carousel
 layer tiled stale snapshots with a real border.
+
+Card hover frost (D137) is the one exception that blurs card pixels: it is
+mounted as `.card-frost` on the hover scrim, which is `backdrop-filter: none`
+at rest and only gets `blur(8px)` while `.card-art:hover` on a
+`@media (hover: hover)` device. Offscreen and touch tiles therefore carry no
+blur layer at all (108 → 0 card layers on Home). While any scroller is
+moving (D143), `html[data-scrolling="1"]` (set by `lib/scrollQuiet.ts`)
+removes the frost, hides the hover glyph/caption and pins the artwork's
+hover brighten at 0.96 — a card sliding under a parked cursor must never
+toggle a backdrop blur mid-scroll. The flag clears 140ms after the last
+scroll event and the normal hover treatment returns.
+
+### Dividers (D134)
+
+Episode and chapter list separators (and their list frames) use
+`--divider: color-mix(in srgb, var(--text) 8%, var(--surface))` — **opaque**,
+pre-composited over `--surface`. An 8%-alpha line composites with whatever
+row background is under it, so re-sorting the list moved the hovered row and
+the line under the first row appeared to change colour. Opaque means one
+colour in every row, in both sort directions. Section rules
+(`border-t`/`border-b` on page furniture) keep the alpha `--border`.
+
+**Reader progress bar (D143).** On `/read/*` the navbar hairline becomes a
+2px scroll track (15% `--text`), with a white fill carrying the Continue
+Watching bar's `shadow-[0_0_6px_var(--text)]`. The glow is only painted once
+the fill has length: `opacity` is driven by the same rAF paint as the
+transform (0 at ratio 0, 1 otherwise), because a box-shadow on a
+`scaleX(0)` element still paints a blob at the element's origin. The bar
+also stays at zero until every page image has resolved
+(`aeri:reader-pages`).
 
 ### Nav hitboxes
 
@@ -126,6 +158,13 @@ One pill geometry for the whole app, imported from
   shell, 12px medium value, 12px chevron at `right-2`, `--bg-soft` fill,
   `--border` hairline, transparent native `<select>` covering the whole
   pill. Never build a second dropdown style.
+- The reader chapter picker and Watch episode picker are the white
+  `tone="solid"` exception: `--text` fill, `--on-text` value and chevron, no
+  visible border and **no focus ring** (the ring painted a dark outline
+  around the white pill on click). The 1px transparent border is geometry
+  only. The chevron uses a `2.5` viewBox stroke so it reads at the same
+  optical weight as the 12px text arrows on the Prev/Next pills; the default
+  dark dropdown keeps `2`.
 - Skeleton placeholders for a pill use the same 30px box so the swap does
   not shift layout.
 
@@ -179,6 +218,19 @@ One pill geometry for the whole app, imported from
 ### AnimeCard
 
 - Landscape 16:9. Desktop width 236px, tablet 200px, mobile 148px. Aspect via `aspect-[16/9]`.
+- **Shape lives in `src/components/cards/cardGeometry.ts`** (D137): art aspect,
+  intrinsic `<img>` dims and rail widths are read from that module by
+  `AnimeCard` AND by every loading skeleton. A skeleton never hardcodes an
+  aspect ratio — that is how `/manga` came to load with anime-shaped boxes.
+- **Hover blur is hover-only** (D137): the whole-card scrim keeps its ~50%
+  darkening and 200ms fade, but `.card-frost` applies `backdrop-filter:
+  blur(8px)` only while `.card-art:hover`, and only under
+  `@media (hover: hover)`. An always-mounted blur gave every card its own
+  compositing layer and cost ~18% of scroll main-thread time; touch never
+  shows the treatment, so it never pays for it.
+- **Scroll-quiet** (D143): during any scroll the frost, hover glyph and
+  caption are suppressed (`html[data-scrolling="1"]`, 140ms after the last
+  scroll event) so a card passing under a parked cursor cannot flash.
 - Border: 1px solid transparent → border-white/10 on hover.
 - Image: cover, subtle brightness 0.96 → 1 on hover.
 - Hover: `scale-[1.04]`, transition 180ms ease-out, `z-index` lift, reveal title overlay.

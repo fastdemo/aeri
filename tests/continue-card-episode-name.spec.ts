@@ -3,7 +3,7 @@ import { seedTestAuth, routeTestMalIdentity } from './helpers/test-auth'
 import { FIXTURE_COVER } from './fixtures/anilist-media'
 
 /**
- * Continue-card episode NAME contract (D128, owner report 2026-10-25).
+ * Continue-card episode NAME contract (D128).
  *
  * Real shape (verified against AniList, D127): AniList 2904 (Code Geass R2)
  * carries SEASON ONE's 25 Crunchyroll rows while the entry itself has 25

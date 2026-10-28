@@ -1,12 +1,12 @@
 /**
- * PILL SYSTEM (owner 2026-10-26) — one button size for the whole app.
+ * PILL SYSTEM — one button size for the whole app.
  *
  * The reference is the white "Popular" category pill on the Anime/Manga
  * tabs: 30px tall (6px vertical padding + 16px line-height + 1px border),
  * 14px horizontal padding, 12px medium text, fully rounded, hairline border.
  * Before this module the same white button was rendered at 24/28/30/32/36/
- * 44px with medium and semibold weights depending on the page — "identical
- * buttons, different size" (owner report). Every standalone pill now imports
+ * 44px with medium and semibold weights depending on the page, so identical
+ * buttons looked like different components. Every standalone pill now imports
  * these strings so a future change lands everywhere at once.
  *
  * Solid  = primary action (white fill, black label)

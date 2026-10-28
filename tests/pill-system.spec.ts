@@ -3,20 +3,17 @@ import { seedTestAuth, routeTestMalIdentity } from './helpers/test-auth'
 import { routeTestAnilistMedia } from './helpers/test-anilist'
 
 /**
- * PILL SYSTEM CONTRACT (owner 2026-10-26)
+ * PILL SYSTEM CONTRACT
  *
- * "some white buttons or dropdowns are identical in different part of the
- * site but have different size, color or something. for the white button,
- * make the size follow like the white popular button on the anime/manga tab."
- *
- * Reference: the active "Popular" category pill on /anime — 30px tall,
- * 12px medium text, 14px horizontal padding, 1px hairline, fully rounded.
+ * Every white control on the site uses ONE size. Reference: the active
+ * "Popular" category pill on /anime — 30px tall, 12px medium text, 14px
+ * horizontal padding, 1px hairline, fully rounded.
  *
  * Every standalone white pill (button/link) and every dropdown shell must
  * render at that exact height and type scale. Decorative badges (spans) are
  * intentionally excluded — they are not controls.
  *
- * SEGMENTED TOGGLES ARE THE EXCEPTION (owner 2026-10-26): Sub/Dub and the
+ * SEGMENTED TOGGLES ARE THE EXCEPTION: Sub/Dub and the
  * reader fit stay a TRACK + INNER PILL, not a row of standalone pills. The
  * control is the track, so the track must be 30px; the selected inner pill is
  * a 20px thumb by design and is not sampled as a standalone pill.
@@ -43,7 +40,7 @@ async function collectPills(page: import('@playwright/test').Page): Promise<Pill
       const r = node.getBoundingClientRect()
       if (r.width < 4 || r.height < 4) continue
       // White fill = primary pill. Soft pills share the same metrics but are
-      // not the owner's reference; the solid ones are what must never drift.
+      // not the reference; the solid ones are what must never drift.
       if (cs.backgroundColor !== 'rgb(255, 255, 255)') continue
       // Inner pill of a segmented toggle: the 30px TRACK is the control.
       if (node.parentElement?.getAttribute('role') === 'radiogroup') continue

@@ -3,10 +3,10 @@ import { seedTestAuth, routeTestMalIdentity } from './helpers/test-auth'
 import { routeTestAnilistMedia } from './helpers/test-anilist'
 
 /**
- * Watch page layout contract (owner requests, 2026-10-25).
+ * Watch page layout contract.
  *
  * Everything asserted here is a LAYOUT rule, not playback: the layout is what
- * broke in the owner's screenshots. Playback itself is covered by
+ * broke in the screenshots. Playback itself is covered by
  * playback-authenticated.spec.ts (deterministic suites), which this file
  * reuses for auth + media doubles:
  *   - AUTH: synthetic MAL token + routed identity (production auth untouched)
@@ -40,7 +40,6 @@ async function setupAuth(page: Page, progress = 0): Promise<void> {
       localStorage.setItem('aeri:prefs', JSON.stringify({
         ...cur,
         customVideoApiUrl: 'https://aeri.fastdemo.workers.dev',
-        preferredProvider: 'aniwave',
         preferredAudio: 'sub',
         autoplay: false,
       }))
@@ -115,7 +114,7 @@ test.describe('Watch layout contract', () => {
     expect(header!.spanRight).toBeGreaterThanOrEqual(header!.rowRight - 2)
     expect(header!.spanLeft).toBeGreaterThan(header!.headingLeft)
 
-    // 4. Player surface (owner 2026-10-26, revised same day): the page
+    // 4. Player surface: the page
     // background with the video on top — no wrapper fill, no wrapper border,
     // no artwork poster. The Video.js skin keeps its STOCK 28px corner radius,
     // and the player wears the hero's frosted frame (.frame-glass) instead of

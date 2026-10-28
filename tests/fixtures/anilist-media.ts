@@ -26,6 +26,14 @@ export interface FixtureMedia {
   year: number
   /** Manga-kind fixtures carry the AniList chapter count (episodes null). */
   chapters?: number
+  /** AniList status; omitted = FINISHED (every original fixture). */
+  status?: string
+  /**
+   * `nextAiringEpisode` for RELEASING fixtures. `episode` is the number of
+   * the NEXT episode to air, so aired = episode - 1 (progress is measured
+   * against aired episodes, not the planned total).
+   */
+  nextAiringEpisode?: { episode: number }
 }
 
 export const FIXTURE_MEDIA: FixtureMedia[] = [
@@ -40,6 +48,9 @@ export const FIXTURE_MEDIA: FixtureMedia[] = [
   // queries — the same numeric MAL id (2) must never satisfy an anime read
   // (D104 boundary, kind-dispatched batch).
   { anilistId: 30002, malId: 2, romaji: 'Berserk', english: 'Berserk', episodes: 0, chapters: 392, format: 'MANGA', year: 1989 },
+  // CURRENTLY AIRING: 12 planned, 3 aired, 3 watched must
+  // read "3 of 3" — never "3 of 12".
+  { anilistId: 9001, malId: 9001, romaji: 'Probe Airing Show', english: 'Probe Airing Show', episodes: 12, format: 'TV', year: 2026, status: 'RELEASING', nextAiringEpisode: { episode: 4 } },
 ]
 
 /**
@@ -73,7 +84,7 @@ function toMediaJson(f: FixtureMedia) {
     chapters: f.chapters ?? null,
     volumes: null,
     duration: 24,
-    status: 'FINISHED',
+    status: f.status ?? 'FINISHED',
     averageScore: 80,
     genres: ['Action'],
     studios: { edges: [], nodes: [] },
@@ -86,7 +97,9 @@ function toMediaJson(f: FixtureMedia) {
     streamingEpisodes: f.malId === 20
       ? [{ title: `Episode 21 - ${FIXTURE_EP_NAME_21}`, thumbnail: '', url: 'https://crunchyroll.com/ep21', site: 'Crunchyroll' }]
       : [],
-    nextAiringEpisode: null,
+    nextAiringEpisode: f.nextAiringEpisode
+      ? { episode: f.nextAiringEpisode.episode, airingAt: Math.floor(Date.now() / 1000) + 86400, timeUntilAiring: 86400 }
+      : null,
     airingSchedule: { nodes: [] },
     isAdult: false,
     // The manga tag fixture carries ONE related MANGA tile (P6: a related

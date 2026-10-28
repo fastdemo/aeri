@@ -14,15 +14,19 @@ import { customProvider } from './custom'
 import { getPreferences, getEffectiveVideoApiUrl } from '../../storage/preferences'
 import { fetchWithTimeout } from './base'
 
-// Priority order (verified reliability first — 2026-10-24 pass):
+// Priority order (owner default, 2026-10-28 — D144):
 // 1. aniwave (Tier 1: verified HLS sub+dub through the same-origin Worker
-//    relay; the only browser-usable provider after MegaVid was removed)
-// 2. animegg (Tier 2: verified browser-direct MP4 fallback; cert/CORS can
+//    relay; the only sub+dub provider after MegaVid was removed)
+// 2. animeparadise (Tier 1: verified 1080p HLS + English VTT through the
+//    Worker relay; sub-only)
+// 3. animegg (Tier 2: verified browser-direct MP4 fallback; cert/CORS can
 //    fail in some environments)
+// Settings ↑/↓ persists `providerOrder` and overrides this default; when
+// that pref is null/empty the array below is the resolution order.
 // A trailer must never be presented as a full-episode playback source, so
 // no trailer provider exists in this chain (see agents/streaming.md).
-// Dead/broken/stub providers (allanime/pahe/koto/paradise/neko crypto-
-// or CF-gated, miruro trailer-alias) are NEVER in the active chain: they
+// Dead/broken/stub providers (allanime/pahe/koto/neko crypto- or
+// CF-gated, miruro trailer-alias) are NEVER in the active chain: they
 // are status!=verified so the verified-only pool below excludes them —
 // zero requests, zero timeout budget spent. MegaVid was removed entirely
 // (D124): its JSON is CORS-locked to megavid.buzz, so it could never be the
@@ -37,6 +41,7 @@ import { fetchWithTimeout } from './base'
 // relay, not as a direct registry provider. See agents/streaming.md.
 export const videoProviders: VideoProvider[] = [
   aniWaveProvider,
+  animeParadiseProvider,
   animeGGProvider,
   customProvider,
   miruroProvider,
@@ -44,7 +49,6 @@ export const videoProviders: VideoProvider[] = [
   animePaheProvider,
   aniKotoProvider,
   megaPlayProvider,
-  animeParadiseProvider,
   aniNekoProvider,
   mockVideoProvider,
 ]
@@ -101,13 +105,13 @@ export async function checkProviderHealth(signal?: AbortSignal): Promise<Record<
         // Health = worker reachable; per-provider truth comes from the
         // verified registry (Settings only lists verified providers, so
         // the map carries exactly those keys).
-        const baseMap: Record<string, 'available' | 'unavailable'> = { aniwave: 'available', animegg: 'available' }
+        const baseMap: Record<string, 'available' | 'unavailable'> = { aniwave: 'available', animegg: 'available', animeparadise: 'available' }
         return baseMap
       }
     } catch {}
-    return { aniwave: 'unavailable', animegg: 'unavailable' } as any
+    return { aniwave: 'unavailable', animegg: 'unavailable', animeparadise: 'unavailable' } as any
   }
-  return { aniwave: 'unavailable', animegg: 'unavailable' }
+  return { aniwave: 'unavailable', animegg: 'unavailable', animeparadise: 'unavailable' }
 }
 
 export function getProviderById(id: string): VideoProvider | undefined {
@@ -143,7 +147,6 @@ export async function resolveEpisodesWithFallback(anime: Anime, signal?: AbortSi
 }
 
 export interface ResolveSourcesOptions {
-  preferredProvider?: string | null
   preferredLanguage?: VideoLanguage
   signal?: AbortSignal
   bypassCache?: boolean
@@ -214,10 +217,12 @@ export async function resolveSourcesWithFallback(
     ]) as Promise<T>
 
   const preferredLanguage = options?.preferredLanguage
-  const preferredId = options?.preferredProvider
   const enabledOrdered = getOrderedProviders(getEnabledProviders())
-  // Ensure preferred is valid and enabled
-  const preferred = preferredId ? getProviderById(preferredId) : getProviderById(episode.provider)
+  // The provider that produced the episode list is tried first (it already
+  // proved it serves this title), then the user's priority order. There is
+  // no separate "preferred source" override — order IS the preference
+  // (D141).
+  const preferred = getProviderById(episode.provider)
   const ordered: VideoProvider[] = []
   if (preferred && preferred.id !== 'mock' && enabledOrdered.some(p => p.id === preferred.id)) {
     ordered.push(preferred)

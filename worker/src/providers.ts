@@ -61,7 +61,7 @@ export interface VideoSourceProvider {
   getSources(anilistId: number, episode: number, language: VideoLanguage, workerOrigin: string | null, signal?: AbortSignal, hint?: ProviderHint): Promise<NormalizedSource[]>
 }
 
-import { getResolveContext, resolveSource, findAniwaveEpisodes } from './resolver'
+import { getResolveContext, resolveSource, findAniwaveEpisodes, findAnimeParadiseEpisodes } from './resolver'
 
 // In-worker resolution context is configured per request from worker env
 // (constant per deployment, so sharing module state across concurrent
@@ -591,6 +591,95 @@ export class AniwaveProvider implements VideoSourceProvider {
 
   async getSources(anilistId: number, episode: number, language: VideoLanguage, _workerOrigin: string | null, signal?: AbortSignal, hint?: ProviderHint): Promise<NormalizedSource[]> {
     return this.resolveViaService(anilistId, hint, episode, language, signal)
+  }
+}
+
+/**
+ * AnimeParadise — VERIFIED_WORKING 2026-10-26 (Cowboy Bebop ep 1: open API
+ * search → /anime/<link> (mappings.anilist = exact identity) →
+ * /anime/<_id>/episode → Next.js server-action POST on /watch/<uid> →
+ * streamLink → 1448x1080 HLS master + English VTT captions).
+ * Sub-only; episodes only resolve through the internal _id, never the slug.
+ */
+export class AnimeParadiseProvider implements VideoSourceProvider {
+  id = 'animeparadise'
+  capabilities: ProviderCapabilities = { id: 'animeparadise', displayName: 'AnimeParadise', languages: ['sub'], subtitles: true, hls: true, mp4: false, embed: false, search: true, episodes: true, sources: true }
+
+  private toMatchHints(hint?: ProviderHint | null) {
+    if (!hint) return null
+    return {
+      english: hint.english,
+      native: hint.native,
+      expectedEpisodes: hint.expectedEpisodes,
+      expectedFormat: hint.expectedFormat,
+      year: hint.year,
+    }
+  }
+
+  async getEpisodes(anilistId: number, signal?: AbortSignal, hint?: ProviderHint): Promise<{ number: number; title?: string }[]> {
+    if (!getResolveContext()) return []
+    const title = hint?.title?.trim() || ''
+    if (!title) return []
+    const ctrl = new AbortController()
+    const tid = setTimeout(() => ctrl.abort(), 14000)
+    const onAbort = () => ctrl.abort((signal as any)?.reason)
+    if (signal) {
+      if (signal.aborted) { clearTimeout(tid); return [] }
+      signal.addEventListener('abort', onAbort, { once: true })
+    }
+    try {
+      const j = await findAnimeParadiseEpisodes(anilistId, title, ctrl.signal, this.toMatchHints(hint))
+      if (Array.isArray(j?.episodes) && j.episodes.length) {
+        return j.episodes.map((e: any) => ({ number: e.number }))
+      }
+    } catch {
+    } finally {
+      clearTimeout(tid)
+      if (signal) signal.removeEventListener('abort', onAbort)
+    }
+    return []
+  }
+
+  async getSources(anilistId: number, episode: number, language: VideoLanguage, _workerOrigin: string | null, signal?: AbortSignal, hint?: ProviderHint): Promise<NormalizedSource[]> {
+    if (language === 'dub') return []
+    if (!getResolveContext()) return []
+    const ctrl = new AbortController()
+    const tid = setTimeout(() => ctrl.abort(), 20000)
+    const onAbort = () => ctrl.abort((signal as any)?.reason)
+    if (signal) {
+      if (signal.aborted) { clearTimeout(tid); return [] }
+      signal.addEventListener('abort', onAbort, { once: true })
+    }
+    try {
+      const j = await resolveSource({
+        provider: 'animeparadise',
+        anilistId,
+        title: hint?.title?.trim() || '',
+        episode,
+        language,
+        signal: ctrl.signal,
+        hints: this.toMatchHints(hint),
+      })
+      const subs = (j.subtitles || [])
+        .filter((t: any) => t && typeof t.url === 'string' && /^https:\/\//.test(t.url))
+        .map((t: any) => ({ language: t.language || 'en', label: t.label || 'English', url: t.url, type: 'vtt' }))
+      return [{
+        provider: 'animeparadise',
+        url: j.url,
+        type: j.type === 'mp4' ? 'mp4' : 'hls',
+        language,
+        quality: 'auto',
+        embed: false,
+        subtitles: subs.length ? subs : undefined,
+        providerAnimeId: j.providerAnimeId ?? null,
+        providerTitle: j.providerTitle ?? null,
+      }]
+    } catch {
+      return []
+    } finally {
+      clearTimeout(tid)
+      if (signal) signal.removeEventListener('abort', onAbort)
+    }
   }
 }
 

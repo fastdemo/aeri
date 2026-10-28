@@ -109,7 +109,7 @@ export class AnimeGGProvider implements VideoProvider {
       const trySlugs = langSlug === slug ? [slug] : [langSlug, slug]
       const out: VideoSourceEnhanced[] = []
       for (const s of trySlugs) {
-        // OWNER RULE (2026-10-25): the language on a source is the language
+        // the language on a source is the language
         // of the PAGE it was scraped from, never the request. A missing
         // `-dub` page falls back to the sub page; labelling that stream
         // "dub" made the player offer a Dub toggle that played sub audio.

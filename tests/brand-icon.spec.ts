@@ -1,9 +1,8 @@
 import { test, expect } from '@playwright/test'
 
 /**
- * BRAND ICON (owner 2026-10-26, D133): the supplied white mark on a
- * TRANSPARENT background is the one icon everywhere. "no BACKGROUND please i
- * want it transparent like that" — so the SVG must carry the glyph only (no
+ * BRAND ICON (D133): the supplied white mark on a TRANSPARENT background is
+ * the one icon everywhere. The SVG must carry the glyph only (no
  * <rect> backing) and every raster app icon must have transparent corners.
  */
 test.describe('Aeri brand icon', () => {

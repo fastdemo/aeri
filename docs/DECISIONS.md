@@ -1901,3 +1901,712 @@ radius for the media player to the hero", then corrected the icon treatment:
   (corner alpha 0) and the 1024 PNG is the supplied mark.
 - Pinned by `tests/hero-radius.spec.ts` (3) and `tests/brand-icon.spec.ts`
   (2); 27/27 local and production.
+
+## D134 — One edge for every component, doubled radii, aired-episode progress, stable dividers (2026-10-26)
+
+> **Items 1 and 2 were REVERTED by the owner the same day — see D135.**
+> Border unification and radius doubling are back to their pre-D134
+> implementation. Items 3 (aired progress) and 4 (opaque dividers) remain.
+
+Four owner corrections in one pass:
+
+1. **(REVERTED — D135) Every bordered component wears the hero's edge.** "i want every
+   component that has a border to have the same border as the hero" —
+   explicitly including Continue Watching, which had been the one
+   crisp-only exception (D128). Owner chose *hairline + soft glow* over the
+   literal frosted rim. All 51 static `border border-[var(--border)]` boxes
+   (panels, dropdowns, inputs, empty states, list frames) now carry
+   `border edge-hero`, a new utility that sets `border-color:
+   var(--border-card)` plus `.frame-soft`'s `inset 0 0 10px -4px` 24% glow.
+   The box-shadow is composed from Tailwind v4's own variables, so
+   `shadow-2xl` (sign-in modal), the deep dropdown shadows and
+   `focus-visible:ring-*` all still paint. It is declared in
+   `@layer utilities`: an unlayered rule beats every layer and measurably
+   killed `focus:border-[var(--border-strong)]` on the search inputs before
+   the move. `.frame-crisp` is retired (tombstone comment only) — every
+   AnimeCard variant, continue included, renders `.frame-soft`.
+   Carve-outs kept on purpose: state borders (selected / hover / focus /
+   error) keep their accent tone, and floating chrome controls over
+   artwork/video (player Resume pill, preview-card status button,
+   checkboxes, spinners) keep the brighter `--border-strong` line so they
+   stay legible.
+2. **(REVERTED — D135) Radii doubled, hero and player exempt.** `--radius-sm 4→8`,
+   `--radius-md 8→16`, `--radius-lg 12→24`; `--radius-xl` pinned to 24
+   (Tailwind's 0.75rem default would otherwise drift), `--radius-2xl 32`,
+   `--radius-3xl 40`. Tailwind hardcodes bare `.rounded` to 0.25rem, so it
+   is re-declared in `@layer utilities` at `var(--radius-sm)`; the four
+   `rounded-[6px]` sites (Watch tiles, AnimeCard root, Skeleton,
+   RelatedEntries skeleton) became `rounded-[12px]`. Hero and media player
+   stay `rounded-[28px]` (D131/D133). `rounded-full` is a pill already.
+3. **Airing progress is measured against aired episodes.** `getAiredTotal()`
+   + `getAiredProgressPercent()` in `src/lib/episodes.ts`. A 12-episode
+   RELEASING show with 3 aired and 3 watched now reads **"3 of 3 • 100%
+   watched"** (was "3 of 12" / 25%) in both the Continue Watching bar and
+   the preview card. The AniList `MediaListCollection` query now requests
+   `nextAiringEpisode { airingAt timeUntilAiring episode }`, so the bar is
+   correct on first paint; the card prefers the enriched AniList record and
+   falls back to the list copy (MAL list entries carry no airing schedule).
+   Finished shows are unchanged (aired == total), and manga keeps its
+   chapter denominator.
+4. **Stable list dividers.** Episode/chapter row separators and their list
+   frames use a new OPAQUE `--divider` token
+   (`color-mix(in srgb, var(--text) 8%, var(--surface))` — the old 8%-alpha
+   line pre-composited over `--surface`, so the normal look is identical).
+   An alpha line composites with the row background, so re-sorting moved the
+   hovered row and the line under the first row appeared to change colour.
+
+**Verification (local, mock-AniList probe + real AniList home).**
+`edge-hero` border computes `color(srgb 1 1 1 / 0.0803922)` — the exact hero
+rim hairline — with `color(srgb 1 1 1 / 0.24) 0 0 10px -4px inset` glow, on
+Settings sections/inputs/radiogroups, Browse filter pills and the card
+dropdown; the sign-in modal keeps `0 25px 50px -12px` alongside the glow;
+the search input returns `rgba(255,255,255,0.16)` + its ring on focus.
+Radius inventory at 1440/768/375: `{8, 12, 24, full}` only — no 4px or 12px
+panel leftovers; hero section `28px`, player untouched. Airing probe: bar
+fill 236/236 px and "3 of 3 • 100% watched"; dividers
+`color(srgb 0.137725 0.137725 0.137725)` identical in both sort orders.
+`npx tsc -b` clean; lint keeps its 4 pre-existing errors
+(`useAeriTitle.ts` ×3, `AnimeCard.tsx:597`). Playwright: new
+`tests/aired-progress.spec.ts` (3) plus the curated suite + home-left-edge
+= **36/36**. `playback-matrix.spec.ts:220` and the provider-network tests
+still fail at HEAD (verified by stashing this change) — pre-existing.
+
+## D135 — Border unification and radius doubling reverted (2026-10-26)
+
+Owner, minutes after D134: **"okay wait, revert the border change and the
+corner radius change. just the 2 of that please."** Items 1 (one edge for
+every component) and 2 (doubled radii) are gone; items 3 (aired progress)
+and 4 (opaque dividers) stay. Restored from `HEAD` (`git show`), not
+re-derived.
+
+- **Borders.** `.edge-hero` and its `@layer utilities` block deleted. All 51
+  `border edge-hero` call sites across 21 files are back to
+  `border border-[var(--border)]`; `.frame-crisp` restored and AnimeCard
+  again renders `variant === 'continue' ? 'frame-crisp z-20' :
+  'frame-soft z-20'`. `--border-card` never changed, so the hairline tone is
+  identical — only the inner glow is gone.
+- **Radii.** `--radius-sm 4 / --radius-md 8 / --radius-lg 12` restored,
+  `--radius-xl/2xl/3xl` removed (Tailwind defaults), the bare `.rounded`
+  override deleted, and the four `rounded-[12px]` sites back to
+  `rounded-[6px]` (Watch tile, AnimeCard root, Skeleton, RelatedEntries
+  skeleton). Hero and player were exempt in D134 and stay 28px.
+- **Kept.** `getAiredTotal()` / `getAiredProgressPercent()` + the
+  `nextAiringEpisode` field in the AniList list query, and the opaque
+  `--divider` token on EpisodeList/ChapterList rows and frames.
+
+**Verification.** Local mock-AniList probe: continue card `.frame-crisp`
+computes `0 0 0 1px inset` only (no glow), other cards keep
+`0 0 0 1px inset, 0 0 10px -4px inset`, `.edge-hero` count 0, radii
+`{4, 6, 12, full}`, card radius 6px; `/settings` section border
+`rgba(255,255,255,0.08)` with `box-shadow: none` at 12px. `npx tsc -b`
+clean; lint keeps its 4 pre-existing errors. Playwright **18/18**
+(`aired-progress` 3, `hero-radius` 3, `pill-system` 4, `watch-layout` 2,
+`no-select` 6).
+
+**Deployed.** Worker `aeri` version
+`aeedff20-1c76-421f-994c-155d235df5bd`, bundle `index-CiRvBIoa.js`, CSS
+`index-CAoBVNnS.css`; `verify:live` 8/8. Live at 1440: radii
+`{4, 6, 28, full}`, 0 `.edge-hero`, 108 `.frame-soft`, hero 28px with the
+0.08 inset rim, `/legal` panel `rgba(255,255,255,0.08)` / 12px /
+`box-shadow: none`, no console errors.
+
+## D136 — AnimeParadise added as a verified sub-only source; AnimeHeaven rejected (2026-10-27)
+
+Owner asked for more streaming sources, each proven before it ships. A
+full survey was run from the Worker's real egress
+(`/api/debug/provider-test`) and from `wrangler dev --remote`. **Exactly one
+candidate survived end-to-end: AnimeParadise.** It replaces the old
+`GenericStubProvider('animeparadise')` stub; the other ~30 candidates are
+listed here so the survey is not repeated blindly.
+
+- **Rejected from the CF edge:** hianime (521), animekai (1016),
+  kickassanime (522), animefrenzy (1016), 9animetv (522), aniwatchtv (522),
+  aniwave.se/.bz/.la/.tv (1016), 9anime.pl (parked ad redirect), animevibe
+  (401), animeonsen (403), animesonlinecc (403), animeapi.skin (1016),
+  api.amvstr.me (1016), api.anify.tv (dead), consumet (451), anitaku.to
+  (1016), animegalaxy.to (1016), kaido.to (522), anikai.to (1016),
+  animexd.com (525), animetake.tv ("Just a moment..."), animefreak.tv (ad
+  redirect), gogoanime3.co (JS shell), animeowl.live (ad redirect),
+  animez.to (login), animesuge.skin (sandbox iframe to enma.lol),
+  animedao.to (ad gate), animepahe API (anti-bot HTML), enma.lol
+  (crypto-gated API — `/api/search` returns an encrypted base64 blob),
+  animeout.xyz (download-only). Language-scoped rejects: animeunity /
+  animesaturn / animeworld (Italian), anime4up (Arabic), animeforce
+  (Indonesian).
+- **AnimeHeaven was proven locally and then abandoned.** Its origin returns
+  a 14-byte `AnimeHeaven.Me` stub to any request carrying Cloudflare's
+  automatic `CF-Worker` header — reproduced locally with
+  `-H 'CF-Worker: aeri.fastdemo.workers.dev'` and from both
+  `wrangler dev --remote` and production egress. `fastsearch.php`,
+  `new.php` and `image.php` still answer, but the series page that yields
+  episode hashes is blocked, and Workers cannot strip the header. All
+  AnimeHeaven code was removed.
+- **AnimeParadise contract.** Search returns no `mappings`; the anilistId
+  comes from `/anime/<link>?v=1` → `data.mappings.anilist`. Episodes only
+  resolve through the internal `_id` (the public
+  `/anime/<link>/episode` endpoint returns `[]`). The watch page is a
+  Next.js app: `streamLink` + `subData` come from a server-action POST with
+  `Next-Action`, `Next-Router-State-Tree`, `Referer` = watch URL,
+  `Accept: text/x-component`, `Content-Type: text/plain;charset=UTF-8`,
+  body `["<uid>","<animeId>"]`. The action id is **42 hex chars** (not 40),
+  so the scrape regex is `[0-9a-f]{40,44}`; a failed POST re-scrapes once.
+  Caches: anime id 10 min, action id 30 min. Result is sub-only 1080p HLS +
+  an English VTT (`/captions?url=`); only `type:'vtt'` tracks labelled
+  English are used.
+- **Relay fix (required for playback).** AnimeParadise's `/ts` returns valid
+  MPEG-TS as `image/jpeg` on most segments and `text/html` on ~10% of them.
+  The relay used to reject `text/html` from the header alone, so 34/353
+  segments 502'd and playback stalled. Block detection now runs on the
+  buffered body (a head starting with `<`), and a new `mediaContentType()`
+  sniffs TS/MP4/WebM magic and overrides mislabeled media. After the fix,
+  353/353 segments relay 200 with `video/mp2t`.
+- **Registry.** `AnimeParadiseProvider` (worker) replaces the stub;
+  `animeparadise` is in `providers[]` and `CDN_SUFFIXES`; the frontend
+  provider is `status:'verified'`, priority 3 after aniwave + animegg. Two
+  bugs were caught during live verification and fixed: the provider was
+  listed twice in `videoProviders[]` (duplicate Settings row) and the health
+  map did not know `animeparadise` (permanent "…").
+
+**Verification (production, 2026-10-27).** `/api/health` lists
+`animeparadise` (`['sub']`, hls, subtitles) and no `animeheaven`.
+`/api/episodes/1?provider=animeparadise&title=Cowboy%20Bebop&episodes=26&format=TV&year=1998`
+→ 26 episodes (the title hint is mandatory; Worker egress cannot rely on
+AniList). `/api/sources/animeparadise-1-1` → 1 HLS source through
+`/api/stream` + 1 English VTT. Relay chain: master 200, variant 200 (353
+segments), segment 200 159,800B with sync `0x47`, subtitle 200 `text/vtt`
+with real cues. `tests/animeparadise.spec.ts` 2/2: real `<video>`
+`readyState ≥ 2` with advancing `currentTime`, every relay response
+200/206, English track from the real VTT, and Settings lists
+AnimeParadise exactly once as `Available`.
+`tests/streaming-production.spec.ts` 4/4 (AoT, Bebop, Frieren, Naruto)
+still pass — the relay change did not regress AniWave.
+
+**Deployed.** Worker `aeri` version
+`e4a36762-2436-472b-8060-c6b866afd188`, bundle `index-DxRQwGZF.js`;
+`verify:live` 8/8.
+
+## D137 — Card skeletons read card geometry; scroll cost off the offscreen cards (2026-10-27)
+
+Two owner reports, one root cause each.
+
+**1. "the silhouette when loading manga is of anime cards."** `/manga`
+rendered its loading grid as `aspect-[16/9]` blocks (a copy of the anime
+skeleton) while the grid it becomes renders 3:4 portrait covers, so the page
+visibly morphed from landscape tiles to portrait ones. The same hardcoded
+ratio existed in `CardSkeleton`, `Browse`, `Search` and `RelatedEntries` —
+four places that would each have to be remembered on the next card-shape
+change.
+
+- **Fix: `src/components/cards/cardGeometry.ts`** is now the single source of
+  truth for card shape (`CARD_ART_ASPECT`, `CARD_ART_DIMS`, `CARD_WIDTH`,
+  and `CARD_RAIL_WIDTH_PX` for code that measures instead of styles).
+  `AnimeCard` reads it, and so does every skeleton (`CardSkeleton
+  mediaKind="anime|manga"`). `RelatedRow`'s `naturalCardWidth()` reads the
+  numeric widths from the same file instead of duplicating 168/200/236.
+- **Rule:** a skeleton never spells an aspect ratio. Add a shape to
+  `cardGeometry.ts` and every silhouette follows.
+- `tests/card-silhouette.spec.ts` pins the invariant by comparing the
+  RENDERED skeleton ratio to the RENDERED card ratio on `/manga` (portrait)
+  and `/anime` (landscape), so a future shape change that forgets a skeleton
+  fails in CI instead of shipping.
+
+**2. "it lags when im scrolling through the website" (mobile and desktop).**
+Measured on production Home (390×844, DPR 3, 4× CPU throttle, cache
+disabled, 100-step ping-pong scroll over the full page, CDP
+`Performance.getMetrics` main-thread `TaskDuration`):
+
+| variant | task time | running animations | backdrop-filter elements |
+|---|---|---|---|
+| baseline | **6.614 s** | 86 | 120 |
+| `.animate-pulse { animation: none }` | 0.858 s | 2 | 120 |
+| `backdrop-filter: none` | 5.398 s | 86 | 0 |
+| `section { content-visibility: auto }` | 5.260 s | 86 | 120 |
+| all three | 0.362 s | 2 | 0 |
+
+The dominant cost was **86 infinitely-pulsing placeholders**. Offscreen cards
+are gated from loading art (`useNearViewport`), so their placeholder never
+got the `onLoad` that would remove it — the animation ran forever on cards
+nobody could see. Secondary: 108 always-mounted `backdrop-filter` scrims (one
+per card), each forcing its own compositing layer.
+
+- **Placeholder pulse renders only when `artNear`.** An offscreen card is
+  invisible, so its skeleton has nothing to animate; the art div's own
+  background is the same colour, so the resting tile is unchanged.
+- **Hover blur is hover-only, and only on hover-capable devices.**
+  `.card-frost` is `backdrop-filter: none` by default and applies
+  `blur(8px)` under `@media (hover: hover)` while `.card-art:hover`. Touch
+  devices never show the treatment, so they no longer pay for it. The scrim's
+  200 ms opacity fade is untouched — the visible hover result is identical
+  (verified: resting `none` → hovered `blur(8px)` + opacity 1 on desktop).
+- **One IntersectionObserver per `rootMargin`, not one per card.**
+  `useNearViewport` now shares an observer (WeakMap element → callback,
+  released when the last card unmounts). 108 observers per scroll frame
+  became 1. Horizontal row scrolling still fires the gate (verified: the last
+  card in a rail has no `<img>` until the rail is scrolled to its end).
+- **`content-visibility: auto` was rejected** despite −20%: `contain-intrinsic-size`
+  is a guess, and a wrong guess jumps the scroll position — a visible
+  regression, which the owner explicitly ruled out. The two card-level fixes
+  reach 0.420 s without touching layout.
+
+**Result on production** (same harness, after deploy): main-thread task time
+**0.420 s (−94%)**, recalc-style 0.052 s (was 0.467 s), running animations
+2 (hero only), backdrop-filter 12 (navbar/hero chrome only).
+
+**Desktop** (1440×900, DPR 2, 4× CPU throttle, same 100-step scroll): 0.554 s
+now. Restoring the always-mounted card blur alone (`.card-frost {
+backdrop-filter: blur(8px) }`, 122 blur elements) puts the same page at
+**1.153 s** — the always-on scrim was more than half the desktop scroll cost,
+which is what "even on desktop its like that" was. The 86 offscreen pulse
+animations were viewport-based, not mobile-only, so they cost the same on
+desktop.
+
+**Verification.** `tests/card-silhouette.spec.ts` 3/3 local + 6/6 on
+production (chromium + mobile) — manga skeleton 3:4 (0.75) against a 3:4
+card, anime skeleton 16:9 against a 16:9 card (rendered ratios equal within
+0.02), 0 offscreen card pulses, 0 resting card blurs.
+Curated UI suite 19/19 (`aired-progress`, `continue-card-episode-name`,
+`home-left-edge`, `pill-system`, `no-select`). Art still loads on scroll
+(18 → 26 → 36 images through a full page pass) and on horizontal rail
+scrolling. Screenshots: `OpenCode/screens/manga-skeleton-1440.png`,
+`manga-skeleton-375.png`, `manga-loaded-1440.png`, `home-hover-1440.png`,
+`card-hover-1440.png`.
+
+**Deployed.** Worker `aeri` version
+`318ebcb2-4427-4fec-afa2-5bee66eb15c9`, bundle `index-D-6DEm4w.js`,
+`verify:live` 8/8.
+
+## D138 — Measured filter lanes, episode picker, centred reader nav, reader progress bar (2026-10-27)
+
+Six UI corrections plus a code-comment sweep; no data, routing or provider
+changes.
+
+**1. Anime/Manga filter bar merges gradually.** The category pills
+(Popular/Trending/…) and the four `FilterSelect`s used to join into one
+scroller at a breakpoint, so the gap between the lanes collapsed to zero in
+a single frame. Both browse pages now render ONE row and measure it: a
+hidden `position: fixed; width: max-content` copy of both lanes (same JSX,
+same `gap-2`) reports its natural width, and the lanes join only when that
+width exceeds the row's content box (`scrollWidth > width + 1`). Above the
+threshold the row keeps `justify-between`, so the gap shrinks one pixel at a
+time as the window narrows; at the threshold it becomes the joined swipeable
+scroller. `useLaneFit` owns the measurement (ResizeObserver + window resize +
+`document.fonts.ready`).
+
+Verified at 25 widths on the preview build: `/anime` lane gap 657 → 497 → …
+→ 45px at 940px, merged at 900px (`scrollW 844 > rowW 841`, 8px lane gap);
+`/manga` gap 12px at 820px, merged at 780px. No page horizontal overflow at
+any width (document `scrollWidth − clientWidth = −11`).
+
+**2. Watch episode picker.** The middle `Episode N` control between Previous
+and Next is now the shared `FilterSelect` (the same 30px dark shell as the
+source picker) instead of a white non-interactive span. Options come from the
+episode list, current episode included even when the provider list has not
+landed; choosing one navigates to `/watch/<id>/<n>`. Prev/Next stay solid
+white pills. Pinned by `tests/watch-episode-marks.spec.ts`.
+
+**3. Reader nav is prev / picker / next, top and bottom.** The chapter
+dropdown moved out of the header row into the centre cell of a
+`grid-cols-[1fr_auto_1fr]` nav, rendered both above the pages and at the end
+of the chapter. The header keeps the title + `Chapter N · Provider` subtitle
+only. With no chapter list the centre cell renders nothing and the nav stays
+a clean prev/next row.
+
+**4. Reader spacing + related anime.** The gap from the top nav to the first
+page and from the last page to the bottom nav is 16px both (`mb-4` / `mt-4`).
+The end-of-chapter rail now renders **Related Anime** above **Related Manga**
+(both from the same `manga.relations` call; `RelatedRow` splits entries by
+each node's own format).
+
+**5. Reader-only scroll progress bar.** On `/read/*` the navbar's 1px
+hairline is replaced by a 2px progress track (`--text` at 15%) whose white
+fill is driven by `transform: scaleX()` from a rAF scroll listener (no
+per-frame React state); both fade in with the scrolled state. Every other
+route keeps the plain hairline.
+
+**6. Navbar fade.** The scrolled navbar used to flash: a `transition-colors`
+border swapped on instantly over the hero gradient. The header now stacks the
+gradient (always) and a solid `--bg`/95 + backdrop-blur layer whose opacity
+cross-fades over 300ms; the hairline fades separately. Probe: opacity 0 at
+rest → 0.055 at 80ms → 1 settled.
+
+**7. Comment attribution removed.** Every `owner (2026-xx-xx)` attribution
+and quoted owner request in code comments was removed (44 files mechanically
+swept + ~80 hand rewrites); comments now state the technical rationale only.
+`docs/`, `agents/` and the three legitimate English uses of "owner"
+(`Legal.tsx` ownership/owners, the user-facing site-owner login error) are
+untouched.
+
+**Tests / deploy.** `tests/read-nav-layout.spec.ts` (new, 2) pins the reader
+layout at 1440 and 375: 3 pages, two centred pickers, no header select, 16px
+top/bottom gaps, both related headings, the 2px progress track filling on
+scroll, and no reader bar on `/anime`. `watch-episode-marks.spec.ts` (3)
+covers the new picker. `npx tsc -b` clean; lint unchanged (the same 4
+pre-existing rules-of-hooks errors); build OK. Production Worker `aeri`
+version `06ff3aff-a5c0-43ff-b548-7598b0db11fe`, bundle `index-DIsjKsk4.js`,
+CSS `index-CTVUk5Yt.css`, `verify:live` 8/8.
+
+## D139 — Reader bar waits for pages, no bar glow, divider flash fixed, Watch toggle matches Settings (2026-10-27)
+
+Four owner corrections to D138's surfaces. No data, routing or provider
+changes.
+
+**1. Reader progress bar is gated on every page image.** The navbar bar was
+scroll-linked from the first paint, so it crawled and jumped while the
+chapter's document height was still growing. Every `MangaPageImage` now
+reports load/error to `Read`; the reader publishes
+`aeri:reader-pages` (plus the `readerPagesReady` dataset mirror) only when
+the whole page list has resolved. Navbar holds
+the fill at `scaleX(0)` until then, repaints on the event, and resets on a
+chapter change (fresh tracker per `pages` array). Errors count as resolved —
+a permanently broken page must not freeze the bar. Page images are now
+`loading="eager"` on EVERY page: lazy images below the fold never load until
+scrolled, which would leave the gate shut for the whole chapter. Late loads
+from the previous chapter are rejected by URL+index against the current page
+list.
+
+**2. The bar's start blob is gone.** The fill carried
+`shadow-[0_0_6px_var(--text)]`; a box-shadow on a `scaleX(0)` element still
+paints a glow blob at the left edge (the "boxy blur" at the beginning).
+Shadow removed — flat 2px white fill on the 15% track.
+
+**3. First-row divider flash (episodes AND chapters).** Root cause: rows
+added `border-b border-[var(--divider)]` on all but the last row under
+`transition` (all properties). The row that was last had no border; when
+re-sorting made it first, the newly added 1px border animated its colour
+from `currentColor` (white) to `--divider` over 150ms — a white line under
+the first row, exactly once per sort. Every row now carries
+`border-b border-[var(--divider)]` permanently, the last row removes it with
+`last:border-b-0`, and the transition is `transition-colors` only (the
+border width snaps, never animates). Applied to
+`components/episodes/EpisodeList.tsx` and `components/manga/ChapterList.tsx`.
+
+**4. Watch Sub/Dub track = Settings.** Watch used
+`bg-[var(--text)]/[0.04]` (a 4%-white wash that composites differently over
+the player card) while Settings used `bg-[var(--bg-soft)]`. Watch now uses
+`bg-[var(--bg-soft)]` too; the inner white pill was already identical.
+
+**Tests.** `read-nav-layout.spec.ts` +2: the gate (images held open by a
+route promise — bar transform `matrix(0…)`, dataset `'0'`, every image
+`loading="eager"`; release → dataset `'1'` and `scaleX > 0.3` at 50% scroll)
+and a chapter-divider frame probe. The existing bar probe now asserts
+`boxShadow: none`. `aired-progress.spec.ts` samples the first episode
+divider every frame WHILE a real Playwright click lands on the sort control;
+a synthetic in-page `.click()` does not reach the portal's React handler and
+was silently not re-sorting the list. Verified against the old classes: the
+frame sample catches `oklab(0.999994 …)` (white) on both lists; the fixed
+rows stay `color(srgb 0.137725 …)` in every frame.
+`watch-episode-marks.spec.ts` asserts the track computes `rgb(10, 10, 10)`.
+
+**Verified.** `npx tsc -b` clean; lint unchanged (same 4 pre-existing
+rules-of-hooks errors); build OK. Curated UI suite **43/43** on Chromium
+(1440 + mobile 375 for the touched specs). Local preview
+`http://127.0.0.1:4173/`.
+
+**Deployed.** Worker `aeri` version
+`9ea587d3-92f7-4460-be65-fc0f43c31a8b`, bundle `index-CrVUNnAR.js`, CSS
+`index-BAo17q7O.css`, `verify:live` 8/8. Production rerun of
+`read-nav-layout` + `aired-progress` + `watch-episode-marks`: **10/10**.
+
+## D140 — Full-width chapter names; white chapter/episode pickers (2026-10-27)
+
+Two owner corrections. No data, routing or provider changes.
+
+**1. Manga preview card chapter names own the row width.** The row label was
+`w-24 shrink-0 truncate` (a fixed 96px column) followed by a separate
+`min-w-0 flex-1` spacer, so `Chapter 1 · Communication 1` clipped to
+`Communicati...` while most of the row sat empty. The label is now
+`min-w-0 flex-1 truncate` and the spacer is gone; the Read marker and
+provider badge stay `shrink-0` and right-aligned. Names truncate only when
+the row genuinely runs out of width, never at a fixed 96px.
+
+**2. White-button exception for two dropdowns.** `FilterSelect` gained
+`tone?: 'default' | 'solid'`. `solid` = `--text` fill, `--on-text` value AND
+chevron, transparent border (no visible hairline; the 1px transparent border
+preserves the 30px geometry of the white Prev/Next pills beside it), plus a
+`focus-within` ring for keyboard focus. Applied only to the reader chapter
+picker (`Read.tsx`) and Watch episode picker (`Watch.tsx`). Every other
+`FilterSelect` — browse/Manga/MyList filters, tracker status/score,
+Settings, and Watch's source picker — keeps the dark `--bg-soft` pill and
+faint chevron.
+
+**Tests.** `read-nav-layout` fixtures now carry titled chapter labels; the
+reader case asserts both chapter pickers compute white fill / `rgb(0, 0, 0)`
+value and chevron / transparent border / 30px, and the chapter-list case
+asserts the full name renders with no overflow and a label width above
+200px. `watch-episode-marks` asserts the episode picker is white/black/
+transparent while the source picker stays `rgb(10, 10, 10)` with `--text`
+value and the faint chevron.
+
+**Verified.** `npx tsc -b` clean; lint unchanged (same 4 pre-existing
+rules-of-hooks errors); build OK. Local: touched specs 7/7 on Chromium, read
+4/4 mobile, watch 1/1 mobile; `pill-system` + `watch-layout` + `no-select` +
+`read-mal-id` 15/15. Production (fixtures against the live bundle): touched
+specs 7/7 desktop + 5/5 mobile; `verify:live` 8/8.
+
+**Deployed.** Worker `aeri` version
+`80522635-a1e5-48ee-942c-86e8b2fa846a`, bundle `index-BeQJmW6h.js`, CSS
+`index-CX-Cj4fl.css`.
+
+## D141 — Row arrows above card controls; Settings audit, Preferred source removed (2026-10-28)
+
+Three owner corrections in one pass. No data, routing or provider changes.
+
+**1. Row arrows: scrim-only, on top.** `ContentRow`'s arrows were a 60%
+`--bg` gradient holding a 32px `rounded-full` backdrop-blur chip. The chip
+is gone; the glyph is a 24px `chevron-left`/`chevron-right` with a 2px drop
+shadow, the scrim is 75% `--bg`, and keyboard focus gets an inset ring. The
+button moved `z-10` → `z-30`: the card's hover play glyph is `z-10`, and the
+scroller paints AFTER the buttons in DOM order, so the equal z-index let the
+play button win hit-testing on the strip — the reported "can't navigate
+without opening an episode". `z-30` puts the scrim and glyph above the play
+button. The continue-card ⋮ trigger moved `z-20` → `z-40` so that 24px
+quick-menu control (which can sit inside the strip on the partially visible
+last card) stays clickable; its `z-30` menu still paints above the arrow by
+DOM order.
+
+**2. “Preferred source” removed.** It duplicated the provider ranking: the
+list below it already persists `providerOrder` and `enabledProviders`, which
+the registry follows. The select, its About line, `preferences.preferredProvider`
+(type + default), Watch's three resolve calls and
+`ResolveSourcesOptions.preferredProvider` are all deleted. Resolution now
+tries the provider that supplied the episode list first (it already proved
+it serves the title), then the user's order. A stale `preferredProvider` in
+a returning browser's storage is ignored — nothing reads it.
+
+**3. Settings audit.** Every remaining control was traced to its consumer
+(autoplay/subtitles/volume/preferredAudio → `VideoPlayer`/resolve; provider
+toggles/order → registry; custom URL → `getEffectiveVideoApiUrl`; reader fit
+→ `Read`; theme → `applyTheme`; account radios/sync → contexts). One real
+bug: **Reset local data** deleted `aeri:prefs` and reset React state but did
+not re-apply the theme (it lives on `<html>` dataset + inline vars), so the
+old theme stayed painted until reload, and it never broadcast
+`aeri:prefs-changed`. Reset now removes the key, re-persists clean defaults
+(`setPreferences({})`), calls `applyTheme(default)`, and dispatches the
+event. Also removed: an unreachable signed-out block that claimed playback
+prefs worked without an account (the page returns `<Navigate to="/">` first),
+and the title-specific `aeri:progress:anilist-154587` cleanup key (nothing
+writes it).
+
+**Tests.** New `tests/settings-and-row-arrows.spec.ts`: arrow z-index 30,
+zero `span` children, 75% scrim, `elementFromPoint` inside the strip resolves
+to the arrow over the card beneath, click scrolls with `pathname` unchanged;
+Settings has no “Preferred source”, subtitles / reader fit / provider order /
+theme survive a reload, and Reset repaints `aeri-dark` in place. Specs that
+seeded the removed key were cleaned (`playback-authenticated`, `watch-layout`,
+`watch-episode-marks`, `animeparadise`, `playback-matrix`); the
+`playback-matrix` anikoto case now asserts the legacy key is ignored and a
+dead provider never enters the verified chain.
+
+**Verified.** `npx tsc -b` clean; lint unchanged (same 4 pre-existing
+rules-of-hooks errors); build OK. Local: new spec 2/2 desktop + 1 pass/1 skip
+mobile; `watch-layout` + `watch-episode-marks` 7/7; `pill-system` 8/8.
+Production: new spec 2/2 desktop + 1 pass/1 skip mobile; `animeparadise`
+settings 1/1; `playback-authenticated` (watch load + subtitle track) 2/2.
+
+**Deployed.** Worker `aeri` version
+`65e72a80-4b92-4f13-8375-ef890f121a8f`, bundle `index-DM7VZEaM.js`, CSS
+`index-oRHBh2HJ.css`, `verify:live` 8/8. This final deploy also carries the
+⋮ `z-40` adjustment; the new spec re-ran 2/2 desktop + 1 pass/1 skip mobile
+against it, and `continue-card-episode-name` stayed green locally.
+
+## D142 — White pickers lose the focus ring; related rails share the Home card width (2026-10-28)
+
+Three owner corrections, no data, routing or provider changes.
+
+**1. Solid picker: no border, no ring.** `FilterSelect tone="solid"` still
+draws the white pill with `--text` fill and `--on-text` label/chevron, but its
+`focus-within:ring-2 ring-[var(--border-strong)]` is gone. The ring painted
+OUTSIDE the white pill over the black page, so a click left a dark 2px
+"border" around the picker — the reported artifact. The 1px
+`border-transparent` remains only to pin the shared 30px pill geometry; it
+paints nothing. Mouse click, keyboard focus and the open state now all leave
+the pill visually unchanged.
+
+**2. Chevron weight matches the Prev/Next arrows.** `Icon` accepts an optional
+`strokeWidth` override. The solid picker's 12px chevron passes `2.5` in the
+24-unit viewBox (≈1.25px rendered), matching the optical weight of the
+12px/600 `←` / `→` text arrows on the neighbouring white pills; the default
+tone keeps the standard `2` stroke. The picker's 30px box, label and
+`right-2` chevron placement are unchanged.
+
+**3. Related rails use the site-standard card width.** `RelatedRow` no longer
+measures its rail and sizes cards to land exactly on the content edge. Both
+Related Anime and Related Manga render `AnimeCard` at `CARD_WIDTH.rail`
+(236px / 200px / 168px) — the same card width as Home and every other rail.
+The per-row fit produced different card widths on the same page (reader:
+236px anime vs 245px manga), which read as two inconsistent rows. Item counts
+still differ, so a shorter row may end before the content edge; the cards
+never resize to compensate. `ContentRow`'s `tailSpacer` prop is removed (the
+spacer is always rendered) because no caller needs the measured-edge
+exception any more.
+
+**Tests.** `read-nav-layout` now focuses the chapter picker and asserts
+`boxShadow: none`, a transparent 1px border, the 30px box, `2.5px` chevron
+stroke, and equal Related Anime / Related Manga card widths at the current
+breakpoint. `watch-episode-marks` asserts the same focus/chevron contract on
+the episode picker while the source picker keeps its dark tone and `2px`
+stroke. New `tests/related-row-widths.spec.ts` covers both pages with
+deliberately mismatched relation counts (reader 2 anime + 3 manga, Watch 3
+anime + 2 manga) at 1440 and 375, asserting one card width and one rail width
+per page.
+
+**Verified.** `npx tsc -b` clean; targeted lint clean (the full lint run keeps
+the same 4 pre-existing rules-of-hooks errors); build OK. Local Chromium:
+curated 30/30 (`home-left-edge`, `pill-system`, `settings-and-row-arrows`,
+`card-silhouette`, `continue-card-episode-name`, `watch-layout`,
+`read-nav-layout`, `watch-episode-marks`, `related-row-widths`); read-nav
+desktop + mobile 8/8; related widths 4/4. Production fixtures: read-nav +
+watch-episode + related widths 17/18 — the single failure is the pre-existing
+mobile hover case in `watch-episode-marks` (it asserts desktop hover behavior
+on a touch project and is untouched by this pass). Live production reader
+(`/read/anilist-30002/first`): Related Anime and Related Manga both 236px at
+1440 and 168px at 375; chapter picker 30px, border `rgba(0,0,0,0)`,
+`boxShadow: none`, chevron `2.5px`.
+
+**Deployed.** Worker `aeri` version
+`b7251e12-01f8-4e6f-958f-77da7ed7d5df`, bundle `index-Cjv0iyMY.js`, CSS
+`index-BAyGA8qM.css`, `verify:live` 8/8.
+
+## D143 — Scroll-quiet card chrome; atomic episode rows; one-shot reader resume + glowing bar; guest browsing (2026-10-28)
+
+Seven owner-reported items, shipped together because three of them touch the
+same surfaces (card hover, episode rows, reader) and were verified in one
+browser pass.
+
+**1. Cards no longer flicker while a scroller moves (scroll-quiet gate).**
+Root cause is D137's own optimisation: `.card-frost`'s 8px `backdrop-filter`
+is hover-only, so a card that slides under a PARKED cursor enters and leaves
+`:hover` repeatedly during a scroll. Each toggle creates/destroys a large
+backdrop blur, and the compositor re-blurs the tile — the content flashes.
+This was never scroll-position jumping; the artwork itself was repainting.
+Fix: `src/lib/scrollQuiet.ts` installs ONE document-level capture listener
+(`scroll` does not bubble, capture sees every descendant scroller) and sets
+`html[data-scrolling="1"]` while any scroller moves, clearing it 140ms after
+the last scroll event. `globals.css` then removes the frost (`backdrop-filter:
+none`, `opacity: 0`, `transition: none`) and hides `.hover-only-control`
+(except an open menu, `[aria-expanded="true"]`) and `.card-hover-caption`;
+the image's hover brighten is pinned at 0.96. When the scroll settles the
+flag clears and the normal hover treatment returns. No React state, no
+re-render, no timers while idle. Installed once from `main.tsx`.
+
+**2. Episode row reveals name + thumbnail together.** While the whole-entry
+Kitsu fallback is in flight, `EpisodeList` now computes
+`rowLoading = titleLoading || thumbLoading` and renders BOTH skeletons until
+neither field is loading, then paints the real name and the real artwork in
+the same frame. Previously the title could resolve first (or the artwork
+could fall back to the show image) and the row sat half-loaded next to a
+skeleton. A resolved-but-absent field still renders the quiet
+`Episode N` / show-artwork fallbacks — no fabricated titles.
+
+**3. The manga reader stops scrolling by itself.** `Read.tsx` retried
+`scrollIntoView` every 800ms (up to 16 times) while pages below resolved, so
+each retry yanked the viewport again — opening a chapter "scrolled along"
+with the loading pages. Resume is now readiness-gated: wait until the target
+page element exists AND every page ABOVE it has reported load/error (their
+heights are final, so ONE placement lands on the saved page), then
+`scrollIntoView({ block: 'start', behavior: 'instant' })` exactly once. A 3s
+ceiling keeps a stalled image from blocking resume forever; any real user
+gesture (wheel / touchmove / keydown, capture) cancels the pending jump. The
+effect is keyed on `pages.length`, the chapter id, `readiness` and `resume`,
+so a chapter switch re-arms it cleanly.
+
+**4. Reader progress bar carries the Continue Watching glow — without the
+blob.** The `/read/*` navbar fill now uses
+`shadow-[0_0_6px_var(--text)]`, the same neon as the Continue Watching bar.
+A `box-shadow` on a `scaleX(0)` element still paints at the element's
+origin, which was the old boxy artifact, so the fill's `opacity` is driven by
+the same rAF paint as the transform: `0` at ratio 0, `1` once it has length.
+The element starts at `opacity: 0` before the first paint.
+
+**5. Guests browse, watch and read (owner policy, 2026-10-28).** Signed-out
+visitors can open any anime/manga preview card (Home, Hero "More info",
+Browse, Manga, search suggestions, detail deep links), watch anime and read
+manga. My List, Profile and Settings remain members-only and still redirect
+Home. Inside the preview card every tracker control is hidden for guests
+(the `+`/✓ My List button is `isAuthenticated`-only; the status/score
+controls were already tracker-gated). Guest mode is a FRESH session: no
+Continue Watching row, no Resume, and no local reads/writes —
+`getWatchPos`/`putWatchPos`/`clearWatchPos` paths in `Watch.tsx`,
+`getReadPos`/`putReadPos` in `Read.tsx`, and `AnimeCard`'s manga
+read-position lookup are all gated on `isAuthenticated`. The dead
+`?signin=1` redirect from the detail route is removed (Home still handles
+the hint for old links); Browse/Manga no longer mount `SignInModal`.
+
+**6. Profile statistics never split 4+2.** The six stat boxes use
+`grid-cols-2 sm:grid-cols-3 xl:grid-cols-6`: two per row on phones, three per
+row from `sm` through `lg` (so the screenshot width gets two clean rows of
+three), and one row of six at `xl`.
+
+**7. Tab descriptions drop the provider tag.** `/anime` reads "Discover
+anime by category and filters" and `/manga` "Discover manga by category and
+filters" — the `• AniList` suffix is gone.
+
+**Tests.** New `tests/guest-mode.spec.ts` (guest card with no tracker
+controls, guest Home without Continue Watching/My List, members-only
+redirects, guest Watch renders, scroll-quiet flag + frost suppression),
+`tests/episode-row-atomic.spec.ts` (a gated Kitsu response proves both
+skeletons are present together, then name + artwork appear with no
+half-loaded row) and `tests/reader-resume-and-bar.spec.ts` (guest can read;
+fill has the 6px glow but `opacity: 0` at the top; resume stays at scrollY 0
+while page 0 is in flight, then jumps once and does not move again).
+`tests/read-nav-layout.spec.ts` was updated to the new bar contract (glow
+present, `opacity: 1` with length, `opacity: 0` at the top). Verified:
+`npx tsc -b` clean, production build clean, 23 passed / 1 skipped across
+those four specs on chromium + mobile (the scroll-quiet case is
+pointer-only), and 26/26 in the curated regression suite
+(`continue-card-episode-name`, `card-silhouette`, `home-left-edge`,
+`read-mal-id`, `watch-layout`, `settings-and-row-arrows`,
+`related-row-widths`, `pill-system`). The modal scroller was confirmed
+to set `data-scrolling` during its own scroll.
+
+**Deployed.** Worker `aeri` version
+`b982c0ce-0120-46e4-a129-df4a7e34e05e`, bundle `index-BkXwmRZY.js`, CSS
+`index-PoTCV84a.css`, `verify:live` 8/8. Live probes (signed out): `/anime/20`
+opens the Naruto card with Play → `/watch/anilist-20/1` and no My List /
+status controls; `/watch/anilist-20/1` renders the player + episode nav;
+`/list` redirects Home; Home shows no Continue Watching / My List rows;
+scrolling `/anime` sets `html[data-scrolling="1"]` with frost
+`opacity: 0` / `blur: none`, and the flag clears on settle; `/read/anilist-30002/first`
+loads 94 pages, opens at scrollY 0, and the bar shows the 6px white glow with
+`opacity: 0` at the top and `opacity: 1` / `scaleX 0.2636` at 40% scroll.
+
+## D144 — Owner default provider priority: AniWave → AnimeParadise → AnimeGG; WeebCentral → MangaHere → MangaPill → MangaDex (2026-10-28)
+
+Owner directive: set the shipping default provider priority. This is the
+order used when the visitor has never reordered providers; an explicit
+Settings ↑/↓ choice still wins (`providerOrder` / `mangaProviderOrder`
+prefs are untouched, and Reset local data returns to these defaults).
+
+**Anime.** `src/providers/video/registry.ts` reorders the verified pool to
+`aniwave, animeparadise, animegg` (was aniwave, animegg, animeparadise).
+AniWave stays first (sub+dub through the Worker relay); AnimeParadise is now
+the second attempt (1080p HLS + English VTT, sub-only, D136); AnimeGG is the
+Tier-2 browser-direct fallback. `getEnabledProviders()` already filters
+`status === 'verified'`, so the change is exactly this array order.
+
+**Manga.** `src/providers/manga/mangadex.ts` reorders both the registry
+array and `DEFAULT_MANGA_ORDER` to
+`weebcentral, mangahere, mangapill, mangadex` (then the unverified
+bato1/kakalot/mangaread entries, which are never requested). Resolution
+stops at the first enabled provider that returns units (D091), so
+WeebCentral is now attempted first, then MangaHere, MangaPill, MangaDex.
+All four are verified and enabled by default.
+
+**Settings display.** `Settings` previously re-sorted the no-pref manga list
+with a local `['weebcentral','mangadex','mangapill']` priority array, which
+put MangaHere first (`indexOf` → -1) and contradicted the comment "never
+hardcoded". It now returns the registry order directly, so the visible list
+and the resolution order are the same source of truth.
+
+**Docs.** `docs/API.md`, `docs/ARCHITECTURE.md`, `docs/PROVIDERS.md`,
+`context.md`, `agents/streaming.md` and the in-app Docs page now state the
+new defaults; the stale "MangaDex primary" copy is removed.
+
+**Verification.** `npx tsc -b` clean, production build clean.
+`tests/settings-and-row-arrows.spec.ts` now pins the default Settings order
+(anime `AniWave, AnimeParadise, AnimeGG`; manga `Weeb Central, MangaHere,
+MangaPill, MangaDex`) in addition to the existing reorder/reset assertions —
+2/2 passing on chromium against the rebuilt preview. Resolution reads the
+same registry array / `DEFAULT_MANGA_ORDER`, and
+`scripts/regression-identity.mjs` already asserts WeebCentral-first with
+zero MangaDex/MangaPill requests.

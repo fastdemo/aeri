@@ -290,7 +290,7 @@ export function mapAniListEntryToAeri(entry: AniListMediaListEntryRaw): AnimeLis
   anime.inList = true
   anime.listStatus = status
 
-  // SCORE NORMALIZATION (owner 2026-10-25): the list query also asks for
+  // SCORE NORMALIZATION: the list query also asks for
   // `score(format: POINT_10_DECIMAL)` — a fixed 0-10 scale that is immune to
   // the account's scoring format. Prefer it, and keep the raw field as a
   // fallback: POINT_100 values (>10) divide down, POINT_5 stays on a 0-5

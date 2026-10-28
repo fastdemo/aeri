@@ -87,15 +87,15 @@ export function EpisodeList({ anime, rawAnime, hideHeader }: { anime: Anime; raw
       <div className="space-y-1">
         {!hideHeader && (
           // Same fixed 20px header geometry as the Related columns — see
-          // the 2026-10-19 owner note in this file's main header.
+          // the header-geometry note in this file's main header.
           <div className="mb-2 flex h-5 items-center justify-between gap-2">
             <h3 className="text-[14px] font-semibold leading-5 text-[var(--text)]">Episodes</h3>
             <span className="shrink-0 leading-5 text-[14px] text-[var(--text-faint)]">{anime.episodes && anime.episodes > 0 ? `${anime.episodes} episodes` : 'Loading episodes...'}</span>
           </div>
         )}
-        <div className="overflow-hidden rounded-lg border border-[var(--border)]">
+        <div className="overflow-hidden rounded-lg border border-[var(--divider)]">
           {[1,2,3,4,5].map(i => (
-            <div key={i} className={`flex items-center gap-3 bg-[var(--surface)] px-3 py-3 ${i!==5 ? 'border-b border-[var(--border)]' : ''} animate-pulse`}>
+            <div key={i} className={`flex items-center gap-3 bg-[var(--surface)] px-3 py-3 ${i!==5 ? 'border-b border-[var(--divider)]' : ''} animate-pulse`}>
               <span className="w-6 h-4 rounded bg-[color-mix(in_srgb,var(--text)_5%,transparent)]" />
               <div className="h-12 w-20 rounded bg-[color-mix(in_srgb,var(--text)_5%,transparent)]" />
               <div className="flex-1 space-y-2">
@@ -137,7 +137,7 @@ export function EpisodeList({ anime, rawAnime, hideHeader }: { anime: Anime; raw
   return (
     <div className="space-y-1">
       {!hideHeader && (
-        // FIXED-HEIGHT HEADER ROW (owner 2026-10-19: the Episodes/count line
+        // FIXED-HEIGHT HEADER ROW: the Episodes/count line
         // and Related's header sat a few px apart — the h5 sort button threw
         // the baseline row to 22px vs Related's natural 20px line). Both
         // header rows are now h-5 (20px) items-center, so Episodes/count and
@@ -159,8 +159,8 @@ export function EpisodeList({ anime, rawAnime, hideHeader }: { anime: Anime; raw
         </div>
       )}
 
-      <div className="overflow-hidden rounded-lg border border-[var(--border)]">
-        {episodes.map((ep: any, idx: number) => {
+      <div className="overflow-hidden rounded-lg border border-[var(--divider)]">
+        {episodes.map((ep: any) => {
           // progress = episodes watched: everything up to and including it is Watched.
           // No next-up highlight: tinting the first 2 rows on desc-sort read
           // as a rendering bug (they ARE the highlight, just relocated).
@@ -172,19 +172,30 @@ export function EpisodeList({ anime, rawAnime, hideHeader }: { anime: Anime; raw
           // — never a fake thumbnail or a provider title.
           const titleLoading = ep.fieldState?.title === 'loading'
           const thumbLoading = ep.fieldState?.thumbnail === 'loading'
-          // PLACEHOLDER RULE (owner 2026-10-18): an episode without its own
+          // ATOMIC ROW (owner 2026-10-28): the name and the artwork are ONE
+          // unit — a row must never show a real title next to a skeleton
+          // thumbnail (or the reverse) while the Kitsu fallback resolves.
+          // Both fields reveal in the same frame once neither is loading.
+          const rowLoading = titleLoading || thumbLoading
+          // PLACEHOLDER RULE: an episode without its own
           // thumbnail shows the SHOW's artwork — never a bare tile. The
           // skeleton only runs when there is no artwork at all yet.
           const thumb = ep.thumbnail || fallbackThumb
-          const showThumbSkeleton = thumbLoading && !thumb
+          const showThumbSkeleton = rowLoading
           const showRealThumb = !!thumb
           const epLabel = `${String(ep.number).padStart(2, '0')}`
           const watchEp = ep.number
+          // DIVIDER: always painted, removed on the last row with
+          // last:border-b-0. Toggling the border class per position made the
+          // width animate 0→1px while the colour was still currentColor
+          // (white), so the row that moved from last to first flashed a
+          // white line. transition-colors only — the border width must snap,
+          // never animate.
           return (
             <Link
               key={`${seasonKey}-${ep.number}`}
               to={`/watch/${anime.identity.internalId}/${watchEp}`}
-              className={`flex items-center gap-3 bg-[var(--surface)] px-3 py-3 text-left transition hover:bg-[var(--text)]/[0.04] ${idx !== episodes.length - 1 ? 'border-b border-[var(--border)]' : ''}`}
+              className="flex items-center gap-3 border-b border-[var(--divider)] bg-[var(--surface)] px-3 py-3 text-left transition-colors last:border-b-0 hover:bg-[var(--text)]/[0.04]"
             >
               <span className="w-9 text-center text-sm font-medium text-[var(--text-muted)]">{epLabel}</span>
 
@@ -225,13 +236,13 @@ export function EpisodeList({ anime, rawAnime, hideHeader }: { anime: Anime; raw
               </div>
 
               <div className="min-w-0 flex-1">
-                {ep.title ? (
+                {rowLoading ? (
+                  <p aria-label="Loading episode details">
+                    <span className="block h-3 w-3/4 animate-pulse rounded bg-[color-mix(in_srgb,var(--text)_8%,transparent)]" />
+                  </p>
+                ) : ep.title ? (
                   <p className="truncate text-[13px] font-medium text-[var(--text)]">
                     {ep.title}
-                  </p>
-                ) : titleLoading ? (
-                  <p aria-label="Loading episode title">
-                    <span className="block h-3 w-3/4 animate-pulse rounded bg-[color-mix(in_srgb,var(--text)_8%,transparent)]" />
                   </p>
                 ) : (
                   <p className="text-[13px] font-medium text-[var(--text-muted)]">

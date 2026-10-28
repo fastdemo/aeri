@@ -64,7 +64,7 @@ export function Hero({ anime, onMoreInfo, trackingProvider }: { anime: Anime; on
           className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-[color-mix(in_srgb,var(--bg)_40%,transparent)] to-transparent"
         />
 
-        {/* Content. Alignment ladder (owner rule 2026-10-18): the text
+        {/* Content. Alignment ladder: the text
             stack is vertically CENTERED whenever the hero box is tall
             enough (sm+); bottom-left is reserved for the too-small band
             (<640), where the carousel dots-pill moves to the top-right —
@@ -297,8 +297,8 @@ export function HeroCarousel({
         {/* Side click-zones + dots — Netflix/minimal style */}
         {animes.length > 1 && (
           <>
-            {/* Invisible side click-zones (owner 2026-10-18: the arrow
-                ICONS are removed indefinitely — the left side AREA of the
+            {/* Invisible side click-zones (the arrow
+                ICONS are removed — the left side AREA of the
                 hero navigates back, the right side AREA forward). Real
                 buttons for keyboard/AT parity, but no chrome at rest; a
                 keyboard focus shows only a thin inset ring. They sit above
@@ -548,7 +548,7 @@ function CarouselShell({ children }: { children: React.ReactNode }) {
   // images must never paint outside the rounded hero at any viewport.
   // translateZ(0) forces the compositor to respect overflow + radius.
   //
-  // FRAME LINE (owner 2026-10-25): the hero shares the card frame's 1px
+  // FRAME LINE: the hero shares the card frame's 1px
   // hairline (--border-card, 50% of --border-strong) on a frosted rim
   // (.frame-glass — same blur language as the nav/chips/hover treatment).
   // Drawn as an overlay instead of a real border: a border on this

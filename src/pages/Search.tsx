@@ -1,5 +1,6 @@
 import { useSearchParams } from 'react-router-dom'
 import { AnimeCard } from '../components/cards/AnimeCard'
+import { CardSkeleton } from '../components/ui/Skeleton'
 import type { Anime } from '../types/anime'
 import { useAnimeSearch } from '../hooks/useAnimeMetadata'
 import { useDetailOpen } from '../hooks/useDetailOpen'
@@ -23,7 +24,7 @@ export function Search() {
         ) : loading ? (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="aspect-[16/9] animate-pulse rounded bg-[color-mix(in_srgb,var(--text)_5%,transparent)]" />
+              <CardSkeleton key={i} fullWidth flat />
             ))}
           </div>
         ) : error ? (
@@ -40,9 +41,9 @@ export function Search() {
           <p className="text-center text-sm text-[var(--text-muted)]">No results for “{liveQuery}”.</p>
         ) : (
           <>
-            {/* Header/description mirror the Anime tab's header block
-                (owner 2026-10-23): left-aligned 18px title + 12px faint
-                subline, same classes as Browse's h1/p. */}
+            {/* Header/description mirror the Anime tab's header block:
+                left-aligned 18px title + 12px faint subline, same classes
+                as Browse's h1/p. */}
             <h1 className="text-[18px] font-semibold tracking-tight text-[var(--text)]">
               {results.length} result{results.length === 1 ? '' : 's'} for “{liveQuery}”
             </h1>
