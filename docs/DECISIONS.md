@@ -2610,3 +2610,13 @@ MangaPill, MangaDex`) in addition to the existing reorder/reset assertions —
 same registry array / `DEFAULT_MANGA_ORDER`, and
 `scripts/regression-identity.mjs` already asserts WeebCentral-first with
 zero MangaDex/MangaPill requests.
+
+**Deployed (CI, push `6b3d3cd`).** Worker `aeri` version
+`70e793bd-7137-43b6-b0d9-fd81970bc16a`, bundle `index-CbB1FXbN.js`, CSS
+`index-PoTCV84a.css`, `verify:live` 8/8. Live bundle check:
+`videoProviders` is `[aniwave, animeparadise, animegg, custom, …]` and
+`DEFAULT_MANGA_ORDER` is
+`[weebcentral, mangahere, mangapill, mangadex, bato1, kakalot, mangaread]`.
+Live resolution probe (signed out, `/manga/30002` Berserk): the first
+`/api/manga/*` requests are WeebCentral's `/match/30002` + `/chapters/…`,
+with zero `mdx-`/`mp-` requests — WeebCentral wins first as configured.
