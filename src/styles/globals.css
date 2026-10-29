@@ -278,8 +278,14 @@ button.rounded-full:focus-visible {
 .anim-fade-in { animation: aeri-fade-in 160ms ease-out both; }
 .anim-fade-out { animation: aeri-fade-out 160ms ease-in forwards; }
 .anim-hero-fade { animation: aeri-fade-in 500ms ease-out both; }
-.anim-pop-in { animation: aeri-pop-in 180ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both; transform-origin: top right; }
-.anim-pop-in-center { animation: aeri-pop-in 200ms cubic-bezier(0.2, 0.9, 0.3, 1.05) both; transform-origin: center; }
+/* `backwards`, NOT `both`: a retained `transform: scale(1)` keeps the element
+   composited forever. On the tall detail card that promoted the whole
+   scrollable content (measured 2344 x 173,954 px on /anime/21) into one GPU
+   layer, which re-rastered during fast scrolling and flickered. The keyframes
+   end at the identity transform, so releasing it after the animation is
+   visually identical and lets the card return to normal painting. */
+.anim-pop-in { animation: aeri-pop-in 180ms cubic-bezier(0.2, 0.9, 0.3, 1.2) backwards; transform-origin: top right; }
+.anim-pop-in-center { animation: aeri-pop-in 200ms cubic-bezier(0.2, 0.9, 0.3, 1.05) backwards; transform-origin: center; }
 .anim-pop-out-center { animation: aeri-pop-out 180ms ease-in forwards; transform-origin: center; }
 .anim-slide-down { animation: aeri-slide-down 180ms ease-out both; }
 

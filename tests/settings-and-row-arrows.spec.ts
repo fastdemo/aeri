@@ -103,10 +103,10 @@ test.describe('settings controls', () => {
     await expect(page.getByText('Preferred source', { exact: true })).toHaveCount(0)
 
     // Subtitles: toggles persist through reload.
-    const subs = page.getByRole('checkbox', { name: 'Subtitles on' })
-    await expect(subs).toBeChecked()
+    const subs = page.getByRole('switch', { name: 'Subtitles on' })
+    await expect(subs).toHaveAttribute('aria-checked', 'true')
     await subs.click()
-    await expect(subs).not.toBeChecked()
+    await expect(subs).toHaveAttribute('aria-checked', 'false')
     expect((await prefsOf(page)).subtitles).toBe(false)
 
     // Reader fit: applies to the reader pref and persists.
@@ -115,10 +115,12 @@ test.describe('settings controls', () => {
     await expect(height).toHaveAttribute('aria-checked', 'true')
     expect((await prefsOf(page)).readerFit).toBe('height')
 
-    // Provider order: ↑/↓ rewrites the real resolution order.
+    // Provider order: the grip is the only reorder control. Keyboard ↑/↓ on
+    // the focused grip rewrites the real resolution order (WCAG 2.5.7
+    // alternative to dragging).
     const animeSection = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Anime', exact: true }) })
-    const names = () => animeSection.locator('button[aria-label$=" up"]').evaluateAll((btns) =>
-      btns.map((b) => (b.getAttribute('aria-label') ?? '').replace(/^Move /, '').replace(/ up$/, '')))
+    const names = () => animeSection.locator('button[aria-label^="Reorder "]').evaluateAll((btns) =>
+      btns.map((b) => (b.getAttribute('aria-label') ?? '').replace(/^Reorder /, '')))
     const before = await names()
     expect(before.length).toBeGreaterThan(1)
     // Default priority (D144): AniWave → AnimeParadise → AnimeGG.
@@ -128,11 +130,12 @@ test.describe('settings controls', () => {
     // MangaDex. The Settings list derives from the registry array, so this
     // pins the same order resolution uses.
     const mangaSection = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Manga', exact: true }) })
-    const mangaNames = await mangaSection.locator('button[aria-label$=" up"]').evaluateAll((btns) =>
-      btns.map((b) => (b.getAttribute('aria-label') ?? '').replace(/^Move /, '').replace(/ up$/, '')))
+    const mangaNames = await mangaSection.locator('button[aria-label^="Reorder "]').evaluateAll((btns) =>
+      btns.map((b) => (b.getAttribute('aria-label') ?? '').replace(/^Reorder /, '')))
     expect(mangaNames).toEqual(['Weeb Central', 'MangaHere', 'MangaPill', 'MangaDex'])
 
-    await animeSection.getByRole('button', { name: `Move ${before[0]} down` }).click()
+    await animeSection.getByRole('button', { name: `Reorder ${before[0]}` }).focus()
+    await page.keyboard.press('ArrowDown')
     const after = await names()
     expect(after[0]).toBe(before[1])
     const order = (await prefsOf(page)).providerOrder
@@ -146,7 +149,7 @@ test.describe('settings controls', () => {
     await page.reload({ waitUntil: 'domcontentloaded' })
     await page.waitForSelector('text=Anime providers', { timeout: 45_000 })
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'aeri-light')
-    await expect(page.getByRole('checkbox', { name: 'Subtitles on' })).not.toBeChecked()
+    await expect(page.getByRole('switch', { name: 'Subtitles on' })).toHaveAttribute('aria-checked', 'false')
     await expect(page.getByRole('radio', { name: 'Height', exact: true })).toHaveAttribute('aria-checked', 'true')
     const afterReload = await names()
     expect(afterReload[0]).toBe(before[1])
@@ -155,11 +158,45 @@ test.describe('settings controls', () => {
     page.once('dialog', (d) => d.accept())
     await page.getByRole('button', { name: 'Reset local data' }).click()
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'aeri-dark')
-    await expect(page.getByRole('checkbox', { name: 'Subtitles on' })).toBeChecked()
+    await expect(page.getByRole('switch', { name: 'Subtitles on' })).toHaveAttribute('aria-checked', 'true')
     await expect(page.getByRole('radio', { name: 'Width', exact: true })).toHaveAttribute('aria-checked', 'true')
     const reset = await prefsOf(page)
     expect(reset.theme).toBe('aeri-dark')
     expect(reset.readerFit).toBe('width')
     expect(reset.providerOrder ?? null).toBeNull()
+  })
+
+  test('provider rows reorder by dragging the grip; the arrow buttons are gone', async ({ page }) => {
+    test.setTimeout(90_000)
+    await page.goto('/settings', { waitUntil: 'domcontentloaded' })
+    await page.waitForSelector('text=Anime providers', { timeout: 45_000 })
+
+    const animeSection = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Anime', exact: true }) })
+    // The ↑/↓ buttons were replaced by the drag grip — nothing may remain.
+    await expect(animeSection.locator('button[aria-label^="Move "]')).toHaveCount(0)
+
+    const rows = animeSection.locator('[data-provider-row]')
+    const first = rows.nth(0)
+    const grip = first.getByRole('button', { name: 'Reorder AniWave' })
+    await grip.scrollIntoViewIfNeeded()
+    const gripBox = await grip.boundingBox()
+    const rowBox = await first.boundingBox()
+    expect(gripBox && rowBox).toBeTruthy()
+    if (!gripBox || !rowBox) return
+
+    // Drag AniWave past AnimeParadise's midpoint.
+    await page.mouse.move(gripBox.x + gripBox.width / 2, gripBox.y + gripBox.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(
+      gripBox.x + gripBox.width / 2,
+      gripBox.y + gripBox.height / 2 + rowBox.height + 12,
+      { steps: 10 },
+    )
+    await page.mouse.up()
+
+    const order = await rows.evaluateAll((els) =>
+      els.map((el) => (el.querySelector('button[aria-label^="Reorder "]')?.getAttribute('aria-label') ?? '').replace(/^Reorder /, '')))
+    expect(order).toEqual(['AnimeParadise', 'AniWave', 'AnimeGG'])
+    expect((await prefsOf(page)).providerOrder?.slice(0, 3)).toEqual(['animeparadise', 'aniwave', 'animegg'])
   })
 })

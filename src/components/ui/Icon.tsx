@@ -20,6 +20,7 @@ import {
   CirclePlus,
   EllipsisVertical,
   EyeOff,
+  GripVertical,
   List,
   Menu,
   Minus,
@@ -67,6 +68,7 @@ const ICONS: Record<string, LucideIcon> = {
   'arrow-down-up': ArrowUpDown,
   'arrow-up-short': ArrowUp,
   'arrow-down-short': ArrowDown,
+  'grip-vertical': GripVertical,
 }
 
 export type IconName = keyof typeof ICONS

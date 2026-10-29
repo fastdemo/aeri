@@ -165,6 +165,13 @@ export interface ResolveSourcesOptions {
   animeEpisodes?: number | null
   animeFormat?: string | null
   animeYear?: number | null
+  /**
+   * Collect sources from EVERY enabled provider instead of returning the
+   * first provider that answers. The Watch source picker needs the full set:
+   * a show can be served by several enabled providers, and the user picks
+   * between them. Disabled providers are still never queried (D147).
+   */
+  aggregate?: boolean
 }
 
 function toSourceOptions(options?: ResolveSourcesOptions): { preferredLanguage?: VideoLanguage; signal?: AbortSignal; animeTitle?: string | null; animeEnglish?: string | null; animeNative?: string | null; animeEpisodes?: number | null; animeFormat?: string | null; animeYear?: number | null } {
@@ -232,13 +239,30 @@ export async function resolveSourcesWithFallback(
   }
 
   if (ordered.length > 0) {
+    const collect = options?.aggregate ? [] as VideoSourceEnhanced[] : null
+    const seen = new Set<string>()
+    const add = (srcs: VideoSourceEnhanced[]): VideoSourceEnhanced[] => {
+      if (!collect) return srcs
+      for (const s of srcs) {
+        const key = `${s.provider}|${s.language ?? ''}|${s.quality ?? ''}|${s.url}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        collect.push(s)
+      }
+      return []
+    }
+    const filterLanguage = (srcs: VideoSourceEnhanced[]): VideoSourceEnhanced[] => {
+      const filtered = preferredLanguage ? srcs.filter(s => !s.language || s.language === preferredLanguage) : srcs
+      return filtered.length ? filtered : srcs
+    }
+
     const first = ordered[0]
     tried.push(first.id)
     try {
       const srcs = await withTimeout(first.getSources(episode, toSourceOptions(options)))
-      const filtered = preferredLanguage ? srcs.filter(s => !s.language || s.language === preferredLanguage) : srcs
-      const toReturn = filtered.length ? filtered : srcs
-      if (toReturn.length > 0) return { sources: toReturn, tried }
+      const toReturn = filterLanguage(srcs)
+      add(toReturn)
+      if (!options?.aggregate && toReturn.length > 0) return { sources: toReturn, tried }
     } catch {}
     const remaining = ordered.slice(1)
     if (remaining.length > 0) {
@@ -252,18 +276,21 @@ export async function resolveSourcesWithFallback(
       for (let i = 0; i < remaining.length; i++) {
         const r = results[i]
         if (r.status === 'fulfilled' && r.value.length > 0) {
-          const filtered = preferredLanguage ? r.value.filter(s => !s.language || s.language === preferredLanguage) : r.value
-          const toReturn = filtered.length ? filtered : r.value
-          if (toReturn.length > 0) return { sources: toReturn, tried }
+          const toReturn = filterLanguage(r.value)
+          add(toReturn)
+          if (!options?.aggregate && toReturn.length > 0) return { sources: toReturn, tried }
         }
       }
-      for (let i = 0; i < remaining.length; i++) {
-        const r = results[i]
-        if (r.status === 'fulfilled' && r.value.length > 0) {
-          return { sources: r.value, tried }
+      if (!options?.aggregate) {
+        for (let i = 0; i < remaining.length; i++) {
+          const r = results[i]
+          if (r.status === 'fulfilled' && r.value.length > 0) {
+            return { sources: r.value, tried }
+          }
         }
       }
     }
+    if (collect && collect.length > 0) return { sources: collect, tried }
   }
   return { sources: [], tried }
 }
@@ -271,12 +298,14 @@ export async function resolveSourcesWithFallback(
 /**
  * Resolve the same episode in more than one language in a single pass.
  *
- * Playback surfaces need this: `resolveSourcesWithFallback()` returns only
- * the preferred language from the first provider that answers. Fetching sub
- * and dub together gives the source picker real options and makes the
- * sub/dub toggle an instant local switch instead of a dead disabled button.
- * The order is preferred language first; duplicate provider/language/quality
- * URLs are removed, and `tried` is the union of every provider attempted.
+ * Playback surfaces need this: fetching sub and dub together gives the source
+ * picker real options and makes the sub/dub toggle an instant local switch
+ * instead of a dead disabled button. Each language pass runs with
+ * `aggregate: true`, so EVERY enabled provider that serves this episode
+ * contributes its streams — not just the first one that answers (D147). The
+ * order is the user's provider priority, preferred language first; duplicate
+ * provider/language/quality URLs are removed, and `tried` is the union of
+ * every provider attempted. Disabled providers are never queried.
  */
 export async function resolveSourcesForLanguages(
   episode: VideoEpisode,
@@ -288,7 +317,7 @@ export async function resolveSourcesForLanguages(
       : [options?.preferredLanguage ?? 'sub', 'dub'],
   ))
   const results = await Promise.allSettled(
-    languages.map(language => resolveSourcesWithFallback(episode, { ...options, preferredLanguage: language })),
+    languages.map(language => resolveSourcesWithFallback(episode, { ...options, preferredLanguage: language, aggregate: true })),
   )
   const sources: VideoSourceEnhanced[] = []
   const seen = new Set<string>()

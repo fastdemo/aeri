@@ -3,12 +3,12 @@ import { routeTestAnilistMedia } from './helpers/test-anilist'
 import { seedTestAuth, routeTestMalIdentity } from './helpers/test-auth'
 
 /**
- * MANGA READER — guest access, progress-bar glow, and resume placement.
+ * MANGA READER — guest access, flat progress bar, and resume placement.
  *
  * 1. A signed-out visitor can read (owner 2026-10-28): no auth seeding.
- * 2. The reader progress fill carries the same 6px neon glow as the Continue
- *    Watching bar, but the glow is not painted at scaleX(0) (the old "boxy
- *    blob").
+ * 2. The reader progress fill is a FLAT `--text` bar — the 6px neon glow was
+ *    removed on the owner's instruction (2026-10-29). It is still hidden at
+ *    scaleX(0).
  * 3. Resume places the viewport ONCE. The old code retried scrollIntoView
  *    every 800ms while pages loaded, which read as the reader scrolling by
  *    itself. With a saved page 1 and page 0's artwork still in flight, the
@@ -84,7 +84,7 @@ async function setupReader(page: Page, pageUrls: string[] = [PAGE_IMG, PAGE_IMG,
 }
 
 test.describe('Manga reader', () => {
-  test('guest can read; the progress fill glows only once it has length', async ({ page }) => {
+  test('guest can read; the progress fill is flat and appears once it has length', async ({ page }) => {
     test.setTimeout(180_000)
     await setupReader(page)
     await page.goto('/read/anilist-30002/first', { waitUntil: 'domcontentloaded' })
@@ -102,8 +102,8 @@ test.describe('Manga reader', () => {
       const cs = getComputedStyle(el)
       return { opacity: cs.opacity, shadow: cs.boxShadow, transform: cs.transform }
     })
-    expect(atTop.opacity, 'no glow blob at the top').toBe('0')
-    expect(atTop.shadow, 'same neon glow as Continue Watching').toContain('6px')
+    expect(atTop.opacity, 'fill hidden at the top').toBe('0')
+    expect(atTop.shadow, 'reader progress fill is flat — no neon glow').toBe('none')
 
     await page.evaluate(() => window.scrollTo(0, Math.round(document.documentElement.scrollHeight * 0.5)))
     await expect.poll(async () => (await bar.evaluate((el) => getComputedStyle(el).opacity)), { timeout: 10_000 }).toBe('1')

@@ -253,23 +253,21 @@ test.describe('Manga reader — nav layout', () => {
     expect(bar, 'progress bar exists').not.toBeNull()
     expect(bar!.trackHeight, '2px track').toBe(2)
     expect(bar!.trackOpacity, 'visible once scrolled').toBe('1')
-    // Neon fill, same 6px glow as the Continue Watching bar. The glow is
-    // painted only once the fill has length — at scaleX(0) the element is
-    // fully transparent, so no blob sits at the left edge.
-    expect(bar!.fillShadow, 'fill carries the Continue Watching glow').toContain('6px')
-    expect(bar!.fillOpacity, 'glow visible once the fill has length').toBe('1')
+    // Flat fill: the 6px neon glow was removed on the owner's instruction
+    // (2026-10-29). The fill is still hidden at zero length.
+    expect(bar!.fillShadow, 'reader progress fill is flat — no neon glow').toBe('none')
+    expect(bar!.fillOpacity, 'fill visible once it has length').toBe('1')
     const scaleX = Number(/matrix\(([^,]+)/.exec(bar!.transform)?.[1] ?? '0')
     expect(scaleX, 'fill tracks scroll position').toBeGreaterThan(0.2)
 
-    // At the very top the fill has no length: transparent, so the glow
-    // cannot paint the old boxy blob.
+    // At the very top the fill has no length, so it is hidden entirely.
     await page.evaluate(() => window.scrollTo(0, 0))
     await page.waitForTimeout(300)
     const topBar = await page.evaluate(() => {
       const el = document.querySelector('[data-testid="navbar-read-progress"]') as HTMLElement | null
       return el ? { opacity: getComputedStyle(el).opacity, transform: getComputedStyle(el).transform } : null
     })
-    expect(topBar!.opacity, 'no glow blob at the top').toBe('0')
+    expect(topBar!.opacity, 'fill hidden at the top').toBe('0')
     expect(Number(/matrix\(([^,]+)/.exec(topBar!.transform)?.[1] ?? '1'), 'fill at zero').toBe(0)
 
     // Narrow: the three cells still fit, picker still centred, gaps unchanged.

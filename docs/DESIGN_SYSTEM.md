@@ -30,6 +30,15 @@ Quiet UI, loud artwork. Aeri borrows Netflix's cinematic browsing contract: hero
 ```
 Page background: near-black (#070708). Surfaces are subtly lighter, not cards with heavy borders.
 
+**Browser chrome follows the theme (D149).** Safari 26 tints the window and
+toolbar from the `<body>` background color and ignores `<meta
+name="theme-color">` (WebKit bug 301756). `applyTheme()` paints the theme's
+`--bg` inline on `<body>`/`<html>` on every switch — Mocha tints the Safari
+window purple (`#1e1e2e`), Aeri Light tints it light (`#fafafa`) — rewrites
+the `theme-color` meta for engines that still honor it (iOS < 26, Chrome
+Android), and sets `color-scheme` from the background's brightness so native
+scrollbars/select popups match.
+
 ### Frame language (D127/D128, radius D133)
 
 The hero and the media player share one corner radius: **28px**
@@ -69,13 +78,13 @@ the line under the first row appeared to change colour. Opaque means one
 colour in every row, in both sort directions. Section rules
 (`border-t`/`border-b` on page furniture) keep the alpha `--border`.
 
-**Reader progress bar (D143).** On `/read/*` the navbar hairline becomes a
-2px scroll track (15% `--text`), with a white fill carrying the Continue
-Watching bar's `shadow-[0_0_6px_var(--text)]`. The glow is only painted once
-the fill has length: `opacity` is driven by the same rAF paint as the
-transform (0 at ratio 0, 1 otherwise), because a box-shadow on a
-`scaleX(0)` element still paints a blob at the element's origin. The bar
-also stays at zero until every page image has resolved
+**Reader progress bar (D143, glow removed D148).** On `/read/*` the navbar
+hairline becomes a 2px scroll track (15% `--text`) with a **flat** `--text`
+fill — no neon glow (the 6px `shadow-[0_0_6px_var(--text)]` is gone; D139 had
+removed it, D143 reintroduced it, the owner removed it for good on
+2026-10-29). The fill is still hidden at ratio 0 (`opacity` driven by the
+same rAF paint as the transform) so a zero-length bar leaves no sliver. The
+bar also stays at zero until every page image has resolved
 (`aeri:reader-pages`).
 
 ### Nav hitboxes
@@ -149,6 +158,26 @@ One pill geometry for the whole app, imported from
   `leading-4` + 2px padding) = **30px** — not to the thumb. Never convert a
   segmented toggle into a row of standalone pills; "same size" is not
   permission to change the component.
+- **On/off is the Aeri switch** (`components/ui/Switch.tsx`), never a native
+  checkbox (D145). 32×18 hairline track + 12px knob. **Its color scheme is
+  the Sub/Dub segmented toggle's** (D147): ON is the active pill — solid
+  `--text` track with the `--on-text` knob — and OFF is the inactive pill — a
+  bare `--border-strong` track with a 45% text knob. No `--accent` anywhere,
+  so Aeri Light inverts exactly like its Sub/Dub control. Knob slide and
+  track color run 200ms on the entrance curve; the track contracts slightly
+  while pressed; all of it is disabled under `prefers-reduced-motion`.
+  `SwitchRow` is the label + description variant; the whole row is the
+  `role="switch"` button so the text stays clickable.
+- **Provider rows animate their disabled state** (D147): turning a provider
+  off fades its grip/dot/text to 50% and the row's background to the dim
+  token over 300ms. The switch itself stays at full opacity so it can be
+  turned back on without hunting for it.
+- **Sortable lists use the grip** (`components/ui/SortableList.tsx`, D145):
+  a six-dot `GripVertical` button at the left, 35% text tint, `cursor-grab`.
+  Dragging lifts the row (`rounded-md`, `--surface-elevated`, hairline ring)
+  and slides the rows between source and target; the order commits on drop.
+  The grip is a real button — focus + ↑/↓ reorders — so removing a visible
+  arrow pair never removes keyboard access.
 - The Watch episode nav (Prev / current / Next) also keeps its original
   component: three solid white pills, `px-4`, **semibold 600**, the middle
   one a non-interactive span. Only its height is unified to 30px (a
@@ -243,6 +272,12 @@ One pill geometry for the whole app, imported from
 ### Detail Modal
 
 - Dark overlay `rgba(0,0,0,0.78)` + backdrop blur 2px. Centered panel width 88vw max 980px.
+- The veil is a **static, fixed, `pointer-events-none` layer behind the
+  scroller** — never paint the tint or the `backdrop-filter` on the scroll
+  container itself (D146). A filtered scroller promotes the whole scrollable
+  height into one composited layer and becomes a containing block for fixed
+  descendants; the scroller stays paint-transparent and owns only scrolling
+  and the outside-click target.
 - Top artwork 56% height with bottom fade into `var(--surface)`.
 - Content: title, progress, Resume/Play, Add to List (icon circle), meta, description, genres (subtle pills), cast, episodes.
 - Episodes: list, not grid. Row with number, title, duration, watched check.
@@ -280,6 +315,12 @@ One pill geometry for the whole app, imported from
 
 - Durations: 150–200ms for hover, 240ms for modal (ease-out), 320ms for page cross-fade.
 - Easing: `cubic-bezier(.2,.8,.2,1)` for entrances.
+- The transform-bearing entrance classes (`.anim-pop-in`,
+  `.anim-pop-in-center`) use `animation-fill-mode: backwards`, **never
+  `both`** (D146). Their keyframes end at the identity transform, so `both`
+  would retain `transform: scale(1)` forever and keep the element composited —
+  on the detail card that meant a 2344 x 173,954 px GPU layer re-rastered
+  during scroll, which flickered. Opacity-only fades may still use `both`.
 - Always: `@media (prefers-reduced-motion: reduce) { * { animation: none !important }}`
 
 ## Responsive

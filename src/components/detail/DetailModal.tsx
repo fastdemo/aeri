@@ -264,282 +264,298 @@ export function DetailModal({
   const metaParts = [formatLabel(displayAnime.format), seasonYear, !isMovie && !isMangaKind && displayAnime.episodes ? `${displayAnime.episodes} Episodes` : null, isMangaKind && displayAnime.chapters ? `${displayAnime.chapters} Chapters` : null, isMangaKind && displayAnime.volumes ? `${displayAnime.volumes} Volumes` : null, statusLabel(displayAnime.status)].filter(Boolean).join(' • ')
 
   return (
-    // CLICK-OUT ANYWHERE: clicking the veil — including the
-    // bottom part of the overlay — closes the card. The VEIL itself is the
-    // close target. The old `<button fixed inset-0>` backdrop was trapped
-    // by this scroller's `backdrop-blur` — blur (like filter) makes the
-    // scroller the containing block for fixed descendants, so the button
-    // laid out in CONTENT coordinates and scrolled away with the card:
-    // only clicks near the top of an unscrolled overlay reached it. A
-    // scroller onClick + stopPropagation on the card closes at EVERY
-    // scroll position, from any band, with the same dismiss() funnel
-    // (✕ / Esc / outside) and the same reverse animation.
-    <div ref={scrollerRef} onClick={dismiss} className={`fixed inset-x-0 bottom-0 top-14 z-40 flex items-start justify-center overflow-y-auto bg-[color-mix(in_srgb,var(--bg)_75%,transparent)] p-2 backdrop-blur-[2px] sm:p-6 lg:p-8 ${closing ? 'anim-fade-out' : 'anim-fade-in'}`}>
+    <>
+      {/* VEIL = STATIC, NON-SCROLLING LAYER. The tint + blur used to live on
+          the scroll container itself; `backdrop-filter` on a scroller forces
+          the ENTIRE scrollable content height into one composited layer
+          (measured 2880 x 38,482 px on /manga/30002 and 2880 x 173,794 px on
+          /anime/21). Rasterizing that during a fast scroll is what flickered.
+          A fixed, viewport-sized sibling is the same picture at 1440 x 900.
+          pointer-events-none so the scroller above stays the click target. */}
       <div
-        ref={dialogRef}
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-modal="true"
-        aria-label={titles.primary}
-        tabIndex={-1}
-        className={`relative my-2 flex max-h-none w-full max-w-[980px] flex-col overflow-visible rounded-xl bg-[var(--bg-soft)] shadow-[0_24px_64px_var(--shadow)] outline-none sm:my-6 ${closing ? 'anim-pop-out-center' : 'anim-pop-in-center'}`}
-      >
-        {/* Bare ✕ — no circular background, the glyph is 20px (up from 14),
-            and a soft shadow in the THEME's own shadow color
-            keeps it legible over bright art. No scale/motion on hover — a
-            quiet opacity ease only. */}
-        <button
-          onClick={dismiss}
-          aria-label="Close"
-          className="absolute right-3 top-3 z-20 grid h-9 w-9 place-items-center rounded-full text-[var(--text)] transition-opacity duration-150 hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)] [filter:drop-shadow(0_2px_6px_var(--shadow))]"
+        aria-hidden
+        className={`pointer-events-none fixed inset-x-0 bottom-0 top-14 z-40 bg-[color-mix(in_srgb,var(--bg)_75%,transparent)] backdrop-blur-[2px] ${closing ? 'anim-fade-out' : 'anim-fade-in'}`}
+      />
+      {/* CLICK-OUT ANYWHERE: clicking the veil — including the
+          bottom part of the overlay — closes the card. The VEIL itself is the
+          close target. The old `<button fixed inset-0>` backdrop was trapped
+          by this scroller's `backdrop-blur` — blur (like filter) makes the
+          scroller the containing block for fixed descendants, so the button
+          laid out in CONTENT coordinates and scrolled away with the card:
+          only clicks near the top of an unscrolled overlay reached it. A
+          scroller onClick + stopPropagation on the card closes at EVERY
+          scroll position, from any band, with the same dismiss() funnel
+          (✕ / Esc / outside) and the same reverse animation. The scroller is
+          now paint-transparent (the veil behind it owns the background) and
+          keeps NO backdrop-filter, so it cannot become a containing block
+          again. */}
+      <div ref={scrollerRef} onClick={dismiss} className="fixed inset-x-0 bottom-0 top-14 z-40 flex items-start justify-center overflow-y-auto p-2 sm:p-6 lg:p-8">
+        <div
+          ref={dialogRef}
+          onClick={(e) => e.stopPropagation()}
+          role="dialog"
+          aria-modal="true"
+          aria-label={titles.primary}
+          tabIndex={-1}
+          className={`relative my-2 flex max-h-none w-full max-w-[980px] flex-col overflow-visible rounded-xl bg-[var(--bg-soft)] shadow-[0_24px_64px_var(--shadow)] outline-none sm:my-6 ${closing ? 'anim-pop-out-center' : 'anim-pop-in-center'}`}
         >
-          <Icon name="x" size={20} />
-        </button>
+          {/* Bare ✕ — no circular background, the glyph is 20px (up from 14),
+              and a soft shadow in the THEME's own shadow color
+              keeps it legible over bright art. No scale/motion on hover — a
+              quiet opacity ease only. */}
+          <button
+            onClick={dismiss}
+            aria-label="Close"
+            className="absolute right-3 top-3 z-20 grid h-9 w-9 place-items-center rounded-full text-[var(--text)] transition-opacity duration-150 hover:opacity-80 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--border-strong)] [filter:drop-shadow(0_2px_6px_var(--shadow))]"
+          >
+            <Icon name="x" size={20} />
+          </button>
 
-        <div className="relative h-[360px] w-full overflow-hidden rounded-t-xl sm:h-[420px]">
-          <img src={displayAnime.backdropImage || anime.backdropImage} alt="" className="h-full w-full object-cover" loading="eager" />
-          <div
-            aria-hidden
-            className="absolute inset-0"
-            style={{
-              background:
-                'linear-gradient(180deg, color-mix(in srgb, var(--bg) 55%, transparent) 0%, transparent 22%, transparent 55%, color-mix(in srgb, var(--bg) 45%, transparent) 78%, var(--bg) 100%)',
-            }}
-          />
-          <div className="absolute left-6 top-6 hidden max-w-[520px] sm:block">
-            <h2 className="text-[28px] font-semibold leading-none tracking-tighter text-[var(--text)] drop-shadow">
-              {titles.primary}
-            </h2>
-            {titles.native && <p className="mt-1 text-xs text-[var(--text-muted)]">{titles.native}</p>}
-            {titles.romaji && <p className="mt-1 text-[11px] tracking-wide text-[var(--text-faint)]">{titles.romaji}</p>}
-          </div>
-
-          <div className="absolute bottom-0 left-0 right-0 flex flex-wrap items-center gap-2 px-4 pb-4 sm:px-6">
-            {barPercent > 0 && (
-              <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-[color-mix(in_srgb,var(--text)_15%,transparent)]">
-                <div className="h-full bg-[var(--text)] shadow-[0_0_8px_var(--shadow)]" style={{ width: `${barPercent}%` }} />
-              </div>
-            )}
-
-            {isMangaKind ? (
-              <Link
-                to={`/read/${displayAnime.identity.internalId}/${hasWatched && !restart ? `ch-${resumeEpisodeNumber}` : restart ? 'ch-1' : 'first'}`}
-                className={pillSolid}
-              >
-                {/* Open-book art, matching the cards. */}
-                <Icon name="book-open" size={14} />
-                {resumeLabel}
-              </Link>
-            ) : (
-              <Link
-                to={`/watch/${displayAnime.identity.internalId}/${resumeEpisodeNumber}`}
-                className={pillSolid}
-              >
-                <Icon name="play-fill" size={14} />
-                {resumeLabel}
-              </Link>
-            )}
-            {/* The progress line reports what WAS WATCHED (numEp), never the
-                resume target (progress+1) — "6 of 25" means six watched, not
-                "you are about to watch 6". Manga reads "N of M chapters";
-                anime keeps "N of M • P% watched". */}
-            {hasWatched && (
-              <span className="text-xs text-[var(--text-muted)]">
-                {isMangaKind
-                  ? `${numEp} of ${knownTotal > 0 ? knownTotal : '—'}`
-                  : (<>{numEp}{airedTotal > 0 ? ` of ${airedTotal}` : ''} • {barPercent}% watched</>)}
-              </span>
-            )}
-
-            {/* SINGLE list control, plain two-way toggle: not in list → +
-                adds as Plan to Watch / Plan to Read; in list → ✓ removes the
-                entry entirely. No inline menu: the Status pill below the hero
-                (TrackerCompact) already owns every status change AND removal —
-                the old popup duplicated those writes one tap away. One button,
-                two functions: add, remove. */}
-            {isAuthenticated && (
-              <div className="ml-auto flex items-center gap-2">
-                <button
-                  aria-label={currentStatus ? 'Remove from My List' : 'Add to My List'}
-                  onClick={async () => {
-                    setSyncing('status')
-                    try {
-                      if (currentStatus) {
-                        await removeEntry(displayAnime)
-                      } else {
-                        await updateStatus(displayAnime, 'planned')
-                      }
-                    } catch (e) {
-                      setLocalError(e instanceof Error ? e.message : 'Couldn’t update My List')
-                    } finally {
-                      setSyncing(null)
-                    }
-                  }}
-                  className={`grid h-8 w-8 place-items-center rounded-full border border-[var(--border-strong)] bg-[color-mix(in_srgb,var(--bg)_30%,transparent)] text-[var(--text)] backdrop-blur hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)] ${currentStatus ? 'bg-[color-mix(in_srgb,var(--text)_10%,transparent)]' : ''}`}
-                >
-                  {syncing === 'status' ? (
-                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--border-strong)] border-t-[var(--text)]" />
-                  ) : currentStatus ? (
-                    <Icon name="check-lg" size={14} />
-                  ) : (
-                    <Icon name="plus-lg" size={14} />
-                  )}
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {(localError || trackingError) && (
-          <div className="mx-4 mt-3 rounded border border-[var(--warn)] bg-[var(--warn)] px-3 py-2 text-xs text-[var(--warn)] sm:mx-6">
-            {localError ?? trackingError}
-          </div>
-        )}
-        {isAuthenticated && (
-          <TrackerCompact
-            status={currentStatus}
-            score={currentScore}
-            progress={numEp}
-            total={isMangaKind ? (displayAnime.chapters ?? null) : (displayAnime.episodes ?? null)}
-            isManga={isMangaKind}
-            syncing={syncing}
-            onStatus={async (s) => {
-              setSyncing('status')
-              try { await updateStatus(displayAnime, s) }
-              catch (e) { setLocalError(e instanceof Error ? e.message : 'Couldn’t update status') }
-              finally { setSyncing(null) }
-            }}
-            onRemove={async () => {
-              setSyncing('status')
-              try { await removeEntry(displayAnime) }
-              catch (e) { setLocalError(e instanceof Error ? e.message : 'Couldn’t remove from list') }
-              finally { setSyncing(null) }
-            }}
-            onScore={async (n) => {
-              setSyncing('score')
-              try { await updateRating(displayAnime, n) }
-              catch (e) { setLocalError(e instanceof Error ? e.message : 'Couldn’t update score') }
-              finally { setSyncing(null) }
-            }}
-            onProgress={async (n) => {
-              setSyncing('progress')
-              // Manual edit — still syncs while Incognito is on.
-              try { await updateProgress(displayAnime, n, { manual: true }) }
-              catch (e) { setLocalError(e instanceof Error ? e.message : 'Couldn’t update progress') }
-              finally { setSyncing(null) }
-            }}
-          />
-        )}
-
-        {/* Content grid: row 1 = description | metadata, row 2 =
-            episodes/chapters | related. Row 2 is a SINGLE shared grid row,
-            so the Episodes header and the Related Shows header start at
-            exactly the same y by construction — the conditional E-line lives
-            in row 1 and shifts row 2 down for BOTH columns equally.
-            DOM order (D,M,E,R,mobile) is the mobile stacking order;
-            lg placement puts D|M on row 1 and E|R on row 2.
-            No offsets, no spacers, no per-state tuning. */}
-        <div className="grid gap-6 px-4 py-5 sm:px-6 lg:grid-cols-[1.7fr_0.9fr]">
-          {/* Row 1, col 1: title/meta/E-line/description. */}
-          <div className="min-w-0 lg:col-start-1 lg:row-start-1">
-            {/* Mobile title hierarchy — visible only when desktop overlay hidden */}
-            <div className="mb-3 sm:hidden">
-              <h2 className="text-[20px] font-semibold leading-none tracking-tighter text-[var(--text)]">{titles.primary}</h2>
+          <div className="relative h-[360px] w-full overflow-hidden rounded-t-xl sm:h-[420px]">
+            <img src={displayAnime.backdropImage || anime.backdropImage} alt="" className="h-full w-full object-cover" loading="eager" />
+            <div
+              aria-hidden
+              className="absolute inset-0"
+              style={{
+                background:
+                  'linear-gradient(180deg, color-mix(in srgb, var(--bg) 55%, transparent) 0%, transparent 22%, transparent 55%, color-mix(in srgb, var(--bg) 45%, transparent) 78%, var(--bg) 100%)',
+              }}
+            />
+            <div className="absolute left-6 top-6 hidden max-w-[520px] sm:block">
+              <h2 className="text-[28px] font-semibold leading-none tracking-tighter text-[var(--text)] drop-shadow">
+                {titles.primary}
+              </h2>
               {titles.native && <p className="mt-1 text-xs text-[var(--text-muted)]">{titles.native}</p>}
               {titles.romaji && <p className="mt-1 text-[11px] tracking-wide text-[var(--text-faint)]">{titles.romaji}</p>}
             </div>
-            <div className="flex flex-wrap items-center gap-2 text-[12px] text-[var(--text-muted)]">
-              <span>{metaParts}</span>
-              <ScoreBadge anime={displayAnime} trackingProvider={trackingProvider} />
-            </div>
 
-            {/* E-line renders only with real content — never a spacer. */}
-            {!isMovie && !isMangaKind && hasEpline && (
-              <p className="mt-2 text-[12px] font-semibold text-[var(--text)]">
-                Episode {eplineNumber} {eplineTitle ? `• ${eplineTitle}` : ''}
-              </p>
-            )}
-            {/* Manga mirror of the E-line: the NEXT chapter's info
-                above the description — Chapter <next> + the provider unit's
-                own title when it carries one. Hidden when nothing new is
-                left (the button restarts at chapter 1 instead). */}
-            {isMangaKind && !restart && (
-              <MangaNextLine manga={displayAnime} next={resumeEpisodeNumber} watched={numEp} />
-            )}
-            <p className="mt-1 line-clamp-3 text-[13px] leading-6 text-[var(--text-muted)]">
-              {displayAnime.description || 'No description available.'}
-            </p>
-          </div>
+            <div className="absolute bottom-0 left-0 right-0 flex flex-wrap items-center gap-2 px-4 pb-4 sm:px-6">
+              {barPercent > 0 && (
+                <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-[color-mix(in_srgb,var(--text)_15%,transparent)]">
+                  <div className="h-full bg-[var(--text)] shadow-[0_0_8px_var(--shadow)]" style={{ width: `${barPercent}%` }} />
+                </div>
+              )}
 
-          {/* Row 1, col 2: metadata (desktop only). Row 1's height is
-              shared by both columns, so metadata length can never shift
-              the row-2 headers relative to each other. */}
-          <div className="hidden min-w-0 text-xs leading-5 lg:col-start-2 lg:row-start-1 lg:block">
-            <div className="space-y-2">
-              <SidebarMeta anime={displayAnime} />
-            </div>
-          </div>
-
-          {/* Row 2, col 1: episodes/chapters — THE shared header row. */}
-          <div className="min-w-0 lg:col-start-1 lg:row-start-2">
-            {isMangaKind ? (
-              <ChapterList key={displayKey} manga={displayAnime} />
-            ) : (
-              !isMovie && (
-                <EpisodeList key={displayKey} anime={displayAnime} rawAnime={rawDisplayAnime} />
-              )
-            )}
-          </div>
-
-          {/* Row 2, col 2: related — same grid row as episodes, so headers
-              start at exactly the same y. Anime surfaces query type: ANIME;
-              manga surfaces query type: MANGA (mixed adaptation relations
-              render per-entry with the correct card + route either way). */}
-          {displayAnime.identity.anilistId && (
-            <div className="hidden min-w-0 text-xs leading-5 lg:col-start-2 lg:row-start-2 lg:block">
               {isMangaKind ? (
-                <MangaRelatedEntriesBlock
-                  key={`d-${displayKey}`}
-                  anilistId={displayAnime.identity.anilistId}
-                  relations={displayAnime.relations}
-                  onSelectManga={onSelectRelated}
-                  scope="modal-desktop"
-                />
+                <Link
+                  to={`/read/${displayAnime.identity.internalId}/${hasWatched && !restart ? `ch-${resumeEpisodeNumber}` : restart ? 'ch-1' : 'first'}`}
+                  className={pillSolid}
+                >
+                  {/* Open-book art, matching the cards. */}
+                  <Icon name="book-open" size={14} />
+                  {resumeLabel}
+                </Link>
               ) : (
-                <RelatedEntriesBlock
-                  key={`d-${displayKey}`}
-                  anilistId={displayAnime.identity.anilistId}
-                  relations={displayAnime.relations}
-                  onSelectAnime={onSelectRelated}
-                  scope="modal-desktop"
-                />
+                <Link
+                  to={`/watch/${displayAnime.identity.internalId}/${resumeEpisodeNumber}`}
+                  className={pillSolid}
+                >
+                  <Icon name="play-fill" size={14} />
+                  {resumeLabel}
+                </Link>
+              )}
+              {/* The progress line reports what WAS WATCHED (numEp), never the
+                  resume target (progress+1) — "6 of 25" means six watched, not
+                  "you are about to watch 6". Manga reads "N of M chapters";
+                  anime keeps "N of M • P% watched". */}
+              {hasWatched && (
+                <span className="text-xs text-[var(--text-muted)]">
+                  {isMangaKind
+                    ? `${numEp} of ${knownTotal > 0 ? knownTotal : '—'}`
+                    : (<>{numEp}{airedTotal > 0 ? ` of ${airedTotal}` : ''} • {barPercent}% watched</>)}
+                </span>
+              )}
+
+              {/* SINGLE list control, plain two-way toggle: not in list → +
+                  adds as Plan to Watch / Plan to Read; in list → ✓ removes the
+                  entry entirely. No inline menu: the Status pill below the hero
+                  (TrackerCompact) already owns every status change AND removal —
+                  the old popup duplicated those writes one tap away. One button,
+                  two functions: add, remove. */}
+              {isAuthenticated && (
+                <div className="ml-auto flex items-center gap-2">
+                  <button
+                    aria-label={currentStatus ? 'Remove from My List' : 'Add to My List'}
+                    onClick={async () => {
+                      setSyncing('status')
+                      try {
+                        if (currentStatus) {
+                          await removeEntry(displayAnime)
+                        } else {
+                          await updateStatus(displayAnime, 'planned')
+                        }
+                      } catch (e) {
+                        setLocalError(e instanceof Error ? e.message : 'Couldn’t update My List')
+                      } finally {
+                        setSyncing(null)
+                      }
+                    }}
+                    className={`grid h-8 w-8 place-items-center rounded-full border border-[var(--border-strong)] bg-[color-mix(in_srgb,var(--bg)_30%,transparent)] text-[var(--text)] backdrop-blur hover:bg-[color-mix(in_srgb,var(--text)_10%,transparent)] ${currentStatus ? 'bg-[color-mix(in_srgb,var(--text)_10%,transparent)]' : ''}`}
+                  >
+                    {syncing === 'status' ? (
+                      <span className="h-3 w-3 animate-spin rounded-full border-2 border-[var(--border-strong)] border-t-[var(--text)]" />
+                    ) : currentStatus ? (
+                      <Icon name="check-lg" size={14} />
+                    ) : (
+                      <Icon name="plus-lg" size={14} />
+                    )}
+                  </button>
+                </div>
               )}
             </div>
+          </div>
+
+          {(localError || trackingError) && (
+            <div className="mx-4 mt-3 rounded border border-[var(--warn)] bg-[var(--warn)] px-3 py-2 text-xs text-[var(--warn)] sm:mx-6">
+              {localError ?? trackingError}
+            </div>
           )}
-          {/* Mobile stack: metadata, then related in normal flow.
-              Separate mobile-only instance (no shared state). The divider
-              between metadata rows and Related (stacked layout only)
-              renders ONLY while content follows it: loading skeletons
-              appear without the divider, final emptiness hides divider
-              and block — never a line above nothing. */}
-          <div className="min-w-0 space-y-2 border-t border-[var(--border)] pt-4 text-xs leading-5 lg:hidden">
-            <SidebarMeta anime={displayAnime} />
-            {mobileRelated && (mobileRelated.loading || (mobileRelated.entries?.length ?? 0) > 0) && (
-              <div className={mobileRelated.loading ? '' : 'mt-4 border-t border-[var(--border)] pt-4'}>
-                <RelatedEntries
-                  entries={mobileRelated.entries}
-                  loading={mobileRelated.loading}
-                  onSelect={onSelectRelated ? (id) => {
-                    const found = mobileRelated.entries?.find(e => e.anime.identity.anilistId === id)
-                    if (found) onSelectRelated(found.anime)
-                  } : undefined}
-                />
+          {isAuthenticated && (
+            <TrackerCompact
+              status={currentStatus}
+              score={currentScore}
+              progress={numEp}
+              total={isMangaKind ? (displayAnime.chapters ?? null) : (displayAnime.episodes ?? null)}
+              isManga={isMangaKind}
+              syncing={syncing}
+              onStatus={async (s) => {
+                setSyncing('status')
+                try { await updateStatus(displayAnime, s) }
+                catch (e) { setLocalError(e instanceof Error ? e.message : 'Couldn’t update status') }
+                finally { setSyncing(null) }
+              }}
+              onRemove={async () => {
+                setSyncing('status')
+                try { await removeEntry(displayAnime) }
+                catch (e) { setLocalError(e instanceof Error ? e.message : 'Couldn’t remove from list') }
+                finally { setSyncing(null) }
+              }}
+              onScore={async (n) => {
+                setSyncing('score')
+                try { await updateRating(displayAnime, n) }
+                catch (e) { setLocalError(e instanceof Error ? e.message : 'Couldn’t update score') }
+                finally { setSyncing(null) }
+              }}
+              onProgress={async (n) => {
+                setSyncing('progress')
+                // Manual edit — still syncs while Incognito is on.
+                try { await updateProgress(displayAnime, n, { manual: true }) }
+                catch (e) { setLocalError(e instanceof Error ? e.message : 'Couldn’t update progress') }
+                finally { setSyncing(null) }
+              }}
+            />
+          )}
+
+          {/* Content grid: row 1 = description | metadata, row 2 =
+              episodes/chapters | related. Row 2 is a SINGLE shared grid row,
+              so the Episodes header and the Related Shows header start at
+              exactly the same y by construction — the conditional E-line lives
+              in row 1 and shifts row 2 down for BOTH columns equally.
+              DOM order (D,M,E,R,mobile) is the mobile stacking order;
+              lg placement puts D|M on row 1 and E|R on row 2.
+              No offsets, no spacers, no per-state tuning. */}
+          <div className="grid gap-6 px-4 py-5 sm:px-6 lg:grid-cols-[1.7fr_0.9fr]">
+            {/* Row 1, col 1: title/meta/E-line/description. */}
+            <div className="min-w-0 lg:col-start-1 lg:row-start-1">
+              {/* Mobile title hierarchy — visible only when desktop overlay hidden */}
+              <div className="mb-3 sm:hidden">
+                <h2 className="text-[20px] font-semibold leading-none tracking-tighter text-[var(--text)]">{titles.primary}</h2>
+                {titles.native && <p className="mt-1 text-xs text-[var(--text-muted)]">{titles.native}</p>}
+                {titles.romaji && <p className="mt-1 text-[11px] tracking-wide text-[var(--text-faint)]">{titles.romaji}</p>}
+              </div>
+              <div className="flex flex-wrap items-center gap-2 text-[12px] text-[var(--text-muted)]">
+                <span>{metaParts}</span>
+                <ScoreBadge anime={displayAnime} trackingProvider={trackingProvider} />
+              </div>
+
+              {/* E-line renders only with real content — never a spacer. */}
+              {!isMovie && !isMangaKind && hasEpline && (
+                <p className="mt-2 text-[12px] font-semibold text-[var(--text)]">
+                  Episode {eplineNumber} {eplineTitle ? `• ${eplineTitle}` : ''}
+                </p>
+              )}
+              {/* Manga mirror of the E-line: the NEXT chapter's info
+                  above the description — Chapter <next> + the provider unit's
+                  own title when it carries one. Hidden when nothing new is
+                  left (the button restarts at chapter 1 instead). */}
+              {isMangaKind && !restart && (
+                <MangaNextLine manga={displayAnime} next={resumeEpisodeNumber} watched={numEp} />
+              )}
+              <p className="mt-1 line-clamp-3 text-[13px] leading-6 text-[var(--text-muted)]">
+                {displayAnime.description || 'No description available.'}
+              </p>
+            </div>
+
+            {/* Row 1, col 2: metadata (desktop only). Row 1's height is
+                shared by both columns, so metadata length can never shift
+                the row-2 headers relative to each other. */}
+            <div className="hidden min-w-0 text-xs leading-5 lg:col-start-2 lg:row-start-1 lg:block">
+              <div className="space-y-2">
+                <SidebarMeta anime={displayAnime} />
+              </div>
+            </div>
+
+            {/* Row 2, col 1: episodes/chapters — THE shared header row. */}
+            <div className="min-w-0 lg:col-start-1 lg:row-start-2">
+              {isMangaKind ? (
+                <ChapterList key={displayKey} manga={displayAnime} />
+              ) : (
+                !isMovie && (
+                  <EpisodeList key={displayKey} anime={displayAnime} rawAnime={rawDisplayAnime} />
+                )
+              )}
+            </div>
+
+            {/* Row 2, col 2: related — same grid row as episodes, so headers
+                start at exactly the same y. Anime surfaces query type: ANIME;
+                manga surfaces query type: MANGA (mixed adaptation relations
+                render per-entry with the correct card + route either way). */}
+            {displayAnime.identity.anilistId && (
+              <div className="hidden min-w-0 text-xs leading-5 lg:col-start-2 lg:row-start-2 lg:block">
+                {isMangaKind ? (
+                  <MangaRelatedEntriesBlock
+                    key={`d-${displayKey}`}
+                    anilistId={displayAnime.identity.anilistId}
+                    relations={displayAnime.relations}
+                    onSelectManga={onSelectRelated}
+                    scope="modal-desktop"
+                  />
+                ) : (
+                  <RelatedEntriesBlock
+                    key={`d-${displayKey}`}
+                    anilistId={displayAnime.identity.anilistId}
+                    relations={displayAnime.relations}
+                    onSelectAnime={onSelectRelated}
+                    scope="modal-desktop"
+                  />
+                )}
               </div>
             )}
+            {/* Mobile stack: metadata, then related in normal flow.
+                Separate mobile-only instance (no shared state). The divider
+                between metadata rows and Related (stacked layout only)
+                renders ONLY while content follows it: loading skeletons
+                appear without the divider, final emptiness hides divider
+                and block — never a line above nothing. */}
+            <div className="min-w-0 space-y-2 border-t border-[var(--border)] pt-4 text-xs leading-5 lg:hidden">
+              <SidebarMeta anime={displayAnime} />
+              {mobileRelated && (mobileRelated.loading || (mobileRelated.entries?.length ?? 0) > 0) && (
+                <div className={mobileRelated.loading ? '' : 'mt-4 border-t border-[var(--border)] pt-4'}>
+                  <RelatedEntries
+                    entries={mobileRelated.entries}
+                    loading={mobileRelated.loading}
+                    onSelect={onSelectRelated ? (id) => {
+                      const found = mobileRelated.entries?.find(e => e.anime.identity.anilistId === id)
+                      if (found) onSelectRelated(found.anime)
+                    } : undefined}
+                  />
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
-    </div>
+    </>
   )
 }
 

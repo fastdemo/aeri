@@ -2620,3 +2620,254 @@ zero MangaDex/MangaPill requests.
 Live resolution probe (signed out, `/manga/30002` Berserk): the first
 `/api/manga/*` requests are WeebCentral's `/match/30002` + `/chapters/…`,
 with zero `mdx-`/`mp-` requests — WeebCentral wins first as configured.
+
+## D145 — Settings provider rows: drag grip + Aeri switch; native checkboxes retired (2026-10-29)
+
+Owner: "for anime/manga providers section in settings, remove the up/down
+arrows. i want the component to reorder by dragging… also i hate the tick
+box with the blue. make something aeri native with aeri design language,
+changes with the color of the theme." Chosen from the offered options:
+Aeri switch, always-visible grip handle, and the switch applied to every
+Settings toggle (not just providers).
+
+**Drag reorder.** New `src/components/ui/SortableList.tsx` used by both
+provider lists. The rows keep their DOM order while dragging; the dragged
+row follows the pointer and the rows between `from` and `to` slide one row
+height out of the way (`transform`, 160ms), and the new order is committed
+once on drop. The first implementation attached `pointermove`/`pointerup` to
+the grip and relied on pointer capture + React state; the first move after
+`pointerdown` landed before the re-render that would expose the drag state,
+so the drag never committed. Move/up listeners now live on `window` and read
+a ref, which removes the race entirely. Geometry is captured at drag start
+(viewport tops/heights) so the transforms cannot feed back into the midpoint
+calculation.
+
+**Grip.** Always-visible six-dot `GripVertical` button at the left of each
+row (35% text tint → full on hover, `cursor-grab` / `grabbing`,
+`touch-none`). The grip is a real button: focus it and press ↑/↓ to move the
+row, with a `role="status"` line announcing the new position. That keeps
+WCAG 2.5.7 (Dragging Movements) satisfied after removing the arrow pair —
+keyboard reordering did not disappear with the buttons. Escape cancels a
+drag. Dragged row: `rounded-md`, `--surface-elevated`, hairline ring,
+shadow; the container no longer clips (`overflow-hidden` removed, first/last
+rows carry the radius) so the lifted row can leave the list.
+
+**Switch.** New `src/components/ui/Switch.tsx`: 32×18 hairline track + 12px
+knob. ON = `color-mix(--accent 20%)` track, 55% accent border, solid
+`--accent` knob; OFF = transparent track + 45% text knob. It follows every
+theme's accent (white on Aeri Dark/Light, mauve on Catppuccin, yellow on
+Gruvbox, cyan on Nord, …). `SwitchRow` makes label + description + switch
+ONE `role="switch"` button, so the text stays clickable without nesting a
+button inside a label.
+
+**Scope.** Every native checkbox in Settings is gone: anime/manga provider
+rows, AniList/MAL sync fields, Autoplay, Subtitles. Volume stays a range and
+the tracking-provider choice stays a radio. Copy changed from "Reorder with
+↑/↓" to "Drag the grip to reorder — or focus it and press ↑/↓."
+
+**Tests.** `tests/settings-and-row-arrows.spec.ts` reads order from the grip
+labels (`Reorder …`), reorders by keyboard (ArrowDown on the focused grip),
+asserts zero `Move …` buttons, and adds a real pointer drag. The drag test
+must `scrollIntoViewIfNeeded()` before `boundingBox()`: at 1000px viewport
+the provider list starts below the fold, and raw mouse coordinates outside
+the viewport hit nothing (the first failing run looked like a component bug
+and was not one). 3/3 in that spec, 16/16 across the targeted suite
+(settings, guest mode, episode rows, reader resume, read nav, continue
+card). `npx tsc -b` clean, production build clean, no new lint errors
+(`SortableList` has one `react(refs)` warning for the standard ref-callback
+pattern; the repo already carries that warning class).
+
+**Visual verification.** 1440/768/375, Aeri Dark + Catppuccin Mocha (accent
+link proven by the mauve switch), ON/OFF states and a mid-drag lifted row.
+Screens in `OpenCode/screens/settings-*`.
+
+## D146 — Detail preview card: release the entrance transform; veil moves off the scroller (2026-10-29)
+
+Owner: "fix the still present flickering of the anime/manga preview card when
+scrolling quickly" — scoped to that flicker only. D143 (scroll-quiet) did not
+fix it because D143 addressed hover frost, and the frost was not the cause.
+
+**Reproduction ruled out.** Playwright screencasts of a fast wheel scroll and a
+real touch fling (390x844, DPR 3), a WebKit recording, and rAF timing (p99
+~15 ms — no dropped frames) all showed no missing/blank frame. The artifact is
+compositor-side, not a JS or animation-timing problem: image fade/lazy loading,
+the D143 scroll gate, background page scroll, and touch fling were each
+excluded.
+
+**Root cause (CDP `LayerTree`).** On production, the settled preview card was
+promoted to its own composited layer sized to the ENTIRE detail body:
+
+| Route | card layer | scroll container layer |
+|---|---|---|
+| `/anime/21` (One Piece, 1180 eps) | 2344 x 173,954 px | 2880 x 173,794 px |
+| `/manga/30002` (Berserk) | 2344 x 38,643 px | 2880 x 38,482 px |
+
+Two independent promotions produced them:
+
+1. `.anim-pop-in-center` used `animation-fill-mode: both`. The entrance
+   keyframes end at `scale(1) translateY(0)`, so `both` retained
+   `transform: matrix(1,0,0,1,0,0)` on the card forever. A retained transform
+   keeps the element composited; on an 87,000 CSS-px-tall card that layer is
+   re-rastered while scrolling — the visible flicker. Proof: setting
+   `animationFillMode = 'backwards'` at runtime made the computed transform
+   `none` and the 2344-wide layer disappeared from the layer tree, while the
+   rest of the page was untouched.
+2. The overlay scroller itself carried the veil's `backdrop-blur-[2px]` +
+   `color-mix(--bg 75%)` tint. `backdrop-filter` on a scroll container promotes
+   the whole scrollable content height into one layer and also makes the
+   scroller a containing block for fixed descendants (the D109 trap). Removing
+   the filter dropped that layer's `drawsContent` to false.
+
+**Fix.**
+
+- `src/styles/globals.css`: `.anim-pop-in` and `.anim-pop-in-center` use
+  `backwards` instead of `both`. The keyframes end at the identity transform,
+  so releasing it after the 180/200 ms animation is visually identical. This
+  also covers the card-menu popover and SignInModal, which use the same
+  classes.
+- `DetailModal.tsx` and `DetailRoute.tsx` (`DetailPanel`): the tint + blur now
+  live on a static, viewport-sized `fixed` sibling (`aria-hidden`,
+  `pointer-events-none`, same z-40, first in DOM so the card paints above it).
+  The scroller is paint-transparent and has no `backdrop-filter`, so it cannot
+  become a containing block again. Click-out-anywhere is unchanged: the
+  scroller is still the click target and the veil never intercepts pointers.
+  The overlay fade (`anim-fade-in`/`anim-fade-out`) moved to the veil; the card
+  keeps its own pop in/out, so the entrance is the same picture.
+
+**Verified.** After the fix, `/anime/21` settles at `transform: none`,
+`animation-fill-mode: backwards`, scroller `backdrop-filter: none`, and no
+2344-wide card layer in `LayerTree`. The entrance still animates
+(`aeri-pop-in` running, `scale 0.995`, `opacity 0.877` mid-flight) at
+1440/768/375 and settles to `none` at all three. New
+`tests/detail-card-compositing.spec.ts` (6) pins the settled transform, the
+fill mode, the paint-transparent scroller, the fixed veil, that the veil does
+not move while the card scrolls, and that outside-click still dismisses from a
+scrolled position — on both an anime and a manga card. Targeted suite 21/21
+(settings, guest mode, card silhouette, related row widths, pill system);
+`npx tsc -b` and the production build are clean. Screens in
+`OpenCode/screens/scroll-flicker/fix/`.
+
+**Deployed.** Worker `aeri` version
+`92bd3a19-64e2-4b47-8e0e-d08483eab040`, bundle `index-CDCQn4G7.js`,
+`verify:live` 8/8. The deploy also carried the verified-but-uncommitted D145
+settings work, which the owner approved shipping in the same bundle. Live
+re-probe: `/anime/21` and `/manga/30002` both settle at `transform: none`,
+`animation-fill-mode: backwards`, scroller `backdrop-filter: none`, veil
+`position: fixed` + `blur(2px)` + `pointer-events: none`; no 2344-wide card
+layer in `LayerTree`.
+
+## D147 — Switches take the Sub/Dub scheme; provider rows fade; the source picker lists every enabled provider (2026-10-29)
+
+Owner: "copy the color scheme from the sub/dub toggle to all on/off toggles
+you just created, in all themes. make the on/off toggles have animations too.
+and when it disables provider, make sure the provider has a smooth animation
+too. in the anime media player page, the source: must show all available
+sources available for that show and you can pick between … only the ones that
+are enabled."
+
+**Switch colors = the segmented toggle, not the accent.** D145's switch used
+a 20% `--accent` wash + accent knob, which read as a different control from
+the Sub/Dub pill sitting two rows above it. `components/ui/Switch.tsx` now
+maps the segmented control's two states 1:1:
+
+| State | Segmented control | Switch |
+|---|---|---|
+| ON | `bg-[var(--text)] text-[var(--on-text)]` | `--text` track + `--on-text` knob |
+| OFF | muted text, transparent track | `--border-strong` track + 45% `--text` knob |
+
+No `--accent` remains in the component. This is what makes it correct in
+every theme: Aeri Light (`--text` #1a1a1a, `--on-text` white) inverts exactly
+like its Sub/Dub pill, Catppuccin Mocha uses `#cdd6f4` on `#1e1e2e`, and so
+on. Verified computed colors in Aeri Dark, Aeri Light and Catppuccin Mocha.
+
+**Motion.** The knob slides on `transition-[transform,background-color]`
+200ms `cubic-bezier(.2,.8,.2,1)`; the track cross-fades its background and
+border on the same curve; the track contracts to 94% while pressed. All
+transitions are disabled under `prefers-reduced-motion` (including the press
+scale). The previous 150ms read as a snap.
+
+**Provider rows fade.** Disabling a provider used to snap the whole row
+(including its switch) to `opacity-60`. The row now cross-fades its
+background (`transition-colors` 300ms) and only the grip + status dot + text
+fade to 50% (`transition-opacity` 300ms); the switch stays at full opacity so
+it remains obvious and clickable to re-enable. Applied to both the anime and
+manga lists.
+
+**Source picker shows every enabled provider.** `resolveSourcesWithFallback`
+returned the FIRST provider that produced sources and discarded the rest —
+the requests were already fired in parallel, so the data was there, just
+thrown away. A new `aggregate` option collects the language-filtered sources
+from every enabled provider in priority order (the episode's own provider
+first, then the Settings order), deduped by provider/language/quality/url.
+`resolveSourcesForLanguages` passes `aggregate: true`, so the Watch picker
+lists all of them for the active Sub/Dub side. Disabled providers are still
+never queried (`getEnabledProviders`), so "only enabled ones" holds by
+construction; non-Watch callers keep the old first-winner behavior.
+
+**Verified.** Live `/watch/16498/1` (Attack on Titan) now offers
+`aniwave` + `animeparadise` on the Sub side (1 option before the change) and
+still narrows to `aniwave` on Dub (AnimeParadise is sub-only). Titles whose
+other providers genuinely have no stream still show one option — e.g.
+`/watch/21/1` is AniWave-only, which is the honest answer, not a regression.
+Settings suite 3/3, targeted suite 25/27 with two card-silhouette flakes that
+pass in isolation and on the previous bundle (network timing, unrelated).
+
+**Deploy.** Worker `aeri` version
+`a61d258a-6004-4f0b-b120-bc67ea8d3b4a`, bundle `index-CQsJHfpZ.js`,
+`verify:live` 8/8.
+
+## D148 — Reader progress bar: glow removed (2026-10-29)
+
+Owner: "for the manga reader progress bar no need the neon. remove the glow
+effect."
+
+The `/read/*` navbar bar keeps its 2px `--text` fill but drops
+`shadow-[0_0_6px_var(--text)]` — the same neon treatment the owner removed in
+D139 and D143 reintroduced. The fill is still hidden at `scaleX(0)` (opacity
+driven by the same rAF paint), so a zero-length bar cannot leave a subpixel
+sliver; the `scrolled` fade and the `aeri:reader-pages` readiness gate are
+unchanged. Pinned by `tests/read-nav-layout.spec.ts` and
+`tests/reader-resume-and-bar.spec.ts`, which now assert
+`boxShadow === 'none'` instead of a 6px glow (6/6 local, 6/6 against
+production). Deployed 2026-10-29: worker `aeri` version
+`c52fb6a5-11e8-438b-a0f8-246b7e8c53dd`, bundle `index-Ccd67G7_.js`,
+`verify:live` 8/8. Live `/read/anilist-30002/first` computes
+`box-shadow: none` at 46% scroll with the fill at `opacity: 1`.
+
+## D149 — Browser chrome (Safari tint) follows the theme (2026-10-29)
+
+Owner: "investigate how safari identifies the color for the search bar as it
+tries to match the color of the website, so if i have different themes it
+shall use colors from different themes like mocha."
+
+**How Safari picks the color.** Safari 26 derives the window/toolbar tint from
+the page's **background color**, not from `<meta name="theme-color">` — it
+still parses the meta but no longer uses it (WebKit bug 301756; caniuse marks
+the meta as ignored). The sampled source is the `<body>` background (a
+`position: fixed`/`sticky` element at a viewport edge can take over when one
+sits there). That is why the Mocha screenshot tints the Safari window purple:
+Aeri's `body` already resolves `var(--bg)` to `#1e1e2e`.
+
+**What was missing.** Two things the CSS variable alone did not cover:
+1. **Live re-sample.** Safari only re-reads the tint when the sampled element
+   changes. A CSS variable re-resolved on `:root` can leave the window on the
+   old color until a scroll. `applyTheme()` now paints the theme's `--bg`
+   **inline on `<body>` and `<html>`**, so the element Safari samples is the
+   one that mutates on every theme switch.
+2. **Engines that still honor the meta.** iOS < 26 Safari, Chrome Android and
+   Samsung Internet use `theme-color`, which was hardcoded `#070708` — a black
+   bar above Aeri Light/Latte. The meta is now rewritten to the theme's `--bg`
+   on every apply (boot included), and the static one in `index.html` matches
+   the Aeri Dark default (`#000000`).
+
+`applyTheme()` also sets `color-scheme` from the background's perceived
+brightness, so native scrollbars and `<select>` popups are light on light
+palettes and dark on dark ones. No component colors change; the site still
+reads every color from the same 18 tokens.
+
+**Verified.** `tests/theme-chrome-tint.spec.ts` switches Aeri Dark → Aeri
+Light → Catppuccin Mocha through Settings and asserts `--bg`, the meta,
+`<body>`/`<html>` inline + computed backgrounds and `color-scheme`, then
+reloads to prove the boot path paints Mocha before render. 1/1 new, 11/11
+with settings + watch + reader suites. The tint itself is Safari UI and is
+confirmed by the owner in Safari (headless engines cannot assert it).

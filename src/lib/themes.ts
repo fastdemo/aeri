@@ -154,6 +154,21 @@ export function getThemeById(id: string | null | undefined): ThemeDef {
   return THEMES.find(t => t.id === id) ?? THEMES[0]
 }
 
+/**
+ * Perceived brightness of a theme background — decides `color-scheme` so
+ * Safari paints light scrollbars/controls on light palettes and dark ones on
+ * dark palettes.
+ */
+function isLightColor(hex: string): boolean {
+  const m = /^#([0-9a-f]{6})$/i.exec(hex.trim())
+  if (!m) return false
+  const n = parseInt(m[1], 16)
+  const r = (n >> 16) & 255
+  const g = (n >> 8) & 255
+  const b = n & 255
+  return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 > 0.5
+}
+
 export function applyTheme(id: string) {
   try {
     const theme = getThemeById(id)
@@ -162,5 +177,21 @@ export function applyTheme(id: string) {
     for (const [key, value] of Object.entries(theme.vars)) {
       root.style.setProperty(key, value)
     }
+
+    // BROWSER CHROME FOLLOWS THE THEME (D149).
+    //
+    // Safari 26 tints the window/toolbar from the page's background color —
+    // it parses <meta name="theme-color"> but no longer uses it (WebKit bug
+    // 301756). The sampled element is <body>, so the theme's --bg is painted
+    // onto <body> (and <html>) INLINE: the sampled element itself changes
+    // when the user switches themes, which is what makes Safari re-tint
+    // without a reload. The meta stays in sync for the engines that still
+    // honor it (iOS < 26, Chrome Android, Samsung Internet), which otherwise
+    // showed the boot-time near-black bar on light themes.
+    const bg = theme.vars['--bg']
+    document.body.style.backgroundColor = bg
+    root.style.backgroundColor = bg
+    root.style.colorScheme = isLightColor(bg) ? 'light' : 'dark'
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', bg)
   } catch {}
 }

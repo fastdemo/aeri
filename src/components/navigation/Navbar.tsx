@@ -115,10 +115,9 @@ export function Navbar() {
       const max = doc.scrollHeight - doc.clientHeight
       const ratio = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0
       el.style.transform = `scaleX(${ratio})`
-      // The fill carries the same neon glow as the Continue Watching bar.
-      // At scaleX(0) a box-shadow still paints at the element's origin, so
-      // the glow is only enabled once the bar actually has length — that
-      // was the old "boxy blob" at the left edge.
+      // Flat fill — no neon glow (owner instruction 2026-10-29). The fill is
+      // still hidden at zero length so a scaleX(0) bar cannot leave a
+      // subpixel sliver at the left edge.
       el.style.opacity = ratio > 0 ? '1' : '0'
     }
     const onScroll = () => { if (!raf) raf = requestAnimationFrame(paint) }
@@ -373,12 +372,10 @@ export function Navbar() {
         }`}
       />
       {/* Divider. Every page gets a hairline; the reader swaps it for a
-          scroll progress bar in the Continue Watching bar's language —
-          15% track, flat white fill WITH the same 6px neon glow
-          (`shadow-[0_0_6px_var(--text)]`). The glow is only painted once
-          the fill has length (opacity 0 at scaleX(0), set from the rAF
-          paint below), because a box-shadow on a zero-width fill still
-          paints a blob at the left edge — the old "boxy blur" artifact.
+          scroll progress bar in the Continue Watching bar's geometry —
+          15% track and a FLAT `--text` fill. No neon glow: the 6px shadow
+          was removed on the owner's instruction (2026-10-29) and the fill
+          stays hidden at zero length so scaleX(0) leaves no sliver.
           Both fade with `scrolled`, so the top of every page stays clean. */}
       {isReader ? (
         <div
@@ -390,7 +387,7 @@ export function Navbar() {
           <div
             ref={readProgressRef}
             data-testid="navbar-read-progress"
-            className="h-full w-full origin-left bg-[var(--text)] shadow-[0_0_6px_var(--text)]"
+            className="h-full w-full origin-left bg-[var(--text)]"
             style={{ transform: 'scaleX(0)', opacity: 0 }}
           />
         </div>

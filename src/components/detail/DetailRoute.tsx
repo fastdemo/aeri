@@ -219,20 +219,29 @@ function DetailSkeleton() {
  */
 function DetailPanel({ children, onClose }: { children: ReactNode; onClose: () => void }) {
   return (
-    // Same click-out-anywhere mechanics as DetailModal:
-    // the veil closes the card directly instead of a fixed backdrop button
-    // that the scroller's backdrop-filter traps in content coordinates.
-    <div onClick={onClose} className="fixed inset-x-0 bottom-0 top-14 z-40 flex items-start justify-center overflow-y-auto bg-[color-mix(in_srgb,var(--bg)_75%,transparent)] p-2 backdrop-blur-[2px] anim-fade-in sm:p-6 lg:p-8">
-      <div onClick={(e) => e.stopPropagation()} className="relative my-2 w-full max-w-[980px] overflow-hidden rounded-xl bg-[var(--bg-soft)] shadow-[0_24px_64px_var(--shadow)] anim-pop-in-center sm:my-6">
-        <button
-          onClick={onClose}
-          aria-label="Close"
-          className="absolute right-3 top-3 z-20 grid h-8 w-8 place-items-center rounded-full bg-[color-mix(in_srgb,var(--bg)_60%,transparent)] text-[var(--text)] backdrop-blur hover:bg-[color-mix(in_srgb,var(--bg)_80%,transparent)]"
-        >
-          <Icon name="x" size={14} />
-        </button>
-        {children}
+    <>
+      {/* Veil split, same as DetailModal: the tint + blur sit on a fixed,
+          NON-SCROLLING layer so `backdrop-filter` can never promote the
+          scrollable content height into one giant composited layer. */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-x-0 bottom-0 top-14 z-40 bg-[color-mix(in_srgb,var(--bg)_75%,transparent)] backdrop-blur-[2px] anim-fade-in"
+      />
+      {/* Same click-out-anywhere mechanics as DetailModal:
+          the veil closes the card directly instead of a fixed backdrop button
+          that the scroller's backdrop-filter traps in content coordinates. */}
+      <div onClick={onClose} className="fixed inset-x-0 bottom-0 top-14 z-40 flex items-start justify-center overflow-y-auto p-2 sm:p-6 lg:p-8">
+        <div onClick={(e) => e.stopPropagation()} className="relative my-2 w-full max-w-[980px] overflow-hidden rounded-xl bg-[var(--bg-soft)] shadow-[0_24px_64px_var(--shadow)] anim-pop-in-center sm:my-6">
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="absolute right-3 top-3 z-20 grid h-8 w-8 place-items-center rounded-full bg-[color-mix(in_srgb,var(--bg)_60%,transparent)] text-[var(--text)] backdrop-blur hover:bg-[color-mix(in_srgb,var(--bg)_80%,transparent)]"
+          >
+            <Icon name="x" size={14} />
+          </button>
+          {children}
+        </div>
       </div>
-    </div>
+    </>
   )
 }

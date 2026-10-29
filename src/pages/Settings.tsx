@@ -10,6 +10,8 @@ import { getProviderCapabilities, checkProviderHealth, verifiedVideoProviders } 
 import { verifiedMangaProviders } from '../providers/manga/mangadex'
 import { THEMES, applyTheme } from '../lib/themes'
 import { Icon } from '../components/ui/Icon'
+import { Switch, SwitchRow } from '../components/ui/Switch'
+import { SortableList } from '../components/ui/SortableList'
 import { pillSolid, pillSoft } from '../components/ui/buttonStyles'
 
 // Counters only — no tokens, no user data. Refreshes while visible.
@@ -130,24 +132,18 @@ export function Settings() {
   const toggleMangaProvider = (id: string, enabled: boolean) => {
     updatePref({ enabledMangaProviders: { ...(prefs.enabledMangaProviders ?? {}), [id]: enabled } })
   }
-  const moveMangaProvider = (id: string, dir: -1|1) => {
-    const currentOrder = prefs.mangaProviderOrder ?? orderedMangaProviders.map(p => p.id)
-    const idx = currentOrder.indexOf(id)
-    if (idx < 0) return
-    const nIdx = idx + dir
-    if (nIdx < 0 || nIdx >= currentOrder.length) return
-    const next = [...currentOrder]
-    const tmp = next[idx]; next[idx]=next[nIdx]; next[nIdx]=tmp
+  const reorderMangaProvider = (from: number, to: number) => {
+    const next = orderedMangaProviders.map(p => p.id)
+    const [moved] = next.splice(from, 1)
+    if (!moved) return
+    next.splice(to, 0, moved)
     updatePref({ mangaProviderOrder: next })
   }
-  const moveProvider = (id: string, dir: -1|1) => {
-    const currentOrder = prefs.providerOrder ?? shownVideoCaps.map(c=>c.id)
-    const idx = currentOrder.indexOf(id)
-    if (idx < 0) return
-    const nIdx = idx + dir
-    if (nIdx < 0 || nIdx >= currentOrder.length) return
-    const next = [...currentOrder]
-    const tmp = next[idx]; next[idx]=next[nIdx]; next[nIdx]=tmp
+  const reorderProvider = (from: number, to: number) => {
+    const next = orderedCaps.map(c => c.id)
+    const [moved] = next.splice(from, 1)
+    if (!moved) return
+    next.splice(to, 0, moved)
     updatePref({ providerOrder: next })
   }
   const orderedCaps = (() => {
@@ -237,16 +233,14 @@ export function Settings() {
                   ['progress', 'Episodes watched'],
                   ['rating', 'Score'],
                 ] as const).map(([field, label]) => (
-                  <label key={field} className="flex cursor-pointer items-center gap-1.5 text-xs text-[var(--text-muted)]">
-                    <input
-                      type="checkbox"
+                  <div key={field} className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
+                    <Switch
                       checked={syncOn('anilist', field)}
-                      onChange={e => setSync('anilist', field, e.target.checked)}
-                      className="h-3.5 w-3.5 rounded border-[var(--border-strong)] bg-[color-mix(in_srgb,var(--text)_10%,transparent)]"
-                      aria-label={`Sync ${label} to AniList`}
+                      onChange={v => setSync('anilist', field, v)}
+                      label={`Sync ${label} to AniList`}
                     />
                     {label}
-                  </label>
+                  </div>
                 ))}
               </div>
             )}
@@ -298,16 +292,14 @@ export function Settings() {
                   ['progress', 'Episodes watched'],
                   ['rating', 'Score'],
                 ] as const).map(([field, label]) => (
-                  <label key={field} className="flex cursor-pointer items-center gap-1.5 text-xs text-[var(--text-muted)]">
-                    <input
-                      type="checkbox"
+                  <div key={field} className="flex items-center gap-2 text-xs text-[var(--text-muted)]">
+                    <Switch
                       checked={syncOn('mal', field)}
-                      onChange={e => setSync('mal', field, e.target.checked)}
-                      className="h-3.5 w-3.5 rounded border-[var(--border-strong)] bg-[color-mix(in_srgb,var(--text)_10%,transparent)]"
-                      aria-label={`Sync ${label} to MyAnimeList`}
+                      onChange={v => setSync('mal', field, v)}
+                      label={`Sync ${label} to MyAnimeList`}
                     />
                     {label}
-                  </label>
+                  </div>
                 ))}
               </div>
             )}
@@ -321,33 +313,21 @@ export function Settings() {
         <h2 className="text-sm font-semibold text-[var(--text)]">Anime</h2>
         <p className="mt-1 text-xs text-[var(--text-faint)]">Playback behavior and how Aeri picks video sources.</p>
         <div className="mt-4 space-y-4">
-          <label className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-xs font-medium text-[var(--text)]">Autoplay next episode</p>
-              <p className="text-[11px] text-[var(--text-faint)]">When a video ends, automatically go to the next episode (if available).</p>
-            </div>
-            <input
-              type="checkbox"
-              checked={prefs.autoplay}
-              onChange={e => updatePref({ autoplay: e.target.checked })}
-              className="h-4 w-4 rounded border-[var(--border-strong)] bg-[color-mix(in_srgb,var(--text)_10%,transparent)] text-[var(--text)] focus:ring-[var(--border-strong)]"
-              aria-label="Autoplay next episode"
-            />
-          </label>
+          <SwitchRow
+            checked={prefs.autoplay}
+            onChange={v => updatePref({ autoplay: v })}
+            label="Autoplay next episode"
+            description="When a video ends, automatically go to the next episode (if available)."
+            ariaLabel="Autoplay next episode"
+          />
 
-          <label className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-xs font-medium text-[var(--text)]">Subtitles</p>
-              <p className="text-[11px] text-[var(--text-faint)]">Show subtitles by default when the provider supplies them.</p>
-            </div>
-            <input
-              type="checkbox"
-              checked={prefs.subtitles}
-              onChange={e => updatePref({ subtitles: e.target.checked })}
-              className="h-4 w-4 rounded border-[var(--border-strong)] bg-[color-mix(in_srgb,var(--text)_10%,transparent)] text-[var(--text)] focus:ring-[var(--border-strong)]"
-              aria-label="Subtitles on"
-            />
-          </label>
+          <SwitchRow
+            checked={prefs.subtitles}
+            onChange={v => updatePref({ subtitles: v })}
+            label="Subtitles"
+            description="Show subtitles by default when the provider supplies them."
+            ariaLabel="Subtitles on"
+          />
 
           <div className="flex items-center justify-between gap-4">
             <div>
@@ -362,7 +342,7 @@ export function Settings() {
               value={prefs.volume}
               onChange={e => updatePref({ volume: Number(e.target.value) })}
               aria-label="Default volume"
-              className="w-24 accent-[var(--accent)]"
+              className="w-24 accent-[var(--text)]"
             />
           </div>
           <div>
@@ -389,35 +369,45 @@ export function Settings() {
           <div className="space-y-2 pt-2">
             <p className="text-xs font-medium text-[var(--text)]">Anime providers</p>
             <p className="text-[11px] text-[var(--text-faint)]">Only verified working providers are listed.</p>
-            <div className="overflow-hidden rounded-lg border border-[var(--border)]">
-              {orderedCaps.map((c, idx) => {
+            <SortableList
+              items={orderedCaps}
+              getId={c => c.id}
+              getLabel={c => c.displayName}
+              onReorder={reorderProvider}
+              className="rounded-lg border border-[var(--border)]"
+              renderRow={(c, idx, row) => {
                 const enabled = isEnabled(c.id)
                 const h = health?.[c.id]
                 const isAvailable = h === 'available'
                 const dotColor = h ? (isAvailable ? 'bg-[var(--ok)]' : 'bg-[color-mix(in_srgb,var(--text)_20%,transparent)]') : 'bg-[color-mix(in_srgb,var(--text)_10%,transparent)]'
                 const label = h ? (isAvailable ? 'Available' : 'Unavailable') : '…'
+                const isFirst = idx === 0
+                const isLast = idx === orderedCaps.length - 1
+                const radius = row.isDragging ? 'rounded-md' : `${isFirst ? 'rounded-t-lg' : ''} ${isLast ? 'rounded-b-lg' : ''}`
                 return (
-                  <div key={c.id} className={`flex items-center justify-between gap-3 px-3 py-2.5 ${idx !== orderedCaps.length-1 ? 'border-b border-[var(--border)]' : ''} ${enabled ? 'bg-[var(--text)]/[0.02]' : 'bg-[color-mix(in_srgb,var(--bg)_20%,transparent)] opacity-60'}`}>
-                    <div className="flex items-center gap-2 min-w-0">
+                  <div
+                    key={c.id}
+                    ref={row.rowRef}
+                    style={row.rowStyle}
+                    data-provider-row
+                    className={`flex items-center justify-between gap-3 px-3 py-2.5 ${isLast ? '' : 'border-b border-[var(--border)]'} ${radius} ${row.isDragging ? 'bg-[var(--surface-elevated)] shadow-[0_16px_36px_var(--shadow)] ring-1 ring-[color-mix(in_srgb,var(--text)_24%,transparent)]' : enabled ? 'bg-[var(--text)]/[0.02]' : 'bg-[color-mix(in_srgb,var(--bg)_20%,transparent)]'} transition-colors duration-300 ease-out`}
+                  >
+                    <div className={`flex min-w-0 items-center gap-2 transition-opacity duration-300 ease-out ${enabled ? 'opacity-100' : 'opacity-50'}`}>
+                      <button {...row.handleProps} className="-ml-1 grid h-7 w-6 shrink-0 cursor-grab touch-none place-items-center rounded text-[color-mix(in_srgb,var(--text)_35%,transparent)] hover:text-[var(--text)] active:cursor-grabbing focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--border-strong)]">
+                        <Icon name="grip-vertical" size={14} />
+                      </button>
                       <span className={`h-2 w-2 rounded-full shrink-0 ${dotColor}`} aria-hidden />
                       <div className="min-w-0">
                         <p className="text-xs font-medium text-[var(--text)] truncate">{c.displayName}</p>
                         <p className="text-[10px] text-[var(--text-faint)]">{c.languages.join('/')} {c.embed ? '• embed' : ''} {c.directVideo ? '• video' : ''} • <span className={isAvailable ? 'text-[var(--ok)]' : 'text-[color-mix(in_srgb,var(--text)_30%,transparent)]'}>{label}</span>{h === 'unavailable' && <span className="text-[color-mix(in_srgb,var(--text)_20%,transparent)]"> — Requires backend</span>}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <button onClick={()=>moveProvider(c.id,-1)} disabled={idx===0} className="h-6 w-6 grid place-items-center rounded text-[var(--text-faint)] hover:text-[var(--text)] disabled:opacity-20" aria-label={`Move ${c.displayName} up`}><Icon name="arrow-up-short" size={14} /></button>
-                      <button onClick={()=>moveProvider(c.id,1)} disabled={idx===orderedCaps.length-1} className="h-6 w-6 grid place-items-center rounded text-[var(--text-faint)] hover:text-[var(--text)] disabled:opacity-20" aria-label={`Move ${c.displayName} down`}><Icon name="arrow-down-short" size={14} /></button>
-                      <label className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
-                        <input type="checkbox" checked={enabled} onChange={e=>toggleProvider(c.id, e.target.checked)} className="h-3.5 w-3.5 rounded border-[var(--border-strong)] bg-[color-mix(in_srgb,var(--text)_10%,transparent)]" aria-label={`Enable ${c.displayName}`} />
-                        <span className="hidden sm:inline">Enable</span>
-                      </label>
-                    </div>
+                    <Switch checked={enabled} onChange={v => toggleProvider(c.id, v)} label={`Enable ${c.displayName}`} />
                   </div>
                 )
-              })}
-            </div>
-            <p className="text-[11px] text-[color-mix(in_srgb,var(--text)_30%,transparent)]">Disable providers you don’t want to try. Reorder with ↑/↓ — resolution follows this order.</p>
+              }}
+            />
+            <p className="text-[11px] text-[color-mix(in_srgb,var(--text)_30%,transparent)]">Disable providers you don’t want to try. Drag the grip to reorder — or focus it and press ↑/↓. Resolution follows this order.</p>
           </div>
           <div className="space-y-2 pt-4 border-t border-[var(--border)]">
             <p className="text-xs font-medium text-[var(--text)]">Custom video server (optional)</p>
@@ -479,30 +469,40 @@ export function Settings() {
         <div className="space-y-2 pt-4">
           <p className="text-xs font-medium text-[var(--text)]">Manga providers</p>
           <p className="text-[11px] text-[var(--text-faint)]">Only verified working providers are listed. Disabled providers are never requested.</p>
-          <div className="overflow-hidden rounded-lg border border-[var(--border)]">
-            {orderedMangaProviders.map((p, idx) => {
+          <SortableList
+            items={orderedMangaProviders}
+            getId={p => p.id}
+            getLabel={p => p.name}
+            onReorder={reorderMangaProvider}
+            className="rounded-lg border border-[var(--border)]"
+            renderRow={(p, idx, row) => {
               const enabled = isMangaEnabled(p.id)
+              const isFirst = idx === 0
+              const isLast = idx === orderedMangaProviders.length - 1
+              const radius = row.isDragging ? 'rounded-md' : `${isFirst ? 'rounded-t-lg' : ''} ${isLast ? 'rounded-b-lg' : ''}`
               return (
-                <div key={p.id} className={`flex items-center justify-between gap-3 px-3 py-2.5 ${idx !== orderedMangaProviders.length-1 ? 'border-b border-[var(--border)]' : ''} ${enabled ? 'bg-[var(--text)]/[0.02]' : 'bg-[color-mix(in_srgb,var(--bg)_20%,transparent)] opacity-60'}`}>
-                  <div className="flex items-center gap-2 min-w-0">
+                <div
+                  key={p.id}
+                  ref={row.rowRef}
+                  style={row.rowStyle}
+                  data-provider-row
+                  className={`flex items-center justify-between gap-3 px-3 py-2.5 ${isLast ? '' : 'border-b border-[var(--border)]'} ${radius} ${row.isDragging ? 'bg-[var(--surface-elevated)] shadow-[0_16px_36px_var(--shadow)] ring-1 ring-[color-mix(in_srgb,var(--text)_24%,transparent)]' : enabled ? 'bg-[var(--text)]/[0.02]' : 'bg-[color-mix(in_srgb,var(--bg)_20%,transparent)]'} transition-colors duration-300 ease-out`}
+                >
+                  <div className={`flex min-w-0 items-center gap-2 transition-opacity duration-300 ease-out ${enabled ? 'opacity-100' : 'opacity-50'}`}>
+                    <button {...row.handleProps} className="-ml-1 grid h-7 w-6 shrink-0 cursor-grab touch-none place-items-center rounded text-[color-mix(in_srgb,var(--text)_35%,transparent)] hover:text-[var(--text)] active:cursor-grabbing focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--border-strong)]">
+                      <Icon name="grip-vertical" size={14} />
+                    </button>
                     <div className="min-w-0">
                       <p className="text-xs font-medium text-[var(--text)] truncate">{p.name}</p>
                       <p className="text-[10px] text-[var(--text-faint)]">{p.blurb} • <span className="text-[var(--ok)]">Verified</span></p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button onClick={()=>moveMangaProvider(p.id,-1)} disabled={idx===0} className="h-6 w-6 grid place-items-center rounded text-[var(--text-faint)] hover:text-[var(--text)] disabled:opacity-20" aria-label={`Move ${p.name} up`}><Icon name="arrow-up-short" size={14} /></button>
-                    <button onClick={()=>moveMangaProvider(p.id,1)} disabled={idx===orderedMangaProviders.length-1} className="h-6 w-6 grid place-items-center rounded text-[var(--text-faint)] hover:text-[var(--text)] disabled:opacity-20" aria-label={`Move ${p.name} down`}><Icon name="arrow-down-short" size={14} /></button>
-                    <label className="flex items-center gap-1.5 text-xs text-[var(--text-muted)]">
-                      <input type="checkbox" checked={enabled} onChange={e=>toggleMangaProvider(p.id, e.target.checked)} className="h-3.5 w-3.5 rounded border-[var(--border-strong)] bg-[color-mix(in_srgb,var(--text)_10%,transparent)]" aria-label={`Enable ${p.name}`} />
-                      <span className="hidden sm:inline">Enable</span>
-                    </label>
-                  </div>
+                  <Switch checked={enabled} onChange={v => toggleMangaProvider(p.id, v)} label={`Enable ${p.name}`} />
                 </div>
               )
-            })}
-          </div>
-          <p className="text-[11px] text-[color-mix(in_srgb,var(--text)_30%,transparent)]">Disable providers you don’t want to try. Reorder with ↑/↓ — resolution follows this order.</p>
+            }}
+          />
+          <p className="text-[11px] text-[color-mix(in_srgb,var(--text)_30%,transparent)]">Disable providers you don’t want to try. Drag the grip to reorder — or focus it and press ↑/↓. Resolution follows this order.</p>
         </div>
       </section>
 
