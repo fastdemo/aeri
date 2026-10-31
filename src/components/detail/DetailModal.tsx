@@ -315,24 +315,25 @@ export function DetailModal({
             <img src={displayAnime.backdropImage || anime.backdropImage} alt="" className="h-full w-full object-cover" loading="eager" />
             <div
               aria-hidden
-              className="absolute inset-0"
-              style={{
-                background:
-                  'linear-gradient(180deg, color-mix(in srgb, var(--bg) 55%, transparent) 0%, transparent 22%, transparent 55%, color-mix(in srgb, var(--bg) 45%, transparent) 78%, var(--bg) 100%)',
-              }}
+              className="detail-banner-scrim absolute inset-0"
             />
             <div className="absolute left-6 top-6 hidden max-w-[520px] sm:block">
-              <h2 className="text-[28px] font-semibold leading-none tracking-tighter text-[var(--text)] drop-shadow">
+              <h2 className="hero-copy-shadow text-[28px] font-semibold leading-none tracking-tighter text-[var(--text)] drop-shadow">
                 {titles.primary}
               </h2>
-              {titles.native && <p className="mt-1 text-xs text-[var(--text-muted)]">{titles.native}</p>}
-              {titles.romaji && <p className="mt-1 text-[11px] tracking-wide text-[var(--text-faint)]">{titles.romaji}</p>}
+              {titles.native && <p className="hero-copy-shadow mt-1 text-xs text-[var(--text-muted)]">{titles.native}</p>}
+              {titles.romaji && <p className="hero-copy-shadow mt-1 text-[11px] tracking-wide text-[var(--text-faint)]">{titles.romaji}</p>}
             </div>
 
             <div className="absolute bottom-0 left-0 right-0 flex flex-wrap items-center gap-2 px-4 pb-4 sm:px-6">
+              {/* Watched progress on the preview card (anime AND manga).
+                  D155: neon — the fill glows in its OWN ink (6px --text),
+                  matching the Continue Watching pill, instead of a --shadow
+                  halo that read as a flat smear. The 2px track sits on the
+                  banner's bottom gradient, so it never floats on raw art. */}
               {barPercent > 0 && (
                 <div className="absolute bottom-0 left-0 right-0 h-[2px] bg-[color-mix(in_srgb,var(--text)_15%,transparent)]">
-                  <div className="h-full bg-[var(--text)] shadow-[0_0_8px_var(--shadow)]" style={{ width: `${barPercent}%` }} />
+                  <div className="h-full bg-[var(--text)] shadow-[0_0_6px_var(--text)]" style={{ width: `${barPercent}%` }} />
                 </div>
               )}
 

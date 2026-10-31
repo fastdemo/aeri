@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, NavLink, useNavigate, useLocation } from 'react-router-dom'
 import { useAniList } from '../../contexts/AniListContext'
 import { useMAL } from '../../contexts/MALContext'
@@ -81,10 +81,44 @@ export function Navbar() {
   const user = trackingProvider === 'mal' ? (malUser ?? anilistUser ?? null) : (anilistUser ?? malUser ?? null)
 
   useEffect(() => {
+    // `scrolled` drives whether the bar paints its solid background. A hard
+    // refresh, a resize/orientation flip, or returning from the media
+    // player's FULLSCREEN (iOS restores the scroll offset without firing
+    // `scroll` in some cases) can leave the flag stale — the bar then shows
+    // only the transparent gradient over content, which the owner reported
+    // as "a weird transparency gradient on top of the navbar" after
+    // exiting fullscreen (2026-10-30). Re-read the offset on every event
+    // that can restore or change the viewport.
     const onScroll = () => setScrolled(window.scrollY > 10)
+    let raf = 0
+    const onViewport = () => {
+      onScroll()
+      // iOS may finish restoring the scroll position one frame later.
+      cancelAnimationFrame(raf)
+      raf = requestAnimationFrame(onScroll)
+    }
     onScroll()
     window.addEventListener('scroll', onScroll, { passive: true })
-    return () => window.removeEventListener('scroll', onScroll)
+    window.addEventListener('resize', onViewport)
+    window.addEventListener('orientationchange', onViewport)
+    window.addEventListener('pageshow', onViewport)
+    document.addEventListener('visibilitychange', onViewport)
+    document.addEventListener('fullscreenchange', onViewport)
+    document.addEventListener('webkitfullscreenchange', onViewport)
+    // Native <video> fullscreen on iOS fires these on the video element and
+    // they do NOT bubble — capture catches them.
+    document.addEventListener('webkitendfullscreen', onViewport, true)
+    return () => {
+      cancelAnimationFrame(raf)
+      window.removeEventListener('scroll', onScroll)
+      window.removeEventListener('resize', onViewport)
+      window.removeEventListener('orientationchange', onViewport)
+      window.removeEventListener('pageshow', onViewport)
+      document.removeEventListener('visibilitychange', onViewport)
+      document.removeEventListener('fullscreenchange', onViewport)
+      document.removeEventListener('webkitfullscreenchange', onViewport)
+      document.removeEventListener('webkitendfullscreen', onViewport, true)
+    }
   }, [])
 
   // Reader progress: on /read/* the navbar's divider is a scroll progress
@@ -247,6 +281,9 @@ export function Navbar() {
     { to: '/list', label: 'My List' },
   ]
 
+  // GitHub is NOT in the navbar (owner 2026-10-31). The top bar carries only
+  // the four routes; the repo link lives in the page footer and in Settings.
+
   // Signed-out My List: prompt sign-in, never navigate to a page that can
   // only show a locked state. Shared by the live nav and the measurer copy
   // (the measurer's copy never fires — it is visibility:hidden).
@@ -283,7 +320,13 @@ export function Navbar() {
   const barRef = useRef<HTMLDivElement>(null)
   const measureRef = useRef<HTMLDivElement>(null)
   const [navFits, setNavFits] = useState(false)
-  useEffect(() => {
+  // LAYOUT effect, not passive: measuring after the first paint let the
+  // compact bar (menu + search icon) paint for a frame before flipping to
+  // the inline links + search input — a visible "pop" on every hard refresh,
+  // worse the slower the bundle is (owner report 2026-10-30). The measurer
+  // is always mounted, so the read is valid before the first paint and the
+  // state flip lands in the same frame.
+  useLayoutEffect(() => {
     const measure = () => {
       const bar = barRef.current
       const m = measureRef.current
@@ -352,7 +395,7 @@ export function Navbar() {
     <>
     {measurer}
     <header
-      className="fixed inset-x-0 top-0 z-50 h-14 touch-manipulation"
+      className="fixed inset-x-0 top-0 z-50 isolate h-14 touch-manipulation"
       style={{ touchAction: 'manipulation' } as any}
       aria-label="Primary"
     >
@@ -360,15 +403,22 @@ export function Navbar() {
           swap. `transition-colors` cannot animate a gradient (background
           images are not interpolable), so the old bar flipped from gradient
           to solid in a single frame — read as a flash. The gradient now
-          stays put and the solid bar fades in over it. */}
+          stays put and the solid bar fades in over it.
+          OPAQUE + NO BACKDROP FILTER (owner report 2026-10-30): the scrolled
+          bar used to be `bg/95 + backdrop-blur-md`. On iOS, returning from
+          the video player's native fullscreen left the backdrop layer
+          sampling the fullscreen frame — a smeared "transparency gradient"
+          over the navbar. The bar is now a flat `--bg` once scrolled; the
+          design system bans glassmorphism anyway, and at 95% opacity the
+          blur was barely visible on the page background. */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[color-mix(in_srgb,var(--bg)_70%,transparent)] via-[var(--bg)] to-transparent"
+        className="nav-top-fade pointer-events-none absolute inset-0"
       />
       <div
         aria-hidden
-        className={`pointer-events-none absolute inset-0 bg-[var(--bg)]/95 transition-opacity duration-300 ${
-          scrolled ? 'opacity-100 backdrop-blur-md' : 'opacity-0'
+        className={`pointer-events-none absolute inset-0 bg-[var(--bg)] transition-opacity duration-300 ${
+          scrolled ? 'opacity-100' : 'opacity-0'
         }`}
       />
       {/* Divider. Every page gets a hairline; the reader swaps it for a
@@ -417,7 +467,9 @@ export function Navbar() {
           </Link>
 
           {navFits ? (
-          <SectionLinks items={desktopNav} onSelect={onSectionClick} />
+          <>
+            <SectionLinks items={desktopNav} onSelect={onSectionClick} />
+          </>
           ) : (
           /* on small scalings the menu + search
              triggers match the BELL — same 32px hitbox, same muted rest
@@ -454,7 +506,15 @@ export function Navbar() {
                 aria-label="Search anime"
                 aria-expanded={showSuggestions}
                 aria-controls="search-suggestions"
-                className="h-8 w-[150px] rounded-full border border-[var(--border)] bg-[var(--text)]/[0.08] py-0 pl-8 pr-3 text-[13px] text-[var(--text)] placeholder:text-[var(--text-faint)] backdrop-blur focus:border-[var(--border-strong)] focus:bg-[var(--text)]/[0.12] focus:outline-none lg:w-[200px] lg:focus:w-[240px] transition-all"
+                autoComplete="off"
+                spellCheck={false}
+                /* NO backdrop-filter and no `transition-all` (owner report
+                   2026-10-30): Safari left a spinner-like ghost inside the
+                   field while a hard refresh was still painting. The input
+                   sits on the opaque navbar anyway, so the 8% fill is all
+                   the depth it needs — and transitioning `backdrop-filter`
+                   re-blurred the area behind the field every frame. */
+                className="h-8 w-[150px] rounded-full border border-[var(--border)] bg-[var(--text)]/[0.08] py-0 pl-8 pr-3 text-[13px] text-[var(--text)] placeholder:text-[var(--text-faint)] transition-[width,background-color,border-color] focus:border-[var(--border-strong)] focus:bg-[var(--text)]/[0.12] focus:outline-none lg:w-[200px] lg:focus:w-[240px]"
               />
               <Icon
                 name="search"

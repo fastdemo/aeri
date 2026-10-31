@@ -129,6 +129,117 @@ video {
   mask-composite: exclude;
 }
 
+/* Continue Watching progress (owner 2026-10-29, D155 2026-10-31): a floating
+   neon pill over a bottom scrim. No backdrop filter — D154's 8px track frost
+   went away with the fixed-neutral palette it was frosting; the scrim is what
+   guarantees contrast now. This class stays as the scroll-quiet hook below. */
+.continue-progress {
+  /* scroll-quiet hook — see html[data-scrolling='1'] .continue-progress */
+}
+
+/* CONTINUE-CARD BOTTOM SCRIM (D155, smoothed D156): the pill sits on a
+   theme-gradient bed — the same language as the Watch page episode thumbs —
+   so a theme-ink bar never lands on artwork that matches its own ink. D156
+   eased the ramp: 3 widely spaced stops over 40px read as a milky band with a
+   visible top edge; nine tapering stops make it a vignette. The bottom stays
+   fully `--bg` so the card's edge melts into the page instead of ending on a
+   lighter line. */
+.continue-scrim {
+  background: linear-gradient(
+    to top,
+    var(--bg) 0%,
+    color-mix(in srgb, var(--bg) 88%, transparent) 22%,
+    color-mix(in srgb, var(--bg) 70%, transparent) 40%,
+    color-mix(in srgb, var(--bg) 52%, transparent) 56%,
+    color-mix(in srgb, var(--bg) 34%, transparent) 70%,
+    color-mix(in srgb, var(--bg) 19%, transparent) 82%,
+    color-mix(in srgb, var(--bg) 8%, transparent) 91%,
+    color-mix(in srgb, var(--bg) 0%, transparent) 100%
+  );
+}
+
+/* ── EVERY OTHER PAGE GRADIENT (D156) ─────────────────────────────────────
+   Same fix as the hero scrims, applied to every remaining ramp on the site.
+   All of them were 2-stop fades between a partially transparent `--bg` and
+   the `transparent` keyword over a short box, which on a light theme (a
+   near-white `--bg`) reads as a milky strip with a visible edge where the
+   element ends. Each is now a tapering multi-stop ramp that reaches zero
+   before its box edge, and every zero end is same-hue (`--bg 0%`), never the
+   keyword, so the interpolation never crosses another colour. */
+
+/* Top bar backdrop: nav copy stays readable over any page content. The old
+   version was a gradient with an OPAQUE `--bg` plateau in the middle (via
+   --bg), so the bar had a solid band inside a soft one — the "weird
+   transparency gradient" shape. It is now monotone. */
+.nav-top-fade {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg) 70%, transparent) 0%,
+    color-mix(in srgb, var(--bg) 62%, transparent) 20%,
+    color-mix(in srgb, var(--bg) 46%, transparent) 40%,
+    color-mix(in srgb, var(--bg) 29%, transparent) 60%,
+    color-mix(in srgb, var(--bg) 14%, transparent) 78%,
+    color-mix(in srgb, var(--bg) 4%, transparent) 91%,
+    color-mix(in srgb, var(--bg) 0%, transparent) 100%
+  );
+}
+
+/* Row arrows: the 56px hover plate behind each chevron. A 75%→0 two-stop fade
+   over 56px left a visible straight seam at the plate's outer edge; the ramp
+   now tapers to zero. */
+.row-arrow-fade-l {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--bg) 78%, transparent) 0%,
+    color-mix(in srgb, var(--bg) 68%, transparent) 18%,
+    color-mix(in srgb, var(--bg) 52%, transparent) 36%,
+    color-mix(in srgb, var(--bg) 34%, transparent) 54%,
+    color-mix(in srgb, var(--bg) 19%, transparent) 70%,
+    color-mix(in srgb, var(--bg) 7%, transparent) 84%,
+    color-mix(in srgb, var(--bg) 0%, transparent) 100%
+  );
+}
+.row-arrow-fade-r {
+  background: linear-gradient(
+    270deg,
+    color-mix(in srgb, var(--bg) 78%, transparent) 0%,
+    color-mix(in srgb, var(--bg) 68%, transparent) 18%,
+    color-mix(in srgb, var(--bg) 52%, transparent) 36%,
+    color-mix(in srgb, var(--bg) 34%, transparent) 54%,
+    color-mix(in srgb, var(--bg) 19%, transparent) 70%,
+    color-mix(in srgb, var(--bg) 7%, transparent) 84%,
+    color-mix(in srgb, var(--bg) 0%, transparent) 100%
+  );
+}
+
+/* Watch page: the idle player's bottom fade (no video yet). */
+.watch-idle-fade {
+  background: linear-gradient(
+    to top,
+    color-mix(in srgb, var(--bg) 60%, transparent) 0%,
+    color-mix(in srgb, var(--bg) 48%, transparent) 22%,
+    color-mix(in srgb, var(--bg) 33%, transparent) 45%,
+    color-mix(in srgb, var(--bg) 18%, transparent) 66%,
+    color-mix(in srgb, var(--bg) 7%, transparent) 84%,
+    color-mix(in srgb, var(--bg) 0%, transparent) 100%
+  );
+}
+
+/* Watch page: an episode thumbnail dissolving into the tile's own base colour
+   so the tile edge disappears into the page in every theme. */
+.watch-tile-fade {
+  background: linear-gradient(
+    to top,
+    var(--bg) 0%,
+    color-mix(in srgb, var(--bg) 82%, transparent) 18%,
+    color-mix(in srgb, var(--bg) 62%, transparent) 34%,
+    color-mix(in srgb, var(--bg) 42%, transparent) 50%,
+    color-mix(in srgb, var(--bg) 24%, transparent) 66%,
+    color-mix(in srgb, var(--bg) 10%, transparent) 82%,
+    color-mix(in srgb, var(--bg) 0%, transparent) 100%
+  );
+}
+
 /* SOFT FRAME (cards): the same 1px hairline plus a short inward glow, so the
    edge reads soft like the frosted hero rim. Deliberately NO backdrop-filter
    here: 30-100 cards per page each capturing the backdrop re-introduced the
@@ -178,27 +289,24 @@ html[data-scrolling='1'] .card-frost {
   /* Instant, not a 200ms fade: a scroll must not animate the frost at all. */
   transition: none !important;
 }
-html[data-scrolling='1'] .hover-only-control:not([aria-expanded='true']),
+/* ROW ARROWS ARE NOT CARD AFFORDANCES. They are excluded from the
+   scroll-quiet suppression: hiding them the moment their own click starts a
+   smooth scroll (and showing them again 140ms after it settles) was the
+   arrow "disappear then come back" flicker — owner report 2026-10-29. */
+html[data-scrolling='1'] .hover-only-control:not([aria-expanded='true']):not(.row-arrow),
 html[data-scrolling='1'] .card-hover-caption {
   opacity: 0 !important;
+}
+/* Continue Watching progress is DATA, not a hover affordance: it stays
+   painted while a scroller moves, so a card passing under a parked cursor
+   never loses its bar (the hover caption above is what gets suppressed). */
+html[data-scrolling='1'] .continue-progress {
+  opacity: 1 !important;
 }
 /* The hover brighten (0.96 → 1) is part of the same hover state; pinning it
    during a scroll keeps a card passing under the cursor visually still. */
 html[data-scrolling='1'] .card-art img.img-fade.is-loaded {
   opacity: 0.96 !important;
-}
-
-/* CRISP FRAME (Continue Watching only). The continue tile stacks artwork over
-   a caption block on the page background, so the soft frame's inward glow
-   bleeds across that seam and reads as a blurred/out-of-focus border. This
-   variant draws the SAME hairline weight with zero glow: one clean 1px edge.
-   Every other card keeps .frame-soft. */
-.frame-crisp {
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  box-shadow: inset 0 0 0 1px var(--border-card);
 }
 
 /* PLAYER SURFACE: the page paints nothing behind the video (no wrapper fill,
@@ -364,6 +472,100 @@ img.img-fade.is-loaded { opacity: 0.96; }
 .hero-desc { display: none; }
 @media (min-width: 640px) {
   .hero-desc { display: -webkit-box; }
+}
+
+/* ── HERO SCRIMS (D156 2026-10-31) ────────────────────────────────────────
+   ONE definition shared by the static Hero and HeroCarousel slides (they
+   used to carry byte-identical inline gradients twice — drift waiting to
+   happen). Owner: "fix every single gradient on the website ... the
+   gradients look weird i cant explain why but it looks weird."
+
+   The weirdness was the RAMP, not the colour: each scrim jumped between 3–5
+   widely spaced stops, so on a mid-tone artwork the falloff read as a milky
+   panel with a faint straight edge instead of a natural fade. Every scrim on
+   the site is now a deeply-eased multi-stop ramp (the alpha steps taper as
+   they approach zero) and every zero end is written as
+   `color-mix(--bg 0%, transparent)` — same hue at zero alpha instead of the
+   `transparent` keyword, so interpolation never crosses a different colour.
+
+   The left scrim stays COLUMN-BOUND (720px, never full-bleed): a full-width
+   scrim buries the artwork's left edge in near-black and reads as a crop. */
+.hero-scrim-left {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--bg) 92%, transparent) 0%,
+    color-mix(in srgb, var(--bg) 86%, transparent) 12%,
+    color-mix(in srgb, var(--bg) 74%, transparent) 26%,
+    color-mix(in srgb, var(--bg) 60%, transparent) 40%,
+    color-mix(in srgb, var(--bg) 46%, transparent) 54%,
+    color-mix(in srgb, var(--bg) 32%, transparent) 68%,
+    color-mix(in srgb, var(--bg) 20%, transparent) 80%,
+    color-mix(in srgb, var(--bg) 10%, transparent) 90%,
+    color-mix(in srgb, var(--bg) 0%, transparent) 100%
+  );
+}
+.hero-scrim-bottom {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg) 0%, transparent) 0%,
+    color-mix(in srgb, var(--bg) 3%, transparent) 12%,
+    color-mix(in srgb, var(--bg) 9%, transparent) 26%,
+    color-mix(in srgb, var(--bg) 20%, transparent) 40%,
+    color-mix(in srgb, var(--bg) 36%, transparent) 54%,
+    color-mix(in srgb, var(--bg) 56%, transparent) 68%,
+    color-mix(in srgb, var(--bg) 76%, transparent) 82%,
+    color-mix(in srgb, var(--bg) 90%, transparent) 92%,
+    var(--bg) 100%
+  );
+}
+.hero-scrim-top {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg) 40%, transparent) 0%,
+    color-mix(in srgb, var(--bg) 30%, transparent) 30%,
+    color-mix(in srgb, var(--bg) 17%, transparent) 55%,
+    color-mix(in srgb, var(--bg) 8%, transparent) 75%,
+    color-mix(in srgb, var(--bg) 2%, transparent) 90%,
+    color-mix(in srgb, var(--bg) 0%, transparent) 100%
+  );
+}
+
+/* PREVIEW-CARD BANNER SCRIM (D156): the detail overlay's banner used a 5-stop
+   gradient with two hard `transparent` plateaus (opaque 0–22%, clear 22–55%,
+   then back down), which read as a visible shelf across the artwork. One
+   continuous eased ramp now: a dark/light cap under the close button, a clean
+   window across the middle, then a deep blend into the modal body so the
+   2px progress bar always has a solid bed. */
+.detail-banner-scrim {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--bg) 62%, transparent) 0%,
+    color-mix(in srgb, var(--bg) 52%, transparent) 10%,
+    color-mix(in srgb, var(--bg) 36%, transparent) 22%,
+    color-mix(in srgb, var(--bg) 18%, transparent) 34%,
+    color-mix(in srgb, var(--bg) 4%, transparent) 45%,
+    color-mix(in srgb, var(--bg) 0%, transparent) 53%,
+    color-mix(in srgb, var(--bg) 4%, transparent) 62%,
+    color-mix(in srgb, var(--bg) 16%, transparent) 72%,
+    color-mix(in srgb, var(--bg) 34%, transparent) 82%,
+    color-mix(in srgb, var(--bg) 58%, transparent) 90%,
+    color-mix(in srgb, var(--bg) 82%, transparent) 96%,
+    var(--bg) 100%
+  );
+}
+
+/* Hero copy legibility (D154, halved D156). The left scrim is 720px wide with
+   a slow falloff, but a very bright frame (or a light theme over a dark one)
+   can still leave copy on a mid-tone. A soft theme-aware shadow — `--shadow`
+   is 60% black on dark themes and 18% on light ones — separates the type
+   from the artwork without changing layout or painting a panel. D156 halves
+   its alpha (the owner asked for half the intensity); geometry is unchanged,
+   so the 8px layer is still the contract the contrast test pins. Also used by
+   the anime/manga preview card's banner title (same art, same problem). */
+.hero-copy-shadow {
+  text-shadow:
+    0 1px 2px color-mix(in srgb, var(--shadow) 50%, transparent),
+    0 2px 8px color-mix(in srgb, var(--shadow) 50%, transparent);
 }
 
 /* thumbnail-only hover for the ⋮ trigger. The ⋮

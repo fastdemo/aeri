@@ -35,34 +35,22 @@ export function Hero({ anime, onMoreInfo, trackingProvider }: { anime: Anime; on
           fetchPriority="high"
         />
 
-        {/* Gradients — cinematic. The left scrim exists ONLY behind the
-            text column (max-w aligned with the content, not full-bleed):
-            a full-width 96%-opaque scrim buries the artwork's left ~200px
-            in near-black and reads as a cropped/blocked edge. */}
+        {/* Gradients — cinematic. The left scrim is still column-bound, not
+            full-bleed (a full-width 96% scrim buries the artwork's left
+            ~200px in near-black and reads as a cropped/blocked edge), and
+            D156 moved every ramp into globals.css (`.hero-scrim-*`) so both
+            hero copies share ONE deeply-eased definition. */}
         <div
           aria-hidden
-          className="absolute inset-y-0 left-0 w-full max-w-[560px]"
-          style={{
-            background:
-              'linear-gradient(90deg, color-mix(in srgb, var(--bg) 88%, transparent) 0%, color-mix(in srgb, var(--bg) 55%, transparent) 45%, color-mix(in srgb, var(--bg) 22%, transparent) 70%, transparent 100%)',
-          }}
+          data-hero-scrim="left"
+          className="hero-scrim-left absolute inset-y-0 left-0 w-full max-w-[720px]"
         />
         {/* bottom — anchored to the box (inset-x-0 bottom-0, fixed height)
             so rapid slide swaps on mobile can never leave it floating a few
             px above the hero's bottom edge. */}
-        <div
-          aria-hidden
-          className="absolute inset-x-0 bottom-0 h-[45%]"
-          style={{
-            background:
-              'linear-gradient(180deg, transparent 0%, color-mix(in srgb, var(--bg) 45%, transparent) 55%, var(--bg) 100%)',
-          }}
-        />
+        <div aria-hidden className="hero-scrim-bottom absolute inset-x-0 bottom-0 h-[45%]" />
         {/* top subtle for nav */}
-        <div
-          aria-hidden
-          className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-[color-mix(in_srgb,var(--bg)_40%,transparent)] to-transparent"
-        />
+        <div aria-hidden className="hero-scrim-top absolute inset-x-0 top-0 h-24" />
 
         {/* Content. Alignment ladder: the text
             stack is vertically CENTERED whenever the hero box is tall
@@ -71,23 +59,23 @@ export function Hero({ anime, onMoreInfo, trackingProvider }: { anime: Anime; on
             the two modes always travel together. */}
         <div className="absolute inset-0 flex">
           <div className="flex w-full max-w-[560px] flex-col justify-end gap-3 px-5 pb-6 pt-16 sm:justify-center sm:pl-12 sm:pr-8 sm:pt-8 sm:pb-8 lg:pl-12 lg:pt-8 lg:pb-8 lg:pr-0">
-            <h1 className="clamp-2 overflow-hidden shrink-0 text-[22px] font-semibold leading-[1.05] tracking-[-0.03em] text-[var(--text)] sm:text-[30px] sm:clamp-3 lg:text-[34px]">
+            <h1 className="hero-copy-shadow clamp-2 overflow-hidden shrink-0 text-[22px] font-semibold leading-[1.05] tracking-[-0.03em] text-[var(--text)] sm:text-[30px] sm:clamp-3 lg:text-[34px]">
               {titles.primary}
             </h1>
 
             {titles.native && (
-              <p className="-mt-1 hidden shrink-0 text-[12px] tracking-wide text-[var(--text-muted)] sm:block">{titles.native}</p>
+              <p className="hero-copy-shadow -mt-1 hidden shrink-0 text-[12px] tracking-wide text-[var(--text-muted)] sm:block">{titles.native}</p>
             )}
             {titles.romaji && (
-              <p className="-mt-1 hidden shrink-0 text-[11px] tracking-wide text-[var(--text-faint)] sm:block">{titles.romaji}</p>
+              <p className="hero-copy-shadow -mt-1 hidden shrink-0 text-[11px] tracking-wide text-[var(--text-faint)] sm:block">{titles.romaji}</p>
             )}
 
-            <p className="shrink-0 text-[12px] font-medium tracking-wide text-[var(--text-muted)] flex items-center gap-2">
+            <p className="hero-copy-shadow shrink-0 text-[12px] font-medium tracking-wide text-[var(--text-muted)] flex items-center gap-2">
               <span>{metaParts}</span>
               <ScoreBadge anime={anime} trackingProvider={trackingProvider} />
             </p>
 
-            <p className="hero-desc clamp-3 shrink-0 max-w-[520px] text-[13px] leading-6 text-[var(--text-muted)] sm:text-[14px]">
+            <p className="hero-copy-shadow hero-desc clamp-3 shrink-0 max-w-[520px] text-[13px] leading-6 text-[var(--text-muted)] sm:text-[14px]">
               {anime.description}
             </p>
 
@@ -437,26 +425,16 @@ function HeroSlide({
         }
       />
 
-      {/* Gradients — cinematic, always on top of images. Same
-          text-column scrim as the static Hero (see above): full-bleed
-          96% scrim reads as a cropped left edge. */}
+      {/* Gradients — cinematic, always on top of images. Same shared scrims
+          as the static Hero (globals.css `.hero-scrim-*`, D156): 720px wide,
+          deeply eased, never full-bleed. */}
       <div
         aria-hidden
-        className="absolute inset-y-0 left-0 w-full max-w-[560px]"
-        style={{
-          background:
-            'linear-gradient(90deg, color-mix(in srgb, var(--bg) 88%, transparent) 0%, color-mix(in srgb, var(--bg) 55%, transparent) 45%, color-mix(in srgb, var(--bg) 22%, transparent) 70%, transparent 100%)',
-        }}
+        data-hero-scrim="left"
+        className="hero-scrim-left absolute inset-y-0 left-0 w-full max-w-[720px]"
       />
-      <div
-        aria-hidden
-        className="absolute inset-x-0 bottom-0 h-[45%]"
-        style={{
-          background:
-            'linear-gradient(180deg, transparent 0%, color-mix(in srgb, var(--bg) 45%, transparent) 55%, var(--bg) 100%)',
-        }}
-      />
-      <div aria-hidden className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-[color-mix(in_srgb,var(--bg)_40%,transparent)] to-transparent" />
+      <div aria-hidden className="hero-scrim-bottom absolute inset-x-0 bottom-0 h-[45%]" />
+      <div aria-hidden className="hero-scrim-top absolute inset-x-0 top-0 h-24" />
 
       {/* Text rises in only when it can be trusted to match the picture. */}
       {contentReady && (
@@ -503,17 +481,17 @@ function HeroSlide({
                       wins over utility-layer rules at equal specificity,
                       so a utility override would silently keep clamp-2. */}
                   <h1
-                    className="clamp-2 overflow-hidden shrink-0 text-[22px] font-semibold leading-[1.15] tracking-[-0.03em] text-[var(--text)] sm:text-[26px] sm:clamp-3 lg:text-[34px] lg:leading-[1.05]"
+                    className="hero-copy-shadow clamp-2 overflow-hidden shrink-0 text-[22px] font-semibold leading-[1.15] tracking-[-0.03em] text-[var(--text)] sm:text-[26px] sm:clamp-3 lg:text-[34px] lg:leading-[1.05]"
                   >
                     {titles.primary}
                   </h1>
-                  {titles.native && <p className="-mt-1 hidden shrink-0 text-[12px] tracking-wide text-[var(--text-muted)] sm:block">{titles.native}</p>}
-                  {titles.romaji && <p className="-mt-1 hidden shrink-0 text-[11px] tracking-wide text-[var(--text-faint)] sm:block">{titles.romaji}</p>}
-                  <p className="shrink-0 text-[12px] font-medium tracking-wide text-[var(--text-muted)] flex items-center gap-2">
+                  {titles.native && <p className="hero-copy-shadow -mt-1 hidden shrink-0 text-[12px] tracking-wide text-[var(--text-muted)] sm:block">{titles.native}</p>}
+                  {titles.romaji && <p className="hero-copy-shadow -mt-1 hidden shrink-0 text-[11px] tracking-wide text-[var(--text-faint)] sm:block">{titles.romaji}</p>}
+                  <p className="hero-copy-shadow shrink-0 text-[12px] font-medium tracking-wide text-[var(--text-muted)] flex items-center gap-2">
                     <span>{metaParts}</span>
                     <ScoreBadge anime={anime} trackingProvider={trackingProvider} />
                   </p>
-                  <p className="hero-desc clamp-3 shrink-0 max-w-[520px] text-[13px] leading-6 text-[var(--text-muted)] sm:text-[14px]">
+                  <p className="hero-copy-shadow hero-desc clamp-3 shrink-0 max-w-[520px] text-[13px] leading-6 text-[var(--text-muted)] sm:text-[14px]">
                     {anime.description}
                   </p>
                   <div className="mt-1 flex shrink-0 items-center gap-2">

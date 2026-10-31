@@ -53,7 +53,10 @@ test.describe('row navigation arrows', () => {
       return { z: cs.zIndex, bg: cs.backgroundImage }
     })
     expect(style.z, 'arrow must paint above the card glyph (z-30)').toBe('30')
-    expect(style.bg, 'scrim is 75% of the theme background').toContain('0.75')
+    // D156: the plate is a tapering ramp (78% → 0), not a 75%→transparent blob
+    // that ended on a visible straight seam.
+    expect(style.bg, 'scrim starts at ~78% of the theme background').toContain('0.78')
+    expect(style.bg, 'and reaches zero before the plate edge').toContain('/ 0)')
 
     // Hit-test: a point inside the strip that is over a card must resolve to
     // the arrow, not the card link underneath it.
@@ -62,6 +65,7 @@ test.describe('row navigation arrows', () => {
     const x = box!.x + box!.width - 8
     const y = box!.y + box!.height / 2
     await page.mouse.move(x, y)
+    await page.waitForTimeout(300)
     const hit = await page.evaluate(({ x, y }) => {
       const el = document.elementFromPoint(x, y)
       return {
@@ -71,8 +75,35 @@ test.describe('row navigation arrows', () => {
     }, { x, y })
     expect(hit.isArrow, `elementFromPoint hit ${hit.tag}, expected the arrow`).toBe(true)
 
+    // D150: BOTH arrows are mounted while the row can scroll. At the start
+    // the left one is dimmed + inert, the right one is live. Neither may
+    // unmount when a click starts its smooth scroll (the old bounds-gated
+    // render made the clicked arrow vanish mid-animation).
+    const left = page.locator('[aria-label="Scroll left"]').first()
+    await expect(left).toHaveCount(1)
+    const atStart = await page.evaluate(() => {
+      const l = document.querySelector('[aria-label="Scroll left"]') as HTMLElement
+      const r = document.querySelector('[aria-label="Scroll right"]') as HTMLElement
+      return {
+        leftOpacity: getComputedStyle(l).opacity,
+        rightOpacity: getComputedStyle(r).opacity,
+        leftDisabled: l.getAttribute('aria-disabled'),
+        rightDisabled: r.getAttribute('aria-disabled'),
+      }
+    })
+    expect(atStart.leftOpacity, 'left arrow dimmed at the start').toBe('0.3')
+    expect(atStart.rightOpacity, 'right arrow fully visible on row hover').toBe('1')
+    expect(atStart.leftDisabled, 'left arrow inert at the start').toBe('true')
+    expect(atStart.rightDisabled, 'right arrow live').toBe('false')
+
     // Clicking it scrolls; it must never open the card beneath.
     await page.mouse.click(x, y)
+    const duringClick: number[] = []
+    for (let i = 0; i < 6; i++) {
+      await page.waitForTimeout(60)
+      duringClick.push(Number(await right.evaluate((el) => getComputedStyle(el).opacity)))
+    }
+    expect(Math.min(...duringClick), 'arrow never hides during its own scroll animation').toBe(1)
     await expect
       .poll(async () => page.evaluate(() => {
         const row = document.querySelector('[aria-label="Scroll right"]')?.parentElement?.querySelector('div.no-scrollbar')
@@ -81,11 +112,10 @@ test.describe('row navigation arrows', () => {
       .toBeGreaterThan(0)
     expect(new URL(page.url()).pathname).toBe('/')
 
-    // The left arrow appears after scrolling and mirrors the treatment.
-    const left = page.locator('[aria-label="Scroll left"]').first()
-    await left.waitFor({ state: 'attached', timeout: 8_000 })
+    // The left arrow is still the same mounted control, now live.
     await expect(left.locator('svg')).toHaveCount(1)
     expect(await left.evaluate((el) => getComputedStyle(el).zIndex)).toBe('30')
+    await expect.poll(() => left.getAttribute('aria-disabled'), { timeout: 8_000 }).toBe('false')
   })
 })
 
@@ -180,23 +210,39 @@ test.describe('settings controls', () => {
     const grip = first.getByRole('button', { name: 'Reorder AniWave' })
     await grip.scrollIntoViewIfNeeded()
     const gripBox = await grip.boundingBox()
-    const rowBox = await first.boundingBox()
-    expect(gripBox && rowBox).toBeTruthy()
-    if (!gripBox || !rowBox) return
+    const listBox = await first.locator('xpath=..').boundingBox()
+    expect(gripBox && listBox).toBeTruthy()
+    if (!gripBox || !listBox) return
 
-    // Drag AniWave past AnimeParadise's midpoint.
+    // Drag AniWave FAR past the list (700px, well beyond the last row). The
+    // row must stop at the list's bottom edge instead of floating away
+    // (owner report 2026-10-30: "i can drag forever which looks unhinged").
     await page.mouse.move(gripBox.x + gripBox.width / 2, gripBox.y + gripBox.height / 2)
     await page.mouse.down()
     await page.mouse.move(
       gripBox.x + gripBox.width / 2,
-      gripBox.y + gripBox.height / 2 + rowBox.height + 12,
-      { steps: 10 },
+      gripBox.y + gripBox.height / 2 + 700,
+      { steps: 12 },
     )
+    await page.waitForTimeout(120)
+    const during = await rows.evaluateAll((els, box) => {
+      const top = box.y
+      const bottom = box.y + box.height
+      return els.map((el) => {
+        const r = el.getBoundingClientRect()
+        return { inside: r.top >= top - 1 && r.bottom <= bottom + 1, z: getComputedStyle(el).zIndex }
+      })
+    }, listBox)
+    const dragged = during.find((r) => r.z === '20')
+    expect(dragged, 'one row is lifted during the drag').toBeTruthy()
+    expect(dragged!.inside, 'dragged row never leaves the list box').toBe(true)
+    for (const r of during) expect(r.inside, 'no row is pushed outside the list box').toBe(true)
+
     await page.mouse.up()
 
     const order = await rows.evaluateAll((els) =>
       els.map((el) => (el.querySelector('button[aria-label^="Reorder "]')?.getAttribute('aria-label') ?? '').replace(/^Reorder /, '')))
-    expect(order).toEqual(['AnimeParadise', 'AniWave', 'AnimeGG'])
-    expect((await prefsOf(page)).providerOrder?.slice(0, 3)).toEqual(['animeparadise', 'aniwave', 'animegg'])
+    expect(order).toEqual(['AnimeParadise', 'AnimeGG', 'AniWave'])
+    expect((await prefsOf(page)).providerOrder?.slice(0, 3)).toEqual(['animeparadise', 'animegg', 'aniwave'])
   })
 })

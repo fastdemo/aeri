@@ -29,7 +29,8 @@ test.describe('Aired-episode progress', () => {
     await setup(page)
     await page.goto('/', { waitUntil: 'domcontentloaded' })
 
-    const track = page.locator('div.h-\\[2px\\]').first()
+    // The floating continue pill (D150/D155) — not the old 2px flush bar.
+    const track = page.locator('[data-continue-bar]').first()
     await expect(track).toBeVisible({ timeout: 30000 })
 
     // The card's AniList enrichment lands a moment later (the list copy has

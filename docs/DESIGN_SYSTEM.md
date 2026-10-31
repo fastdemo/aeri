@@ -51,11 +51,10 @@ theme — alpha-0.5 white reads as an outline). `.frame-glass` draws the hero
 rim as an overlay with a 3px masked `backdrop-filter: blur(8px)`; `.frame-soft`
 draws the card line plus a short inward glow and deliberately no per-tile
 backdrop filter (30–100 captures re-introduced browser tiling over artwork).
-`.frame-crisp` is the hairline alone — the Continue Watching card uses it
-because its inward glow read as a blurred edge on a mostly still frame;
-every other card, hero slot, and Watch tile stays `.frame-soft`. None is a
-CSS `border`: cards avoid layout inflation, and the composited carousel
-layer tiled stale snapshots with a real border.
+Every card, hero slot, and Watch tile uses `.frame-soft` (D150: the
+continue-only `.frame-crisp` was deleted with the continue caption block that
+needed it). None is a CSS `border`: cards avoid layout inflation, and the
+composited carousel layer tiled stale snapshots with a real border.
 
 Card hover frost (D137) is the one exception that blurs card pixels: it is
 mounted as `.card-frost` on the hover scrim, which is `backdrop-filter: none`
@@ -86,6 +85,15 @@ removed it, D143 reintroduced it, the owner removed it for good on
 same rAF paint as the transform) so a zero-length bar leaves no sliver. The
 bar also stays at zero until every page image has resolved
 (`aeri:reader-pages`).
+
+**Top bar chrome (D151).** The scrolled bar is a **flat opaque `--bg`** with
+no `backdrop-filter` — the old `bg/95 + blur-md` layer let iOS re-sample the
+video's fullscreen frame when the player exited, which read as a smeared
+transparency gradient over the bar. The always-on gradient layer stays (it
+only shows during the 300ms cross-fade and over the page background). The
+header is `isolate`; the desktop search input paints no backdrop filter
+either (Safari kept a stale sample across hard reloads and showed a
+spinner-like ghost inside the pill).
 
 ### Nav hitboxes
 
@@ -221,7 +229,7 @@ One pill geometry for the whole app, imported from
 ### Navigation
 
 - Height 56px, sticky, `background: linear-gradient(#070708 0%, rgba(7,7,8,0) 100%)` at top, solid #070708 on scroll.
-- Left: "Aeri" wordmark (18px, 600, tracking -0.02em). Center links: Home, Browse, My List (13px, muted, active white). Right: Search, Profile.
+- Left: "Aeri" wordmark (18px, 600, tracking -0.02em). Center links: Home, Browse, My List (13px, muted, active white) — nothing else (D155: the GitHub link was removed from the bar; the repo link lives in the footer and Settings). Right: Search, Profile.
 - Icon-only controls share a 32×32 box (menu / search / bell; see Nav hitboxes).
 - No sidebar. Quiet.
 
@@ -229,10 +237,12 @@ One pill geometry for the whole app, imported from
 
 - Height 56vh desktop (min 420px, max 680px), 62vh mobile. Width full-bleed within gutter.
 - Backdrop image: `object-cover`, centered, cinematic crop.
-- Gradients:
-  - Left: `linear-gradient(90deg, rgba(7,7,8,0.96) 0%, rgba(7,7,8,0.55) 42%, transparent 72%)`
-  - Bottom: `linear-gradient(0deg, var(--bg) 6%, transparent 62%)`
-  - Optional top vignette for nav readability.
+- Gradients (D156 — ONE rule set in `globals.css`, shared by both hero copies):
+  - `.hero-scrim-left`: 720px wide, column-bound (never full-bleed), **9 tapering stops** `--bg` 92 → 86 → 74 → 60 → 46 → 32 → 20 → 10 → 0% (alpha) at 0/12/26/40/54/68/80/90/100%. Ends past the 560px text column so long titles and the description stay on the scrim.
+  - `.hero-scrim-bottom`: 45% tall, 0 → 3 → 9 → 20 → 36 → 56 → 76 → 90 → 100% at 0/12/26/40/54/68/82/92/100%.
+  - `.hero-scrim-top`: 96px, 40 → 30 → 17 → 8 → 2 → 0% at 0/30/55/75/90/100%.
+  - **House rule for every gradient on the site:** 6+ tapering stops, and each zero end is written `color-mix(in srgb, var(--bg) 0%, transparent)` — same hue at zero alpha, never the `transparent` keyword. Three-stop ramps between partial `--bg` and the keyword read as a milky panel with a visible shelf, especially on a light theme.
+- Hero copy carries `.hero-copy-shadow` (D154, halved D156): `0 1px 2px color-mix(--shadow 50%)`, `0 2px 8px color-mix(--shadow 50%)` — theme-aware (60% black on dark themes, 18% on light ones) at half alpha, so a bright backdrop never washes the type out without the type looking stamped on. The anime/manga preview-card banner title uses the same class.
 - Content sits left, max-width 560px, padding 0 48px. Title → meta (Type · Year · Episodes · Rating) → description (2-line clamp, muted) → actions.
 - Buttons: Primary Play (white pill, 30px, 12px/500, black text) + secondary More Info (soft pill, same 30px geometry, backdrop-blur).
 - Never cover hero with cards.
@@ -265,7 +275,7 @@ One pill geometry for the whole app, imported from
 - Hover: `scale-[1.04]`, transition 180ms ease-out, `z-index` lift, reveal title overlay.
 - Variants:
   - `default`: artwork + title overlay on hover
-  - `continue`: artwork + progress bar (2px, white, at bottom) + episode label
+  - `continue`: artwork + floating 3px progress pill (D150, palette D155) — 8px inset from left/right/bottom, **theme ink** (15% `--text` track + `--text` fill + 6px `--text` neon glow), backed by a bottom `--bg` scrim (the Watch episode-thumbnail gradient, 40px, full card width) so the pill never sits on raw art in either theme; no backdrop blur, no ring; hides on art hover so the normal caption band shows show name + next episode
   - `compact`: smaller width for dense rows
 - Never show score/year/genre badges by default.
 

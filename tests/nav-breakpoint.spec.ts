@@ -181,3 +181,100 @@ test.describe('top bar compaction', () => {
     expect((await pillAt(SWITCH)).centered, 'pill returns bottom-center at 640').toBe(true)
   })
 })
+
+/**
+ * D151 (2026-10-30) — navbar repaint hardening.
+ *
+ * Owner reports: (1) on a hard refresh the desktop search field showed a
+ * spinner-like ghost inside the pill until the page finished painting;
+ * (2) on mobile, exiting the video player's native fullscreen left a
+ * "weird transparency gradient" over the bar.
+ *
+ * Root causes: the input carried `backdrop-blur` + `transition-all` (Safari
+ * re-blurs the area behind the field every frame, and a half-painted reload
+ * leaves a stale sample), and the scrolled bar was `bg/95 + backdrop-blur-md`
+ * (iOS re-composites that backdrop layer from the fullscreen frame). Both
+ * backdrop filters are gone; the scrolled bar is opaque.
+ */
+test.describe('navbar repaint hardening (D151)', () => {
+  test('search field has no backdrop filter and the scrolled bar is opaque', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/', { waitUntil: 'domcontentloaded' })
+
+    const input = page.locator('header input[aria-label="Search anime"]')
+    await input.waitFor({ timeout: 30_000 })
+    const field = await input.evaluate((el) => {
+      const cs = getComputedStyle(el)
+      return {
+        backdrop: cs.backdropFilter,
+        webkitBackdrop: (cs as any).webkitBackdropFilter ?? 'none',
+        transition: cs.transitionProperty,
+        autoComplete: el.getAttribute('autocomplete'),
+      }
+    })
+    expect(field.backdrop, 'search field paints no backdrop filter').toBe('none')
+    expect(field.webkitBackdrop, 'no -webkit backdrop filter either').toBe('none')
+    expect(field.transition, 'transition never animates backdrop-filter').not.toContain('backdrop')
+    expect(field.autoComplete, 'browser autofill cannot ghost the search value').toBe('off')
+
+    // At the top the solid layer is hidden (the gradient carries the bar).
+    const top = await page.evaluate(() => {
+      const header = document.querySelector('header') as HTMLElement
+      const solid = header.querySelectorAll(':scope > div')[1] as HTMLElement
+      return { opacity: getComputedStyle(solid).opacity, isolation: getComputedStyle(header).isolation }
+    })
+    expect(top.opacity, 'solid layer hidden at scrollTop 0').toBe('0')
+    expect(top.isolation, 'header owns its stacking context').toBe('isolate')
+
+    await page.evaluate(() => window.scrollTo(0, 600))
+    await expect
+      .poll(() => page.evaluate(() => {
+        const solid = document.querySelectorAll('header > div')[1] as HTMLElement
+        return getComputedStyle(solid).opacity
+      }), { timeout: 5_000 })
+      .toBe('1')
+
+    const scrolled = await page.evaluate(() => {
+      const header = document.querySelector('header') as HTMLElement
+      const solid = header.querySelectorAll(':scope > div')[1] as HTMLElement
+      const cs = getComputedStyle(solid)
+      return { bg: cs.backgroundColor, backdrop: cs.backdropFilter, htmlBackdrop: (cs as any).webkitBackdropFilter ?? 'none' }
+    })
+    // Opaque `--bg` (Aeri Dark = rgb(0, 0, 0)) — no 95% translucency, no blur.
+    expect(scrolled.bg, 'scrolled bar is a flat opaque theme background').toMatch(/^rgb\(/)
+    expect(scrolled.bg).not.toContain('/')
+    expect(scrolled.backdrop, 'scrolled bar paints no backdrop filter').toBe('none')
+    expect(scrolled.htmlBackdrop, 'no -webkit backdrop filter on the bar').toBe('none')
+  })
+})
+
+/**
+ * GitHub is NOT in the navbar (owner 2026-10-31: "remove github from the
+ * navbar"). The top bar carries only the four routes at every width, and the
+ * mobile menu has no GitHub row. The repo link survives in the page footer
+ * and in Settings — those are NOT nav, so they stay.
+ */
+test.describe('GitHub is not a navbar item', () => {
+  const REPO = 'https://github.com/fastdemo/aeri'
+
+  test('desktop bar carries only the four routes', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/', { waitUntil: 'domcontentloaded' })
+    await expect(page.locator(`header a[href="${REPO}"]`)).toHaveCount(0)
+    const labels = await page.evaluate(() => {
+      const nav = document.querySelector('header nav[aria-label="Sections"]') as HTMLElement
+      return [...nav.querySelectorAll('a')].map((x) => (x.textContent ?? '').trim())
+    })
+    expect(labels).toEqual(['Home', 'Anime', 'Manga', 'My List'])
+  })
+
+  test('mobile menu has no GitHub row', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 812 })
+    await page.goto('/', { waitUntil: 'domcontentloaded' })
+    await page.getByRole('button', { name: 'Menu' }).click()
+    const menu = page.locator('nav[aria-label="Mobile sections"]')
+    await expect(menu).toBeVisible()
+    await expect(menu.locator(`a[href="${REPO}"]`)).toHaveCount(0)
+    await expect(menu.getByText('GitHub')).toHaveCount(0)
+  })
+})

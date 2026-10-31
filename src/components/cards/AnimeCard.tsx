@@ -475,8 +475,12 @@ export function AnimeCard({
         )}
 
         {/* Title overlay on hover — name + year + format + first genre.
-            Desktop only (touch uses tap → detail). Continue cards keep their
-            own metadata block below instead. Rendered ONLY on devices that
+            Desktop only (touch uses tap → detail). CONTINUE cards show the
+            same band, but the second line is the NEXT episode/chapter name
+            (the play/read target) instead of the year/format line — the
+            caption block under the card is gone, so this is the only place
+            the episode lives (owner 2026-10-29).
+            Rendered ONLY on devices that
             can actually hover: a `hidden` + `md:block` overlay still sits in
             layout on touch (opacity-0, zero-size) and its text reports
             getBoundingClientRect().left = 0, which trips overflow/clip
@@ -487,7 +491,7 @@ export function AnimeCard({
             a hard horizontal edge — the blur looked like an artifact on both
             anime and manga tiles. One uniform hover treatment carries the
             text instead (the player's own bottom gradient is unrelated). */}
-        {variant !== 'continue' && !hideHoverCaption && (
+        {!hideHoverCaption && (
           <div
             className={`card-hover-caption absolute inset-x-0 bottom-0 hidden translate-y-1 p-2 opacity-0 transition can-hover:block group-hover/art:translate-y-0 group-hover/art:opacity-100 ${!isManga ? '@max-[160px]:py-1' : ''}`}
           >
@@ -499,15 +503,50 @@ export function AnimeCard({
                 related grids already print relation/format/episodes UNDER
                 the card. Manga bands are untouched (portrait art never
                 collides). */}
-            {hoverMeta && <p className={`truncate text-[10px] text-[var(--text-muted)] ${!isManga ? '@max-[160px]:hidden' : ''}`}>{hoverMeta}</p>}
+            {variant === 'continue' ? (
+              <p className={`truncate text-[10px] text-[var(--text-muted)] ${!isManga ? '@max-[160px]:hidden' : ''}`}>
+                {isManga
+                  ? (mangaUnitLabel ?? `Chapter ${displayEp || progressEp}`)
+                  : (watchName ? watchName : `Episode ${displayWatchEp}`)}
+              </p>
+            ) : hoverMeta ? (
+              <p className={`truncate text-[10px] text-[var(--text-muted)] ${!isManga ? '@max-[160px]:hidden' : ''}`}>{hoverMeta}</p>
+            ) : null}
           </div>
         )}
 
-        {/* Progress bar — thin (2px) with a soft glow, flush with the
-            thumbnail's bottom edge */}
+        {/* Continue Watching progress — a FLOATING pill a few px above the
+            thumbnail's bottom edge, inset from both sides (owner 2026-10-29).
+            It hides on art hover so the hover caption (title + next episode)
+            can take the bottom band. `.continue-progress` keeps it visible
+            while a row is scrolling (scroll-quiet), where the caption is
+            suppressed — a card passing under a parked cursor must not lose
+            its progress.
+            D155: back to the theme-ink NEON pill (15% `--text` track, `--text`
+            fill, 6px `--text` glow) — the D154 fixed-neutral palette and its
+            8px track frost are gone. Contrast is now carried by a BOTTOM
+            SCRIM behind the bar, the same theme gradient the Watch page's
+            episode thumbnails use (`from var(--bg)` → transparent): the bar
+            always sits on a bed of the page's own colour, so a white bar on a
+            white thumbnail (dark theme) or a near-black bar on a black one
+            (light theme) can no longer disappear, and the theme-ink neon look
+            survives. The scrim is a child of the pill wrapper so it inherits
+            the same hover fade and the same scroll-quiet pin. */}
         {variant === 'continue' && anime.progress && (
-          <div className="absolute inset-x-0 bottom-0 h-[2px] bg-[color-mix(in_srgb,var(--text)_15%,transparent)]" aria-hidden>
-            <div className="h-full bg-[var(--text)] shadow-[0_0_6px_var(--text)] transition-[width] duration-300" style={{ width: `${Math.min(100, Math.max(0, barPercent))}%` }} />
+          <div
+            className="continue-progress pointer-events-none absolute inset-x-0 bottom-0 z-10 h-10 transition-opacity duration-200 group-hover/art:opacity-0"
+            aria-hidden
+          >
+            <div
+              data-continue-scrim
+              className="continue-scrim absolute inset-0"
+            />
+            <div
+              data-continue-bar
+              className="absolute inset-x-2 bottom-2 h-[3px] rounded-full bg-[color-mix(in_srgb,var(--text)_15%,transparent)]"
+            >
+              <div className="h-full rounded-full bg-[var(--text)] shadow-[0_0_6px_var(--text)] transition-[width] duration-300" style={{ width: `${Math.min(100, Math.max(0, barPercent))}%` }} />
+            </div>
           </div>
         )}
 
@@ -516,36 +555,15 @@ export function AnimeCard({
             widths like every other card, with the same next-episode target. */}
       </div>
 
-      {/* Captions ONLY on Continue Watching (clean rows everywhere else).
-          Manga continue cards show the provider unit label; anime points at
-          the NEXT episode (progress+1, or 1 for an unstarted show) with the
-          episode NAME from the AniList record when one exists — bare
-          "Episode N" only for unnamed episodes. ANILIST-FIRST: names are
-          AniList data; the tracker supplies progress only.
-          Caption uses --surface-0 (the page-background step): Mocha Base
-          #1E1E2E, so the rectangle melts into the page exactly. Token
-          (not hex) so every theme renders its own background step. */}
-      {variant === 'continue' && anime.progress && (
-        <div className="w-full min-w-0 space-y-1 bg-[var(--surface-0)] px-2.5 py-2">
-          <div className="flex min-w-0 items-center justify-between">
-            <p className="min-w-0 flex-1 line-clamp-1 text-[11px] font-medium text-[var(--text)]">{primaryTitle}</p>
-          </div>
-          <p className="truncate text-[11px] text-[var(--text-muted)]">
-            {isManga
-              ? (mangaUnitLabel ?? `Chapter ${displayEp || progressEp}`)
-              : (watchName ? watchName : `Episode ${displayWatchEp}`)}
-          </p>
-        </div>
-      )}
       {/* Soft frame (hairline + short inner glow — see .frame-soft). Cards
           cannot carry a per-tile backdrop blur: 100+ backdrop captures
           tiled the artwork and cost paint time on Home. The hero keeps the
           literal frosted rim; cards match it visually and frost fully on
           hover via the existing whole-card treatment.
-          CONTINUE CARDS: crisp hairline only — the soft
-          frame's inward glow crossed the art/caption seam and read as a
-          blurred border. Every other card keeps .frame-soft. */}
-      <div aria-hidden className={variant === 'continue' ? 'frame-crisp z-20' : 'frame-soft z-20'} />
+          CONTINUE CARDS now use the SAME .frame-soft frame as every other
+          card (2026-10-29): the old caption block under the artwork — the
+          reason for the crisp-only frame — is gone. */}
+      <div aria-hidden className="frame-soft z-20" />
       </div>
       {/* The ⋮ QuickMenu stays a SIBLING of the frame
           (content-level) on purpose — its dropdown + 48px shadow must not

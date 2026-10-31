@@ -13,12 +13,15 @@ export function ContentRow({
   const scrollerRef = useRef<HTMLDivElement>(null)
   const [canLeft, setCanLeft] = useState(false)
   const [canRight, setCanRight] = useState(false)
+  const [scrollable, setScrollable] = useState(false)
 
   const updateArrows = useCallback(() => {
     const el = scrollerRef.current
     if (!el) return
+    const max = el.scrollWidth - el.clientWidth
+    setScrollable(max > 4)
     setCanLeft(el.scrollLeft > 4)
-    setCanRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4)
+    setCanRight(el.scrollLeft < max - 4)
   }, [])
 
   useEffect(() => {
@@ -55,27 +58,39 @@ export function ContentRow({
       </div>
 
       <div className="relative">
-        {/* Left/right controls — desktop only, on row hover, and only in the
-            direction that can actually scroll. z-30 keeps the scrim + glyph
-            above the card's hover play glyph (z-10) and dots trigger (z-20) —
-            the card paints later in DOM order, so an equal z-index would let
-            the play button swallow the click. The scrim is the only chrome:
-            no circle behind the chevron. */}
-        {canLeft && (
+        {/* Left/right controls — desktop only, on row hover. BOTH stay
+            mounted while the row can scroll: the unusable side is dimmed and
+            inert instead of unmounting. The old bounds-gated render made the
+            clicked arrow vanish mid smooth-scroll (the scroll crossed the
+            4px threshold and canRight flipped false) and reappear — owner
+            report 2026-10-29. z-30 keeps the scrim + glyph above the card's
+            hover play glyph (z-10) and dots trigger (z-20) — the card paints
+            later in DOM order, so an equal z-index would let the play button
+            swallow the click. The scrim is the only chrome: no circle behind
+            the chevron. */}
+        {scrollable && (
           <button
             aria-label="Scroll left"
-            onClick={() => scroll(-1)}
-            className="hover-only-control absolute left-0 top-1/2 z-30 hidden h-full -translate-y-1/2 items-center justify-center bg-gradient-to-r from-[color-mix(in_srgb,var(--bg)_75%,transparent)] to-transparent px-2 text-[var(--text)] opacity-0 transition hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--border-strong)] group-hover/row:opacity-100 md:flex"
+            aria-disabled={!canLeft}
+            tabIndex={canLeft ? 0 : -1}
+            onClick={() => { if (canLeft) scroll(-1) }}
+            className={`row-arrow row-arrow-fade-l hover-only-control absolute left-0 top-1/2 z-30 hidden h-full -translate-y-1/2 items-center justify-center px-2 text-[var(--text)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--border-strong)] md:flex ${
+              canLeft ? 'opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100' : 'pointer-events-none cursor-default opacity-0 group-hover/row:opacity-30'
+            }`}
             style={{ width: 56 }}
           >
             <Icon name="chevron-left" size={24} className="[filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))]" />
           </button>
         )}
-        {canRight && (
+        {scrollable && (
           <button
             aria-label="Scroll right"
-            onClick={() => scroll(1)}
-            className="hover-only-control absolute right-0 top-1/2 z-30 hidden h-full -translate-y-1/2 items-center justify-center bg-gradient-to-l from-[color-mix(in_srgb,var(--bg)_75%,transparent)] to-transparent px-2 text-[var(--text)] opacity-0 transition hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--border-strong)] group-hover/row:opacity-100 md:flex"
+            aria-disabled={!canRight}
+            tabIndex={canRight ? 0 : -1}
+            onClick={() => { if (canRight) scroll(1) }}
+            className={`row-arrow row-arrow-fade-r hover-only-control absolute right-0 top-1/2 z-30 hidden h-full -translate-y-1/2 items-center justify-center px-2 text-[var(--text)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--border-strong)] md:flex ${
+              canRight ? 'opacity-0 group-hover/row:opacity-100 focus-visible:opacity-100' : 'pointer-events-none cursor-default opacity-0 group-hover/row:opacity-30'
+            }`}
             style={{ width: 56 }}
           >
             <Icon name="chevron-right" size={24} className="[filter:drop-shadow(0_1px_2px_rgba(0,0,0,0.55))]" />

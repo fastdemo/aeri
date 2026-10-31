@@ -61,6 +61,14 @@ interface DragState {
   /** Viewport geometry captured at drag start (transforms excluded). */
   tops: number[]
   heights: number[]
+  /**
+   * How far the dragged row may travel before its top/bottom leaves the
+   * list. Without this the row followed the pointer forever — dragging past
+   * the last row left a floating card far below the panel (owner report
+   * 2026-10-30: "i can drag forever which looks unhinged").
+   */
+  minDy: number
+  maxDy: number
 }
 
 const SHIFT = 'transform 160ms cubic-bezier(0.2, 0, 0, 1)'
@@ -107,6 +115,17 @@ export function SortableList<T>({
     // No text selection while the grip is held.
     e.preventDefault()
 
+    // Vertical travel is bounded by the list's own box: the dragged row can
+    // reach the first/last slot but never float past the panel.
+    const first = rects[0]
+    const last = rects[rects.length - 1]
+    const listTop = first?.top ?? 0
+    const listBottom = (last?.top ?? 0) + (last?.height ?? 0)
+    const dragTop = rects[index]?.top ?? 0
+    const dragHeight = rects[index]?.height ?? 0
+    const minDy = listTop - dragTop
+    const maxDy = listBottom - (dragTop + dragHeight)
+
     const start: DragState = {
       from: index,
       to: index,
@@ -115,6 +134,8 @@ export function SortableList<T>({
       pointerId: e.pointerId,
       tops: rects.map((r) => r.top),
       heights: rects.map((r) => r.height),
+      minDy: Math.min(minDy, 0),
+      maxDy: Math.max(maxDy, 0),
     }
     dragRef.current = start
     setAnnouncement('')
@@ -132,7 +153,8 @@ export function SortableList<T>({
       }
       // Removing the dragged row shifts every slot after it up by one.
       const to = Math.max(0, Math.min(items.length - 1, slot <= cur.from ? slot : slot - 1))
-      const next = { ...cur, dy: ev.clientY - cur.startY, to }
+      const dy = Math.max(cur.minDy, Math.min(cur.maxDy, ev.clientY - cur.startY))
+      const next = { ...cur, dy, to }
       dragRef.current = next
       setDrag(next)
     }

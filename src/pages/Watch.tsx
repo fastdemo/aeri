@@ -537,7 +537,7 @@ export function Watch() {
               no overlay chrome over the video — the OS/browser player owns it. */}
 
           {/* Bottom gradient when no video */}
-          {!hasVideo && <div className="pointer-events-none absolute inset-x-0 bottom-0 h-10 bg-gradient-to-t from-[color-mix(in_srgb,var(--bg)_60%,transparent)] to-transparent" />}
+          {!hasVideo && <div className="watch-idle-fade pointer-events-none absolute inset-x-0 bottom-0 h-10" />}
         </div>
 
         <div className="px-4 py-5 sm:px-0">
@@ -730,7 +730,7 @@ export function Watch() {
                             not a black scrim — the tile edge disappears into the
                             page in every theme. */}
                         {thumb && (
-                          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-[var(--bg)] via-[color-mix(in_srgb,var(--bg)_55%,transparent)] to-transparent" />
+                          <div className="watch-tile-fade pointer-events-none absolute inset-0" />
                         )}
                         {/* Same hover treatment as AnimeCard (D083): base-tinted
                             scrim + 8px frost + centered play glyph. The glyph

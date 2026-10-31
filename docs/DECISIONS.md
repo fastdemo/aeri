@@ -2871,3 +2871,287 @@ Light → Catppuccin Mocha through Settings and asserts `--bg`, the meta,
 reloads to prove the boot path paints Mocha before render. 1/1 new, 11/11
 with settings + watch + reader suites. The tint itself is Safari UI and is
 confirmed by the owner in Safari (headless engines cannot assert it).
+
+## D150 — Continue Watching is a normal card + floating bar; row arrows stop flickering (2026-10-29)
+
+Owner: "i want the continue watching cards to look the same as normal anime
+cards, but then it will have a floating progress bar a few pixels up from the
+bottom, as well as left/right margins, preferably with some kind of shadow
+behind (still neon). on hover, the progress bar will hide to show the show
+name/genre like normal anime cards … the 3 dots on hover will still be there.
+also, the left right arrows for each rows when im hovering over it it shall be
+visible, and it does not hide whenever i click and it does its animation and
+then show again like its doing now."
+
+**Continue card.** The caption block under the artwork is deleted, so a
+continue tile is now byte-for-byte the same card as a default tile: same art,
+same `.frame-soft` frame (`.frame-crisp` is gone — it only existed to keep the
+soft glow off the art/caption seam), same hover scrim/glyph/⋮. The only extra
+is `.continue-progress`: a 3px rounded pill inset 8px from left/right/bottom
+(`inset-x-2 bottom-2`), 15% `--text` track, `--text` fill with
+`shadow-[0_0_6px_var(--text)]`. It hides on art hover
+(`group-hover/art:opacity-0`) so the standard hover caption takes the bottom
+band; on continue cards that caption's second line is the NEXT episode/chapter
+(the play/read target), not year/format/genre. Scroll-quiet suppresses the
+caption but NOT the bar (`html[data-scrolling='1'] .continue-progress`) —
+progress is data, not a hover affordance.
+
+**Row arrows.** Both arrows are now mounted whenever the row can scroll
+(`scrollable`), instead of rendering only in a scrollable direction. At a
+bound the unusable side is `aria-disabled`, `tabIndex=-1`,
+`pointer-events-none`, and 30% opacity on row hover; the usable side is full
+opacity. Root cause of the "hide during the click animation" report: the
+smooth scroll sets `data-scrolling='1'`, and scroll-quiet hid every
+`.hover-only-control` — including the arrow that had just been clicked. Arrows
+now carry `.row-arrow` and are excluded from that rule, so opacity stays 1 for
+the whole animation.
+
+**Volume slider.** Settings' range input uses `accent-[var(--text)]` — the
+same ink as the ON switch — instead of the per-theme `--accent`, in every
+theme (light themes invert to dark ink because `--text` does).
+
+**Verified.** `tests/continue-card-floating-bar.spec.ts` (new) asserts card
+height == art height, bar 8/8/8px inset + 3px + 6px glow, hover swaps bar→
+caption→⋮, caption carries the show + next episode.
+`tests/settings-and-row-arrows.spec.ts` now asserts both arrows mounted, left
+dimmed/inert at the start, right opacity 1 across six samples during its own
+click-scroll, left live afterwards. `tests/theme-chrome-tint.spec.ts` asserts
+the slider's computed `accentColor` equals `--text` on Dark/Light/Mocha.
+Targeted suites 35/35. Screenshots in `OpenCode/screens/continue-card/` and
+`OpenCode/screens/slider/`.
+
+## D151 — Navbar repaint hardening: search-field ghost + fullscreen gradient (2026-10-30)
+
+Owner: "fix these navbar problems, where the search bar glitches out when
+refreshing too hard. and also on mobile when i exit fullscreen from media
+player theres a weird transparency gradient on top of the navbar."
+
+**Search field ghost.** The desktop input carried `backdrop-blur` and
+`transition-all`. Safari keeps a backdrop-filtered element's sample alive
+across a reload; while the page is still painting, the half-built backdrop
+showed as a spinner-like ghost inside the pill (owner confirmed: "spinner/
+ghost inside the field"). `transition-all` also animated `backdrop-filter`
+on every focus change, re-blurring the area behind the field each frame.
+The input now paints no backdrop filter at all (it sits on the opaque
+navbar; the 8% fill is all the depth it needs), transitions only
+`width/background-color/border-color`, and sets `autoComplete="off"` +
+`spellCheck={false}` so the browser cannot ghost a restored value.
+
+**First-paint pop.** The `navFits` measurement ran in a passive effect, so
+the compact bar (menu + search icon) painted for one frame before flipping
+to the inline links + input — a visible pop on every hard refresh, worse on
+slow loads. It now runs in `useLayoutEffect`: the always-mounted measurer is
+read before paint and the flip lands in the same frame. Verified with a
+1.5s-delayed bundle: frame 0 already shows the final inline field.
+
+**Fullscreen gradient.** The scrolled bar was `bg-[var(--bg)]/95 +
+backdrop-blur-md`. On iOS, returning from the video player's native
+fullscreen left that backdrop layer sampling the fullscreen frame — a
+smeared transparency gradient over the bar. The scrolled layer is now a flat
+opaque `--bg` with no backdrop filter (the design system bans glassmorphism;
+at 95% the blur was barely visible on the page background). `scrolled` is
+re-read on `scroll`, `resize`, `orientationchange`, `pageshow`,
+`visibilitychange`, `fullscreenchange`, `webkitfullscreenchange`, and
+`webkitendfullscreen` (capture — native video fullscreen events do not
+bubble), because iOS can restore the scroll offset without firing `scroll`.
+The header carries `isolate` so its background layers cannot interleave with
+page layers.
+
+**Verified.** `tests/nav-breakpoint.spec.ts` gained a D151 block: the field
+computes `backdrop-filter: none` (webkit too), its transition never includes
+`backdrop`, `autocomplete="off"`, the solid layer is `opacity: 0` at
+scrollTop 0 and an opaque `rgb(...)` with no blur once scrolled, and the
+header computes `isolation: isolate`. 7/7 with the compaction suite. WebKit
+frames captured at 150ms intervals across a throttled reload.
+
+## D152 — GitHub link in the navbar (2026-10-30)
+
+Owner: "add github in the navbar which takes to the github repo."
+
+A plain external text link after "My List" from `lg` up, and a "GitHub" row
+in the mobile menu, both `target=_blank rel=noreferrer` to
+`https://github.com/fastdemo/aeri` (the same URL the footer already uses).
+It is NOT part of `desktopNav`: the inline bar's fit switch must stay at
+640px (the hero pill's own step, D129), and a fifth label pushes the
+tightest inline case (640px, signed out) over the edge. Between 640 and 1023
+the footer link (visible from `sm`) covers it. The hidden measurer includes
+the link with the same `hidden lg:inline-flex` classes, so the width read
+stays true wherever it actually paints.
+
+Pinned by `tests/nav-breakpoint.spec.ts` — desktop order `Home, Anime,
+Manga, My List, GitHub`, `target=_blank`, and the mobile menu row.
+
+## D153 — Provider drag is clamped to the list (2026-10-30)
+
+Owner: "the reordering providers thingy i can drag forever which looks
+unhinged so fix that too."
+
+`SortableList` already clamped the target index but not the visual travel:
+`dy = clientY − startY` was unbounded, so the lifted row followed the
+pointer past the last row and floated far below the panel. The drag state now
+captures `minDy`/`maxDy` from the list's own box at pointer-down
+(`listTop − rowTop`, `listBottom − rowBottom`) and clamps `dy` on every move.
+The row can reach the first/last slot but never leaves the list; the drop
+index is unchanged. Escape still cancels; keyboard ↑/↓ is untouched.
+
+Pinned by the extended drag test in `tests/settings-and-row-arrows.spec.ts`:
+a 700px downward drag keeps every row inside the list box and commits
+AniWave to the last slot (`animeparadise, animegg, aniwave`).
+
+## D154 — Continue-bar contrast, track frost, hero copy legibility (2026-10-30)
+
+Owner: "for the transparency part of the progress bar in continue watching,
+make it the same blur as the border. also, its hard to see the progress bar
+in light/dark themes sometimes depending on the thumbnail. suggest me ways to
+improve contrast. speaking of improving contrast, the hero's text sometimes
+is also hard to read to."
+
+**Track frost.** The unfilled remainder of the continue bar now carries the
+same `-webkit-backdrop-filter/backdrop-filter: blur(8px)` as the hero/player
+rim (`.frame-glass`), declared once in `.continue-progress` in globals.css.
+It is a 3px strip on the 3–6 continue cards, not the 100+ card feed, so it
+does not reintroduce the per-tile tiling cost that keeps `.frame-soft` flat.
+
+**Fixed neutral scrubber (owner choice).** The old bar used `--text` for
+both the 15% track and the fill, so it vanished whenever the artwork matched
+the theme ink: a white bar on a white thumbnail in dark themes, a near-black
+bar on a black one in light themes. The palette is now theme-independent —
+track `rgba(0,0,0,0.45)`, fill `#fff`, 1px `rgba(0,0,0,0.35)` ring around the
+capsule, 6px `rgba(255,255,255,0.55)` glow on the fill. On bright art the
+dark track and ring define the capsule; on dark art the white fill still
+shows the progress. The track is intentionally near-invisible on near-black
+art (a black glass trough), but the filled portion never is — that is the
+trade-off of a fixed neutral scrubber versus theme ink.
+
+**Hero copy legibility (owner choice).** The left scrim was 560px wide and
+hit transparent at 70% of that width while a long title / the description
+still sat on the artwork; on a bright frame the right half of the title
+washed out. It is now 720px wide with a slower falloff — 94% `--bg` at 0%,
+78% at 35%, 58% at 65%, 40% at 85%, transparent at 100% — still column-bound
+(never full-bleed). Every copy node (title, native/romaji, meta, description)
+carries `.hero-copy-shadow`: `0 1px 2px var(--shadow), 0 2px 8px var(--shadow)`.
+`--shadow` is 60% black on dark themes and 18% on light ones, so the shadow
+is a safety net on extreme frames without looking heavy in light themes.
+
+**Verified.** `tests/continue-card-floating-bar.spec.ts` pins the 8px track
+blur, `rgba(0, 0, 0, 0.45)` track, white fill and 1px ring.
+`tests/hero-contrast.spec.ts` (new) pins the 720px scrim, the shadow layers
+and no horizontal overflow at 1440/768/375. Targeted suite 35/35 green.
+Screenshots: `OpenCode/screens/d154/` — continue bar over bright/dark
+artwork in Aeri Dark + Aeri Light, hero over a near-white injected backdrop
+in dark theme, and hero at 1440/375 in light theme.
+
+## D155 — GitHub out of the navbar, neon continue pill over a bottom scrim, neon preview bar (2026-10-31)
+
+Owner: "remove github from the navbar pls. for the continue watching progress
+bar, return to the old floating progress bar, and put a gradient behind it
+like what you did on the media player page episodes. make the progress bar in
+manga and anime preview cards also neon."
+
+Supersedes the navbar half of D152 and the continue-bar palette half of D154.
+
+**(1) GitHub removed from the navbar.** The desktop text link after "My List"
+and the mobile-menu row are gone, along with the now-unused `GITHUB_URL`
+constant in `Navbar.tsx`. The bar is again exactly `Home, Anime, Manga,
+My List` at every width. The repo link was never a route and still exists in
+the global footer and in Settings — those were not in scope and are
+untouched. `tests/nav-breakpoint.spec.ts` was inverted: it now asserts the
+header has NO GitHub link at 1440, that the section row is exactly those four
+labels, and that the mobile menu has no GitHub row.
+
+**(2) Continue bar back to theme-ink neon, with a bottom scrim.** D154's
+fixed-neutral palette (45% black track, white fill, 1px black ring) and its
+8px track frost are deleted; the pill is again the D150 form — 15% `--text`
+track, `--text` fill, `6px --text` glow. Contrast now comes from the
+requested gradient instead of the palette: a 40px bottom scrim behind the pill
+using the SAME treatment the Watch page episode thumbnails use
+(`linear-gradient(to top, var(--bg) 0%, color-mix(--bg 55%) 45%,
+transparent 100%)`). Because it is `--bg`, it is a dark bed in dark themes and
+a light bed in light themes, so the theme-ink pill always has something to
+contrast against even on a thumbnail that matches the ink. The scrim is a
+child of the `.continue-progress` wrapper, so it inherits the hover fade and
+the scroll-quiet pin (`html[data-scrolling='1'] .continue-progress`).
+Trade-off, accepted by the owner's choice: the bottom ~40px of every continue
+thumbnail fades into the page colour — the same visual language as the
+episode tiles on the Watch page.
+
+**(3) Preview card (detail overlay) bar is neon.** The 2px watched bar on
+`DetailModal` — shared by anime and manga, no media-kind branch — glowed with
+`--shadow` (a dark smear on dark themes); it now glows in its own ink
+(`shadow-[0_0_6px_var(--text)]`), matching the Continue pill. Its 15% `--text`
+track is unchanged.
+
+**Verified.** `tests/continue-card-floating-bar.spec.ts` re-pinned: theme-ink
+fill equals the resolved `--text`, 15% track, no ring, `backdropFilter: none`,
+and a `linear-gradient` scrim spanning the full card width down to the bottom
+edge. `tests/nav-breakpoint.spec.ts` 9/9 with the new inverted GitHub tests.
+Screenshots `OpenCode/screens/d155/`: continue pill over bright and dark art
+in Aeri Dark + Aeri Light, the detail-overlay bar close-up for anime AND manga
+(white 6px glow), navbar at 1440/1024/768/375 with four links, and the mobile
+menu with no GitHub row.
+
+## D156 — Hero shadow halved, preview-card banner text inherits it, every gradient re-eased (2026-10-31)
+
+Owner: "for the hero's text shadow, half the intensity. apply that same shadow
+to the text on the main hero on anime and manga preview cards. also fix every
+single gradient on the website ( i mean all) the gradients look weird i cant
+explain why but it looks weird."
+
+**(1) Hero copy shadow halved.** `.hero-copy-shadow` keeps its geometry
+(1px/2px and 2px/8px) and halves the ALPHA of both layers via
+`color-mix(in srgb, var(--shadow) 50%, transparent)`. `--shadow` is 60% black
+on dark themes and 18% on light ones, so the applied alphas are 30% and 9%.
+Geometry unchanged on purpose: the 8px outer layer is the contract the contrast
+test already pins, and blur radius is what spreads the darkening over artwork.
+
+**(2) Preview-card banner text.** `DetailModal`'s banner title (h2), native
+title and romaji line now carry `.hero-copy-shadow` — literally the same class,
+so they can never drift from the hero's treatment. They previously had only a
+generic `drop-shadow` on the h2 and nothing on the two sub-lines, which sat on
+bright banner art unreadable in light themes.
+
+**(3) Every gradient re-eased.** The "weird" look was the RAMP, not the
+colours. Every scrim on the site was 2–5 stops spanning a partial `--bg` to the
+`transparent` keyword over a short box, which reads as a milky panel with a
+visible straight shelf where the ramp runs out — most obvious in Aeri Light
+(near-white `--bg` over artwork). All of them now use 6+ tapering stops (alpha
+steps shrink as they approach zero) and every zero end is
+`color-mix(in srgb, var(--bg) 0%, transparent)` — the same hue at zero alpha
+instead of the keyword, so interpolation never crosses a different colour.
+
+Inventory and where each lives now (all in `globals.css`, so there is ONE
+definition per gradient — the hero's were previously duplicated inline in both
+`Hero` and `HeroCarousel`):
+- `.hero-scrim-left` / `.hero-scrim-bottom` / `.hero-scrim-top` — the hero's
+  three scrims, used by both hero copies (720px column-bound, 9/9/6 stops).
+- `.detail-banner-scrim` — the preview card's banner. It used to be a 5-stop
+  gradient with two hard plateaus (opaque 0–22%, clear 22–55%, back down) that
+  read as a shelf across the artwork; it is now one continuous 12-stop ramp.
+- `.continue-scrim` — D155's continue-card bottom bed, 3 stops → 9.
+- `.nav-top-fade` — the top bar. It had an OPAQUE `--bg` plateau in the middle
+  (`via-[var(--bg)]`), i.e. a solid band inside a soft one; now monotone, 7
+  stops.
+- `.row-arrow-fade-l` / `.row-arrow-fade-r` — the 56px hover plate behind each
+  row chevron, 75%→transparent in 1 step → 78→68→52→34→19→7→0%, so the plate
+  no longer ends on a straight seam.
+- `.watch-idle-fade` (Watch page, no video yet) and `.watch-tile-fade` (episode
+  thumbnails dissolving into the page) — 2–3 stops → 6/7.
+- Left alone deliberately: the `Skeleton` shimmer (`transparent →
+  --border-strong → transparent`) is a moving highlight, not a page scrim, and
+  the hero/player rim masks are alpha masks, not gradients.
+
+Two bugs found while doing this: a trailing comma before the closing `)` of a
+`linear-gradient()` invalidates the whole declaration in CSS, so the first pass
+at the new classes silently computed `background-image: none` (caught by
+reading computed styles, not by eyeballing the build); and `--shadow` resolves
+as legacy `rgba(...)` while `color-mix()` output resolves as
+`color(srgb ... / a)`, so the contrast test's alpha parser has to accept both
+forms.
+
+**Verified.** `tests/hero-contrast.spec.ts` now also asserts: every hero shadow
+layer's alpha is exactly half the resolved `--shadow` alpha; the left scrim is
+a ≥8-stop ramp; the preview banner title carries the SAME computed text-shadow
+as the hero title, and its scrim is a ≥12-stop gradient. Row-arrow test updated
+from "scrim is 75%" to "starts at 78% and reaches zero". Targeted suites green
+(hero contrast 5/5, continue card, nav breakpoint, watch layout, watch episode
+marks, aired progress). Screenshots: `OpenCode/screens/d156/`.
