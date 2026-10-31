@@ -278,3 +278,61 @@ test.describe('GitHub is not a navbar item', () => {
     await expect(menu.getByText('GitHub')).toHaveCount(0)
   })
 })
+
+/**
+ * ⌘K / Ctrl+K / Alt+K focuses the search field (owner 2026-10-31, D157). A
+ * keybind only — no badge, no new element. Desktop focuses the inline input;
+ * the compact bar opens its search dropdown with the input focused.
+ */
+test.describe('search keybind', () => {
+  test('Cmd/Ctrl+K focuses the desktop search input', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/', { waitUntil: 'domcontentloaded' })
+    const input = page.locator('header input[aria-label="Search anime"]')
+    await expect(input).toHaveCount(1)
+
+    // Nothing focused yet, and the URL must not change.
+    const before = page.url()
+    await page.keyboard.press('ControlOrMeta+k')
+    await expect(input).toBeFocused()
+    expect(page.url()).toBe(before)
+
+    // Typing goes straight into the field; the suggestion popup is armed
+    // (its rows need live data, so the test pins the aria state instead).
+    await page.keyboard.type('nar')
+    await expect(input).toHaveValue('nar')
+    await expect(input).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  test('Ctrl+K opens the compact search panel and focuses it', async ({ page }) => {
+    await page.setViewportSize({ width: 480, height: 900 })
+    await page.goto('/', { waitUntil: 'domcontentloaded' })
+    await expect(page.locator('header input[aria-label="Search anime"]')).toHaveCount(0)
+    await page.keyboard.press('ControlOrMeta+k')
+    const input = page.locator('header input[placeholder="Search anime"]')
+    await expect(input).toBeVisible()
+    await expect(input).toBeFocused()
+    await page.keyboard.type('one')
+    await expect(input).toHaveValue('one')
+  })
+
+  test('Alt+K also focuses the search input', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/', { waitUntil: 'domcontentloaded' })
+    const input = page.locator('header input[aria-label="Search anime"]')
+    await page.keyboard.press('Alt+k')
+    await expect(input).toBeFocused()
+    await page.keyboard.type('bebop')
+    await expect(input).toHaveValue('bebop')
+  })
+
+  test('Shift variants are left to the browser', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    await page.goto('/', { waitUntil: 'domcontentloaded' })
+    const input = page.locator('header input[aria-label="Search anime"]')
+    await page.keyboard.press('ControlOrMeta+Shift+k')
+    await expect(input).not.toBeFocused()
+    await page.keyboard.press('Alt+Shift+k')
+    await expect(input).not.toBeFocused()
+  })
+})

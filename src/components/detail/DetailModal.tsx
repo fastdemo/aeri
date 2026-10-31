@@ -318,11 +318,11 @@ export function DetailModal({
               className="detail-banner-scrim absolute inset-0"
             />
             <div className="absolute left-6 top-6 hidden max-w-[520px] sm:block">
-              <h2 className="hero-copy-shadow text-[28px] font-semibold leading-none tracking-tighter text-[var(--text)] drop-shadow">
+              <h2 className="hero-copy text-[28px] font-semibold leading-none tracking-tighter text-[var(--text)]">
                 {titles.primary}
               </h2>
-              {titles.native && <p className="hero-copy-shadow mt-1 text-xs text-[var(--text-muted)]">{titles.native}</p>}
-              {titles.romaji && <p className="hero-copy-shadow mt-1 text-[11px] tracking-wide text-[var(--text-faint)]">{titles.romaji}</p>}
+              {titles.native && <p className="hero-copy mt-1 text-xs text-[var(--text-muted)]">{titles.native}</p>}
+              {titles.romaji && <p className="hero-copy mt-1 text-[11px] tracking-wide text-[var(--text-faint)]">{titles.romaji}</p>}
             </div>
 
             <div className="absolute bottom-0 left-0 right-0 flex flex-wrap items-center gap-2 px-4 pb-4 sm:px-6">

@@ -9,14 +9,20 @@ import { test, expect } from '@playwright/test'
  * backdrops washed the copy out.
  *
  * Contract:
+ * D157 (2026-10-31): the owner asked for NO text shadow on hero copy — the
+ * contrast is bought from the scrim instead, which is denser than D156.
+ *
+ * Contract:
  *  - the left scrim runs 720px at desktop (past the 560px text column);
- *  - every hero copy node carries the theme-aware `.hero-copy-shadow`
- *    (two layers, 8px blur);
+ *  - it starts at >= 95% of the theme background (D156 was 92%);
+ *  - NO copy node carries a text shadow (`.hero-copy` paints nothing);
+ *  - the preview card's banner title also has no shadow, and its scrim starts
+ *    at >= 74% so the type reads on bright artwork;
  *  - the wider scrim never causes horizontal overflow at 1440/768/375.
  */
 
-test.describe('hero copy legibility (D154)', () => {
-  test('left scrim runs 720px and the copy carries a theme-aware shadow', async ({ page }) => {
+test.describe('hero copy legibility (D154, shadow removed D157)', () => {
+  test('left scrim runs 720px, is denser, and the copy carries no shadow', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('/', { waitUntil: 'domcontentloaded' })
     const hero = page.locator('section[aria-roledescription="carousel"]')
@@ -37,54 +43,44 @@ test.describe('hero copy legibility (D154)', () => {
 
     // The text column mounts only once its backdrop image is ready (by
     // design — the title can never sit over another slide's picture).
-    await page.locator('.hero-copy-shadow').first().waitFor({ timeout: 45_000 })
+    await page.locator('.hero-copy').first().waitFor({ timeout: 45_000 })
     const copy = await page.evaluate(() => {
-      const nodes = [...document.querySelectorAll('.hero-copy-shadow')] as HTMLElement[]
+      const nodes = [...document.querySelectorAll('.hero-copy')] as HTMLElement[]
       const title = nodes.find((n) => n.tagName === 'H1') as HTMLElement | undefined
       const desc = nodes.find((n) => n.classList.contains('hero-desc')) as HTMLElement | undefined
-      // Resolve the theme shadow so "half intensity" can be checked numerically.
-      const probe = document.createElement('span')
-      probe.style.color = 'var(--shadow)'
-      document.body.appendChild(probe)
-      const themeShadow = getComputedStyle(probe).color
-      probe.remove()
+      const scrim = document.querySelector('[data-hero-scrim="left"]') as HTMLElement
+      // First stop's alpha: how opaque the scrim is right under the title.
       const alphaOf = (value: string) => {
         const slash = value.match(/\/\s*([\d.]+)\)/)
-        if (slash) return Number(slash[1])
-        const rgba = value.match(/rgba?\([^)]*,\s*([\d.]+)\s*\)/)
-        return rgba ? Number(rgba[1]) : 1
+        return slash ? Number(slash[1]) : 1
       }
+      const first = getComputedStyle(scrim).backgroundImage.match(
+        /(?:rgba?\([^)]*\)|color\([^)]*\))/,
+      )?.[0] ?? ''
       return {
         count: nodes.length,
         titleShadow: title ? getComputedStyle(title).textShadow : 'none',
         descShadow: desc ? getComputedStyle(desc).textShadow : 'none',
-        themeAlpha: alphaOf(themeShadow),
-        titleLayers: title
-          ? getComputedStyle(title)
-              .textShadow.split(/,(?![^(]*\))/)
-              .map(alphaOf)
-          : [],
+        metaShadow: nodes
+          .filter((n) => n !== title && n !== desc)
+          .map((n) => getComputedStyle(n).textShadow),
+        scrimLeadAlpha: alphaOf(first),
       }
     })
-    expect(copy.count, 'title + meta + description carry the shadow').toBeGreaterThanOrEqual(3)
-    for (const [label, shadow] of [
-      ['title', copy.titleShadow],
-      ['description', copy.descShadow],
-    ] as const) {
-      expect(shadow, `${label} carries a text shadow`).not.toBe('none')
-      expect(shadow, `${label} uses the soft 8px layer`).toContain('8px')
+    expect(copy.count, 'title + meta + description carry the hook').toBeGreaterThanOrEqual(3)
+    // D157: no text shadow anywhere on the hero copy — the scrim carries it.
+    expect(copy.titleShadow, 'hero title has no text shadow').toBe('none')
+    expect(copy.descShadow, 'hero description has no text shadow').toBe('none')
+    for (const [i, shadow] of copy.metaShadow.entries()) {
+      expect(shadow, `hero meta line ${i} has no text shadow`).toBe('none')
     }
-    // D156: "half the intensity" — every layer is the theme shadow at 50%.
-    expect(copy.titleLayers.length, 'two shadow layers').toBe(2)
-    for (const a of copy.titleLayers) {
-      expect(a, 'each layer is half the theme shadow alpha').toBeCloseTo(copy.themeAlpha / 2, 2)
-    }
-    // D156: a smooth ramp, not a 5-stop panel — the left scrim is built from
-    // 9 tapering stops so its falloff has no visible shelf.
+    // D157: the scrim behind the type is denser than D156's 92%.
+    expect(copy.scrimLeadAlpha, 'left scrim is >= 95% theme bg under the copy').toBeGreaterThanOrEqual(0.95)
+    // D156: a smooth ramp, not a 5-stop panel — 9 tapering stops, no shelf.
     expect(geom.bg.match(/%/g)?.length ?? 0, 'deeply eased ramp (9 tapering stops)').toBeGreaterThanOrEqual(8)
   })
 
-  test('the preview card banner title carries the same halved shadow', async ({ page }) => {
+  test('the preview card banner title has no shadow and a denser scrim', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 })
     await page.goto('/anime/20', { waitUntil: 'domcontentloaded' })
     const dialog = page.locator('[role="dialog"]').first()
@@ -94,27 +90,34 @@ test.describe('hero copy legibility (D154)', () => {
       .catch(() => false)
     test.skip(!hasDialog, 'detail overlay did not open')
 
-    const shadows = await page.evaluate(() => {
-      const hero = document.querySelector('.hero-copy-shadow') as HTMLElement | null
+    const banner = await page.evaluate(() => {
       const h2 = document.querySelector('[role="dialog"] h2') as HTMLElement | null
-      const paras = [...(document.querySelectorAll('[role="dialog"] .hero-copy-shadow') as any)]
+      const nodes = [...(document.querySelectorAll('[role="dialog"] .hero-copy') as any)] as HTMLElement[]
+      const alphaOf = (value: string) => {
+        const slash = value.match(/\/\s*([\d.]+)\)/)
+        return slash ? Number(slash[1]) : 1
+      }
+      const el = document.querySelector('[role="dialog"] .detail-banner-scrim')
+      const bg = el ? getComputedStyle(el).backgroundImage : ''
+      const first = bg.match(/(?:rgba?\([^)]*\)|color\([^)]*\))/)?.[0] ?? ''
       return {
-        heroShadow: hero ? getComputedStyle(hero).textShadow : null,
         bannerShadow: h2 ? getComputedStyle(h2).textShadow : null,
-        bannerNodes: paras.length,
-        scrim: (() => {
-          const el = document.querySelector('[role="dialog"] .detail-banner-scrim')
-          return el ? getComputedStyle(el).backgroundImage : null
-        })(),
+        bannerNodes: nodes.length,
+        nodeShadows: nodes.map((n) => getComputedStyle(n).textShadow),
+        scrim: bg,
+        scrimLeadAlpha: alphaOf(first),
       }
     })
-    expect(shadows.scrim, 'banner scrim is one continuous eased gradient').toContain('linear-gradient')
-    expect(shadows.scrim!.match(/%/g)?.length ?? 0, 'banner ramp has >= 12 stops').toBeGreaterThanOrEqual(12)
-    expect(shadows.bannerShadow, 'banner title carries the hero copy shadow').not.toBe('none')
-    expect(shadows.bannerNodes, 'title + both title lines carry it').toBeGreaterThanOrEqual(2)
-    if (shadows.heroShadow) {
-      expect(shadows.bannerShadow, 'identical treatment to the hero title').toBe(shadows.heroShadow)
+    expect(banner.scrim, 'banner scrim is one continuous eased gradient').toContain('linear-gradient')
+    expect(banner.scrim.match(/%/g)?.length ?? 0, 'banner ramp has >= 12 stops').toBeGreaterThanOrEqual(12)
+    // D157: the shadow is gone from the banner title and its two sub-lines.
+    expect(banner.bannerShadow, 'banner title has no text shadow').toBe('none')
+    expect(banner.bannerNodes, 'title + both title lines carry the hook').toBeGreaterThanOrEqual(2)
+    for (const [i, shadow] of banner.nodeShadows.entries()) {
+      expect(shadow, `banner line ${i} has no text shadow`).toBe('none')
     }
+    // D157: the scrim under the title is denser than D156's 62%.
+    expect(banner.scrimLeadAlpha, 'banner scrim is >= 74% theme bg under the title').toBeGreaterThanOrEqual(0.74)
   })
 
   for (const width of [1440, 768, 375]) {

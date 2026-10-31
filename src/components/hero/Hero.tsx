@@ -59,23 +59,23 @@ export function Hero({ anime, onMoreInfo, trackingProvider }: { anime: Anime; on
             the two modes always travel together. */}
         <div className="absolute inset-0 flex">
           <div className="flex w-full max-w-[560px] flex-col justify-end gap-3 px-5 pb-6 pt-16 sm:justify-center sm:pl-12 sm:pr-8 sm:pt-8 sm:pb-8 lg:pl-12 lg:pt-8 lg:pb-8 lg:pr-0">
-            <h1 className="hero-copy-shadow clamp-2 overflow-hidden shrink-0 text-[22px] font-semibold leading-[1.05] tracking-[-0.03em] text-[var(--text)] sm:text-[30px] sm:clamp-3 lg:text-[34px]">
+            <h1 className="hero-copy clamp-2 overflow-hidden shrink-0 text-[22px] font-semibold leading-[1.05] tracking-[-0.03em] text-[var(--text)] sm:text-[30px] sm:clamp-3 lg:text-[34px]">
               {titles.primary}
             </h1>
 
             {titles.native && (
-              <p className="hero-copy-shadow -mt-1 hidden shrink-0 text-[12px] tracking-wide text-[var(--text-muted)] sm:block">{titles.native}</p>
+              <p className="hero-copy -mt-1 hidden shrink-0 text-[12px] tracking-wide text-[var(--text-muted)] sm:block">{titles.native}</p>
             )}
             {titles.romaji && (
-              <p className="hero-copy-shadow -mt-1 hidden shrink-0 text-[11px] tracking-wide text-[var(--text-faint)] sm:block">{titles.romaji}</p>
+              <p className="hero-copy -mt-1 hidden shrink-0 text-[11px] tracking-wide text-[var(--text-faint)] sm:block">{titles.romaji}</p>
             )}
 
-            <p className="hero-copy-shadow shrink-0 text-[12px] font-medium tracking-wide text-[var(--text-muted)] flex items-center gap-2">
+            <p className="hero-copy shrink-0 text-[12px] font-medium tracking-wide text-[var(--text-muted)] flex items-center gap-2">
               <span>{metaParts}</span>
               <ScoreBadge anime={anime} trackingProvider={trackingProvider} />
             </p>
 
-            <p className="hero-copy-shadow hero-desc clamp-3 shrink-0 max-w-[520px] text-[13px] leading-6 text-[var(--text-muted)] sm:text-[14px]">
+            <p className="hero-copy hero-desc clamp-3 shrink-0 max-w-[520px] text-[13px] leading-6 text-[var(--text-muted)] sm:text-[14px]">
               {anime.description}
             </p>
 
@@ -481,17 +481,17 @@ function HeroSlide({
                       wins over utility-layer rules at equal specificity,
                       so a utility override would silently keep clamp-2. */}
                   <h1
-                    className="hero-copy-shadow clamp-2 overflow-hidden shrink-0 text-[22px] font-semibold leading-[1.15] tracking-[-0.03em] text-[var(--text)] sm:text-[26px] sm:clamp-3 lg:text-[34px] lg:leading-[1.05]"
+                    className="hero-copy clamp-2 overflow-hidden shrink-0 text-[22px] font-semibold leading-[1.15] tracking-[-0.03em] text-[var(--text)] sm:text-[26px] sm:clamp-3 lg:text-[34px] lg:leading-[1.05]"
                   >
                     {titles.primary}
                   </h1>
-                  {titles.native && <p className="hero-copy-shadow -mt-1 hidden shrink-0 text-[12px] tracking-wide text-[var(--text-muted)] sm:block">{titles.native}</p>}
-                  {titles.romaji && <p className="hero-copy-shadow -mt-1 hidden shrink-0 text-[11px] tracking-wide text-[var(--text-faint)] sm:block">{titles.romaji}</p>}
-                  <p className="hero-copy-shadow shrink-0 text-[12px] font-medium tracking-wide text-[var(--text-muted)] flex items-center gap-2">
+                  {titles.native && <p className="hero-copy -mt-1 hidden shrink-0 text-[12px] tracking-wide text-[var(--text-muted)] sm:block">{titles.native}</p>}
+                  {titles.romaji && <p className="hero-copy -mt-1 hidden shrink-0 text-[11px] tracking-wide text-[var(--text-faint)] sm:block">{titles.romaji}</p>}
+                  <p className="hero-copy shrink-0 text-[12px] font-medium tracking-wide text-[var(--text-muted)] flex items-center gap-2">
                     <span>{metaParts}</span>
                     <ScoreBadge anime={anime} trackingProvider={trackingProvider} />
                   </p>
-                  <p className="hero-copy-shadow hero-desc clamp-3 shrink-0 max-w-[520px] text-[13px] leading-6 text-[var(--text-muted)] sm:text-[14px]">
+                  <p className="hero-copy hero-desc clamp-3 shrink-0 max-w-[520px] text-[13px] leading-6 text-[var(--text-muted)] sm:text-[14px]">
                     {anime.description}
                   </p>
                   <div className="mt-1 flex shrink-0 items-center gap-2">

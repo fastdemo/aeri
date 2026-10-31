@@ -493,14 +493,14 @@ img.img-fade.is-loaded { opacity: 0.96; }
 .hero-scrim-left {
   background: linear-gradient(
     90deg,
-    color-mix(in srgb, var(--bg) 92%, transparent) 0%,
-    color-mix(in srgb, var(--bg) 86%, transparent) 12%,
-    color-mix(in srgb, var(--bg) 74%, transparent) 26%,
-    color-mix(in srgb, var(--bg) 60%, transparent) 40%,
-    color-mix(in srgb, var(--bg) 46%, transparent) 54%,
-    color-mix(in srgb, var(--bg) 32%, transparent) 68%,
-    color-mix(in srgb, var(--bg) 20%, transparent) 80%,
-    color-mix(in srgb, var(--bg) 10%, transparent) 90%,
+    color-mix(in srgb, var(--bg) 97%, transparent) 0%,
+    color-mix(in srgb, var(--bg) 93%, transparent) 12%,
+    color-mix(in srgb, var(--bg) 85%, transparent) 26%,
+    color-mix(in srgb, var(--bg) 74%, transparent) 40%,
+    color-mix(in srgb, var(--bg) 60%, transparent) 54%,
+    color-mix(in srgb, var(--bg) 44%, transparent) 68%,
+    color-mix(in srgb, var(--bg) 27%, transparent) 80%,
+    color-mix(in srgb, var(--bg) 13%, transparent) 90%,
     color-mix(in srgb, var(--bg) 0%, transparent) 100%
   );
 }
@@ -508,13 +508,13 @@ img.img-fade.is-loaded { opacity: 0.96; }
   background: linear-gradient(
     180deg,
     color-mix(in srgb, var(--bg) 0%, transparent) 0%,
-    color-mix(in srgb, var(--bg) 3%, transparent) 12%,
-    color-mix(in srgb, var(--bg) 9%, transparent) 26%,
-    color-mix(in srgb, var(--bg) 20%, transparent) 40%,
-    color-mix(in srgb, var(--bg) 36%, transparent) 54%,
-    color-mix(in srgb, var(--bg) 56%, transparent) 68%,
-    color-mix(in srgb, var(--bg) 76%, transparent) 82%,
-    color-mix(in srgb, var(--bg) 90%, transparent) 92%,
+    color-mix(in srgb, var(--bg) 4%, transparent) 12%,
+    color-mix(in srgb, var(--bg) 12%, transparent) 26%,
+    color-mix(in srgb, var(--bg) 26%, transparent) 40%,
+    color-mix(in srgb, var(--bg) 44%, transparent) 54%,
+    color-mix(in srgb, var(--bg) 64%, transparent) 68%,
+    color-mix(in srgb, var(--bg) 82%, transparent) 82%,
+    color-mix(in srgb, var(--bg) 93%, transparent) 92%,
     var(--bg) 100%
   );
 }
@@ -539,33 +539,29 @@ img.img-fade.is-loaded { opacity: 0.96; }
 .detail-banner-scrim {
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--bg) 62%, transparent) 0%,
-    color-mix(in srgb, var(--bg) 52%, transparent) 10%,
-    color-mix(in srgb, var(--bg) 36%, transparent) 22%,
-    color-mix(in srgb, var(--bg) 18%, transparent) 34%,
-    color-mix(in srgb, var(--bg) 4%, transparent) 45%,
+    color-mix(in srgb, var(--bg) 76%, transparent) 0%,
+    color-mix(in srgb, var(--bg) 70%, transparent) 10%,
+    color-mix(in srgb, var(--bg) 56%, transparent) 22%,
+    color-mix(in srgb, var(--bg) 34%, transparent) 34%,
+    color-mix(in srgb, var(--bg) 10%, transparent) 45%,
     color-mix(in srgb, var(--bg) 0%, transparent) 53%,
-    color-mix(in srgb, var(--bg) 4%, transparent) 62%,
-    color-mix(in srgb, var(--bg) 16%, transparent) 72%,
-    color-mix(in srgb, var(--bg) 34%, transparent) 82%,
-    color-mix(in srgb, var(--bg) 58%, transparent) 90%,
-    color-mix(in srgb, var(--bg) 82%, transparent) 96%,
+    color-mix(in srgb, var(--bg) 7%, transparent) 62%,
+    color-mix(in srgb, var(--bg) 24%, transparent) 72%,
+    color-mix(in srgb, var(--bg) 48%, transparent) 82%,
+    color-mix(in srgb, var(--bg) 72%, transparent) 90%,
+    color-mix(in srgb, var(--bg) 89%, transparent) 96%,
     var(--bg) 100%
   );
 }
 
-/* Hero copy legibility (D154, halved D156). The left scrim is 720px wide with
-   a slow falloff, but a very bright frame (or a light theme over a dark one)
-   can still leave copy on a mid-tone. A soft theme-aware shadow — `--shadow`
-   is 60% black on dark themes and 18% on light ones — separates the type
-   from the artwork without changing layout or painting a panel. D156 halves
-   its alpha (the owner asked for half the intensity); geometry is unchanged,
-   so the 8px layer is still the contract the contrast test pins. Also used by
-   the anime/manga preview card's banner title (same art, same problem). */
-.hero-copy-shadow {
-  text-shadow:
-    0 1px 2px color-mix(in srgb, var(--shadow) 50%, transparent),
-    0 2px 8px color-mix(in srgb, var(--shadow) 50%, transparent);
+/* Hero / preview-banner copy hook (D157). The copy carried a theme-aware text
+   shadow from D154 (60% black on dark themes, 18% on light) that D156 halved;
+   the owner then asked for NO text shadow at all and a stronger scrim behind
+   the type instead. The shadow layers are gone — the contrast now comes
+   entirely from `.hero-scrim-left` / `.detail-banner-scrim`. This class
+   carries no paint; it exists so the hero copy and the preview-banner title
+   share one queryable marker (tests, future tuning). */
+.hero-copy {
 }
 
 /* thumbnail-only hover for the ⋮ trigger. The ⋮

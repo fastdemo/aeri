@@ -247,6 +247,9 @@ export function Navbar() {
   // (HeaderPopup) so its backdrop-blur samples the real page at every
   // scroll position — see HeaderPopup's doc comment.
   const searchInputRef = useRef<HTMLInputElement>(null)
+  // Compact-bar search field — the ⌘K fallback target when the inline input
+  // is not mounted (below the fit breakpoint).
+  const mobileSearchInputRef = useRef<HTMLInputElement>(null)
   // Bell + avatar anchors for the portaled popups (body portal, same as search).
   const bellRef = useRef<HTMLButtonElement>(null)
   const profileBtnRef = useRef<HTMLButtonElement>(null)
@@ -360,6 +363,35 @@ export function Navbar() {
       try { ro?.disconnect() } catch {}
     }
   }, [desktopNav.length, isAuthenticated])
+
+  // ⌘K / Ctrl+K / Alt+K (owner 2026-10-31, Alt added same day): focus the
+  // search field so you can type immediately. A keybind only — no new chrome,
+  // no hint badge. On the wide bar it focuses (and selects) the inline input;
+  // when the bar is compact the same keys open the search dropdown, whose
+  // input autofocuses. Shift variants are left alone (⌘⇧K belongs to the
+  // browser/devtools), and the handler never runs while a modifier-less
+  // typing target is involved — ⌘K inside an input still means "search",
+  // which is the point.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.shiftKey) return
+      if (!(e.metaKey || e.ctrlKey || e.altKey)) return
+      if (e.key.toLowerCase() !== 'k') return
+      e.preventDefault()
+      if (navFits) {
+        const input = searchInputRef.current
+        if (!input) return
+        input.focus()
+        input.select()
+        return
+      }
+      setMobileSearchOpen(true)
+      // The compact panel mounts on the next paint; focus its input there.
+      requestAnimationFrame(() => mobileSearchInputRef.current?.focus())
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [navFits])
 
   // Hidden measurer: the REAL left cluster (logo + SectionLinks) and the REAL
   // right cluster (search input, bell, avatar / Sign in) with identical
@@ -665,6 +697,7 @@ export function Navbar() {
         <div ref={mobileSearchRef} className="absolute left-0 right-0 top-14 border-t border-[var(--border)] bg-[var(--bg)] px-4 py-3 shadow-lg shadow-black/20">
           <form onSubmit={onSearch} className="flex items-center gap-2">
             <input
+              ref={mobileSearchInputRef}
               autoFocus
               value={query}
               onChange={(e) => { setQuery(e.target.value); setShowSuggestions(true) }}

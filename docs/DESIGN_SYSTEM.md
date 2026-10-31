@@ -237,12 +237,13 @@ One pill geometry for the whole app, imported from
 
 - Height 56vh desktop (min 420px, max 680px), 62vh mobile. Width full-bleed within gutter.
 - Backdrop image: `object-cover`, centered, cinematic crop.
-- Gradients (D156 — ONE rule set in `globals.css`, shared by both hero copies):
-  - `.hero-scrim-left`: 720px wide, column-bound (never full-bleed), **9 tapering stops** `--bg` 92 → 86 → 74 → 60 → 46 → 32 → 20 → 10 → 0% (alpha) at 0/12/26/40/54/68/80/90/100%. Ends past the 560px text column so long titles and the description stay on the scrim.
-  - `.hero-scrim-bottom`: 45% tall, 0 → 3 → 9 → 20 → 36 → 56 → 76 → 90 → 100% at 0/12/26/40/54/68/82/92/100%.
+- Gradients (D156, denser D157 — ONE rule set in `globals.css`, shared by both hero copies):
+  - `.hero-scrim-left`: 720px wide, column-bound (never full-bleed), **9 tapering stops** `--bg` 97 → 93 → 85 → 74 → 60 → 44 → 27 → 13 → 0% (alpha) at 0/12/26/40/54/68/80/90/100%. Ends past the 560px text column so long titles and the description stay on the scrim.
+  - `.hero-scrim-bottom`: 45% tall, 0 → 4 → 12 → 26 → 44 → 64 → 82 → 93 → 100% at 0/12/26/40/54/68/82/92/100%.
   - `.hero-scrim-top`: 96px, 40 → 30 → 17 → 8 → 2 → 0% at 0/30/55/75/90/100%.
+  - `.detail-banner-scrim` (preview card): 12 stops, 76 → 70 → 56 → 34 → 10 → 0% at 0–53%, then 7 → 24 → 48 → 72 → 89 → 100% at 62–100%.
   - **House rule for every gradient on the site:** 6+ tapering stops, and each zero end is written `color-mix(in srgb, var(--bg) 0%, transparent)` — same hue at zero alpha, never the `transparent` keyword. Three-stop ramps between partial `--bg` and the keyword read as a milky panel with a visible shelf, especially on a light theme.
-- Hero copy carries `.hero-copy-shadow` (D154, halved D156): `0 1px 2px color-mix(--shadow 50%)`, `0 2px 8px color-mix(--shadow 50%)` — theme-aware (60% black on dark themes, 18% on light ones) at half alpha, so a bright backdrop never washes the type out without the type looking stamped on. The anime/manga preview-card banner title uses the same class.
+- Hero copy carries **no text shadow** (D157; the D154 shadow was halved in D156 and removed in D157). Contrast is bought from the scrim: the left ramp starts at 97% of `--bg` under the type. `.hero-copy` is a paint-free marker class shared by the hero copy and the preview-card banner title.
 - Content sits left, max-width 560px, padding 0 48px. Title → meta (Type · Year · Episodes · Rating) → description (2-line clamp, muted) → actions.
 - Buttons: Primary Play (white pill, 30px, 12px/500, black text) + secondary More Info (soft pill, same 30px geometry, backdrop-blur).
 - Never cover hero with cards.

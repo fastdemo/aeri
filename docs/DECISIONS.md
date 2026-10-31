@@ -3155,3 +3155,44 @@ as the hero title, and its scrim is a ≥12-stop gradient. Row-arrow test update
 from "scrim is 75%" to "starts at 78% and reaches zero". Targeted suites green
 (hero contrast 5/5, continue card, nav breakpoint, watch layout, watch episode
 marks, aired progress). Screenshots: `OpenCode/screens/d156/`.
+
+## D157 — No text shadow on hero/preview copy (stronger scrim instead) + ⌘K search (2026-10-31)
+
+Owner: "remove shadows from text on top of heroes and preview card thumbnails
+please. instead, make the gradient behind a bit stronger so the text on top is
+more visible." Then: "on desktop when you ctrl+k or cmd+k will you select the
+search bar and you can start typing (just a keybind, no extra elements or
+anything)."
+
+**(1) Text shadows removed.** `.hero-copy-shadow` is gone as a paint rule. The
+hero copy (title, native/romaji, meta, description — both hero copies) and the
+preview card's banner title (h2 + native + romaji) now carry `.hero-copy`,
+which sets no `text-shadow`; the h2's generic Tailwind `drop-shadow` was
+removed as well. The D154→D156 shadow history (full, then half) is over: type
+over artwork is separated by the scrim only, which reads cleaner than a halo
+on a bright frame.
+
+**(2) Scrims strengthened.** `--bg` opacity at the leading edge:
+- `.hero-scrim-left`: 92 → 97% at 0%, ramp 93/85/74/60/44/27/13/0 (was
+  86/74/60/46/32/20/10/0). The 560px text column now sits on ≥74% of the
+  theme background for its whole width.
+- `.hero-scrim-bottom`: 3/9/20/36/56/76/90 → 4/12/26/44/64/82/93.
+- `.detail-banner-scrim`: top (title bed) 62/52/36/18/4 → 76/70/56/34/10;
+  bottom (Resume + "N of M · P% watched" row) 4/16/34/58/82 → 7/24/48/72/89.
+  The bottom row sits at ~90% of the banner's height, so it needed the denser
+  tail: measured painted backdrop behind the caption in Aeri Dark is now
+  rgb(55,57,59) under #a3a3a3 text (~4.5:1) instead of a mid-gray.
+
+**(3) ⌘K / Ctrl+K / Alt+K focuses search (Alt added the same day).** A single document-level keydown handler in
+`Navbar`: Cmd, Ctrl or Alt (no Shift), key `k` → `preventDefault` and focus. Wide bar: focus + `select()` the inline input (typing replaces a
+previous query). Compact bar: open the existing search dropdown and focus its
+input on the next frame (new `mobileSearchInputRef`). Deliberately no visible
+hint badge, no new element, no URL change.
+
+**Verified.** `tests/hero-contrast.spec.ts` 5/5 (now asserts every hero copy
+node and every banner line computes `text-shadow: none`, left scrim leading
+alpha ≥0.95, banner ≥0.74). `tests/nav-breakpoint.spec.ts` 10/10 including the
+new `search keybind` block (desktop focus + typing + `aria-expanded`, compact
+panel focus, Shift variant ignored). Screenshots: `OpenCode/screens/d157/`
+(hero bright/real × dark/light, banner bright × dark/light, keybind desktop
+1440 + compact 480).
