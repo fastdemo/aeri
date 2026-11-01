@@ -34,7 +34,7 @@ export function SchedulePanel({ onClose, onOpen }: { onClose: () => void; onOpen
   const mine = ((combinedList ?? [])
     .filter(e => e.status === 'watching' && e.anime.nextAiringEpisode && e.anime.nextAiringEpisode.airingAt * 1000 > now - 86400000)
     .map(e => ({ e, at: (e.anime.nextAiringEpisode?.airingAt ?? 0) * 1000, mine: true as const }))
-    .sort((a, b) => a.at - b.at)).slice(0, 8)
+    .sort((a, b) => a.at - b.at))
   // Fallback: currently-airing rail titles. Their nextAiringEpisode may be
   // absent (schedule nodes carry the timestamps instead), so derive the
   // soonest future airingAt from airingSchedule when needed.
@@ -50,8 +50,13 @@ export function SchedulePanel({ onClose, onOpen }: { onClose: () => void; onOpen
     .filter(a => !seen.has(a.identity.internalId))
     .map(a => ({ e: { anime: a } as { anime: (typeof a) }, at: soonest(a), mine: false as const }))
     .filter(x => x.at > now - 86400000)
-    .sort((a, b) => a.at - b.at)).slice(0, Math.max(0, 8 - mine.length))
-  const items = [...mine, ...rail]
+    .sort((a, b) => a.at - b.at))
+  // ONE chronological ramp (owner 2026-11-01): soonest airing at the top,
+  // latest at the bottom. The watching-list group used to be concatenated in
+  // front of the rail, so a show from your list airing in five days sat above
+  // one airing tonight. Both groups are now candidates in a single sort, then
+  // the panel keeps the soonest 8.
+  const items = [...mine, ...rail].sort((a, b) => a.at - b.at).slice(0, 8)
 
   const fmtCountdown = (at: number) => {
     const ms = at - now

@@ -3196,3 +3196,27 @@ new `search keybind` block (desktop focus + typing + `aria-expanded`, compact
 panel focus, Shift variant ignored). Screenshots: `OpenCode/screens/d157/`
 (hero bright/real × dark/light, banner bright × dark/light, keybind desktop
 1440 + compact 480).
+
+## D158 — "Airing soon" is one chronological ramp (2026-11-01)
+
+Owner: "for the airing soon, sort from the one that is gonna air the soonest at
+the top, and the ones that are airing last at the bottom."
+
+`SchedulePanel` used to build TWO sorted groups and concatenate them: the
+watching-list entries (with a `nextAiringEpisode`) first, then the
+currently-airing rail for the remaining slots. Each group was internally
+ascending, but the seam meant a show from your list airing in five days sat
+ABOVE a rail title airing tonight — the panel read unsorted.
+
+Now both groups are candidate pools for ONE ascending sort, then the panel
+keeps the soonest 8 (`[...mine, ...rail].sort((a, b) => a.at - b.at).slice(0, 8)`).
+The rail pool is no longer trimmed to `8 - mine.length` before the sort, so a
+list entry can't crowd out a sooner rail title; watching entries still take
+part as candidates, they just don't get a position for free.
+
+**Verified.** New `tests/schedule-order.spec.ts` (2 tests): (a) a deliberately
+shuffled rail (0.5h, 2h, 8h, 30h, 72h, 120h) renders in exactly that order;
+(b) with an AniList watching entry airing in 120h and rail titles at 1h and
+4h, the list entry renders LAST. Test (b) fails on the pre-change code
+(confirmed by running it against `HEAD`'s SchedulePanel: received the list
+entry first) and passes after.
