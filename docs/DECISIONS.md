@@ -3353,5 +3353,5 @@ transparent, rows carry the plate). Local regression 8/8 (settings,
 theme-chrome-tint, card-dots-reach, browse-subtitle, player-recovery).
 Screenshots: `OpenCode/screens/d161/providers-mocha-anime.png` /
 `providers-mocha-manga.png`. Deployed as worker
-`0c27652d-7e54-4553-984d-00be15f2f6e7`, bundle `index-CCHI8IQO.js`,
-`verify:live` 8/8, live specs 7/7.
+`1024f5d6-392f-437a-9dd5-f6417095cbb0` (CI, commit `43c3268`), bundle
+`index-CCHI8IQO.js`, `verify:live` 8/8, live specs 7/7.
