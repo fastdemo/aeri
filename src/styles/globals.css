@@ -571,9 +571,42 @@ img.img-fade.is-loaded { opacity: 0.96; }
    can't reach it. `:has()` bridges the sibling gap: reveal when the
    art div (the ONLY `.group\/art` in the card) is hovered, or when
    the card holds keyboard focus. Specificity beats Tailwind's
-   `.opacity-0`; the button's own transition rides the fade. */
+   `.opacity-0`; the button's own transition rides the fade.
+   THE TRIGGER'S OWN :hover IS REQUIRED (owner 2026-11-01): the ⋮ sits
+   on top of the art but is NOT its descendant, so the moment the
+   pointer leaves the thumbnail to reach the dots the `:has()` branch
+   stops matching and the control faded out from under the cursor.
+   Revealing while the trigger itself is hovered keeps the 24px target
+   alive across that handoff.
+   THE WHOLE HOVER TREATMENT FOLLOWS THE TRIGGER (owner 2026-11-04):
+   "when i hover over 3 dots it shall still have the hover blur and the
+   play button and such as it belongs to that component." The treatment
+   is driven by `group-hover/art`, so leaving the art collapsed the
+   scrim/blur, glyph, caption and progress swap while the pointer was
+   still inside the card's controls. These rules mirror that state for
+   the trigger-hover branch only (the open menu is NOT included, so the
+   art does not stay frozen while the pointer is elsewhere). */
 @media (hover: hover) {
-  .group\/card:has(.group\/art:hover) .card-dots-trigger {
+  .group\/card:has(.group\/art:hover) .card-dots-trigger,
+  .card-dots-trigger:hover {
     opacity: 1;
+  }
+  .group\/card:has(.card-dots-trigger:hover) .card-frost {
+    opacity: 1;
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+  }
+  .group\/card:has(.card-dots-trigger:hover) .img-fade {
+    opacity: 1;
+  }
+  .group\/card:has(.card-dots-trigger:hover) .hover-only-control {
+    opacity: 1;
+  }
+  .group\/card:has(.card-dots-trigger:hover) .card-hover-caption {
+    opacity: 1;
+    translate: 0;
+  }
+  .group\/card:has(.card-dots-trigger:hover) .continue-progress {
+    opacity: 0;
   }
 }

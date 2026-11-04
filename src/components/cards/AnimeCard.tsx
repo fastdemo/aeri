@@ -78,6 +78,14 @@ function QuickMenu({ anime }: { anime: Anime }) {
         // .card-dots-trigger` — the card ROOT carries `group/card`, the
         // art div carries `group/art`, and hovering that (the thumbnail)
         // reveals the ⋮. Hovering the bottom caption block never does.
+        // The trigger's OWN :hover branch is part of that rule too: the
+        // ⋮ overlaps the art without being inside it, so crossing from
+        // thumbnail to dots would otherwise drop the reveal mid-reach.
+        // The same trigger-hover state MIRRORS the art's whole hover
+        // treatment (frost/blur, play glyph, caption, progress swap) so
+        // the card still reads as hovered while the pointer is on the
+        // dots (owner 2026-11-04). The open menu is deliberately not
+        // included.
         // `aria-expanded:opacity-100` keeps the trigger visible while its
         // own menu is open (the pointer often moves down onto the menu,
         // which rests outside the art hover region). Keyboard: the

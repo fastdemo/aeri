@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Locator, type Page } from '@playwright/test'
 import { routeTestMalIdentity } from './helpers/test-auth'
 import { routeTestAnilistMedia } from './helpers/test-anilist'
 
@@ -244,5 +244,85 @@ test.describe('settings controls', () => {
       els.map((el) => (el.querySelector('button[aria-label^="Reorder "]')?.getAttribute('aria-label') ?? '').replace(/^Reorder /, '')))
     expect(order).toEqual(['AnimeParadise', 'AnimeGG', 'AniWave'])
     expect((await prefsOf(page)).providerOrder?.slice(0, 3)).toEqual(['animeparadise', 'animegg', 'aniwave'])
+  })
+})
+
+test.describe('provider row plate (D161)', () => {
+  // The owner's report was a 1/255 tint on a 2x display: each row painted its
+  // own 2% alpha plate, and compositing rounded differently per row (one-dark
+  // showed it at 1x too). Sample at 2x so a regression is visible.
+  test.use({ deviceScaleFactor: 2 })
+  test.beforeEach(async ({ page }) => {
+    await seedAuthOnly(page)
+  })
+
+  test('every row renders the same plate in every theme; only the disabled cue changes', async ({ page }) => {
+    test.setTimeout(150_000)
+    test.skip((page.viewportSize()?.width ?? 0) < 768, 'blank sample points need the desktop row layout')
+    await page.goto('/settings', { waitUntil: 'domcontentloaded' })
+    await page.waitForSelector('text=Anime providers', { timeout: 45_000 })
+
+    const animeSection = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Anime', exact: true }) })
+    const mangaSection = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Manga', exact: true }) })
+
+    const plateOf = (section: Locator) =>
+      section.locator('[data-provider-row]').first().locator('xpath=..').evaluate((el) => getComputedStyle(el as HTMLElement).backgroundColor)
+
+    const sample = async (row: Locator): Promise<Buffer> => {
+      await row.evaluate((el) => {
+        const root = document.documentElement
+        const prev = root.style.scrollBehavior
+        root.style.scrollBehavior = 'auto'
+        window.scrollTo(0, Math.max(0, el.getBoundingClientRect().top + window.scrollY - 300))
+        root.style.scrollBehavior = prev
+      })
+      await page.waitForTimeout(150)
+      const box = await row.boundingBox()
+      if (!box) throw new Error('provider row has no box')
+      return page.screenshot({
+        clip: { x: Math.round(box.x + box.width * 0.55), y: Math.round(box.y + box.height / 2) - 4, width: 8, height: 8 },
+      })
+    }
+
+    const expectOnePlate = async (section: Locator, label: string) => {
+      const rows = section.locator('[data-provider-row]')
+      const count = await rows.count()
+      expect(count, `${label} rows`).toBeGreaterThan(1)
+      // No row paints its own background — the plate lives once on the list
+      // container, so every row is the exact same painted surface.
+      const rowBgs = await rows.evaluateAll((els) => [...new Set(els.map((el) => getComputedStyle(el as HTMLElement).backgroundColor))])
+      expect(rowBgs, `${label} rows must not paint their own plate`).toEqual(['rgba(0, 0, 0, 0)'])
+      const buffers: Buffer[] = []
+      for (let i = 0; i < count; i++) buffers.push(await sample(rows.nth(i)))
+      for (let i = 1; i < buffers.length; i++) {
+        expect(buffers[i].equals(buffers[0]), `${label} row ${i} renders a different plate than row 0`).toBe(true)
+      }
+    }
+
+    // Owner theme (Catppuccin Mocha) + the light theme where the tint was
+    // most visible. The first row of each list is disabled to prove the state
+    // cue is opacity/switch only, never a different row colour.
+    for (const theme of ['Catppuccin Mocha', 'Aeri Light']) {
+      await page.getByRole('radio', { name: theme, exact: true }).click()
+      await expect(page.locator('html')).toHaveAttribute('data-theme', theme === 'Aeri Light' ? 'aeri-light' : 'catppuccin-mocha')
+
+      for (const section of [animeSection, mangaSection]) {
+        const first = section.locator('[data-provider-row]').first()
+        if ((await first.getByRole('switch').getAttribute('aria-checked')) === 'true') {
+          await first.getByRole('switch').click()
+        }
+        await expect(first.getByRole('switch')).toHaveAttribute('aria-checked', 'false')
+        await expect.poll(async () => first.evaluate((el) =>
+          getComputedStyle(el.firstElementChild as HTMLElement).opacity)).toBe('0.5')
+      }
+
+      const animePlate = await plateOf(animeSection)
+      const mangaPlate = await plateOf(mangaSection)
+      expect(animePlate, `${theme}: both lists share the plate`).toBe(mangaPlate)
+      expect(animePlate).not.toBe('rgba(0, 0, 0, 0)')
+
+      await expectOnePlate(animeSection, `${theme} anime`)
+      await expectOnePlate(mangaSection, `${theme} manga`)
+    }
   })
 })

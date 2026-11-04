@@ -193,7 +193,7 @@ export function Browse() {
   return (
     <div className="mx-auto max-w-[1600px] px-4 py-6 sm:px-6 lg:px-12">
       <h1 className="text-[18px] font-semibold tracking-tight text-[var(--text)]">Anime</h1>
-      <p className="text-xs text-[var(--text-faint)]">Discover anime by category and filters</p>
+      <p className="text-xs text-[var(--text-faint)]">Discover anime by category and filters • AniList</p>
 
       <div className="mt-4">
         {/* Hidden copy of both lanes at their natural width. Fixed and

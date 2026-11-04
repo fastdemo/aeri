@@ -3220,3 +3220,138 @@ shuffled rail (0.5h, 2h, 8h, 30h, 72h, 120h) renders in exactly that order;
 4h, the list entry renders LAST. Test (b) fails on the pre-change code
 (confirmed by running it against `HEAD`'s SchedulePanel: received the list
 entry first) and passes after.
+
+## D159 — Browse credits AniList, dead playback recovers itself, ⋮ survives the reach (2026-11-01)
+
+Three owner reports in one pass.
+
+**(1) Browse subtitles credit the data source.** `/anime` and `/manga` now
+read `Discover anime by category and filters • AniList` and
+`Discover manga by category and filters • AniList` (the exact wording asked
+for). Text only; no layout change.
+
+**(2) A dead picture recovers without a tab reload.** Owner: "sometimes
+during anime streaming the episode turns black completely, and it stays like
+that forever that could only be resolved with a tab refresh."
+
+The player is `VideoPlayer` around Video.js v10 + `HlsJsVideo`. Verified in
+`node_modules/@videojs/hlsjs-video/dist/default/errors.js`: hls.js FATAL
+errors are converted to a `MediaError` and dispatched as an `error` event on
+the **adapter**, but the adapter never calls `startLoad()` /
+`recoverMediaError()` — playback stays dead. Worse, the native adapter
+installs a CAPTURE listener on the `<video>` that calls
+`stopImmediatePropagation()` for every media error, so an element-level
+listener never sees them.
+
+`VideoPlayer` now runs a 2s watchdog over the live element and escalates:
+
+- **Fatal error** — the adapter's `error` event, plus a window-capture
+  `error` listener filtered to the player element (it runs before the
+  adapter's target capture can swallow it). Attempt 0: `startLoad()` for
+  network, `recoverMediaError()` for media. Attempt 1: `startLoad()`, or
+  `swapAudioCodec()` + `recoverMediaError()` for media.
+- **Buffer stall** — playing, not seeking, `currentTime` frozen for 12s →
+  `startLoad()` then `recoverMediaError()`.
+- **Decode failure** — `readyState >= HAVE_CURRENT_DATA` with
+  `videoWidth === 0` for 5s, or decoded frames frozen for 12s while the
+  clock advances → `recoverMediaError()`.
+
+Attempts 2–3 are a **targeted remount**: `playerEpoch` keys the
+`<VideoJsPlayer>` subtree, so the player is rebuilt in place (the Watch page,
+episode state and progress are untouched), then the interrupted
+`currentTime` is restored and playback resumes if it was playing. Four
+attempts per source; the budget refills after 45s of healthy playback and
+resets on a real source change. Hidden tabs are skipped (the browser may
+suspend loading); `paused`/`ended`/`seeking` are skipped except for a real
+media error, which is fatal regardless of pause state.
+
+**Verified.** New `tests/player-recovery.spec.ts`: real MP4 playback, a
+synthetic fatal media error, then a NEW `<video>` element must appear and
+resume within 1s of the pre-failure position with `videoWidth > 0`. Fails on
+`HEAD`'s player ("old" element never replaced); passes after. Engine access
+was confirmed on a real MSE HLS stream (`mediaRef.current.engine` is the
+hls.js instance; `video.src` is a `blob:` MSE URL).
+
+**(3) The ⋮ stays alive while the pointer reaches it.** Owner: "when i hover
+continue watching i cannot click on 3dots because i am not touching the
+thumbnail anymore so the menu stop hovering."
+
+The trigger overlaps the artwork but is NOT inside the art div (it must stay
+outside the frame's `overflow-hidden` so its dropdown + shadow never clip).
+The reveal rule matched only `.group\/card:has(.group\/art:hover)
+.card-dots-trigger`, so landing on the dots dropped the art hover and the
+control faded to `opacity: 0` under the cursor. The `@media (hover: hover)`
+rule now also matches `.card-dots-trigger:hover`. Touch behaviour is
+unchanged (`hover: none` keeps `pointer-events: none`).
+
+**Verified.** New `tests/card-dots-reach.spec.ts`: hover the art (opacity 1),
+move the pointer onto the trigger, poll `opacity` (stays 1), click, and the
+menu opens with "Mark as watched". The trigger-hover poll returns 0 on the
+pre-change CSS and the test fails; passes after. Screenshots:
+`OpenCode/screens/d159/` (dots + open menu, recovered player).
+
+## D160 — echovideo rejects the megaplay Referer; the relay is now host-aware (2026-11-04)
+
+Found while re-running the live playback suite after D159. Three of four
+flagship cases failed with **"A network error (status 502) occurred while
+loading manifest"** (AoT E1, Frieren E1, Naruto E1); Bebop E1 passed.
+
+**Not a D159 regression.** The relay is server-side and its code was
+untouched by D159. Evidence chain:
+
+- `curl` against `/api/stream` for the three failing titles → `502`
+  `Upstream failed`; Bebop's dpopdrop URL → `200` + real manifest.
+- `wrangler tail --env production` during a failing request logged
+  `{"ev":"stream-upstream","host":"re-2.echovideo.to","status":403}`.
+- Direct origin probes: `https://re-2.echovideo.to/.../master.m3u8` returns
+  **403** with `Referer: https://megaplay.buzz/`, and **200** with
+  `Referer: https://echovideo.to/`, `https://aniwave.to/`, or no Referer.
+  The same held for `re-1.echovideo.to` (Frieren, Naruto), the variant
+  playlist, and a segment (`47 40 11 10` MPEG-TS magic) — so the host now
+  rejects the megaplay origin specifically.
+
+`handleStream` had hardcoded `Referer`/`Origin` to `https://megaplay.buzz/`
+since the resolver merge (`d42cb6b`); echovideo changed its hotlink policy
+underneath it. The relay now picks the origin per host: hosts matching
+`(^|\.)echovideo\.(to|ru)$` send `https://echovideo.to/`; everything else
+keeps `https://megaplay.buzz/`.
+
+**Verified.** Relay manifests 200 for all four cases; `streaming-production`
+**4/4** (AoT, Bebop, Frieren, Naruto) against production; `verify:live` 8/8;
+D159 specs 3/3 against the redeployed worker (version
+`f8d94489-973a-4425-a9bf-25ee59b82cb3`, bundle `index-DpIIsQ70.js`).
+
+## D161 — Provider rows share one painted plate (2026-11-04)
+
+Owner report: *"i swear to god the first provider color is different in other
+themes (both anime and manga)"*.
+
+**Root cause.** Every provider row painted its own `bg-[var(--text)]/[0.02]`
+layer on top of the section's identical 2% layer. Each translucent layer is
+composited and rounded to 8 bits separately, so the first row's plate landed
+on a different value than its siblings — 1/255 in the green channel in the
+owner's Catppuccin Mocha screenshot (`36,36,53` vs `36,37,53`), enough to read
+as a tint across a full-width row on a 2x display. At 2x, `one-dark` rendered
+two distinct row variants; the earlier disabled-row branch
+(`bg-[color-mix(in_srgb,var(--bg)_20%,transparent)]`, resolved to
+`color(srgb 0.980392 … / 0.2)` on light themes) made the same row look
+highlighted whenever it was switched off. Both symptoms came from painting the
+plate per row.
+
+**Fix.** The plate is painted **once** on each SortableList container
+(`bg-[var(--text)]/[0.02]` in `src/pages/Settings.tsx`, anime + manga), and
+rows are transparent at rest — there is no per-row background left to round
+differently. The drag lift keeps its `--surface-elevated` plate + ring.
+Disabled is carried by `opacity-50` content and the off switch only.
+
+**Verified.** Rendered pixels (8×8 clips at 35/55/75% width, device scale 2)
+are byte-identical across all seven rows in **all 18 themes**, in **Chromium
+and WebKit**. The D161 case in `tests/settings-and-row-arrows.spec.ts` now
+samples those rendered clips and asserts rows paint no plate of their own
+(container plate non-transparent); it fails on the pre-fix build (container
+transparent, rows carry the plate). Local regression 8/8 (settings,
+theme-chrome-tint, card-dots-reach, browse-subtitle, player-recovery).
+Screenshots: `OpenCode/screens/d161/providers-mocha-anime.png` /
+`providers-mocha-manga.png`. Deployed as worker
+`0c27652d-7e54-4553-984d-00be15f2f6e7`, bundle `index-CCHI8IQO.js`,
+`verify:live` 8/8, live specs 7/7.

@@ -374,7 +374,7 @@ export function Settings() {
               getId={c => c.id}
               getLabel={c => c.displayName}
               onReorder={reorderProvider}
-              className="rounded-lg border border-[var(--border)]"
+              className="rounded-lg border border-[var(--border)] bg-[var(--text)]/[0.02]"
               renderRow={(c, idx, row) => {
                 const enabled = isEnabled(c.id)
                 const h = health?.[c.id]
@@ -390,7 +390,7 @@ export function Settings() {
                     ref={row.rowRef}
                     style={row.rowStyle}
                     data-provider-row
-                    className={`flex items-center justify-between gap-3 px-3 py-2.5 ${isLast ? '' : 'border-b border-[var(--border)]'} ${radius} ${row.isDragging ? 'bg-[var(--surface-elevated)] shadow-[0_16px_36px_var(--shadow)] ring-1 ring-[color-mix(in_srgb,var(--text)_24%,transparent)]' : enabled ? 'bg-[var(--text)]/[0.02]' : 'bg-[color-mix(in_srgb,var(--bg)_20%,transparent)]'} transition-colors duration-300 ease-out`}
+                    className={`flex items-center justify-between gap-3 px-3 py-2.5 ${isLast ? '' : 'border-b border-[var(--border)]'} ${radius} ${row.isDragging ? 'bg-[var(--surface-elevated)] shadow-[0_16px_36px_var(--shadow)] ring-1 ring-[color-mix(in_srgb,var(--text)_24%,transparent)]' : ''} transition-colors duration-300 ease-out`}
                   >
                     <div className={`flex min-w-0 items-center gap-2 transition-opacity duration-300 ease-out ${enabled ? 'opacity-100' : 'opacity-50'}`}>
                       <button {...row.handleProps} className="-ml-1 grid h-7 w-6 shrink-0 cursor-grab touch-none place-items-center rounded text-[color-mix(in_srgb,var(--text)_35%,transparent)] hover:text-[var(--text)] active:cursor-grabbing focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--border-strong)]">
@@ -474,7 +474,7 @@ export function Settings() {
             getId={p => p.id}
             getLabel={p => p.name}
             onReorder={reorderMangaProvider}
-            className="rounded-lg border border-[var(--border)]"
+            className="rounded-lg border border-[var(--border)] bg-[var(--text)]/[0.02]"
             renderRow={(p, idx, row) => {
               const enabled = isMangaEnabled(p.id)
               const isFirst = idx === 0
@@ -486,7 +486,7 @@ export function Settings() {
                   ref={row.rowRef}
                   style={row.rowStyle}
                   data-provider-row
-                  className={`flex items-center justify-between gap-3 px-3 py-2.5 ${isLast ? '' : 'border-b border-[var(--border)]'} ${radius} ${row.isDragging ? 'bg-[var(--surface-elevated)] shadow-[0_16px_36px_var(--shadow)] ring-1 ring-[color-mix(in_srgb,var(--text)_24%,transparent)]' : enabled ? 'bg-[var(--text)]/[0.02]' : 'bg-[color-mix(in_srgb,var(--bg)_20%,transparent)]'} transition-colors duration-300 ease-out`}
+                  className={`flex items-center justify-between gap-3 px-3 py-2.5 ${isLast ? '' : 'border-b border-[var(--border)]'} ${radius} ${row.isDragging ? 'bg-[var(--surface-elevated)] shadow-[0_16px_36px_var(--shadow)] ring-1 ring-[color-mix(in_srgb,var(--text)_24%,transparent)]' : ''} transition-colors duration-300 ease-out`}
                 >
                   <div className={`flex min-w-0 items-center gap-2 transition-opacity duration-300 ease-out ${enabled ? 'opacity-100' : 'opacity-50'}`}>
                     <button {...row.handleProps} className="-ml-1 grid h-7 w-6 shrink-0 cursor-grab touch-none place-items-center rounded text-[color-mix(in_srgb,var(--text)_35%,transparent)] hover:text-[var(--text)] active:cursor-grabbing focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--border-strong)]">

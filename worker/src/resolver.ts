@@ -1081,12 +1081,19 @@ export async function handleStream(request: Request, cors: Record<string, string
     else clientSignal.addEventListener('abort', onClientAbort, { once: true })
   }
   const tid = setTimeout(() => { try { ctrl.abort(new Error('stream timeout')) } catch {} }, 120000)
+  // Referer policy is per-provider. megaplay/dpopdrop accept the megaplay
+  // origin, but echovideo now 403s it (verified 2026-11-04: the same
+  // manifest returns 200 for echovideo.to, aniwave.to, or no Referer). A
+  // 403 here becomes a 502 on /api/stream, which surfaced as "network
+  // error (status 502) while loading manifest" for AoT/Frieren/Naruto.
+  const echovideoHost = /(^|\.)echovideo\.(to|ru)$/i.test(host)
+  const referer = echovideoHost ? 'https://echovideo.to/' : 'https://megaplay.buzz/'
   try {
     const up = await fetchUpstream(target, {
       headers: {
         Accept: '*/*',
-        Referer: 'https://megaplay.buzz/',
-        Origin: 'https://megaplay.buzz',
+        Referer: referer,
+        Origin: referer.slice(0, -1),
       },
       range: request.headers.get('Range'),
       timeoutMs: 120000,
