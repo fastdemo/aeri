@@ -63,9 +63,10 @@ test.describe('Manga reader — MAL-backed ids', () => {
     await expect(page.getByRole('heading', { name: 'Berserk' }).first()).toBeVisible({ timeout: 45000 })
     await page.waitForSelector('select[aria-label="Select chapter"]', { timeout: 45000 })
 
-    // The SUBTITLE under the title reads `Chapter 1 · WeebCentral` (middle
-    // dot) and the dropdown pill stays exactly as it was — the standalone
-    // "Source: …" line is gone.
+    // The SUBTITLE under the title reads `Chapter 1 · Weeb Central` (middle
+    // dot, the registry's own provider name — one spelling everywhere) and the
+    // dropdown pill stays exactly as it was — the standalone "Source: …" line
+    // is gone.
     const header = await page.evaluate(() => {
       const h1 = document.querySelector('h1') as HTMLElement | null
       const subtitle = h1?.parentElement?.querySelector('p') as HTMLElement | null
@@ -80,7 +81,7 @@ test.describe('Manga reader — MAL-backed ids', () => {
       }
     })
     expect(header.sourceLine, 'the standalone Source line is gone').toBe(false)
-    expect(header.subtitle, 'subtitle reads "<chapter> · <provider>"').toBe('Chapter 1 · WeebCentral')
+    expect(header.subtitle, 'subtitle reads "<chapter> · <provider>"').toBe('Chapter 1 · Weeb Central')
     expect(header.subtitle).not.toContain(' - ')
     // The dropdown pill is untouched: chapter only, no provider suffix.
     expect(header.pill, 'dropdown pill stays chapter-only').toBe('Chapter 1')

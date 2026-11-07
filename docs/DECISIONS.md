@@ -3355,3 +3355,597 @@ Screenshots: `OpenCode/screens/d161/providers-mocha-anime.png` /
 `providers-mocha-manga.png`. Deployed as worker
 `1024f5d6-392f-437a-9dd5-f6417095cbb0` (CI, commit `43c3268`), bundle
 `index-CCHI8IQO.js`, `verify:live` 8/8, live specs 7/7.
+
+## D162 — Netflix page wash behind the home hero (2026-11-04, wash 2026-11-05)
+
+Owner request: *"i want to add an ambient behind the hero like netflix.
+basically the color of the image being shown roughly."* The first pass was a
+blurred **halo hugging the card's edges**; the owner then asked for a natural
+look and picked the **page wash**: *"i want it to be a page wash like netflix
+does, not a ring"* — the artwork tints the page behind the hero and fades back
+into `--bg` below the first row, so the card sits on a tinted page like an
+object, not inside a coloured ring.
+
+**Why the halo failed (and the wash does not).** The hero's own scrims make
+the card nearly `--bg` along its top, bottom and right edges while the halo was
+built from the RAW artwork, so the glow was brighter than the pixels it
+touched — it read as a ring, not as light. A 40px gutter under a 68px blur is
+also a band, not a spill. The wash removes the mismatch entirely: there is no
+edge around the card to line up with, because the layer spans the viewport and
+only fades vertically.
+
+**Approach — paint the artwork, don't sample it.** The wash is the *same*
+backdrop `<img>` the slide shows, rendered a second time, full-bleed, blurred
+and masked. No `<canvas>` readback: sampling the AniList CDN would need CORS
+(tainted canvas) and could disagree with the picture after a failed/partial
+load. Painting the file guarantees the colour matches the visible art in every
+theme, and the outgoing slide's wash crossfades with the incoming one exactly
+like the hero itself.
+
+**Implementation.**
+- `CarouselShell` (`src/components/hero/Hero.tsx`) gained an optional
+  `ambient` slot rendered on a new **outer** `relative` wrapper, *outside* the
+  `overflow-hidden` card layer — inside it the bleed would be cropped to
+  nothing. The wrapper is layout-neutral: the card still owns the box and the
+  `.frame-glass` rim.
+- `HeroAmbient` paints two layers (previous slide + active slide) and fades
+  the active one in on `onLoad`, using `CROSSFADE_MS`; keyed by the active id
+  in `HeroCarousel`, so `loaded` resets per slide. Under
+  `prefers-reduced-motion` the transition is `none` — the wash still paints.
+- `.hero-ambient` (`globals.css`) is `position: absolute; z-index: 0;
+  pointer-events: none; aria-hidden`. Only Home's `HeroCarousel` passes the
+  slot; the single-slide `Hero` copy and every other page are unchanged.
+- Home's feed wrapper (`src/pages/Home.tsx`) is `relative z-10` so every row
+  paints above the wash; the hero card is a later positioned sibling and also
+  paints above it. `z-index: -1` is **not** an option — `body` paints an opaque
+  `--bg`, so a negative layer would be hidden behind the page.
+
+**Geometry — full-bleed, not inset.** `left: 50%; width: 100vw;
+transform: translateX(-50%)`, `top: -60/-72/-84px` and
+`bottom: -280/-340/-400px` at base/640/1024. `100vw` covers the content
+viewport; `html` reserves a scrollbar gutter (`scrollbar-gutter: stable`), so
+the layer overshoots the body box by half a scrollbar on each side — exactly
+the empty gutter, never a visible gap. `body { overflow-x: clip }` keeps the
+overshoot from creating a sideways scroll. Measured: `scrollWidth` 370 @375,
+763 @768, 1435 @1440 — never above `innerWidth`.
+
+**Mask — vertical only, reaching zero below the first row.** A horizontal
+fade would just dim the outermost pixels of a layer that has nothing beyond
+it, so the mask is one linear ramp:
+`transparent 0 → #000 96px → #000 calc(100% - 300px) → .72 → .42 → .16 →
+transparent 100%` (eased stops over the last 300px). Full strength behind the
+card, then a smooth falloff that reaches zero over the first row. A pixel test
+at 1440×1500 straddles the layer's bottom edge: ≤ 6 RGB step at the edge and
+≤ 6 RGB between the layer's last pixel and the page below it (the old radial
+mask left a 25 RGB shelf).
+
+**Strength — Netflix-light.** Opacity `.15/.16/.17`, `blur(90/110/130px)`,
+`saturate(1.05)`, `brightness(0.9)` at base/640/1024. Measured tint is ~+9 RGB
+on Catppuccin Mocha and ~+16–18 RGB on pure-black Aeri Dark — a tint, never a
+glow. Earlier passes at `.46`/`.55` read as a coloured border; they are not
+coming back.
+
+**Verified.** `tests/hero-ambient.spec.ts` (rewritten, 5 cases) pins: one
+`[data-hero-ambient]` layer that is `aria-hidden`, `pointer-events: none`,
+blurred + saturated + masked, opacity ≥ 0.05 and `z-index ≤ 0`; it spans the
+full page width, starts above the card and runs ≥ 200px past its bottom; the
+bottom edge fades into the page with no shelf (pixel test); it follows a dot
+click to the next slide (its `src` matches the new active backdrop); no
+horizontal scroll at 375/768/1440; reduced motion keeps the wash and drops the
+crossfade. Chromium + mobile (Pixel 5) 66/66 across the affected specs, WebKit
+verified via a temporary project (7 passed / 1 skipped); Firefox not run
+locally (browser binary absent). Screenshots:
+`OpenCode/screens/d162/wash-{aeri-dark,catppuccin-mocha,aeri-light,mobile-375,tablet-768}.png`
+plus live `live-desktop-mocha.png` / `live-mobile-375.png`.
+Deployed as worker `c02ddc39-4d78-41a5-90ee-9644aa545692`, bundle
+`index-DNmYvn4D.js`, `verify:live` 8/8, live specs 8/8.
+
+**Perf revision (2026-11-05) — the wash was the mobile scroll jank.**
+Owner report: *"when scrolling down the website on mobile, especially the
+safari app fake thingy, it lags so much even on the latest and greatest ipad
+pro."* A frame-time probe (90 rAF-paced scroll steps at 1210×834) measured the
+old layer at **avg 15.34ms / p99 99.2ms / 8 frames over 33ms** on Home, while
+the same page with the wash hidden sat at **12.12ms / p99 16.8ms / 0** — and
+`/anime` (no wash) was 8.33ms. A full-viewport image with
+`filter: blur(130px)` is rasterised at display size on every repaint; that is
+the cost.
+
+The artwork is now drawn on a raster **1/8 of the box** and scaled back up
+(`--wash-scale: 8`): the `<img>` is `width/height: calc(100% / 8)`,
+`transform: scale(8)` with `transform-origin: top left`, and
+`filter: blur(var(--wash-blur)) saturate(1.05) brightness(0.9)` where
+`--wash-blur` is `11.25 / 13.75 / 16.25px` at base/640/1024 (= 90/110/130px on
+screen, because filters run in the element's local coordinate space). The
+filter therefore touches **1/64 of the pixels** for the same visual result.
+The mask and opacity stay on the wrapper (geometry only), and the wrapper
+itself has `filter: none` (asserted, so the expensive full-size filter cannot
+sneak back).
+
+The outgoing crossfade layer is also **unmounted** after `CROSSFADE_MS`
+instead of staying at `opacity: 0` forever — it was a second full-size
+filtered layer kept alive for the whole session.
+
+Measured after the change, same probe: Home **avg 8.33ms / p99 8.7ms / 0
+frames over 33ms** — identical to the no-wash baseline. Live A/B on
+`aeri.fastdemo.workers.dev` (fresh load each side, 60 instant steps): wash on
+10.2ms avg / p99 25.1 / 0 long frames, wash off 9.64ms / p99 17.3 / 0 — the
+wash now costs ~0.5ms average. Visual tint is unchanged (same opacity,
+effective blur radius and mask); screenshots in `OpenCode/screens/d164/`.
+
+**Reverted the same day (owner).** *"did you change how the ambient look, i
+didnt telll you to do that, return to the ambient that was present in the
+previous prompt. it looked nnicer and natural."* The 1/8 raster is gone: the
+wash is the original full-size `<img>` with the wrapper carrying
+`filter: blur(90/110/130px) saturate(1.05) brightness(0.9)` again — same
+geometry, opacity and mask as the version the owner approved. The card-load
+jank is attacked at the row/card layer instead (D165); the wash keeps its
+previous cost. `tests/hero-ambient.spec.ts` is back to the wrapper-filter
+contract.
+
+## D163 — Mobile chrome: flat top bar, solid themed iOS status-bar strip (2026-11-05)
+
+Two separate defects at the top of a phone/tablet screen, reported together:
+*"there is a faint gradient in the top bar sometimes"* and *"there is a black
+bar behind the clock and date … which i also want to change to the color of
+the theme"*. The first pass fixed the visible app-side gradient and added
+`theme-color` handling, but the owner's follow-up screenshot showed it was
+**not fixed**: the strip behind the clock still had a blurred band with stale
+page content in it, and the bar still read as a gradient. Root causes and the
+second pass:
+
+**1. The bar must carry the plain background colour ITSELF.** iOS 26 (Safari
+and installed web apps) **no longer reads `<meta name="theme-color">`** for
+the strip behind the clock/battery. WebKit reports the fixed element at the
+top edge and iOS paints that strip with **that element's plain
+`background-color`**, re-reading it on every check. An absolutely-positioned
+child is ignored by that algorithm, and an element with **no plain colour is
+sampled once and frozen** — which is exactly the owner's screenshot: the old
+header was transparent with the `--bg` layer on an `absolute` child, so iOS
+sampled the page (blurred nav/content) and kept it while the page scrolled.
+Fix: `background-color: var(--bg)` **on the `<header>` element**; the old
+`data-nav-solid` child layer is gone. The bar is now flat `--bg` at every
+scroll position (no resting transparency, no gradient, no blur), and the
+status-bar strip is the same solid colour. The hidden width measurer was
+moved from `top-0` to `-top-[200px]` so it can never be the pinned element
+iOS reads.
+
+**2. No nav gradient, ever.** The old `.nav-top-fade` (56px `--bg` gradient)
+was deleted; with the header itself solid there is no resting layer and no
+fade-in to animate. `scrolled` now only drives the bottom hairline / reader
+progress track. No backdrop filter anywhere (D151 still holds).
+
+**3. `theme-color` stays for the engines that still use it.** iOS < 26 and
+Chrome Android tint from the meta, and the splash/background colour matters
+at launch, so the static meta, the inline head script that restores
+`localStorage['aeri:theme-bg']` before the bundle, `applyTheme()` persisting
+that key, and the manifest `theme_color`/`background_color` (`#000000`) all
+remain. The status-bar style stays `default` — not `black-translucent`
+(forces white icons, unreadable on light themes) and not `black` (locked to
+black).
+
+**Verified.** `tests/mobile-chrome.spec.ts` (3 cases): no `.nav-top-fade`,
+header `background-image: none`, and the header's computed
+`background-color` equals the resolved `--bg` (the body's painted colour) at
+rest AND after scrolling, fully opaque (no `/` alpha), with
+`backdrop-filter: none` (incl. `-webkit-`); the PWA meta contract and the
+head boot script with the bundle blocked. `tests/nav-breakpoint.spec.ts`
+(D151) now asserts the same header contract (plain opaque `--bg` on the
+fixed element, no gradient, no blur) instead of a child-layer opacity.
+Chromium + mobile 66/66; live 14/14 for the two chrome specs; `verify:live`
+8/8. Screenshots: `OpenCode/screens/d163/` (`home-1440`, `home-375`,
+`settings-1440`, `settings-375`, `live-ipad-1210-mocha`). Deployed as worker
+`cc04f710-a321-41de-ba72-05eace0640a6`, bundle `index-DbYkt8X8.js`.
+
+**Caveat (recorded, not hidden):** the real iOS status bar cannot be asserted
+headlessly. iOS caches the strip's colour at launch, so an installed Home
+Screen app may need a relaunch (possibly re-add) after this deploy before the
+solid strip shows.
+
+**Follow-up (D166, same day):** making the bar's own paint solid also covered
+the Home page wash, and the owner reported the bar no longer felt like part of
+the ambient. The plain colour stays on the fixed element (that is this
+decision's whole point); the wash is now painted back INSIDE the bar as a
+clipped child layer. See D166.
+
+## D164 — Bottom overscroll lock: no rubber-band, navbar stays on screen (2026-11-05)
+
+Owner report: *"if i stretch down to the bottom too long the navbar
+disappears. make that not happen by not being able to be pulled down further
+than the bottom in the first place."* The fixed top bar did not disappear from
+the DOM — iOS rubber-banded the whole visual viewport past the document's
+bottom edge, dragging the fixed header (and everything else) up out of view.
+The bar came back on release, which is why it read as "disappears".
+
+Fix: `overscroll-behavior-y: none` on **both** `html` and `body`
+(`src/styles/globals.css`). `none` — not `contain` — removes the bounce
+entirely; `contain` still allows the visual-viewport rubber-band. Horizontal
+is deliberately left `auto` (`overscrollBehaviorX: auto`), so the hero swipe
+and the horizontal row drags are untouched. Supported in Safari 16+ /
+Chrome 63+, so every iOS 26 device is covered; older engines simply keep their
+old bounce behaviour.
+
+**Verified.** `tests/mobile-chrome.spec.ts` gained a fourth case asserting
+`overscrollBehaviorY === 'none'` on `html` and `body` and that the X axis is
+not locked, at an iPad viewport (834×1112). The real iOS bounce cannot be
+asserted headlessly, so the computed-style contract is the pinned evidence.
+Local Chromium + mobile 67/68 (one pre-existing live-data flake, see below),
+live chrome specs 20/20, `verify:live` 8/8. Deployed as worker
+`aef20d93-7a9b-4677-95f5-8dc6fb285c15`, bundle `index-Bf5tpbv1.js`.
+
+**Known flake (recorded, not hidden).** Two tests that fire a keybind
+immediately after `domcontentloaded` (`nav-breakpoint.spec.ts` search
+keybind, `home-left-edge.spec.ts`) occasionally lose the hydration race when
+the full 68-test suite runs against live AniList data; each passes when run
+alone (10/10, 11/11, 5/5). Unrelated to D162/D164.
+
+**Superseded by D165 (2026-11-05, owner).** *"dont prevent bottom overscroll,
+just fix the navbar problem when theres bottom overscroll and the navbar
+disappears."* The lock is removed — `overscroll-behavior` is back to the
+default on `html` and `body`, so the natural rubber-band returns. The
+disappearing bar is addressed by promoting `<header>` to its own composited
+layer (`[transform:translateZ(0)]`), which is what iOS drops while the scroll
+view bounces.
+
+## D165 — Card-load jank: deferred rows, no per-image re-render, tight art runway (2026-11-05)
+
+Third report on the same problem: *"it still feels laggy as hell as cards are
+loaded in"* — plus two corrections in the same message: the bottom
+rubber-band must come back (the bar is fixed another way, see D164
+"Superseded"), and the ambient must return to the pre-perf-revision look
+(see D162 "Reverted").
+
+**What was measured.** A Home load probe (Chromium, 4× CPU throttle,
+1210×834, Long Animation Frames + `longtask`) on the pre-change build:
+`totalBlocking 133ms`, `totalStyleLayout 743ms`, `maxLoaf 394ms`, **108**
+`.card-art` nodes mounted within the first second even though ~10 tiles are
+on screen. Removing images from the same page dropped `styleLayout` to
+**195ms** with no long frames at all — so the load cost is (a) committing
+~108 cards and (b) decoding/rastering ~20 full-size AniList banners
+(~1900×400, ~350 KB each; ~80 ms of raster per image at 4× CPU).
+
+**Fixes (all in the row/card layer — the wash was left alone).**
+
+1. **Rows mount on proximity, not on first paint** (`ContentRow`). A
+   `useNearViewport({ rootMargin: '400px 0px' })` gate renders the row's
+   children only when the row is within 400px of the viewport; until then the
+   scroller paints six static, same-geometry placeholder boxes
+   (`aria-hidden`, no shimmer, no pulse) so the page height, the scrollbar
+   and the row's width are unchanged. `updateArrows` is gated on the same
+   flag: measuring nine scrollers on the first commit was nine forced
+   layouts for rows that had no cards yet.
+2. **`content-visibility: auto` on `.content-row`** with
+   `contain-intrinsic-size: auto 132/150/170px` (base/640/1024). A row that
+   has scrolled away keeps its DOM (horizontal scroll position survives) but
+   skips style/layout/paint until it comes back.
+3. **No React state per loaded image** (`AnimeCard`). The art skeleton used
+   to stop through `artLoaded` state — one state update and a full card
+   re-render per tile, ~100 of them during the feed's first seconds. The
+   pulse now stops in CSS (`.card-art:has(img.is-loaded) [data-art-skeleton]
+   { animation: none }`), and the error path just drops `imgSrc`.
+4. **Tighter art runway.** `AnimeCard` passed no `rootMargin`, so it
+   inherited `300px 600px` — a 600px *horizontal* runway that asked for art
+   on nearly every tile of every row that mounted. It is now
+   `300px 300px`: the next tile is still ready before a normal swipe, but a
+   mounted row no longer pulls in its whole width of 350 KB banners.
+
+**Result (same probe, cold cache).** `totalBlocking 0–29ms` (was 133),
+`maxLoaf 147–202ms` (was 394), 48 cards mounted at 7s instead of 108,
+`imgs 18–20` instead of ~24. Scrolling the whole feed still mounts all 108
+cards and stays at `avg 10.09ms / p99 32.5ms / 0 frames over 33ms`.
+
+**Honest residual.** What is left is the decode/raster of the ~14–20 banners
+that are genuinely on the first screen; it is ~75 % of the remaining
+`styleLayout` and cannot be removed client-side — the AniList CDN has no
+size variants (`?w=` returns identical bytes) and Cloudflare Image Resizing
+needs a zone + paid plan, which `aeri.fastdemo.workers.dev` does not have.
+Serving resized art is an infrastructure decision, not a code tweak.
+
+**Bounce + bar.** `overscroll-behavior-y` is removed from `html`/`body`
+(natural rubber-band restored, D164 superseded). The header now carries
+`[transform:translateZ(0)]` so iOS keeps it on its own composited layer while
+the scroll view bounces instead of dropping it with the page.
+
+**Verified.** New `tests/home-row-deferral.spec.ts` (2 viewports) pins:
+offscreen rows are deferred, they paint ≥6 static placeholders with **zero**
+running animations, scrolling mounts every row (≥10 cards each, no
+placeholders left) and the page height moves ≤80px. `hero-ambient`,
+`mobile-chrome`, `card-silhouette`, `settings-and-row-arrows`,
+`related-row-widths`, `read-nav-layout` pass on Chromium + mobile. WebKit
+(iPad Pro 11 profile) verified through a temporary project: 9 rows, 108
+cards after scroll, no blank row, bar `fixed` at top, wash filter
+`blur(110px) saturate(1.05) brightness(0.9)`, `overscrollBehaviorY: auto`.
+Screenshots: `OpenCode/screens/d165/wash-{1440,768,375}.png` (captured from
+the live URL after deploy).
+
+**Deployed.** Worker `aeri`, version `624943e2-a638-453d-b3f1-142f5d6651df`,
+bundle `index-CBb8wdir.js`, `verify:live` 8/8. Live re-probe at 4× CPU
+(1210×834): `blocking 24ms`, `styleLayout 704ms`, `maxLoaf 180ms`, **48**
+cards / 9 rows at 7s, 20 images — the residual is the six 48–86ms image
+decode frames, exactly the local profile. Live chrome specs (home-row
+deferral, hero ambient, mobile chrome, card silhouette) pass on Chromium +
+mobile; WebKit on the live URL mounts all 108 cards across the feed with no
+console errors.
+
+## D166 — The page wash continues into the top bar again (2026-11-05)
+
+Owner report, right after the D165 deploy: *"okay before that the top bar was
+also a part of the ambient now its not."*
+
+**Why it broke.** D163 had to put a plain, opaque `background-color: var(--bg)`
+on the fixed `<header>` itself — iOS 26 paints the strip behind the
+clock/battery from that element's colour, ignores `theme-color`, ignores
+absolute children, and samples-and-freezes a transparent element. The side
+effect: the header now paints an opaque 56px band over the Home page wash, so
+the wash stopped at y=56 and the bar read as a separate black band.
+
+**Why the bar cannot simply go transparent again.** That is exactly the D163
+defect (stale blurred band behind the clock). The plain colour must stay on the
+fixed element. So the wash is painted back *inside* the bar instead, as a
+child that sits above the bar's own colour — the iOS contract is untouched
+because the strip is still sampled from the header's `background-color`.
+
+**Implementation.**
+
+1. `HeroAmbient` publishes its own page box to the document root:
+   `--hero-wash-image` (active backdrop URL), `--hero-wash-top`,
+   `--hero-wash-height` (page coordinates, `rect + scrollY`), measured once on
+   mount and on resize by one `ResizeObserver` on the existing wash element.
+   All three are removed on unmount, so every page without a hero paints
+   nothing (`background-image: none`).
+2. The header renders `[data-nav-ambient]` (aria-hidden, pointer-events none,
+   `overflow: hidden`, `.nav-ambient`) holding `.nav-ambient-art`, which paints
+   `var(--hero-wash-image)` with `background-size: cover` at the wash's own
+   blur/saturate/brightness and per-breakpoint opacity (`.15/.16/.17`,
+   `90/110/130px`). Its box is `var(--hero-wash-top)` / `var(--hero-wash-height)`
+   / `100vw` — **the wash's exact box**. That is not cosmetic: `cover` scales
+   the artwork by whichever axis is short, so a 56px-tall copy would crop a
+   different slice of the banner and put a colour step at the bar's bottom
+   edge. Same box ⇒ same crop ⇒ the band the bar shows is the band the page
+   would have shown there.
+3. **Two masks, multiplied.** `.nav-ambient` re-applies the old
+   `nav-top-fade` ramp expressed as alpha (30% at the top edge → 100% at the
+   bottom), and `.nav-ambient-art` carries `.hero-wash-mask` — the wash's own
+   vertical ramp, extracted from `.hero-ambient` so both layers share ONE
+   definition. That reproduces the pre-D163 composite exactly: the old bar was
+   `bg + (1 - α)·wash` with α = 0.70 → 0, i.e. wash transmission 0.30 → 1.0.
+4. `scrolled` fades `[data-nav-ambient]` out over 300ms — the same net effect
+   as the old solid layer fading in: once the page moves the bar is flat
+   `--bg`. No `backdrop-filter` anywhere (D151/D163 stand).
+
+**Measured, not eyeballed.** A pixel probe at 1440 compared the shipped bar
+band against ground truth (header forced transparent + the ambient layer
+hidden, i.e. what the page wash paints there): the two are identical from the
+bar's middle to its bottom edge (≤ 0.1 RGB in the row averages) and the
+shipped band is *dimmer* toward the top by exactly the `nav-top-fade` ramp —
+the pre-D163 behaviour, not a step. A 0.9-opacity screenshot of the layer
+shows one smooth band running into the hero card, no seam, no shelf.
+
+**Cost.** One extra static blurred raster (clipped to 56px but filtered from
+the wash's full box — a 56px box would pull transparency in from both edges
+and read as a grey band) plus one CSS-var write on mount/resize/slide change.
+Home load probe (Chromium, 1440×900, LoAF + longtask) with the layer:
+`maxLoaf 155ms`, 14 frames ≥ 50ms; the same probe against production
+(without it) `maxLoaf 194ms`, 16 frames ≥ 50ms — no measurable regression.
+
+**Verified.** New `tests/hero-ambient.spec.ts` D166 block (3 cases): the layer
+exists at rest (aria-hidden, no pointer events, gradient mask, clipped,
+opacity 1), its art paints the ACTIVE backdrop with the wash's blur/opacity,
+its box equals the wash's box (top/height/width), the header's own colour stays
+opaque `--bg` (= the body's painted colour), the layer fades to 0 on scroll and
+returns at the top, and `/docs` (no hero) paints `none`. Full local suite on
+the preview: hero-ambient, mobile-chrome, nav-breakpoint, home-row-deferral,
+card-silhouette, home-left-edge, hero-radius, theme-chrome-tint — 56/56 on
+Chromium + mobile. WebKit (iPad Pro 11) locally AND on the live URL: art box
+== wash box (`-16 / 812 / 834`), `-webkit-mask` applied, bar `fixed` at top,
+opaque header colour, no horizontal scroll, 0 console errors.
+Screenshots: `OpenCode/screens/d166/live-bar-{1440,768,375}.png` and
+`live-ipad-top.png` (from the live URL).
+
+**Deployed.** Worker `aeri`, version `1117b6e9-5e93-46ad-b6ad-2bcc4f3b9d74`,
+bundle `index-CCE5Wy5p.js`, `verify:live` 8/8. Live chrome specs (hero ambient
+incl. D166, mobile chrome) pass on Chromium + mobile.
+
+**Follow-up (same day) — the bar crossfades with the wash.** Owner report:
+*"when i switch shows in the carousel the topbar like ambient background
+updates a bit later than the main backgrounnd can you make them happen at the
+same time."*
+
+The first cut swapped `--hero-wash-image` and let the bar re-raster a 130px
+blur of the new artwork. That is a discrete, expensive change, so the bar's
+tint visibly changed a few frames after the page wash — which, like the wash,
+*fades*: the outgoing `<img>` stays at opacity 1 until the incoming one has
+loaded, then both ease over `CROSSFADE_MS` (700ms).
+
+The bar now replays that exact sequence with two stacked art layers:
+
+- `HeroAmbient` publishes `--hero-wash-prev-image` (the outgoing backdrop)
+  while its own outgoing layer is mounted, and mirrors its `loaded` flag onto
+  `<html data-hero-wash-ready>`.
+- `Navbar` renders `.nav-ambient-art-prev` under `.nav-ambient-art`. Both
+  share the box/filter/strength; the prev layer paints
+  `var(--hero-wash-prev-image)`.
+- CSS: while `data-hero-wash-ready` is **absent**, the layers swap instantly
+  and the incoming art is at opacity 0 — that is the frame the artwork
+  changes, and transitioning there would fade the *new* art out over the old
+  one. While the attribute is **present**, both layers transition
+  `opacity 700ms ease` — the incoming layer 0 → strength, the outgoing
+  strength → 0. `transition: none` under `prefers-reduced-motion`.
+- When the wash's own timeout releases its outgoing layer (700ms), the prev
+  var is removed, so `.nav-ambient-art-prev` goes back to
+  `background-image: none` — no stale full-size filtered layer left alive.
+
+Same trigger, same duration, same easing ⇒ the bar's tint is a pure scalar of
+the page wash on every frame, which is what the test pins: sampled mid-fade at
+1440, `washNew 0.4346 / barNew 0.0739` (ratio 0.170) and at every other
+sample the same 0.17× scalar; the outgoing layer is released with no step
+once the fade ends.
+
+**Verified (follow-up).** `tests/hero-ambient.spec.ts` D166 block now has 5
+cases, including "crossfades in step with the page wash": both bands report
+`transition-duration: 0.7s`, the outgoing artwork is painted mid-fade, the
+bar's opacity is the wash's × the viewport strength (0.17 / 0.16 / 0.15), and
+the outgoing layer is released afterwards; and "drops the bar crossfade under
+reduced motion" (`transition-duration` ≈ 0 on both layers). Local preview:
+hero-ambient 10/10 on Chromium and 10 passed / 1 skipped on mobile (the
+reduced-motion case is Chromium-only) plus the new search spec, chrome suite
+29/29 on Chromium, mobile-chrome 4/4 on mobile. Live: 29 passed / 1 skipped
+on Chromium + mobile.
+WebKit (iPad Pro 11, live): art box == wash box (`-16 / 812 / 834`), mask
+applied, `0.7s` transition, mid-fade ratio 0.160 (= the 834px strength), 0
+console errors.
+
+**Deployed (follow-up).** Worker `aeri`, version
+`93e89d35-a32d-4cc5-a61e-29a14abfa322`, bundle `index-D0qKkebL.js`,
+`verify:live` 8/8.
+
+## D167 — Search's zero-result state uses the normal search header (2026-11-05)
+
+Owner: *"when search and theres no results remove the centered description
+before that was 'No results for "."' and still use the left header like the
+normal search headers and show: No results for "keyword here" / Fetched from
+AniList."*
+
+The empty state was a centred `text-center text-sm` sentence floating in the
+middle of the page while the populated state used a left-aligned 18px title +
+12px faint subline. `Search` now renders the same header block for zero
+results:
+
+- `<h1 class="text-[18px] font-semibold tracking-tight">No results for
+  “{query}”</h1>`
+- `<p class="text-xs text-[var(--text-faint)]">Fetched from AniList.</p>`
+
+No centred copy and no grid on the empty page. The "type something" prompt
+(before a query exists) is unchanged — the owner asked about the no-results
+state only.
+
+**Verified.** New `tests/search-empty-state.spec.ts` (chromium + mobile,
+local and live): the title names the query, `text-align: start`, title left
+edge inside the page gutter, `18px`, subline exactly `Fetched from AniList.`,
+zero centred text nodes in `<main>`, zero result cards. Screenshots:
+`OpenCode/screens/d166/live-search-empty-{1440,375}.png`.
+
+## D168 — Feed runway, related counts, Autoplay, real provider names (2026-11-06)
+
+One owner pass with four separate asks, quoted per item.
+
+### 1. Row runway: 400px → 700px (D165 follow-up)
+
+*"i can see rows appearing as i scroll down appearing out of nowhere, make it
+load slightly more please."* D165's gate mounted a row only within 400px of
+the viewport — under three row pitches on a phone, so a flick reached a row
+before React had committed it and the placeholders visibly turned into cards
+mid-scroll.
+
+Measured at 375×667 (Pixel 5, live feed): row pitch **157px**, document
+height **1775px**, viewport **727px**. A 1000px margin mounted all nine rows
+(108 cards) on first paint — that is the D165 freeze again — so the gate is
+**700px**: roughly four rows of runway ahead of the thumb, with the last two
+rows still deferred on a phone (desktop, taller feed, still defers the tail).
+`AnimeCard`'s art runway goes **300px → 600px** so a just-mounted row's
+artwork is already decoded when it reaches the screen; the horizontal runway
+stays one row wide, not the whole row.
+
+**Verified.** `home-row-deferral.spec.ts` 2/2 (Chromium + mobile): rows are
+still deferred on first paint, placeholders animate nothing, scrolling mounts
+every row, page height moves ≤80px. A 1000px gate failed that spec on mobile
+(all 108 cards mounted) — the reason the number is 700 and not "one screen".
+
+### 2. Related counts
+
+*"in the preview cards, for related anime and related manga, on the right side
+of the headers add the anime/manga count like '25 mangas' … same goes for
+related anime and related manga in the media player/manga reader."*
+
+`ContentRow` already had a right-side `subtitle` slot (Continue Watching, and
+the Episodes header's "N episodes"). `RelatedRow` (Watch / Read rails) now
+passes the count, and `RelatedEntries` (the preview card's Related Anime /
+Related Manga headers) paints the same span on the header's right. Singular
+and plural follow the owner's wording (follow-up same day): **`1 anime` /
+`11 animes`, `1 manga` / `25 mangas`**.
+
+**Verified.** `related-row-widths.spec.ts` 3/3 — reader `2 animes` / `3
+mangas`, watch `3 animes` / `2 mangas`, preview card `2 animes` / `3 mangas`.
+Live `/watch/20/1`: `11 animes`, `1 manga`.
+
+### 3. Autoplay
+
+*"add a setting called Autoplay under anime, if enabled the media player
+autoplays the content. leave that on by default."*
+
+New preference **`autoplayVideo`** (default `true`), the first switch in
+Settings → Anime, passed by Watch to the player. It is deliberately separate
+from the existing `autoplay` (next episode at the end): starting the current
+video and chaining to the next one are different behaviors, and the owner may
+want one without the other.
+
+**Verified.** `settings-and-row-arrows.spec.ts`: default on, turning it off
+persists in `aeri:prefs` and survives a reload, Reset restores on.
+
+### 4. Provider names
+
+*"i see 'aniwave - __' remove the __ … so it's just 'AniWave'"* and
+*"styalize all the providers across the entire UI … like AnimeParadise or
+AnimeGG or AniWave (especially the source toggle)."*
+
+`providerLabel(id)` in `src/providers/video/registry.ts` reads each provider's
+`capabilities.displayName` — one source of truth, no second hand-written
+list. Watch uses it for the loading line (`Trying AniWave`, and the tried
+list) and for the source options (`AniWave • 1080p`).
+
+The manga side had **two** local id→name tables (Read.tsx, ChapterList.tsx)
+that had drifted — `Kakalot` for the provider that calls itself
+`MangaKakalot.fun`. Both now call `mangaProviderLabel(id)` from the manga
+registry, so the reader subtitle reads `Chapter 1 · Weeb Central` (the
+registry spelling, the same one Settings and the docs already use).
+
+**Verified.** Live source options on `/watch/20/1` are `["AniWave",
+"AnimeParadise"]` and the page text contains no lowercase provider id;
+`related-row-widths` pins the option label as exactly `AniWave`;
+`read-mal-id` pins `Chapter 1 · Weeb Central`.
+
+**Deployed.** Worker `aeri`, version
+`983f6cdc-ab82-44ae-b0be-1f2d4057ad3a`, bundle `index-DKL252iL.js`,
+`verify:live` 8/8. Local: 39 passed on Chromium (nine suites) and 15 passed /
+1 skipped on mobile. Screenshots: `OpenCode/screens/d168/`
+(`live-watch-*`, `live-related-*`, `settings-*`).
+
+## D169 — Installed-app status bar follows theme changes immediately (2026-11-06)
+
+*"when i change theme in the safari mobile add to homescreen app, the very top
+bar (that has clock date and time of the system) does not change the color to
+the new theme, so investigate and fix that. make so every time i change the
+theme that gets updated immediately."*
+
+iOS 26 ignores `<meta name="theme-color">` for that strip (D163) and tints it
+from the **plain `background-color` of the fixed element at the top edge** —
+the navbar. That element carried `bg-[var(--bg)]`: a CSS-variable
+indirection. WebKit samples the element and keeps what it sampled, so a
+variable-only change repainted the page and left the strip on the previous
+theme's colour until the app was relaunched.
+
+Two changes in `applyTheme()` (`src/lib/themes.ts`):
+
+1. **Write the resolved `--bg` inline on `[data-nav-solid]`** — the sampled
+   element itself changes, not just the token it points at.
+2. **Re-sample nudge** — a 1px scroll round-trip at the **current** offset
+   (`instant`, because `html` has `scroll-behavior: smooth`; the theme picker
+   sits far down Settings, so the page is normally scrolled when the user
+   switches). Gated to installed apps (`display-mode: standalone` or
+   `navigator.standalone`), where the frozen sample happens; a normal tab's
+   chrome already follows `body` live.
+
+At launch the inline write is not needed: the boot script + `:root` already
+paint the saved `--bg`, so iOS samples the right colour at first paint. The
+inline write covers the switch itself.
+
+**Caveat (recorded, not hidden).** iOS's actual sampling cannot be asserted
+headlessly. What the tests pin is the contract the tint depends on:
+`theme-chrome-tint.spec.ts` 2/2 — for three themes the navbar's inline **and**
+computed background equal the new `--bg` (plus body/html/meta/color-scheme),
+and a second case declares `navigator.standalone`, switches the theme while
+scrolled, and asserts the 1px nudge returns to the same offset. Live home
+probe: navbar computed == body == `rgb(0, 0, 0)` on the default theme, meta in
+sync. If a real device still lags, the remaining suspect is WebKit's sampling
+cadence, not the page.
+
+**Deployed.** Same build as D168 (`983f6cdc-ab82-44ae-b0be-1f2d4057ad3a`).

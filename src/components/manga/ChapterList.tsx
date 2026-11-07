@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 import { useEffect, useMemo, useState } from 'react'
 import type { Anime } from '../../types/anime'
 import { useTracking } from '../../contexts/TrackingContext'
-import { resolveChaptersWithFallback } from '../../providers/manga/mangadex'
+import { resolveChaptersWithFallback, mangaProviderLabel } from '../../providers/manga/mangadex'
 import type { MangaChapter } from '../../providers/manga/types'
 import { sortProviderUnits, unitDisplayLabel } from '../../providers/manga/types'
 import { Icon } from '../ui/Icon'
@@ -163,9 +163,9 @@ export function ChapterList({ manga }: { manga: Anime }) {
           const label = unitDisplayLabel(ch)
           // Provenance: unit id prefix is `<provider>-…` (resolver preserves
           // it). Unknown prefixes (stale caches, future providers) show no
-          // badge — never a raw id fragment as a label.
-          const prov = ch.id.split('-')[0] || ''
-          const provName = prov === 'mangadex' ? 'MangaDex' : prov === 'weebcentral' ? 'WeebCentral' : prov === 'mangapill' ? 'MangaPill' : prov === 'mangahere' ? 'MangaHere' : prov === 'bato1' ? 'Bato1' : prov === 'kakalot' ? 'Kakalot' : prov === 'mangaread' ? 'MangaRead' : ''
+          // badge — never a raw id fragment as a label. The registry's `name`
+          // is the single source (2026-11-06), so the badge matches Settings.
+          const provName = mangaProviderLabel(ch.id.split('-')[0] || '')
           // DIVIDER: always painted, removed on the last row with
           // last:border-b-0 (same fix as EpisodeList — a position-toggled
           // border animated 0→1px while still currentColor, so the row that

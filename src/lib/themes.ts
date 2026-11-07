@@ -169,6 +169,36 @@ function isLightColor(hex: string): boolean {
   return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255 > 0.5
 }
 
+/**
+ * Ask iOS to re-read the status-bar tint.
+ *
+ * In an installed web app the strip behind the clock is sampled from the
+ * background-color of the fixed element at the top edge — but lazily. A
+ * background-color change on its own can sit unseen until the next scroll or
+ * relaunch (owner report 2026-11-06: the bar kept the OLD theme's colour after
+ * switching). A 1px scroll round-trip is the cheapest way to force that
+ * sample. It runs at the CURRENT offset, not only at the top: the theme picker
+ * sits far down Settings, so the page is usually scrolled when the user
+ * switches. The nudge is `instant` (html has `scroll-behavior: smooth`, which
+ * would animate it into a visible wobble) and returns to the exact offset, so
+ * nothing moves on screen.
+ *
+ * Installed apps only: browser chrome in a normal tab already follows `body`
+ * live, and there is no reason to poke the scroll position there.
+ */
+function resampleStatusBar() {
+  try {
+    const standalone =
+      window.matchMedia?.('(display-mode: standalone)').matches ||
+      // iOS-only legacy flag, not in lib.dom's Navigator type.
+      (navigator as unknown as { standalone?: boolean }).standalone === true
+    if (!standalone) return
+    const y = window.scrollY
+    window.scrollTo({ top: y + 1, behavior: 'instant' as ScrollBehavior })
+    window.scrollTo({ top: y, behavior: 'instant' as ScrollBehavior })
+  } catch {}
+}
+
 export function applyTheme(id: string) {
   try {
     const theme = getThemeById(id)
@@ -193,5 +223,23 @@ export function applyTheme(id: string) {
     root.style.backgroundColor = bg
     root.style.colorScheme = isLightColor(bg) ? 'light' : 'dark'
     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', bg)
+
+    // iOS HOME-SCREEN STATUS BAR (owner report 2026-11-06: switching theme in
+    // the Add-to-Home-Screen app left the top bar — clock, date, battery — on
+    // the previous theme's colour). iOS 26 ignores `theme-color` for that strip
+    // and tints it from the fixed element at the top edge, which is the navbar
+    // (`[data-nav-solid]`, painted `bg-[var(--bg)]`). A variable indirection is
+    // not enough in an installed app: WebKit samples the element and keeps the
+    // colour it saw. Writing the resolved colour INLINE on the sampled element
+    // makes the change explicit on the element itself, and the re-sample nudge
+    // below pushes iOS to pick it up in the same tap instead of on relaunch.
+    const navBar = document.querySelector<HTMLElement>('[data-nav-solid]')
+    if (navBar) navBar.style.backgroundColor = bg
+    resampleStatusBar()
+
+    // Persist the colour alone for index.html's inline boot script: iOS reads
+    // `theme-color` at launch, before this module runs, so the status bar
+    // needs the last theme colour available during head parse.
+    try { localStorage.setItem('aeri:theme-bg', bg) } catch {}
   } catch {}
 }

@@ -13,7 +13,7 @@ import { pillSolid, pillSoft } from '../components/ui/buttonStyles'
 import { useRelatedEntries } from '../hooks/useRelatedEntries'
 import { RelatedRow } from '../components/related/RelatedRow'
 import type { MangaChapter, MangaPage, MangaProvider } from '../providers/manga/types'
-import { getMangaProviderById, resolveChaptersWithFallback } from '../providers/manga/mangadex'
+import { getMangaProviderById, mangaProviderLabel, resolveChaptersWithFallback } from '../providers/manga/mangadex'
 
 /**
  * Prev / chapter picker / next — one row, three cells.
@@ -626,14 +626,9 @@ export function Read() {
   // "Source: …" line is gone).
   const chapterProvider = (() => {
     const prov = currentChapter?.id.split('-')[0] || ''
-    return prov === 'mangadex' ? 'MangaDex'
-      : prov === 'weebcentral' ? 'WeebCentral'
-      : prov === 'mangapill' ? 'MangaPill'
-      : prov === 'mangahere' ? 'MangaHere'
-      : prov === 'bato1' ? 'Bato1'
-      : prov === 'kakalot' ? 'Kakalot'
-      : prov === 'mangaread' ? 'MangaRead'
-      : ''
+    // Registry name, not a local table (2026-11-06): one spelling for every
+    // provider, everywhere — Settings, the reader subtitle, the chapter list.
+    return mangaProviderLabel(prov)
   })()
 
   return (
@@ -646,7 +641,8 @@ export function Read() {
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-[15px] font-semibold text-[var(--text)]">{titles.primary}</h1>
           {/* Chapter + serving provider: the subtitle carries
-              `Chapter 1 · WeebCentral` — chapter, middle dot, provider. The
+              `Chapter 1 · Weeb Central` — chapter, middle dot, provider (the
+              registry's own name; 2026-11-06). The
               chapter picker lives on the nav rows, next to prev/next. */}
           <p className="truncate text-xs text-[var(--text-faint)]">
             {currentChapter

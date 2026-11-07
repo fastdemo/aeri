@@ -81,15 +81,15 @@ export function Navbar() {
   const user = trackingProvider === 'mal' ? (malUser ?? anilistUser ?? null) : (anilistUser ?? malUser ?? null)
 
   useEffect(() => {
-    // `scrolled` drives whether the bar paints its solid background. A hard
-    // refresh, a resize/orientation flip, or returning from the media
-    // player's FULLSCREEN (iOS restores the scroll offset without firing
-    // `scroll` in some cases) can leave the flag stale — the bar then shows
-    // only the transparent gradient over content, which the owner reported
-    // as "a weird transparency gradient on top of the navbar" after
-    // exiting fullscreen (2026-10-30). Re-read the offset on every event
-    // that can restore or change the viewport.
-    const onScroll = () => setScrolled(window.scrollY > 10)
+    // `scrolled` now only drives the bottom hairline / reader progress track:
+    // the bar itself is a flat `--bg` at every scroll position (D163), so
+    // there is no scrim to fade in. A hard refresh, a resize/orientation
+    // flip, or returning from the media player's FULLSCREEN (iOS restores the
+    // scroll offset without firing `scroll` in some cases) can leave the flag
+    // stale, so re-read the offset on every event that can restore or change
+    // the viewport. >0, not >10: from the first scrolled pixel content is
+    // under the bar.
+    const onScroll = () => setScrolled(window.scrollY > 0)
     let raf = 0
     const onViewport = () => {
       onScroll()
@@ -404,7 +404,7 @@ export function Navbar() {
     <div
       ref={measureRef}
       aria-hidden
-      className="pointer-events-none fixed left-0 top-0 -z-10 flex h-14 w-max items-center gap-4 opacity-0 lg:gap-6"
+      className="pointer-events-none fixed -top-[200px] left-0 -z-10 flex h-14 w-max items-center gap-4 opacity-0 lg:gap-6"
       style={{ visibility: 'hidden' } as any}
     >
       <div className="flex items-center gap-5 lg:gap-6">
@@ -426,33 +426,71 @@ export function Navbar() {
   return (
     <>
     {measurer}
+    {/* The background-color is ON THE FIXED ELEMENT ITSELF, and that is not
+        cosmetic — it is the iOS 26 status-bar fix (D163, second pass).
+
+        iOS 26 no longer reads <meta name="theme-color"> for the strip behind
+        the clock/battery: WebKit reports the fixed element at the top edge
+        and iOS paints the strip with THAT element's plain background-color,
+        re-reading it on every check. An absolutely-positioned child (the old
+        `data-nav-solid` div) is ignored by that algorithm, and an element
+        with no plain colour is sampled ONCE and frozen — which is exactly
+        what the owner saw: a blurred band with stale page content sitting
+        where the black strip used to be. A plain colour here makes the strip
+        solid `--bg` and keeps it in sync with the theme.
+
+        It also means the bar's own paint is always flat `--bg` — no resting
+        transparency, no gradient, no blur. That cut the Home page wash off
+        at y=56, and the owner read the bar as a separate black band ("before
+        that the top bar was also a part of the ambient now its not"). D166
+        paints the wash back INSIDE the bar as a clipped child layer
+        (`data-nav-ambient`, see `.nav-ambient` in globals.css) — the opaque
+        colour still lives on this element, so the iOS strip contract above is
+        untouched, and the ambient never covers it. NO BACKDROP FILTER
+        (owner report 2026-10-30): iOS fullscreen restore smeared the old
+        blur.
+
+        COMPOSITED LAYER (`[transform:translateZ(0)]`, owner report
+        2026-11-05: "if i stretch down to the bottom too long the navbar
+        disappears"). iOS WebKit can drop a plain fixed layer while the
+        scroll view rubber-bands; promoting the bar to its own GPU layer is
+        the documented remedy and keeps it painted through the bounce. The
+        bounce itself is NOT disabled — `overscroll-behavior` stays default,
+        so the page still rubber-bands. The transform also gives the header
+        its own containing block, which is fine: every child is absolute
+        against it. */}
     <header
-      className="fixed inset-x-0 top-0 z-50 isolate h-14 touch-manipulation"
+      data-nav-solid
+      className="fixed inset-x-0 top-0 z-50 isolate h-14 touch-manipulation bg-[var(--bg)] [transform:translateZ(0)]"
       style={{ touchAction: 'manipulation' } as any}
       aria-label="Primary"
     >
-      {/* Two stacked background layers cross-faded instead of one class
-          swap. `transition-colors` cannot animate a gradient (background
-          images are not interpolable), so the old bar flipped from gradient
-          to solid in a single frame — read as a flash. The gradient now
-          stays put and the solid bar fades in over it.
-          OPAQUE + NO BACKDROP FILTER (owner report 2026-10-30): the scrolled
-          bar used to be `bg/95 + backdrop-blur-md`. On iOS, returning from
-          the video player's native fullscreen left the backdrop layer
-          sampling the fullscreen frame — a smeared "transparency gradient"
-          over the navbar. The bar is now a flat `--bg` once scrolled; the
-          design system bans glassmorphism anyway, and at 95% opacity the
-          blur was barely visible on the page background. */}
+      {/* Ambient-in-bar (D166). The Home wash used to show THROUGH the bar;
+          the D163 opaque `--bg` ended that. This is the same wash, painted by
+          a child so it sits above the bar's own colour: HeroAmbient publishes
+          the active backdrop + its measured box to the document root, the
+          child paints it at the wash's own blur/opacity, and `.nav-ambient`
+          clips it to the bar and re-applies the old `nav-top-fade` dimming
+          ramp (30% → 100%) so it is faint under the logo and meets the real
+          wash at full strength on the bottom edge — no seam.
+          TWO art layers, mirroring the wash's own crossfade (owner report
+          2026-11-05: the bar's tint changed later than the page's): the
+          outgoing artwork stays painted while the incoming one loads, then
+          the incoming layer eases in over the same 700ms the page wash uses.
+          `scrolled` fades the whole thing out, which is exactly what the old
+          solid layer fading in did: once the page moves, the bar is flat
+          `--bg` again. On any page without a hero wash the vars are unset, so
+          this paints nothing at all. */}
       <div
         aria-hidden
-        className="nav-top-fade pointer-events-none absolute inset-0"
-      />
-      <div
-        aria-hidden
-        className={`pointer-events-none absolute inset-0 bg-[var(--bg)] transition-opacity duration-300 ${
-          scrolled ? 'opacity-100' : 'opacity-0'
+        data-nav-ambient
+        className={`nav-ambient pointer-events-none absolute inset-0 transition-opacity duration-300 ${
+          scrolled ? 'opacity-0' : 'opacity-100'
         }`}
-      />
+      >
+        <div className="nav-ambient-art nav-ambient-art-prev hero-wash-mask" />
+        <div className="nav-ambient-art hero-wash-mask" />
+      </div>
       {/* Divider. Every page gets a hairline; the reader swaps it for a
           scroll progress bar in the Continue Watching bar's geometry —
           15% track and a FLAT `--text` fill. No neon glow: the 6px shadow

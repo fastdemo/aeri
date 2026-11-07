@@ -108,20 +108,29 @@ const readWidths = () => {
     )
     const scroller = section?.querySelector('.no-scrollbar') as HTMLElement | null
     const first = scroller?.firstElementChild as HTMLElement | null
+    // Count slot on the header's right (owner 2026-11-06): same line as the
+    // title, e.g. "25 mangas".
+    const header = section?.querySelector('h2')?.parentElement as HTMLElement | null
+    const subtitle = header ? (header.querySelector('span')?.textContent || '').trim() : ''
     return {
       card: first ? Math.round(first.getBoundingClientRect().width) : null,
       rail: scroller ? Math.round(scroller.getBoundingClientRect().width) : null,
+      subtitle,
     }
   }
   return { anime: row('Related Anime'), manga: row('Related Manga'), expected }
 }
 
-async function expectStandardWidths(page: Page): Promise<void> {
+async function expectStandardWidths(page: Page, counts?: { anime: number; manga: number }): Promise<void> {
   const widths = await page.evaluate(readWidths)
   expect(widths.anime.card, 'Related Anime uses the Home card width').toBe(widths.expected)
   expect(widths.manga.card, 'Related Manga uses the Home card width').toBe(widths.expected)
   expect(widths.anime.card, 'both related rows share one card width').toBe(widths.manga.card)
   expect(widths.anime.rail, 'both related rows share the page rail width').toBe(widths.manga.rail)
+  if (counts) {
+    expect(widths.anime.subtitle, 'Related Anime carries its count').toBe(`${counts.anime} anime${counts.anime === 1 ? '' : 's'}`)
+    expect(widths.manga.subtitle, 'Related Manga carries its count').toBe(`${counts.manga} manga${counts.manga === 1 ? '' : 's'}`)
+  }
 }
 
 test.describe('Related row widths', () => {
@@ -154,7 +163,7 @@ test.describe('Related row widths', () => {
     await page.goto('/read/anilist-30002/first', { waitUntil: 'domcontentloaded' })
     await page.waitForSelector('h2:has-text("Related Manga")', { timeout: 60000 })
     await page.waitForSelector('[data-testid="chapter-nav-top"]', { timeout: 60000 })
-    await expectStandardWidths(page)
+    await expectStandardWidths(page, { anime: 2, manga: 3 })
 
     await page.setViewportSize({ width: 375, height: 800 })
     await page.waitForTimeout(400)
@@ -180,10 +189,48 @@ test.describe('Related row widths', () => {
     await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
     await page.waitForSelector('video', { timeout: 90000 })
     await page.waitForSelector('h2:has-text("Related Manga")', { timeout: 90000 })
-    await expectStandardWidths(page)
+    await expectStandardWidths(page, { anime: 3, manga: 2 })
+
+    // The source picker names the provider the way the provider names itself
+    // (owner 2026-11-06: "aniwave - __" must read "AniWave"). The stream's
+    // `provider` field is the lowercase id; the label must not be.
+    const sourceText = await page.evaluate(() => {
+      const sel = document.querySelector('select[aria-label="Select video source"]') as HTMLSelectElement | null
+      return sel?.selectedOptions[0]?.textContent?.trim() ?? ''
+    })
+    // quality is "auto" here, so the label is the provider name alone.
+    expect(sourceText, 'source option is exactly the display name').toBe('AniWave')
 
     await page.setViewportSize({ width: 375, height: 800 })
     await page.waitForTimeout(400)
-    await expectStandardWidths(page)
+    await expectStandardWidths(page, { anime: 3, manga: 2 })
+  })
+
+  test('preview card: related headers carry their counts', async ({ page }) => {
+    test.setTimeout(180000)
+    await seedTestAuth(page)
+    await routeTestMalIdentity(page)
+    await routeTestAnilistMedia(page)
+    await routeMedia(page, READ_MEDIA)
+
+    // Detail overlay route: the floating preview card over the page it was
+    // opened from (D097). Related grids live in the card's sidebar. The card
+    // paints its desktop and mobile arrangements in the same DOM (one of each
+    // is hidden), so wait for the VISIBLE header and read that one.
+    await page.goto('/anime/anilist-30002', { waitUntil: 'domcontentloaded' })
+    await page.waitForSelector('h3:has-text("Related Manga"):visible', { timeout: 90000 })
+
+    const counts = await page.evaluate(() => {
+      const grab = (title: string) => {
+        const h3 = [...document.querySelectorAll('h3')]
+          .filter(h => h.textContent?.trim() === title)
+          .find(h => h.getBoundingClientRect().height > 0)
+        const header = h3?.parentElement as HTMLElement | null
+        return header ? (header.querySelector('span')?.textContent || '').trim() : ''
+      }
+      return { anime: grab('Related Anime'), manga: grab('Related Manga') }
+    })
+    expect(counts.anime, 'Related Anime header count').toBe('2 animes')
+    expect(counts.manga, 'Related Manga header count').toBe('3 mangas')
   })
 })

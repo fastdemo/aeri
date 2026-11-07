@@ -314,6 +314,14 @@ export function Settings() {
         <p className="mt-1 text-xs text-[var(--text-faint)]">Playback behavior and how Aeri picks video sources.</p>
         <div className="mt-4 space-y-4">
           <SwitchRow
+            checked={prefs.autoplayVideo}
+            onChange={v => updatePref({ autoplayVideo: v })}
+            label="Autoplay"
+            description="Start playing as soon as the player opens."
+            ariaLabel="Autoplay video"
+          />
+
+          <SwitchRow
             checked={prefs.autoplay}
             onChange={v => updatePref({ autoplay: v })}
             label="Autoplay next episode"

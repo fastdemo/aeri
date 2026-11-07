@@ -3,7 +3,7 @@ import { Link, useParams, useNavigate, useLocation } from 'react-router-dom'
 import { useTracking } from '../contexts/TrackingContext'
 import { useAnimeDetail } from '../hooks/useAnimeMetadata'
 import { useAeriTitle } from '../hooks/useAeriTitle'
-import { resolveEpisodesWithFallback, resolveSourcesForLanguages } from '../providers/video/registry'
+import { resolveEpisodesWithFallback, resolveSourcesForLanguages, providerLabel } from '../providers/video/registry'
 import type { VideoEpisode, VideoSourceEnhanced } from '../providers/video/types'
 import { getWatchPos, putWatchPos, clearWatchPos } from '../storage/db'
 import { getPreferences, isIncognitoEnabled } from '../storage/preferences'
@@ -404,7 +404,10 @@ export function Watch() {
                 <p className="mt-3 text-sm font-medium text-[var(--text)]">
                   {episodesLoading ? 'Finding episodes…' : 'Finding video source…'}
                 </p>
-                <p className="text-xs text-[var(--text-faint)]">Trying {providerId ?? 'providers'} • {triedProviders.join(', ') || '…'}</p>
+                <p className="text-xs text-[var(--text-faint)]">
+                  Trying {providerLabel(providerId) || 'providers'}
+                  {triedProviders.length > 0 && ` • ${triedProviders.map(providerLabel).join(', ')}`}
+                </p>
               </div>
             </div>
           )}
@@ -422,7 +425,7 @@ export function Watch() {
                 animeTitle={titles.primary}
                 episodeNumber={epNum}
                 volume={getPreferences().volume}
-                autoplay={getPreferences().autoplay}
+                autoplay={getPreferences().autoplayVideo}
                 subtitles={getPreferences().subtitles ? selectedSource?.subtitles : undefined}
               />
             </Suspense>
@@ -579,7 +582,7 @@ export function Watch() {
                       ariaLabel="Select video source"
                       options={languageSources.map((s, idx) => ({
                         value: String(idx),
-                        label: `${s.provider}${s.quality && !/^auto$/i.test(s.quality) ? ` • ${s.quality}` : ''}`,
+                        label: `${providerLabel(s.provider)}${s.quality && !/^auto$/i.test(s.quality) ? ` • ${s.quality}` : ''}`,
                         key: `${idx}:${s.provider}:${s.language ?? ''}:${s.quality ?? ''}:${s.url}`,
                       }))}
                     />

@@ -1,16 +1,56 @@
 import { useRef, useEffect, useState, useCallback } from 'react'
 import { Icon } from '../ui/Icon'
+import { useNearViewport } from '../../hooks/useNearViewport'
+import { CARD_ART_ASPECT, CARD_WIDTH, type CardMediaKind } from '../cards/cardGeometry'
+
+/**
+ * DEFERRED CARDS (D165, owner report 2026-11-05: "it still feels laggy as
+ * hell as cards are loaded in"). Home mounts nine rows at once — 108
+ * AnimeCards, each with its own hooks, effects, proximity observer and image
+ * gate — even though only the first row or two are on screen. The initial
+ * commit, style and layout of those offscreen cards is the load-phase jank
+ * (measured at 4x CPU: 133ms of blocking time and a ~400ms style/layout
+ * frame). A row now mounts its cards only when it comes within 700px of the
+ * viewport; until then it paints static, same-geometry placeholders (no
+ * shimmer, no pulse), so the page height and scrollbar are unchanged.
+ *
+ * RUNWAY (owner 2026-11-06: "i can see rows appearing as i scroll down
+ * appearing out of nowhere, make it load slightly more"): the first gate was
+ * 400px — under three row pitches on a phone (measured: 157px per row at
+ * 375px wide), so a flick reached a row before React had committed it and the
+ * placeholders visibly turned into cards mid-scroll. 700px mounts roughly four
+ * rows ahead of the thumb. It cannot be much larger than this: the phone feed
+ * is only ~1.8k px tall, so a one-screen runway would mount every row and
+ * bring back the original load freeze.
+ */
+function DeferredCards({ mediaKind }: { mediaKind: CardMediaKind }) {
+  return (
+    <>
+      {Array.from({ length: 6 }).map((_, i) => (
+        <div
+          key={i}
+          aria-hidden
+          className={`${CARD_ART_ASPECT[mediaKind]} ${CARD_WIDTH.rail} shrink-0 rounded-[6px] bg-[var(--surface)]`}
+        />
+      ))}
+    </>
+  )
+}
 
 export function ContentRow({
   title,
   subtitle,
   children,
+  mediaKind = 'anime',
 }: {
   title: string
   subtitle?: string
   children: React.ReactNode
+  /** Shape of the placeholder cards painted before the row mounts. */
+  mediaKind?: CardMediaKind
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null)
+  const { ref: gateRef, near } = useNearViewport<HTMLDivElement>({ rootMargin: '700px 0px' })
   const [canLeft, setCanLeft] = useState(false)
   const [canRight, setCanRight] = useState(false)
   const [scrollable, setScrollable] = useState(false)
@@ -25,6 +65,10 @@ export function ContentRow({
   }, [])
 
   useEffect(() => {
+    // Deferred rows have no cards yet: measuring them would force a layout
+    // for a scroller that is about to be replaced (and 9 of those on Home's
+    // first commit is real work). Measure once the row is mounted.
+    if (!near) return
     updateArrows()
     const el = scrollerRef.current
     if (!el) return
@@ -37,7 +81,7 @@ export function ContentRow({
       window.removeEventListener('resize', updateArrows)
       if (ro) ro.disconnect()
     }
-  }, [updateArrows, children])
+  }, [updateArrows, children, near])
 
   const scroll = (dir: 1 | -1) => {
     const el = scrollerRef.current
@@ -51,7 +95,7 @@ export function ContentRow({
   }
 
   return (
-    <section className="group/row relative">
+    <section className="content-row group/row relative">
       <div className="mb-2 flex items-baseline justify-between gap-2 lg:px-0">
         <h2 className="min-w-0 flex-1 truncate text-[14px] font-semibold tracking-[-0.01em] text-[var(--text)]">{title}</h2>
         {subtitle && <span className="shrink-0 text-[14px] text-[var(--text-faint)]">{subtitle}</span>}
@@ -98,11 +142,14 @@ export function ContentRow({
         )}
 
         <div
-          ref={scrollerRef}
+          ref={(el) => {
+            scrollerRef.current = el
+            gateRef.current = el
+          }}
           className="no-scrollbar flex snap-x gap-2 overflow-x-auto scroll-smooth pb-1 pt-1 [scroll-snap-type:x_proximity] [scroll-padding-left:0] lg:px-0"
           style={{ scrollbarWidth: 'none' }}
         >
-          {children}
+          {near ? children : <DeferredCards mediaKind={mediaKind} />}
           {/* tail spacer */}
           <div className="w-4 shrink-0 lg:w-0" aria-hidden />
         </div>

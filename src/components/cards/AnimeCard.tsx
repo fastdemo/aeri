@@ -203,15 +203,21 @@ export function AnimeCard({
   // distance spans the whole feed), so in-view tiles stayed blank behind
   // offscreen downloads. `priority` tiles (Home's first row) skip the gate
   // and load eagerly at high priority.
-  const { ref: artRef, near: artNear } = useNearViewport<HTMLDivElement>({ priority })
+  // ART RUNWAY (D165): the old default was `300px 600px` — a 600px
+  // HORIZONTAL runway, which asked for art on nearly every tile of every row
+  // that mounted (a Home row is ~2100px wide). Those are full-size AniList
+  // banners (~1900×400, ~350KB); ~20 of them decoding during load was the
+  // measured load-phase jank (LoAF: ~80ms of raster per image at 4x CPU,
+  // while the same page with images aborted drops to a clean 195ms total).
+  // 300px both ways keeps the next tile ready before a normal swipe lands
+  // without pulling in the whole row.
+  const { ref: artRef, near: artNear } = useNearViewport<HTMLDivElement>({ priority, rootMargin: '600px 600px' })
   // Broken banner URLs (deleted AniList art) fall back ONCE to the same
   // record's other image before giving up — never a fabricated image.
   const [imgSrc, setImgSrc] = useState(fallbackSrc)
   const triedAlternateArt = useRef(false)
-  const [artLoaded, setArtLoaded] = useState(false)
   useEffect(() => {
     setImgSrc(fallbackSrc)
-    setArtLoaded(false)
     triedAlternateArt.current = false
   }, [fallbackSrc])
   const progressEp = anime.progress?.episode ?? 0
@@ -396,8 +402,13 @@ export function AnimeCard({
             (measured: 6.61s → 0.86s main-thread task time with the pulse
             animations off). The art div's own background is the same
             colour, so the resting state is unchanged. */}
-        {!artLoaded && artNear && (
-          <div aria-hidden className="absolute inset-0 animate-pulse bg-[var(--surface-elevated)]" />
+        {/* The pulse stops via CSS the moment the image is in
+            (`.card-art:has(img.is-loaded) [data-art-skeleton]`). It used to
+            be React state, which meant one state update — and a full card
+            re-render — per loaded tile; on Home that is ~100 renders during
+            the feed's first seconds (D165). No state, same pixels. */}
+        {artNear && imgSrc && (
+          <div aria-hidden data-art-skeleton className="absolute inset-0 animate-pulse bg-[var(--surface-elevated)]" />
         )}
         {artNear && imgSrc && (
           <img
@@ -415,14 +426,12 @@ export function AnimeCard({
                 setImgSrc(alternate)
                 return
               }
-              // No usable art left: stop the placeholder pulse (a permanently
-              // pulsing empty tile reads as perpetual loading).
+              // No usable art left: drop the <img> and the skeleton (both
+              // render only while `imgSrc` is set) — no perpetual pulse.
               setImgSrc('')
-              setArtLoaded(true)
             }}
             onLoad={(e) => {
               e.currentTarget.classList.add('is-loaded')
-              setArtLoaded(true)
             }}
             className="img-fade relative h-full w-full object-cover opacity-[0.96] transition group-hover/art:opacity-100"
           />

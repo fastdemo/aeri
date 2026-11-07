@@ -43,6 +43,10 @@ export function RelatedRow({
   const list = (entries ?? []).filter(e =>
     mediaKind === 'manga' ? isMangaFormat(e.anime.format) : !isMangaFormat(e.anime.format),
   )
+  // Owner 2026-11-06: singular/plural on both counts — "1 anime" / "11
+  // animes", "1 manga" / "25 mangas".
+  const unit = mediaKind === 'manga' ? 'manga' : 'anime'
+  const countLabel = `${list.length} ${unit}${list.length === 1 ? '' : 's'}`
 
   if (loading && !entries) {
     return <div className={className}><RowSkeleton title={title} mediaKind={mediaKind} /></div>
@@ -51,7 +55,13 @@ export function RelatedRow({
 
   return (
     <div className={className}>
-      <ContentRow title={title}>
+      <ContentRow
+        title={title}
+        mediaKind={mediaKind}
+        // Count on the right, matching the Episodes header's "N episodes"
+        // line (owner 2026-11-06).
+        subtitle={countLabel}
+      >
         {list.map(({ anime, relationType }) => (
           <AnimeCard
             key={`${mediaKind}-${anime.identity.internalId}-${relationType}`}

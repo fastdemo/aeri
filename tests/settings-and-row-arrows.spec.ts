@@ -139,6 +139,14 @@ test.describe('settings controls', () => {
     await expect(subs).toHaveAttribute('aria-checked', 'false')
     expect((await prefsOf(page)).subtitles).toBe(false)
 
+    // Autoplay (owner 2026-11-06): starts the current video as soon as the
+    // player opens. Default ON, independent of "Autoplay next episode".
+    const autoplay = page.getByRole('switch', { name: 'Autoplay video' })
+    await expect(autoplay).toHaveAttribute('aria-checked', 'true')
+    await autoplay.click()
+    await expect(autoplay).toHaveAttribute('aria-checked', 'false')
+    expect((await prefsOf(page)).autoplayVideo).toBe(false)
+
     // Reader fit: applies to the reader pref and persists.
     const height = page.getByRole('radio', { name: 'Height', exact: true })
     await height.click()
@@ -180,6 +188,7 @@ test.describe('settings controls', () => {
     await page.waitForSelector('text=Anime providers', { timeout: 45_000 })
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'aeri-light')
     await expect(page.getByRole('switch', { name: 'Subtitles on' })).toHaveAttribute('aria-checked', 'false')
+    await expect(page.getByRole('switch', { name: 'Autoplay video' })).toHaveAttribute('aria-checked', 'false')
     await expect(page.getByRole('radio', { name: 'Height', exact: true })).toHaveAttribute('aria-checked', 'true')
     const afterReload = await names()
     expect(afterReload[0]).toBe(before[1])
@@ -189,6 +198,7 @@ test.describe('settings controls', () => {
     await page.getByRole('button', { name: 'Reset local data' }).click()
     await expect(page.locator('html')).toHaveAttribute('data-theme', 'aeri-dark')
     await expect(page.getByRole('switch', { name: 'Subtitles on' })).toHaveAttribute('aria-checked', 'true')
+    await expect(page.getByRole('switch', { name: 'Autoplay video' })).toHaveAttribute('aria-checked', 'true')
     await expect(page.getByRole('radio', { name: 'Width', exact: true })).toHaveAttribute('aria-checked', 'true')
     const reset = await prefsOf(page)
     expect(reset.theme).toBe('aeri-dark')

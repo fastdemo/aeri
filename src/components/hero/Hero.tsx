@@ -247,7 +247,16 @@ export function HeroCarousel({
   // ken-burns scale on stacked backdrops can never bleed outside the hero
   // at any viewport. The section keeps carousel semantics inside it.
   return (
-    <CarouselShell>
+    <CarouselShell
+      ambient={
+        <HeroAmbient
+          key={active.identity.internalId}
+          anime={active}
+          prevAnime={prev}
+          prefersReducedMotion={prefersReducedMotion}
+        />
+      }
+    >
     <section
       ref={containerRef as never}
       className="relative overflow-hidden rounded-[28px] bg-[var(--surface)] [transform:translateZ(0)]"
@@ -521,7 +530,7 @@ function HeroSlide({
   )
 }
 
-function CarouselShell({ children }: { children: React.ReactNode }) {
+function CarouselShell({ children, ambient }: { children: React.ReactNode; ambient?: React.ReactNode }) {
   // Own stacking context + clip boundary: the ken-burns scale on backdrop
   // images must never paint outside the rounded hero at any viewport.
   // translateZ(0) forces the compositor to respect overflow + radius.
@@ -533,10 +542,155 @@ function CarouselShell({ children }: { children: React.ReactNode }) {
   // composited, overflow-clipped layer made Chrome tile stale
   // backdrop-filter snapshots into the slide artwork, and an overlay cannot
   // shift the 1px layout the carousel's ken-burns geometry depends on.
+  //
+  // AMBIENT (D162): the page wash lives on this OUTER wrapper so it can
+  // bleed past the card — inside the clipped layer it would be cropped to
+  // nothing. The wrapper is layout-neutral (the card still owns the box) and
+  // paints no background of its own. The wash is full-bleed (100vw + 40px,
+  // centred, clipped by body's overflow-x: clip) and Home's feed rows sit on
+  // `relative z-10` so they paint above it.
   return (
-    <div className="relative overflow-hidden rounded-[28px] [transform:translateZ(0)] [isolation:isolate]">
-      {children}
-      <div aria-hidden className="frame-glass z-30" />
+    <div className="relative">
+      {ambient}
+      <div className="relative overflow-hidden rounded-[28px] [transform:translateZ(0)] [isolation:isolate]">
+        {children}
+        <div aria-hidden className="frame-glass z-30" />
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// HeroAmbient — the Netflix-style page wash behind the hero.
+//
+// The SAME backdrop image is painted (not sampled): full-bleed, blurred
+// hard, then masked vertically into --bg so the page is tinted behind the
+// hero and back to the theme below the first row. Displaying the image
+// avoids canvas/CORS sampling entirely and always matches the artwork,
+// including the outgoing slide during the crossfade (same two-layer pattern
+// as HeroSlide). Keyed by the active id in HeroCarousel, so `loaded` resets
+// per slide and the new wash fades in while the old one fades out.
+// ---------------------------------------------------------------------------
+function HeroAmbient({
+  anime,
+  prevAnime,
+  prefersReducedMotion,
+}: {
+  anime: Anime
+  prevAnime?: Anime
+  prefersReducedMotion: boolean
+}) {
+  const [loaded, setLoaded] = useState(false)
+  // The outgoing layer exists only for the crossfade. Leaving it mounted at
+  // `opacity: 0` kept a second full-size filtered layer alive for the whole
+  // session — pure scroll cost for something invisible (owner report
+  // 2026-11-05: mobile scroll lag). Drop it once the fade has finished.
+  const [prevVisible, setPrevVisible] = useState(Boolean(prevAnime))
+  useEffect(() => {
+    if (!prevAnime) {
+      setPrevVisible(false)
+      return
+    }
+    setPrevVisible(true)
+    if (!loaded) return
+    const t = window.setTimeout(() => setPrevVisible(false), CROSSFADE_MS)
+    return () => window.clearTimeout(t)
+  }, [prevAnime, loaded])
+
+  // Publish the wash to the document root so chrome that paints OVER the page
+  // can continue it instead of cutting it off (D166: the navbar).
+  //
+  // `--hero-wash-image` is the active backdrop; `--hero-wash-top` /
+  // `--hero-wash-height` are this layer's own page box. Geometry matters:
+  // `background-size: cover` scales the artwork by whichever axis is short, so
+  // a copy painted into a different box would crop/zoom differently and put a
+  // colour step at the bar's bottom edge. Sharing the box makes the copy
+  // pixel-identical to this layer in the band they overlap. Measured in PAGE
+  // coordinates (`rect + scrollY`) so a slide change while scrolled still
+  // publishes the right offset, and only on mount/resize (one ResizeObserver
+  // on an existing element). Removed when the wash goes away, so every other
+  // page paints `background-image: none`.
+  const washRef = useRef<HTMLDivElement | null>(null)
+  const backdrop = anime.backdropImage
+  useEffect(() => {
+    const root = document.documentElement
+    root.style.setProperty('--hero-wash-image', `url("${backdrop}")`)
+    const el = washRef.current
+    const publish = () => {
+      if (!el) return
+      const rect = el.getBoundingClientRect()
+      if (rect.height <= 0) return
+      root.style.setProperty('--hero-wash-top', `${Math.round(rect.top + window.scrollY)}px`)
+      root.style.setProperty('--hero-wash-height', `${Math.round(rect.height)}px`)
+    }
+    publish()
+    const ro = el ? new ResizeObserver(publish) : null
+    if (el) ro?.observe(el)
+    return () => {
+      ro?.disconnect()
+      root.style.removeProperty('--hero-wash-image')
+      root.style.removeProperty('--hero-wash-top')
+      root.style.removeProperty('--hero-wash-height')
+    }
+  }, [backdrop])
+
+  // CROSSFADE, mirrored (owner report 2026-11-05: "when i switch shows in the
+  // carousel the topbar like ambient background updates a bit later than the
+  // main background").
+  //
+  // The wash fades: the outgoing <img> stays at opacity 1 until the incoming
+  // one has loaded, then both ease over CROSSFADE_MS. A bar copy that just
+  // swapped `background-image` had no fade at all — it went blank until the
+  // new artwork was decoded, then re-rastered the 130px blur, so the change
+  // landed a few frames after the page's own wash. These two signals let the
+  // bar replay the SAME sequence: `--hero-wash-prev-image` is the outgoing
+  // artwork (only while the outgoing layer is mounted here), and the
+  // `data-hero-wash-ready` attribute is this layer's `loaded` flag, which the
+  // bar uses as the fade's trigger. Same trigger, same 700ms ease ⇒ the two
+  // bands move together.
+  //
+  // The attribute (not just a var) is what makes the crossfade correct in
+  // BOTH directions: while it is absent the bar's layers swap INSTANTLY
+  // (that is the frame the artwork changes — no transition may run there, or
+  // the new artwork would fade out over the old one), and while it is present
+  // they transition. That is also how the wash behaves: the outgoing <img>
+  // mounts at opacity 1 with no fade, then both fade only once `loaded`.
+  const prevBackdrop = prevAnime?.backdropImage
+  useEffect(() => {
+    const root = document.documentElement
+    if (prevBackdrop && prevVisible) root.style.setProperty('--hero-wash-prev-image', `url("${prevBackdrop}")`)
+    else root.style.removeProperty('--hero-wash-prev-image')
+    return () => { root.style.removeProperty('--hero-wash-prev-image') }
+  }, [prevBackdrop, prevVisible])
+
+  useEffect(() => {
+    const root = document.documentElement
+    root.toggleAttribute('data-hero-wash-ready', loaded)
+    return () => { root.removeAttribute('data-hero-wash-ready') }
+  }, [loaded])
+
+  const fade = prefersReducedMotion ? 'none' : `opacity ${CROSSFADE_MS}ms ease`
+  return (
+    <div ref={washRef} aria-hidden data-hero-ambient className="hero-ambient hero-wash-mask">
+      {prevAnime && prevVisible && (
+        <img
+          src={prevAnime.backdropImage}
+          alt=""
+          loading="eager"
+          decoding="async"
+          className="absolute inset-0 h-full w-full object-cover"
+          style={{ opacity: loaded ? 0 : 1, transition: fade }}
+        />
+      )}
+      <img
+        src={anime.backdropImage}
+        alt=""
+        loading="eager"
+        decoding="async"
+        onLoad={() => setLoaded(true)}
+        className="absolute inset-0 h-full w-full object-cover"
+        style={{ opacity: loaded ? 1 : 0, transition: fade }}
+      />
     </div>
   )
 }

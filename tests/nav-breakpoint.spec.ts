@@ -217,34 +217,47 @@ test.describe('navbar repaint hardening (D151)', () => {
     expect(field.transition, 'transition never animates backdrop-filter').not.toContain('backdrop')
     expect(field.autoComplete, 'browser autofill cannot ghost the search value').toBe('off')
 
-    // At the top the solid layer is hidden (the gradient carries the bar).
-    const top = await page.evaluate(() => {
-      const header = document.querySelector('header') as HTMLElement
-      const solid = header.querySelectorAll(':scope > div')[1] as HTMLElement
-      return { opacity: getComputedStyle(solid).opacity, isolation: getComputedStyle(header).isolation }
+    // The plain background-color must live ON THE FIXED HEADER itself: iOS 26
+    // reads that element's background-color to paint the status bar, ignores
+    // absolutely-positioned children, and samples/freezes an element with no
+    // plain colour. No gradient, no blur, fully opaque, equal to --bg.
+    const readHeader = () => page.evaluate(() => {
+      const header = document.querySelector('header[data-nav-solid]') as HTMLElement
+      const cs = getComputedStyle(header)
+      return {
+        bg: cs.backgroundColor,
+        bodyBg: getComputedStyle(document.body).backgroundColor,
+        position: cs.position,
+        top: cs.top,
+        isolation: cs.isolation,
+        gradient: cs.backgroundImage,
+        gradientLayers: document.querySelectorAll('.nav-top-fade').length,
+        backdrop: cs.backdropFilter,
+        webkitBackdrop: (cs as any).webkitBackdropFilter ?? 'none',
+      }
     })
-    expect(top.opacity, 'solid layer hidden at scrollTop 0').toBe('0')
+
+    const top = await readHeader()
+    expect(top.position, 'the colour is on the fixed element iOS reads').toBe('fixed')
+    expect(top.top).toBe('0px')
     expect(top.isolation, 'header owns its stacking context').toBe('isolate')
+    expect(top.gradient, 'no gradient layer in the bar').toBe('none')
+    expect(top.gradientLayers, 'the old nav-top-fade layer is gone').toBe(0)
+    expect(top.bg, 'plain --bg on the fixed element (iOS 26 status-bar tint)').toBe(top.bodyBg)
+    expect(top.bg, 'fully opaque, never a translucent colour').not.toContain('/')
+    expect(top.backdrop, 'bar paints no backdrop filter').toBe('none')
+    expect(top.webkitBackdrop, 'no -webkit backdrop filter on the bar').toBe('none')
 
     await page.evaluate(() => window.scrollTo(0, 600))
     await expect
-      .poll(() => page.evaluate(() => {
-        const solid = document.querySelectorAll('header > div')[1] as HTMLElement
-        return getComputedStyle(solid).opacity
-      }), { timeout: 5_000 })
-      .toBe('1')
+      .poll(() => page.evaluate(() => window.scrollY), { timeout: 5_000 })
+      .toBeGreaterThan(0)
 
-    const scrolled = await page.evaluate(() => {
-      const header = document.querySelector('header') as HTMLElement
-      const solid = header.querySelectorAll(':scope > div')[1] as HTMLElement
-      const cs = getComputedStyle(solid)
-      return { bg: cs.backgroundColor, backdrop: cs.backdropFilter, htmlBackdrop: (cs as any).webkitBackdropFilter ?? 'none' }
-    })
-    // Opaque `--bg` (Aeri Dark = rgb(0, 0, 0)) — no 95% translucency, no blur.
-    expect(scrolled.bg, 'scrolled bar is a flat opaque theme background').toMatch(/^rgb\(/)
-    expect(scrolled.bg).not.toContain('/')
-    expect(scrolled.backdrop, 'scrolled bar paints no backdrop filter').toBe('none')
-    expect(scrolled.htmlBackdrop, 'no -webkit backdrop filter on the bar').toBe('none')
+    const scrolled = await readHeader()
+    expect(scrolled.bg, 'the bar stays the same flat --bg when scrolled').toBe(top.bg)
+    expect(scrolled.gradient).toBe('none')
+    expect(scrolled.backdrop).toBe('none')
+    expect(scrolled.webkitBackdrop).toBe('none')
   })
 })
 

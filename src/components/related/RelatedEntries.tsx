@@ -171,6 +171,11 @@ export function RelatedEntries({
               <h3 className="min-w-0 flex-1 truncate text-[14px] font-semibold leading-5 text-[var(--text)]">
                 Related Anime
               </h3>
+              {/* Count on the right, the same line/type as the Episodes
+                  header's "N episodes" (owner 2026-11-06). */}
+              <span className="shrink-0 leading-5 text-[14px] text-[var(--text-faint)]">
+                {shows.length} anime{shows.length === 1 ? '' : 's'}
+              </span>
             </div>
           )}
           {loading && !entries ? (
@@ -190,6 +195,9 @@ export function RelatedEntries({
             <h3 className="min-w-0 flex-1 truncate text-[14px] font-semibold leading-5 text-[var(--text)]">
               Related Manga
             </h3>
+            <span className="shrink-0 leading-5 text-[14px] text-[var(--text-faint)]">
+              {manga.length} manga{manga.length === 1 ? '' : 's'}
+            </span>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <RelatedGridContents entries={manga} onSelect={onSelect} />

@@ -38,7 +38,15 @@ export function Search() {
             </button>
           </div>
         ) : !results || results.length === 0 ? (
-          <p className="text-center text-sm text-[var(--text-muted)]">No results for “{liveQuery}”.</p>
+          // Empty state reuses the normal results header block (owner
+          // 2026-11-05): left-aligned title + faint subline, never a centred
+          // sentence floating in the middle of the page.
+          <>
+            <h1 className="text-[18px] font-semibold tracking-tight text-[var(--text)]">
+              No results for “{liveQuery}”
+            </h1>
+            <p className="text-xs text-[var(--text-faint)]">Fetched from AniList.</p>
+          </>
         ) : (
           <>
             {/* Header/description mirror the Anime tab's header block:

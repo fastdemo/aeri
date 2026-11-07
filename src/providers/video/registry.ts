@@ -118,6 +118,23 @@ export function getProviderById(id: string): VideoProvider | undefined {
   return videoProviders.find(p => p.id === id)
 }
 
+/**
+ * Display name for a provider id, for every surface that shows one (source
+ * picker, "Trying …" status). Sources and episode records carry the lowercase
+ * id (`aniwave`), which is not what a person should read — the owner asked for
+ * the providers' own names ("AniWave", "AnimeGG", "AnimeParadise") across the
+ * whole UI (2026-11-06). The registry already declares the canonical name on
+ * each provider's capabilities, so there is ONE source of truth and no
+ * hand-maintained second list.
+ */
+export function providerLabel(id: string | null | undefined): string {
+  if (!id) return ''
+  const known = videoProviders.find(p => p.id === id)?.capabilities.displayName
+  if (known) return known
+  // Unknown/custom id: at least never render a bare lowercase token.
+  return id.charAt(0).toUpperCase() + id.slice(1)
+}
+
 export async function resolveEpisodesWithFallback(anime: Anime, signal?: AbortSignal): Promise<{ episodes: VideoEpisode[]; providerId: string | null }> {
   if (signal?.aborted) return { episodes: [], providerId: null }
   const timeoutMs = 4000

@@ -467,7 +467,10 @@ export function Home() {
         </div>
       </div>
 
-      <div className="space-y-6 px-4 pt-5 sm:px-6 lg:mx-auto lg:w-full lg:max-w-[1600px] lg:space-y-7 lg:px-12">
+      {/* relative z-10: the hero's page-wash ambient (D162) is a full-bleed
+          layer painted in the root stacking context; the feed must sit above
+          it, and this one wrapper holds every row on Home. */}
+      <div className="relative z-10 space-y-6 px-4 pt-5 sm:px-6 lg:mx-auto lg:w-full lg:max-w-[1600px] lg:space-y-7 lg:px-12">
         {/* Continue — only when signed in (spec logged-out: must not appear at all) */}
         {isAuthenticated ? (
           loading ? (

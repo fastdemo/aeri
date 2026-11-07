@@ -263,6 +263,20 @@ export function getMangaProviderById(id: string): MangaProvider | undefined {
   return allMangaProviders().find(p => p.id === id)
 }
 
+/**
+ * Display name for a manga provider id. Chapter/unit ids are prefixed with the
+ * provider id (`weebcentral-…`), and the reader + chapter list used to carry
+ * their OWN hardcoded id→name tables — a second source of truth that drifted
+ * ("Kakalot" for a provider that calls itself "MangaKakalot.fun"). The owner
+ * asked for every provider to appear under its real name across the UI
+ * (2026-11-06), so the registry's `name` is the only source. Unknown prefixes
+ * return '' — never a raw id fragment as a label.
+ */
+export function mangaProviderLabel(id: string | null | undefined): string {
+  if (!id) return ''
+  return getMangaProviderById(id)?.name ?? ''
+}
+
 export interface ChapterResolveResult {
   chapters: MangaChapter[]
   providerId: string | null

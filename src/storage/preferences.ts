@@ -4,6 +4,13 @@ import type { VideoLanguage } from '../providers/video/types'
 
 export interface Preferences {
   autoplay: boolean
+  /**
+   * Start the video as soon as the player opens (owner 2026-11-06: "add a
+   * setting called Autoplay under anime … leave that on by default"). This is
+   * separate from `autoplay` (next episode at end): that one chains episodes,
+   * this one starts the current one. Default on.
+   */
+  autoplayVideo: boolean
   subtitles: boolean
   volume: number
   theme: string
@@ -63,6 +70,7 @@ export interface Preferences {
 
 const defaults: Preferences = {
   autoplay: true,
+  autoplayVideo: true,
   subtitles: true,
   volume: 1,
   theme: 'aeri-dark',

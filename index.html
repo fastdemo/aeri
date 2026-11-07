@@ -10,6 +10,29 @@
     <link rel="apple-touch-icon" href="%BASE_URL%apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#000000" />
+    <!-- iOS Home Screen app. `default` keeps the system status bar (clock,
+         battery) above the content and lets iOS tint it from `theme-color`;
+         unlike `black-translucent` it keeps the icon colour readable on light
+         themes, and unlike `black` it is not locked to black. iOS reads
+         `theme-color` when the app launches — before the React bundle runs —
+         so the inline script below restores the last applied theme colour
+         first (applyTheme persists it), otherwise the status bar stayed the
+         static brand black on every theme. -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Aeri" />
+    <script>
+      // Runs during head parse, before the app bundle. Keeps the iOS status
+      // bar / splash on the user's theme instead of the boot-time black.
+      try {
+        var __aeriBg = localStorage.getItem('aeri:theme-bg')
+        if (__aeriBg) {
+          var __aeriMeta = document.querySelector('meta[name="theme-color"]')
+          if (__aeriMeta) __aeriMeta.setAttribute('content', __aeriBg)
+          document.documentElement.style.backgroundColor = __aeriBg
+        }
+      } catch (e) {}
+    </script>
     <meta name="description" content="Aeri — minimal anime discovery, tracking, and watching. Cinematic browsing, quiet UI." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
