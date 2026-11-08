@@ -5,9 +5,9 @@ import { CARD_ART_ASPECT, CARD_WIDTH, type CardMediaKind } from '../cards/cardGe
 
 /**
  * DEFERRED CARDS (D165, owner report 2026-11-05: "it still feels laggy as
- * hell as cards are loaded in"). Home mounts nine rows at once — 108
+ * hell as cards are loaded in"). Home mounts nine rows at once - 108
  * AnimeCards, each with its own hooks, effects, proximity observer and image
- * gate — even though only the first row or two are on screen. The initial
+ * gate - even though only the first row or two are on screen. The initial
  * commit, style and layout of those offscreen cards is the load-phase jank
  * (measured at 4x CPU: 133ms of blocking time and a ~400ms style/layout
  * frame). A row now mounts its cards only when it comes within 700px of the
@@ -16,21 +16,21 @@ import { CARD_ART_ASPECT, CARD_WIDTH, type CardMediaKind } from '../cards/cardGe
  *
  * RUNWAY (owner 2026-11-06: "i can see rows appearing as i scroll down
  * appearing out of nowhere, make it load slightly more"): the first gate was
- * 400px — under three row pitches on a phone (measured: 157px per row at
+ * 400px - under three row pitches on a phone (measured: 157px per row at
  * 375px wide), so a flick reached a row before React had committed it and the
  * placeholders visibly turned into cards mid-scroll. 700px mounts roughly four
  * rows ahead of the thumb. It cannot be much larger than this: the phone feed
  * is only ~1.8k px tall, so a one-screen runway would mount every row and
  * bring back the original load freeze.
  */
-function DeferredCards({ mediaKind }: { mediaKind: CardMediaKind }) {
+function DeferredCards({ mediaKind, widthClass }: { mediaKind: CardMediaKind; widthClass?: string }) {
   return (
     <>
       {Array.from({ length: 6 }).map((_, i) => (
         <div
           key={i}
           aria-hidden
-          className={`${CARD_ART_ASPECT[mediaKind]} ${CARD_WIDTH.rail} shrink-0 rounded-[6px] bg-[var(--surface)]`}
+          className={`${CARD_ART_ASPECT[mediaKind]} ${widthClass ?? CARD_WIDTH.rail} shrink-0 rounded-[6px] bg-[var(--surface)]`}
         />
       ))}
     </>
@@ -42,12 +42,16 @@ export function ContentRow({
   subtitle,
   children,
   mediaKind = 'anime',
+  cardWidthClass,
 }: {
   title: string
   subtitle?: string
   children: React.ReactNode
   /** Shape of the placeholder cards painted before the row mounts. */
   mediaKind?: CardMediaKind
+  /** Width class for those placeholders, so a deferred row keeps the same
+      geometry as the cards that replace it. */
+  cardWidthClass?: string
 }) {
   const scrollerRef = useRef<HTMLDivElement>(null)
   const { ref: gateRef, near } = useNearViewport<HTMLDivElement>({ rootMargin: '700px 0px' })
@@ -102,13 +106,13 @@ export function ContentRow({
       </div>
 
       <div className="relative">
-        {/* Left/right controls — desktop only, on row hover. BOTH stay
+        {/* Left/right controls - desktop only, on row hover. BOTH stay
             mounted while the row can scroll: the unusable side is dimmed and
             inert instead of unmounting. The old bounds-gated render made the
             clicked arrow vanish mid smooth-scroll (the scroll crossed the
-            4px threshold and canRight flipped false) and reappear — owner
+            4px threshold and canRight flipped false) and reappear - owner
             report 2026-10-29. z-30 keeps the scrim + glyph above the card's
-            hover play glyph (z-10) and dots trigger (z-20) — the card paints
+            hover play glyph (z-10) and dots trigger (z-20) - the card paints
             later in DOM order, so an equal z-index would let the play button
             swallow the click. The scrim is the only chrome: no circle behind
             the chevron. */}
@@ -149,7 +153,7 @@ export function ContentRow({
           className="no-scrollbar flex snap-x gap-2 overflow-x-auto scroll-smooth pb-1 pt-1 [scroll-snap-type:x_proximity] [scroll-padding-left:0] lg:px-0"
           style={{ scrollbarWidth: 'none' }}
         >
-          {near ? children : <DeferredCards mediaKind={mediaKind} />}
+          {near ? children : <DeferredCards mediaKind={mediaKind} widthClass={cardWidthClass} />}
           {/* tail spacer */}
           <div className="w-4 shrink-0 lg:w-0" aria-hidden />
         </div>

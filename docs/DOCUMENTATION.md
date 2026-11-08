@@ -11,7 +11,7 @@ Docs that describe behavior must be updated **in the same change** as the behavi
 | Deployment, hosting, Worker config, secrets, roles | `docs/DEPLOYMENT.md`, `docs/RELEASING.md` (if preflight/verify steps change), `agents/deployment.md`, `docs/DECISIONS.md` |
 | Auth (AniList / MAL / OAuth) | `docs/API.md`, `docs/ARCHITECTURE.md`, `agents/mal.md` / `agents/anilist.md`, `docs/DECISIONS.md` |
 | Streaming / providers / matching / resolver | `agents/streaming.md`, `src/providers/video/registry.ts` comments, `docs/DECISIONS.md`, dated provider-verification paragraph in `agents/changelog.md` |
-| Manga (routes, catalogs, providers, reader) | `agents/changelog.md` + `agents/current-state.md` (no dedicated manga doc — create one when the area grows) |
+| Manga (routes, catalogs, providers, reader) | `agents/changelog.md` + `agents/current-state.md` (no dedicated manga doc - create one when the area grows) |
 | Watch/playback UI, player, no-source copy | `agents/ui.md` or `agents/pages.md` (whichever names the component) + the test pinning the copy |
 | Settings UI / preferences | `agents/settings.md`, `src/storage/preferences.ts` comments |
 | Tests, harness, verification scripts | `agents/testing.md` |
@@ -23,7 +23,7 @@ Docs that describe behavior must be updated **in the same change** as the behavi
 2. Historical reports stay historical: keep their dates; band them with a dated banner when they would otherwise read as current state. Never silently upgrade an old claim to "current".
 3. If something cannot be verified (credentials, owner-only surfaces), say so in the doc: record what is missing and whose hands it needs.
 4. The codebase is the source of truth; when a doc and the code disagree, fix the docs in the same session that discovers the drift.
-5. Add a `docs/DECISIONS.md` entry (`D0xx`) for any non-obvious choice — include live evidence and the limitation, if any. Check existing references for the next free number (agents docs sometimes reference numbers beyond the ledger's last entry).
+5. Add a `docs/DECISIONS.md` entry (`D0xx`) for any non-obvious choice - include live evidence and the limitation, if any. Check existing references for the next free number (agents docs sometimes reference numbers beyond the ledger's last entry).
 
 ## Drift bug-out: finding stale documentation
 

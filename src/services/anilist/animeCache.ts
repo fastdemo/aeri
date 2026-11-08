@@ -2,7 +2,7 @@ import type { Anime } from '../../types/anime'
 
 // One shared in-memory + IndexedDB record per AniList id AND media type.
 // The same numeric id under ANIME vs MANGA is a DIFFERENT entity (HxH anime
-// vs HxH manga) — keys are `anilist:media:<type>:<id>` so anime and manga
+// vs HxH manga) - keys are `anilist:media:<type>:<id>` so anime and manga
 // records can never collide or satisfy each other's reads.
 import { getCache, putCache } from '../../storage/db'
 

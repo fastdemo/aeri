@@ -1,10 +1,10 @@
-# aeri-auth-proxy — AniList OAuth token exchange outside Cloudflare
+# aeri-auth-proxy - AniList OAuth token exchange outside Cloudflare
 
 AniList 403-blocks **all** requests from Cloudflare Worker IPs (`"manually
 blocked"`), so the Worker's `/api/anilist/token` proxy can never complete the
 Authorization Code exchange. This tiny zero-dependency Node server does exactly
-one thing — `POST /api/anilist/token` → `https://anilist.co/api/v2/oauth/token`
-with `ANILIST_CLIENT_SECRET` injected server-side — and runs on any
+one thing - `POST /api/anilist/token` → `https://anilist.co/api/v2/oauth/token`
+with `ANILIST_CLIENT_SECRET` injected server-side - and runs on any
 **non-Cloudflare** host (Fly.io, Render, Railway, a VPS…).
 
 The secret never leaves this process: it is only sent upstream to `anilist.co`,
@@ -47,15 +47,15 @@ browser. You can also bake it in at build time with `VITE_AUTH_API_URL`.
 curl -X POST https://<app>.fly.dev/api/anilist/token \
   -H 'Content-Type: application/x-www-form-urlencoded' \
   -d 'grant_type=authorization_code&client_id=50024&code=INVALID&redirect_uri=https://aeri.fastdemo.workers.dev/'
-# Expect: {"error":"invalid_grant",...} or 401 invalid_client —
+# Expect: {"error":"invalid_grant",...} or 401 invalid_client  - 
 # anything EXCEPT 403 "manually blocked" proves this host is not blocked.
 ```
 
-## Deploy (Deno Deploy — current path, no credit card)
+## Deploy (Deno Deploy - current path, no credit card)
 
 `deno.ts` implements the same contract as `server.js` (zero dependencies,
 fetch-handler form). Deno Deploy free tier needs no card, runs non-Cloudflare
-egress (required — AniList 403-blocks all Cloudflare IPs), and wakes in
+egress (required - AniList 403-blocks all Cloudflare IPs), and wakes in
 milliseconds (inside the frontend's 8s token-exchange budget).
 
 Owner steps (dashboard only, no CLI, ~5 minutes):
@@ -76,7 +76,7 @@ curl https://<name>.deno.net/health
 curl -X POST https://<name>.deno.net/api/anilist/token \
   -H 'Content-Type: application/x-www-form-urlencoded' \
   -d 'grant_type=authorization_code&client_id=50024&code=INVALID&redirect_uri=https://aeri.fastdemo.workers.dev/'
-# Expect: {"error":"invalid_grant",...} or 401 invalid_client —
+# Expect: {"error":"invalid_grant",...} or 401 invalid_client  - 
 # anything EXCEPT 403 "manually blocked" proves this host is not blocked.
 ```
 
@@ -86,7 +86,7 @@ Local test (needs Deno CLI):
 ANILIST_CLIENT_SECRET=x ALLOWED_ORIGIN='*' deno serve --allow-env --allow-net --port 8789 auth-proxy/deno.ts
 ```
 
-## Deploy (Docker/Fly — retired)
+## Deploy (Docker/Fly - retired)
 
 The Docker/Fly path below is kept as a fallback for any Docker host. Fly
 itself is retired (trial ended, D064); prefer Deno Deploy above.

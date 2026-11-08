@@ -3,7 +3,7 @@ import { seedTestAuth, routeTestMalIdentity } from './helpers/test-auth'
 import { routeTestAnilistMedia } from './helpers/test-anilist'
 
 /**
- * MANGA READER — nav layout.
+ * MANGA READER - nav layout.
  *
  * Pins the shape of the reader's chapter controls:
  *   - the chapter picker sits on the prev/next row (top AND bottom), dead
@@ -151,7 +151,7 @@ const metrics = () => {
   }
 }
 
-test.describe('Manga reader — nav layout', () => {
+test.describe('Manga reader - nav layout', () => {
   test('centred picker, equal page gaps, related anime, reader progress bar', async ({ page }) => {
     test.setTimeout(180000)
     await setupReader(page)
@@ -172,7 +172,7 @@ test.describe('Manga reader — nav layout', () => {
 
     // Chapter picker = white-button exception: white fill, --on-text label
     // and chevron, no visible border OR focus ring, still the shared 30px
-    // pill. Focus it first — the ring used to appear on click and read as a
+    // pill. Focus it first - the ring used to appear on click and read as a
     // dark border around the white pill.
     await page.locator('select[aria-label="Select chapter"]').first().focus()
     const pickerTone = await page.evaluate(() => {
@@ -212,7 +212,7 @@ test.describe('Manga reader — nav layout', () => {
     }
 
     // Related rails: anime adaptation first, manga sequel second. Both use
-    // the site-standard Home card width — no per-row edge-fit stretching.
+    // the site-standard Home card width - no per-row edge-fit stretching.
     await expect(page.getByRole('heading', { name: 'Related Anime' })).toBeVisible()
     await expect(page.getByRole('heading', { name: 'Related Manga' })).toBeVisible()
     const relatedWidths = await page.evaluate(() => {
@@ -232,6 +232,38 @@ test.describe('Manga reader — nav layout', () => {
     expect(relatedWidths.anime, 'Related Anime cards use the Home rail width').toBe(relatedWidths.expected)
     expect(relatedWidths.manga, 'Related Manga cards use the Home rail width').toBe(relatedWidths.expected)
     expect(relatedWidths.anime, 'both related rails share one card width').toBe(relatedWidths.manga)
+
+    // Section rhythm mirrors the Watch page (D171): Synopsis 24px under the
+    // bottom chapter nav, related block 40px under Synopsis, 32px between the
+    // two related rails.
+    const rhythm = await page.evaluate(() => {
+      const box = (el: Element | null) => el?.getBoundingClientRect() ?? null
+      const nav = box(document.querySelector('[data-testid="chapter-nav-bottom"]'))
+      const h2 = [...document.querySelectorAll('h2')].find(
+        (h) => h.textContent?.trim() === 'Synopsis',
+      ) as HTMLElement | null
+      // The BLOCK bottom, not the heading's: the paragraph is part of it.
+      const synopsis = box(h2?.parentElement ?? null)
+      const rails = [...document.querySelectorAll('section')].filter(
+        (s) => /^Related (Anime|Manga)$/.test(s.querySelector('h2')?.textContent?.trim() ?? ''),
+      )
+      const a = box(rails[0] ?? null)
+      const b = box(rails[1] ?? null)
+      return {
+        synopsisGap: nav && synopsis ? Math.round(synopsis.top - nav.bottom) : null,
+        relatedGap: synopsis && a ? Math.round(a.top - synopsis.bottom) : null,
+        between: a && b ? Math.round(b.top - a.bottom) : null,
+      }
+    })
+    expect(rhythm.synopsisGap, 'nav to Synopsis matches Watch').toBe(24)
+    expect(rhythm.relatedGap, 'Synopsis to related matches Watch').toBe(40)
+    expect(rhythm.between, 'gap between related rails matches Watch').toBe(32)
+    await page.evaluate(() => {
+      const h2 = [...document.querySelectorAll('h2')].find((h) => h.textContent?.trim() === 'Synopsis')
+      h2?.scrollIntoView({ block: 'start' })
+    })
+    await page.waitForTimeout(600)
+    await page.screenshot({ path: 'OpenCode/screens/read-rhythm-1440.png' })
 
     // Reader-only navbar divider: a scroll progress bar that fills.
     const fill = page.locator('[data-testid="navbar-read-progress"]')
@@ -255,7 +287,7 @@ test.describe('Manga reader — nav layout', () => {
     expect(bar!.trackOpacity, 'visible once scrolled').toBe('1')
     // Flat fill: the 6px neon glow was removed on the owner's instruction
     // (2026-10-29). The fill is still hidden at zero length.
-    expect(bar!.fillShadow, 'reader progress fill is flat — no neon glow').toBe('none')
+    expect(bar!.fillShadow, 'reader progress fill is flat - no neon glow').toBe('none')
     expect(bar!.fillOpacity, 'fill visible once it has length').toBe('1')
     const scaleX = Number(/matrix\(([^,]+)/.exec(bar!.transform)?.[1] ?? '0')
     expect(scaleX, 'fill tracks scroll position').toBeGreaterThan(0.2)
@@ -288,7 +320,7 @@ test.describe('Manga reader — nav layout', () => {
     await setupReader(page, slowPages)
     // Hold every page image open until the test releases them: the bar must
     // stay at zero until the LAST one resolves, not start crawling while the
-    // document is still growing. A fixed timer is not enough — fixture
+    // document is still growing. A fixed timer is not enough - fixture
     // navigation can outlast it, which would make the gate look open.
     let releasePages = () => {}
     const pagesHeld = new Promise<void>((resolve) => { releasePages = resolve })

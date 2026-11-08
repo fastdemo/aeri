@@ -1,5 +1,5 @@
 /**
- * CARD GEOMETRY — single source of truth for card artwork shape.
+ * CARD GEOMETRY - single source of truth for card artwork shape.
  *
  * Every surface that has to *look like a card before the card exists*
  * (loading skeletons on Browse/Manga/Search/Related rows, Home row

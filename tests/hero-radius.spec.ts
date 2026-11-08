@@ -4,7 +4,7 @@ import { test, expect } from '@playwright/test'
  * HERO RADIUS (D133): the hero uses the same corner radius as the media
  * player. The player's stock Video.js radius is 28px, so
  * the hero's three clip layers and its .frame-glass rim must compute 28px at
- * every viewport — not the old 12px / 14px pair.
+ * every viewport - not the old 12px / 14px pair.
  */
 test.describe('Hero radius matches the media player', () => {
   for (const width of [1440, 768, 375]) {

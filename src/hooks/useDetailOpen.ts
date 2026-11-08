@@ -4,7 +4,7 @@ import type { Anime } from '../types/anime'
 
 /**
  * History state envelope for the detail overlay routes (/anime/:id,
- * /manga/:id). `background` is the list page the card was opened from —
+ * /manga/:id). `background` is the list page the card was opened from  - 
  * the overlay keeps that page mounted underneath the floating card.
  * `anime` rides along so a card click renders instantly (no refetch);
  * deep links without it fall back to the type-scoped Media query.
@@ -16,7 +16,7 @@ export interface DetailNavState {
 
 /**
  * Which detail surface a record belongs to. identity.mediaType is the
- * authoritative boundary (ANIME vs MANGA — the same numeric id under
+ * authoritative boundary (ANIME vs MANGA - the same numeric id under
  * different types is a different entity); format is the fallback for
  * records minted before the field existed.
  */
@@ -32,7 +32,7 @@ export function detailPath(anime: Anime): string {
 /**
  * Pushes a card open onto its canonical detail URL. Host pages keep their
  * component state (scroll position, rows) because the overlay detail route
- * renders the background page from history state — this only adds one
+ * renders the background page from history state - this only adds one
  * history entry on top of it. Browser Back closes the card.
  */
 export function useDetailOpen() {

@@ -15,7 +15,7 @@ function headers(extra: Record<string, string> = {}): Record<string, string> {
 }
 
 /**
- * AnimeGG anime provider — VERIFIED_WORKING 2026-09-27 (Naruto ep 1:
+ * AnimeGG anime provider - VERIFIED_WORKING 2026-09-27 (Naruto ep 1:
  * search → /series/naruto → /naruto-episode-1 → /embed/25881 →
  * /play/248322/video.mp4 → 200 video/mp4, sub+dub variants).
  *
@@ -119,7 +119,7 @@ export class AnimeGGProvider implements VideoProvider {
           const epRes = await fetchWithTimeout(`${BASE}/${s}-episode-${num}`, { headers: headers() }, 6000, options?.signal)
           if (!epRes.ok) continue
           const epHtml = await epRes.text()
-          // Embed ids: /embed/<n> — first working MP4 wins for this page
+          // Embed ids: /embed/<n> - first working MP4 wins for this page
           // variant (embeds on a sub page are sub, dub page are dub).
           const embeds = [...new Set([...epHtml.matchAll(/\/embed\/(\d+)/g)].map(m => m[1]))]
           if (!embeds.length) continue

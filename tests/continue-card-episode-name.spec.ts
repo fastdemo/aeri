@@ -8,7 +8,7 @@ import { FIXTURE_COVER } from './fixtures/anilist-media'
  * Real shape (verified against AniList, D127): AniList 2904 (Code Geass R2)
  * carries SEASON ONE's 25 Crunchyroll rows while the entry itself has 25
  * episodes. The display guards discard that list, so the card's "next
- * episode" line must come from the gated Kitsu fallback — never S1's row and
+ * episode" line must come from the gated Kitsu fallback - never S1's row and
  * never a bare placeholder.
  *
  * This suite seeds a MAL tracker entry (progress 4 → next episode 5) and
@@ -21,7 +21,7 @@ import { FIXTURE_COVER } from './fixtures/anilist-media'
  * list entries through the batched `idMal_in` query and CACHES an absence for
  * every id the batch does not return (`anilist:bymal:anime:<id>` = null,
  * anilistMetadata.ts). A double that leaves 1575 out of the batch makes the
- * card read that cached null and render the placeholder — the card would then
+ * card read that cached null and render the placeholder - the card would then
  * look broken for a fixture reason, not a product reason.
  */
 

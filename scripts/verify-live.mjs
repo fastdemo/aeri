@@ -1,5 +1,5 @@
 // Post-deploy live check: confirms the serving bundle matches expectations.
-// Usage: npm run verify:live  (no secrets needed — read-only probes)
+// Usage: npm run verify:live  (no secrets needed - read-only probes)
 const LIVE = process.env.AERI_LIVE_URL ?? 'https://aeri.fastdemo.workers.dev'
 
 async function getText(url, init) {
@@ -10,7 +10,7 @@ async function getText(url, init) {
 
 const failures = []
 const check = (name, ok, detail = '') => {
-  console.log(`${ok ? 'ok' : 'FAIL'}  ${name}${detail ? ` — ${detail}` : ''}`)
+  console.log(`${ok ? 'ok' : 'FAIL'}  ${name}${detail ? ` - ${detail}` : ''}`)
   if (!ok) failures.push(name)
 }
 
@@ -30,7 +30,7 @@ try {
 }
 
 // Provider title matching (D068): the resolver must map each AniList ID to
-// the SAME show on the provider — never the first search result. Romaji-only
+// the SAME show on the provider - never the first search result. Romaji-only
 // titles are the weakest input, so they are the strongest test.
 const MATCH_CASES = [
   { anilistId: 1, romaji: 'Cowboy Bebop', want: 'bebop' },

@@ -8,9 +8,9 @@ import { sortProviderUnits, unitDisplayLabel } from '../../providers/manga/types
 import { Icon } from '../ui/Icon'
 
 /**
- * Manga chapter list — mirrors EpisodeList's contract (loading skeleton →
+ * Manga chapter list - mirrors EpisodeList's contract (loading skeleton →
  * rows → empty state) but operates on provider UNITS, never episodes.
- * A provider unit is opaque: usually a chapter, sometimes a volume — the
+ * A provider unit is opaque: usually a chapter, sometimes a volume - the
  * provider's own label is preserved verbatim ("Volume 3" stays Volume 3).
  * Display order is local state (default oldest-first, toggle beside the
  * heading); provider data untouched. No global order pref exists.
@@ -27,7 +27,7 @@ export function ChapterList({ manga }: { manga: Anime }) {
   // broadcasts; storage event covers other tabs). ALSO re-resolves when
   // manga provider prefs change (enable/disable/reorder): orderTick in the
   // resolve-effect deps re-runs resolution against the CURRENT registry
-  // order — the resolver reads prefs itself, so no stale priority.
+  // order - the resolver reads prefs itself, so no stale priority.
   useEffect(() => {
     const onChange = () => setOrderTick(t => t + 1)
     window.addEventListener('aeri:prefs-changed', onChange)
@@ -42,7 +42,7 @@ export function ChapterList({ manga }: { manga: Anime }) {
 
   // Re-resolve when manga provider prefs change (enable/disable/reorder in
   // Settings broadcasts aeri:prefs-changed). orderTick in the dep array
-  // re-runs resolution against the CURRENT registry order — the resolver
+  // re-runs resolution against the CURRENT registry order - the resolver
   // itself reads prefs, so no stale priority is possible.
   useEffect(() => {
     setChapters(null)
@@ -73,7 +73,7 @@ export function ChapterList({ manga }: { manga: Anime }) {
         if (!cancelled) setDone(true)
       })
     return () => { cancelled = true; controller.abort(); clearTimeout(timeout) }
-    // AbortController per manga id — stale results rejected via `cancelled`.
+    // AbortController per manga id - stale results rejected via `cancelled`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [manga.identity.internalId, orderTick])
 
@@ -81,7 +81,7 @@ export function ChapterList({ manga }: { manga: Anime }) {
     if (!isAuthenticated || !combinedList) return null
     const malId = manga.identity.malId
     const anilistId = manga.identity.anilistId
-    // malId namespaces collide across MAL anime/manga — accept a malId hit
+    // malId namespaces collide across MAL anime/manga - accept a malId hit
     // only when media kinds agree (ChapterList is manga-only context).
     const selfManga = ['MANGA', 'NOVEL', 'ONE_SHOT'].includes(manga.format?.toUpperCase() ?? '')
     return combinedList.find((e) => {
@@ -163,11 +163,11 @@ export function ChapterList({ manga }: { manga: Anime }) {
           const label = unitDisplayLabel(ch)
           // Provenance: unit id prefix is `<provider>-…` (resolver preserves
           // it). Unknown prefixes (stale caches, future providers) show no
-          // badge — never a raw id fragment as a label. The registry's `name`
+          // badge - never a raw id fragment as a label. The registry's `name`
           // is the single source (2026-11-06), so the badge matches Settings.
           const provName = mangaProviderLabel(ch.id.split('-')[0] || '')
           // DIVIDER: always painted, removed on the last row with
-          // last:border-b-0 (same fix as EpisodeList — a position-toggled
+          // last:border-b-0 (same fix as EpisodeList - a position-toggled
           // border animated 0→1px while still currentColor, so the row that
           // moved from last to first flashed white).
           return (
@@ -177,7 +177,7 @@ export function ChapterList({ manga }: { manga: Anime }) {
               className="flex items-center gap-3 border-b border-[var(--divider)] bg-[var(--surface)] px-3 py-3 text-left transition-colors last:border-b-0 hover:bg-[var(--text)]/[0.04]"
             >
               {/* LIST LAYOUT: name left; the date is
-                  gone — read-chapters carry the anime episode tick (check-lg)
+                  gone - read-chapters carry the anime episode tick (check-lg)
                   + "Read" in its place, right-aligned immediately before the
                   source tag (which stays outermost right). */}
               <span data-testid="chapter-label" className="min-w-0 flex-1 truncate text-[13px] font-medium text-[var(--text)]">{label}</span>

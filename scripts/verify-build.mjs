@@ -14,7 +14,7 @@ if (missing.length) {
 }
 const assetsDir = join(dist, 'assets')
 if (!existsSync(assetsDir)) {
-  console.error('verify-build: dist/assets missing — run npm run build first')
+  console.error('verify-build: dist/assets missing - run npm run build first')
   process.exit(1)
 }
 const js = readdirSync(assetsDir).filter((f) => f.endsWith('.js'))
@@ -39,7 +39,7 @@ for (const k of required) {
 for (const k of ['ANILIST_CLIENT_SECRET', 'MAL_CLIENT_SECRET']) {
   const secret = String(process.env[k] ?? '')
   if (secret && bundle.includes(secret)) {
-    console.error(`verify-build: SECRET LEAK — ${k} value found in bundle`)
+    console.error(`verify-build: SECRET LEAK - ${k} value found in bundle`)
     failed = true
   }
 }

@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test'
 import { routeTestAnilistMedia } from './helpers/test-anilist'
 
 /**
- * D159 — both browse surfaces credit their data source in the subtitle:
+ * D159 - both browse surfaces credit their data source in the subtitle:
  * "Discover anime by category and filters • AniList" (same for manga).
  * Owner (2026-11-01) asked for the exact wording.
  */

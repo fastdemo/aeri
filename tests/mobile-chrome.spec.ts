@@ -5,15 +5,15 @@ import { test, expect, type Page } from '@playwright/test'
  *
  * Two separate defects at the top of the screen on a phone / iPad:
  *
- * 1. "a faint gradient in the top bar sometimes" — the resting navbar used to
+ * 1. "a faint gradient in the top bar sometimes" - the resting navbar used to
  *    paint `.nav-top-fade`, a 56px `--bg` gradient. Over a flat page
  *    background it was invisible, but it read as a band whenever content slid
  *    under the bar (the first few px of scroll, or a stale `scrolled` flag
  *    after iOS restored a scroll offset). The bar is now transparent at rest
- *    and flat `--bg` once scrolled — never a gradient.
+ *    and flat `--bg` once scrolled - never a gradient.
  *
  * 2. "there is a black bar behind the clock and date ... which i also want to
- *    change to the color of the theme" — an iOS Home Screen app draws its
+ *    change to the color of the theme" - an iOS Home Screen app draws its
  *    status bar from `<meta name="theme-color">`, which iOS reads at launch
  *    BEFORE the React bundle runs. The static value was the brand black, so
  *    the bar stayed black on every theme. The head now restores the last
@@ -44,7 +44,7 @@ const headerState = (page: Page) =>
   })
 
 test.describe('mobile top bar', () => {
-  test('paints a plain opaque --bg on the fixed bar itself — no gradient, no blur', async ({ page }) => {
+  test('paints a plain opaque --bg on the fixed bar itself - no gradient, no blur', async ({ page }) => {
     test.setTimeout(90_000)
     await page.setViewportSize({ width: 390, height: 844 })
     await page.goto('/docs', { waitUntil: 'domcontentloaded' })
@@ -88,6 +88,51 @@ test.describe('mobile top bar', () => {
     expect(scrolled.backgroundColor, 'the bar keeps the same flat --bg').toBe(rest.backgroundColor)
     expect(scrolled.backgroundImage).toBe('none')
     expect(scrolled.gradientLayers).toBe(0)
+  })
+})
+
+test.describe('installed-app safe area (D170, owner 2026-11-07)', () => {
+  test('the fixed bar grows over the status strip and stays opaque there', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/docs', { waitUntil: 'domcontentloaded' })
+    await page.locator('header').waitFor({ timeout: 30_000 })
+
+    // The page opts into full-bleed layout so the app itself can paint the
+    // strip behind the clock/battery instead of showing page content there.
+    const viewport = await page.getAttribute('meta[name="viewport"]', 'content')
+    expect(viewport, 'the viewport opts into safe-area coverage').toContain('viewport-fit=cover')
+
+    // Headless engines report 0 for env(safe-area-inset-top). Drive the same
+    // token the real device supplies and assert the whole contract it feeds.
+    await page.evaluate(() => document.documentElement.style.setProperty('--safe-top', '47px'))
+    await expect.poll(
+      () => page.evaluate(() => Math.round(
+        (document.querySelector('header[data-nav-solid]') as HTMLElement).getBoundingClientRect().height,
+      )),
+      { timeout: 5_000, message: 'the bar grows by the status-strip inset' },
+    ).toBe(103) // 56px nav row + 47px strip
+
+    const s = await page.evaluate(() => {
+      const header = document.querySelector('header[data-nav-solid]') as HTMLElement
+      const cs = getComputedStyle(header)
+      const bar = document.querySelector('[data-navbar-bar]') as HTMLElement
+      const main = document.querySelector('main') as HTMLElement
+      return {
+        top: header.getBoundingClientRect().top,
+        height: Math.round(header.getBoundingClientRect().height),
+        paddingTop: cs.paddingTop,
+        backgroundColor: cs.backgroundColor,
+        bodyBackground: getComputedStyle(document.body).backgroundColor,
+        barHeight: Math.round(bar.getBoundingClientRect().height),
+        mainPaddingTop: getComputedStyle(main).paddingTop,
+      }
+    })
+    expect(s.top, 'the strip is covered from the very top of the screen').toBe(0)
+    expect(s.height).toBe(103)
+    expect(s.paddingTop, 'the nav row sits below the strip').toBe('47px')
+    expect(s.barHeight, 'the tappable row keeps its 56px height').toBe(56)
+    expect(s.mainPaddingTop, 'page content starts below the bar').toBe('103px')
+    expect(s.backgroundColor, 'the strip is the theme colour, not page content').toBe(s.bodyBackground)
   })
 })
 
@@ -154,7 +199,7 @@ test.describe('iOS Home Screen status bar', () => {
 
   test('the head restores the saved theme colour before the app bundle runs', async ({ page }) => {
     // Seed what applyTheme persists, then block the module bundle: only the
-    // inline head script can run — the same window iOS reads the meta in.
+    // inline head script can run - the same window iOS reads the meta in.
     await page.addInitScript(() => localStorage.setItem('aeri:theme-bg', '#1e1e2e'))
     await page.route('**/assets/*.js', (route) => route.abort())
     await page.goto('/', { waitUntil: 'domcontentloaded' })

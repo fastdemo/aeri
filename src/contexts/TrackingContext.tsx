@@ -29,7 +29,7 @@ type UnifiedTracking = {
   authExpired: boolean
   /**
    * Tracker progress write. `manual` marks USER-INITIATED edits (progress
-   * stepper, QuickMenu "Mark as watched") — those still sync while
+   * stepper, QuickMenu "Mark as watched") - those still sync while
    * Incognito is on. Automatic writes (watch/read flows, episode/chapter
    * clicks) omit it and are suppressed by Incognito.
    */
@@ -91,24 +91,24 @@ export function TrackingProvider({ children }: { children: React.ReactNode }) {
     }
   }, [anyConnected, navigate])
 
-  // Raw list from the active tracker only — the other account (if connected)
+  // Raw list from the active tracker only - the other account (if connected)
   // stays signed in but is never merged in, so the two services can never
   // contradict each other on screen or diverge via fan-out writes.
   const rawList = trackingProvider === 'anilist' ? ani.animeList
     : trackingProvider === 'mal' ? mal.animeList
     : null
 
-  // MAL tracker: AniList is the metadata backend, ALWAYS — the combined list
+  // MAL tracker: AniList is the metadata backend, ALWAYS - the combined list
   // renders AniList-backed records and entries the batch PROVED have no
-  // AniList record (`noAniListRecord` — stable MAL identity, nothing to flip
+  // AniList record (`noAniListRecord` - stable MAL identity, nothing to flip
   // to) while the batch is in flight. The enrichment array stays RESIDENT
   // across re-fires (never reset to raw MAL): every fresh pass re-commits
   // AniList-backed records, so a re-render can never regress a card to its
-  // MAL-titled/MAL-art state — that regression WAS the "identity crisis".
+  // MAL-titled/MAL-art state - that regression WAS the "identity crisis".
   // Still-hidden: only entries whose lookups haven't answered yet (a
   // throttle turn); they appear without a reload when a later pass (or the
   // resident context's own retry ladder) resolves them. MAL remains the
-  // tracker-write source — never a rendering source for mapped entries.
+  // tracker-write source - never a rendering source for mapped entries.
   const [enrichedMalList, setEnrichedMalList] = useState<AnimeListEntry[] | null>(null)
   useEffect(() => {
     if (trackingProvider !== 'mal' || !mal.animeList) return
@@ -157,7 +157,7 @@ export function TrackingProvider({ children }: { children: React.ReactNode }) {
 
   // DATE STAMPS: setting a title to
   // WATCHING always stamps today's start date; COMPLETED always stamps
-  // today's finish date. The 10-23 tightening makes this unconditional —
+  // today's finish date. The 10-23 tightening makes this unconditional  - 
   // entries auto-created by a progress write used to land in watching with
   // NO start date, and re-selecting Watching (same status) used to be a
   // no-op, leaving the tracker dateless forever.
@@ -212,7 +212,7 @@ export function TrackingProvider({ children }: { children: React.ReactNode }) {
       else if (anime.identity.malId) { try { await mal.updateProgress(`mal-${anime.identity.malId}`, ep, isManga); wrote = true } catch { /* no write */ } }
     }
     // AUTO-COMPLETE: reaching 100% of a KNOWN total
-    // flips the entry to completed — which stamps the finish date. An
+    // flips the entry to completed - which stamps the finish date. An
     // unknown total (airing show, ongoing manga) or a malformed count means
     // NO status write at all: incomplete data must never fake completion.
     // Already-completed entries are left alone so a finale rewatch cannot

@@ -21,7 +21,7 @@ test.describe('Guest browsing', () => {
     await expect(dialog).toBeVisible({ timeout: 60_000 })
     await expect(dialog.getByRole('heading', { name: /Naruto/i }).first()).toBeVisible()
 
-    // Play (not Resume) — a guest has no progress to resume.
+    // Play (not Resume) - a guest has no progress to resume.
     const play = dialog.getByRole('link', { name: /^Play$/ })
     await expect(play).toBeVisible()
     await expect(play).toHaveAttribute('href', `/watch/${ANIME_ID}/1`)
@@ -59,7 +59,7 @@ test.describe('Guest browsing', () => {
 
 /**
  * SCROLL-QUIET (owner 2026-10-28): the card hover frost (8px backdrop blur)
- * must never toggle while a scroller is moving — that was the flicker.
+ * must never toggle while a scroller is moving - that was the flicker.
  */
 test.describe('Scroll-quiet gate', () => {
   const readState = (page: Page) => page.evaluate(() => {

@@ -13,7 +13,7 @@ const inflight = new Map<string, Promise<any>>()
 // server says to resume, so one throttle never becomes five more requests.
 let rateLimitedUntil = 0
 
-// --- Diagnostics (no tokens, no user data — counters only) ---
+// --- Diagnostics (no tokens, no user data - counters only) ---
 const stats = {
   requests: 0, // network fetches actually sent
   memoryHits: 0,
@@ -26,11 +26,11 @@ const stats = {
   cooldownUntil: 0,
 }
 
-// --- Service-status telemetry (D112) — counted classes are TRUE
+// --- Service-status telemetry (D112) - counted classes are TRUE
 // unreachability only: network refused/timed out, server errors, or
 // AniList's own global API-off 403. Throttles (429/cooldown fast path),
 // auth failures and GraphQL errors do NOT mean the service is down. A live
-// success resets the streak; a stale-cache rescue is neutral — a fully warm
+// success resets the streak; a stale-cache rescue is neutral - a fully warm
 // cache during an outage is the good case (app working, no down page), and
 // uncacheable misses arm the page within two failing requests.
 let consecutiveHardFails = 0
@@ -139,7 +139,7 @@ export async function anilistGraphQL<T>(
 
   // StrictMode-safe inflight dedup: concurrent callers for the same resource
   // share ONE network promise. Each caller races its own abort signal, so one
-  // unmounted component never cancels the fetch others are waiting on — the
+  // unmounted component never cancels the fetch others are waiting on - the
   // underlying request runs on its own timeout controller only.
   // NOTE: dedup covers cache MISSES only (memory/IDB are checked outside).
   // Two mounts racing on a cold id BOTH miss memory, BOTH miss IDB, then meet
@@ -152,7 +152,7 @@ export async function anilistGraphQL<T>(
   }
 
   // Stale lookup helper: expired memory entry or IDB copy, served when the
-  // network is unavailable or throttled (never invented — only real data).
+  // network is unavailable or throttled (never invented - only real data).
   const readStale = async (): Promise<T | null> => {
     if (!useCache || !cacheKey) {
       const hit = memoryCache.get(mKey)
@@ -173,7 +173,7 @@ export async function anilistGraphQL<T>(
     return null
   }
 
-  // Cooldown fast path: while rate-limited, NEVER hit the network — serve
+  // Cooldown fast path: while rate-limited, NEVER hit the network - serve
   // stale cache or fail with a machine-readable THROTTLED error (no request
   // is sent). UI layers must treat THROTTLED as "keep showing cached data,
   // never surface a countdown to the user during normal browsing".
@@ -198,7 +198,7 @@ export async function anilistGraphQL<T>(
     }
 
     let res: Response
-    // The shared fetch runs on its own timeout controller ONLY — individual
+    // The shared fetch runs on its own timeout controller ONLY - individual
     // caller aborts race in abortRace() above and never kill it for others.
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 8000)
@@ -216,7 +216,7 @@ export async function anilistGraphQL<T>(
       })
     } catch (e) {
       if ((e as any)?.name === 'AbortError') {
-        // Underlying timeout (not a caller abort — callers can't reach this
+        // Underlying timeout (not a caller abort - callers can't reach this
         // controller): serve stale before failing.
         const stale = await readStale()
         if (stale !== null) return stale
@@ -258,14 +258,14 @@ export async function anilistGraphQL<T>(
         // AniList's global API-off outage answers 403 with
         // "The AniList API has been temporarily disabled due to severe
         // stability issues." (cloudflare-served, origin-independent). That is
-        // a SERVICE outage — not the user's session — so the token stays.
+        // a SERVICE outage - not the user's session - so the token stays.
         // Counted as a hard fail; an explicit operator message arms the app's
         // down state immediately (single request, no threshold needed).
         const explicit = ANILIST_OUTAGE_RE.test(msg)
         noteAnilistHardFail(explicit ? 'AniList’s API is temporarily disabled by its operator (severe stability issues).' : null)
         const stale = await readStale()
         if (stale !== null) return stale
-        throw new ProviderError('NETWORK', 'AniList’s API is offline right now — a service-side outage, not a problem on your end.', true)
+        throw new ProviderError('NETWORK', 'AniList’s API is offline right now - a service-side outage, not a problem on your end.', true)
       }
       if (status === 404) {
         throw new ProviderError('NOT_FOUND', 'We couldn’t find that anime.', false)
@@ -277,7 +277,7 @@ export async function anilistGraphQL<T>(
       if (status === 429) {
         stats.status429 += 1
         // Honor the server's signals: Retry-After wins, else X-RateLimit-Reset,
-        // else a conservative 60s. ONE shared cooldown for all queries — every
+        // else a conservative 60s. ONE shared cooldown for all queries - every
         // other caller fails fast or serves stale until it expires. No retry:
         // retrying a 429 is what turns one throttle into a storm.
         let waitMs = 60000
@@ -337,7 +337,7 @@ export function clearAnilistMemoryCache() {
 /** Publish a response into BOTH cache layers (memory + IDB) under a key, so
  *  later per-key reads (e.g. `anilist:bymal:anime:<id>`) resolve from cache
  *  with zero network. Value must be the exact shape callers read back.
- *  D111: the batched by-MAL lookup uses this — one request resolves the
+ *  D111: the batched by-MAL lookup uses this - one request resolves the
  *  whole tracker list and every per-id key carries its answer (positive or
  *  definitive negative), so per-entry lookups become cache hits instantly
  *  and repeat visits never re-ask. */

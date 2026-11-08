@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 
 /**
- * D165 — Home must not mount every card on first paint.
+ * D165 - Home must not mount every card on first paint.
  *
  * Owner report (2026-11-05, third time): "it still feels laggy as hell as
  * cards are loaded in". Home mounts nine rows at once; only the first row or
@@ -15,7 +15,7 @@ import { test, expect, type Page } from '@playwright/test'
  * tests pin the contract that matters to the user:
  *
  *  1. offscreen rows are deferred (placeholders, no card elements),
- *  2. the deferred placeholders reserve the same height as the real row —
+ *  2. the deferred placeholders reserve the same height as the real row  - 
  *     the page must not jump when a row mounts,
  *  3. scrolling the feed mounts every row (nothing stays blank forever),
  *  4. the placeholders animate nothing (an infinite pulse on an offscreen
@@ -72,7 +72,7 @@ test('offscreen rows are deferred, then mount on scroll without a jump', async (
   const deferredRows = before.perRow.map((n, i) => (n === 0 ? i : -1)).filter((i) => i >= 0)
 
   expect(before.rows, 'the feed renders rows').toBeGreaterThan(1)
-  // Something is deferred — otherwise the gate is not doing anything.
+  // Something is deferred - otherwise the gate is not doing anything.
   expect(before.cards, 'not every card is mounted on first paint').toBeLessThan(total)
   expect(deferredRows.length, 'rows below the fold are deferred').toBeGreaterThan(0)
   // Deferred rows paint same-geometry placeholders (so the page keeps its

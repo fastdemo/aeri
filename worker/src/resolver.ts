@@ -59,7 +59,7 @@ export interface ResolveContext {
 }
 
 // Per-request context (constant per deployment; module state shared across
-// concurrent requests is safe — mirrors the previous setResolverConfig pattern).
+// concurrent requests is safe - mirrors the previous setResolverConfig pattern).
 let resolveCtx: ResolveContext | null = null
 export function setResolveContext(ctx: ResolveContext | null) {
   resolveCtx = ctx && ctx.secret ? { secret: ctx.secret, publicOrigin: ctx.publicOrigin.replace(/\/$/, '') } : null
@@ -158,7 +158,7 @@ const DNS_CACHE_TTL_MS = 5 * 60 * 1000
 
 async function isPrivateHost(hostname: string): Promise<boolean> {
   // Best-effort SSRF guard against DNS rebinding to internal ranges.
-  // Workers have no node:dns — resolve via DNS-over-HTTPS, fail closed.
+  // Workers have no node:dns - resolve via DNS-over-HTTPS, fail closed.
   const h = String(hostname || '').toLowerCase().replace(/\.$/, '')
   if (!h) return true
   if (h === 'localhost' || h.endsWith('.localhost')) return true
@@ -244,8 +244,8 @@ function contentTypeFor(url: string, upstreamCt: string | null): string {
  *
  * Upstream MIME headers are unreliable: AnimeParadise's /ts endpoint serves
  * valid MPEG-TS as `image/jpeg` on most segments and `text/html` on the
- * rest. Container magic beats the header — a TS sync byte at 0 and 188 is
- * unambiguous — so mislabeled media is normalized to video/mp2t instead of
+ * rest. Container magic beats the header - a TS sync byte at 0 and 188 is
+ * unambiguous - so mislabeled media is normalized to video/mp2t instead of
  * being handed to the player as an image or a block page. Genuine media
  * types are otherwise preserved.
  */
@@ -382,7 +382,7 @@ function splitTitles(title: string): { romaji: string; english: string } {
 
 // Provider types are coarse (TV/Movie/OVA/Special); AniList formats are
 // finer (TV/MOVIE/OVA/ONA/SPECIAL/MUSIC). Only the movie↔non-movie conflict
-// is a hard mismatch — everything else defers to title scoring so a quirky
+// is a hard mismatch - everything else defers to title scoring so a quirky
 // provider label can never alone veto a strong title match.
 function typeCompatible(expectedFormat: string | null | undefined, actualType: string | null | undefined): boolean {
   const e = String(expectedFormat || '').toLowerCase()
@@ -1246,7 +1246,7 @@ export async function handleStream(request: Request, cors: Record<string, string
 
 // Hosts allowed through /api/manga/img. Page images (planeptune, lowee,
 // mangapill CDN, mangahere CDN, bato1 CDN, kakalot CDN, mangaread uploads)
-// + covers (compsci88) only — never an open proxy. Suffix match covers
+// + covers (compsci88) only - never an open proxy. Suffix match covers
 // rotation subdomains (hot./scans-hot./official./cdn.).
 const MANGA_IMG_SUFFIXES = ['planeptune.us', 'compsci88.com', 'lowee.us', 'readdetectiveconan.com', 'mangahere.org', 'love4awalk.xyz', 'mghcdn.com', 'mangaread.org']
 

@@ -9,12 +9,12 @@ export function aeriTitle(name: string | null | undefined): string {
 }
 
 /**
- * ROUTE fallback map for the tab title (the 'base' slot — see
+ * ROUTE fallback map for the tab title (the 'base' slot - see
  * useAeriTitle). Static names come from the URL alone, so pages never
  * wire titles manually; live-data pages (detail overlays, Watch, Read)
  * override with the record's name via the same hook's 'override' slot.
  * `/search` uses the live `?q=` term, wrapped in quotes
- * (`"romance" - Aeri` — real quote characters).
+ * (`"romance" - Aeri` - real quote characters).
  */
 export function routeDefaultTitle(pathname: string, search: string): string | null {
   const bare = pathname.replace(/\/+$/, '') || '/'

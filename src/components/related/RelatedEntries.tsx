@@ -66,7 +66,7 @@ function RelatedGrid({
         if (!id) return null
         // Type-safe destination: manga relations MUST resolve as manga.
         // Same numeric id under ANIME vs MANGA is a DIFFERENT entity, so
-        // the /manga/:id route (not the /manga BROWSE page — the old
+        // the /manga/:id route (not the /manga BROWSE page - the old
         // `/manga` bare href navigated away from the current card/page
         // entirely; 2026-10-18 fix). detailPath resolves the mediaType/
         // format boundary and builds canonical `/manga/anilist-<id>`.
@@ -112,18 +112,18 @@ function RelatedGrid({
 }
 
 /**
- * Related Entries — navigation/discovery only, split into Related Shows
+ * Related Entries - navigation/discovery only, split into Related Shows
  * (anime formats) and Related Manga (MANGA/NOVEL/ONE_SHOT). Each entry links
  * directly to its own AniList id; nothing mutates the current entry, groups
  * identities, or transfers progress. Reuses the shared AnimeCard.
  *
  * Media-type routing: manga relations link to `/manga` (which resolves
  * type: MANGA) and anime relations to `/anime/...` (type: ANIME). The
- * numeric id alone is NOT sufficient — HxH anime vs HxH manga share
+ * numeric id alone is NOT sufficient - HxH anime vs HxH manga share
  * nothing but digits. onSelect callers receive the full Anime (with
  * identity.mediaType) so in-place modal swaps preserve the type.
  *
- * NOTE: these anchor fallbacks (Watch/Read pages — no onSelect host) keep a
+ * NOTE: these anchor fallbacks (Watch/Read pages - no onSelect host) keep a
  * REAL href for accessibility and middle/new-tab, but route through the
  * router on left click, carrying the current location as background so the
  * floating detail card opens above this page (D097), same as every other
@@ -156,7 +156,7 @@ export function RelatedEntries({
   // Related Manga is capped at 2 per row everywhere (sidebar slot is
   // narrow; 4-across portrait cards would be unreadable).
   // ALIGNMENT: the parent places this block in a shared grid row with
-  // Episodes/Chapters (row-start-2 both columns). No padding/margin here —
+  // Episodes/Chapters (row-start-2 both columns). No padding/margin here  - 
   // both headers use the identical mb-2 header row, so Related starts at
   // exactly the Episodes line (delta 0). Any pt/mt would offset it.
   // Mobile stacks naturally (grid becomes single column).
@@ -165,7 +165,7 @@ export function RelatedEntries({
       {(!mangaOnly) && ((!loading && !shows.length && manga.length) ? null : (
         <section aria-label="Related Anime" className="mt-0">
           {!hideHeader && shows.length > 0 && (
-            // Same fixed 20px header geometry as Episodes/Chapters —
+            // Same fixed 20px header geometry as Episodes/Chapters  - 
             // headers must share one line, entries share one top.
             <div className="mb-2 flex h-5 items-center justify-between gap-2">
               <h3 className="min-w-0 flex-1 truncate text-[14px] font-semibold leading-5 text-[var(--text)]">
@@ -221,7 +221,7 @@ function RelatedGridContents({
         const id = anime.identity.anilistId
         if (!id) return null
         // Canonical detail URL (manga relations → /manga/:id, never the
-        // bare /manga BROWSE page — 2026-10-18 fix; see the first grid).
+        // bare /manga BROWSE page - 2026-10-18 fix; see the first grid).
         const href = detailPath(anime)
         const meta = [
           relationLabel(relationType),

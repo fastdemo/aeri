@@ -49,15 +49,15 @@ function FaviconGuard() {
 
 // Detail overlay routes: /anime/:id + /manga/:id render the floating card
 // ON TOP of the page it was opened from. React Router's location prop does
-// the layering — the base <Routes> keeps rendering the background page
+// the layering - the base <Routes> keeps rendering the background page
 // (carried in history state; Home for plain deep links) while the overlay
 // <Routes> matches the detail path. Browser Back closes the card.
 const DETAIL_ROUTE_RE = /^\/(anime|manga)\/([^/]+)$/
 
-// --- D112 service gate — which data services each surface REQUIRES for its
+// --- D112 service gate - which data services each surface REQUIRES for its
 // primary content. A page is replaced by a down page ONLY when one of its own
 // services is definitively down; every other surface keeps working (never a
-// blanket app replacement — MAL-down must not blank discovery, reader is
+// blanket app replacement - MAL-down must not blank discovery, reader is
 // MangaDex-side and stays open). Overlay needs are UNIONed with the
 // background page's: a detail card opened over My List still needs both
 // services' health, not just the card's.
@@ -75,7 +75,7 @@ function requiredServices(path: string, tracker: 'anilist' | 'mal' | null): Serv
     return ['anilist']
   }
   if (path.startsWith('/list') || path.startsWith('/profile')) {
-    // Rows need the tracker that owns the list — and under MAL tracking,
+    // Rows need the tracker that owns the list - and under MAL tracking,
     // AniList as the display-metadata backbone (D110/D111).
     return tracker === 'mal' ? ['anilist', 'mal'] : ['anilist']
   }
@@ -86,7 +86,7 @@ function Layout() {
   const location = useLocation()
   const { pathname } = location
   const detailMatch = DETAIL_ROUTE_RE.exec(pathname)
-  // TAB TITLE — route fallback ("Home - Aeri", "Manga - Aeri", the quoted
+  // TAB TITLE - route fallback ("Home - Aeri", "Manga - Aeri", the quoted
   // live search term …). Mapped centrally from the pathname/search so no
   // page component has to wire a static title; live-data names (show
   // titles on detail overlays, Watch/Read pages) layer an 'override' on
@@ -99,13 +99,13 @@ function Layout() {
   // receive an explicit `location` prop. react-router's useRoutesImpl
   // returns matched elements BARE when location is undefined but wraps them
   // in a LocationContext.Provider when it is set (dist line
-  // `if (locationArg && renderedMatches)`) — passing undefined while a
+  // `if (locationArg && renderedMatches)`) - passing undefined while a
   // detail URL is active changes the ELEMENT TREE SHAPE between the two
   // states, and React unmounts + remounts the whole background page on
   // every card open/close (proved via Home mount/salt logs + a connected
   // node probe: the pre-open "Continue Watching" heading was replaced by an
   // identical twin). With a location prop ALWAYS set, the tree shape is
-  // constant and the background page RECONCILES — no remount, no reshuffle
+  // constant and the background page RECONCILES - no remount, no reshuffle
   // of the seeded rows, no scroll jump: Netflix-open behavior.
   const bgLocation = detailMatch ? (navState?.background ?? { pathname: '/' }) : location
 
@@ -134,11 +134,11 @@ function Layout() {
     <div className="flex min-h-screen flex-col bg-[var(--bg)]">
       <FaviconGuard />
       <Navbar />
-      <main className="flex-1 pt-14">
+      <main className="flex-1 pt-[var(--nav-total)]">
         {/* D112 service gate: while a required service is down, the affected
             surface becomes the simple branded down page (Navbar + footer
             stay; navigation to /settings still works for diagnostics).
-            Holding both render arms in constants would NOT keep tree shape —
+            Holding both render arms in constants would NOT keep tree shape  - 
             this IS a page-level swap by design; on recovery the base Routes
             remount and refetch, which is exactly the resume-where-you-were
             behavior we want. */}
@@ -148,7 +148,7 @@ function Layout() {
           <>
             {/* Base surface: keeps the background page mounted under the card
                 (own location while a detail URL is active). /anime/:id and
-                /manga/:id are intentionally NOT here — they exist only as the
+                /manga/:id are intentionally NOT here - they exist only as the
                 overlay routes below. `location` is ALWAYS explicit (see comment
                 above): an undefined↔object flip changes the element tree shape
                 inside useRoutesImpl and remounts the background page. */}
@@ -175,7 +175,7 @@ function Layout() {
           </>
         )}
       </main>
-      {/* Hidden below the `sm` boundary (640px) — the
+      {/* Hidden below the `sm` boundary (640px) - the
           same scaling where the hero carousel dots-pill moves to the
           top-right (Hero.tsx comment: "<640"): on the tightest layouts
           the footer is noise. KEEP THE BREAKPOINT IN SYNC with the hero

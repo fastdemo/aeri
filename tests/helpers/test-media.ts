@@ -3,27 +3,27 @@ import type { Page } from '@playwright/test'
 /**
  * Controlled media doubles for deterministic player tests.
  *
- * SCOPE — READ CAREFULLY. These doubles replace ONLY the final media bytes
+ * SCOPE - READ CAREFULLY. These doubles replace ONLY the final media bytes
  * (MP4 file, HLS playlist/segments) served to the browser's `<video>` /
  * hls.js element. They NEVER replace provider resolution: AniWave's worker
  * source route, AnimeGG's search→series→episode→embed→play scrape chain,
  * and the worker's signed `/api/stream` relay all run UNMODIFIED unless a
  * test explicitly routes them. A test that wants
  * to prove END-TO-END provider playback must NOT call the byte-level
- * helpers below — it routes nothing (or only blocks a tier) and asserts
+ * helpers below - it routes nothing (or only blocks a tier) and asserts
  * on live upstream bytes (see playback-authenticated.spec.ts "live" suite,
  * explicitly labeled).
  *
  * Two deterministic doubles:
  * - MP4 (`routeControlledMp4`): answers AnimeGG `/play/...` URLs and any
  *   direct `.mp4` with a 302 to a tiny public CORS-open MP4 (MDN flower,
- *   already used by the existing demo control). 302 — not content
- *   synthesis — so content-type/sniff checks still observe a REAL file.
+ *   already used by the existing demo control). 302 - not content
+ *   synthesis - so content-type/sniff checks still observe a REAL file.
  * - HLS (`routeControlledHls`): serves a REAL multivariant playlist +
  *   segments by rewriting the playlist text fetched LIVE from the mux
  *   test-stream master. Segment URLs stay absolute upstream (CORS-open),
  *   so hls.js pulls REAL TS bytes. If the mux master is unreachable the
- *   helper throws — never synthesizes segments.
+ *   helper throws - never synthesizes segments.
  */
 
 const FLOWER_MP4 = 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4'
@@ -37,7 +37,7 @@ async function fetchText(url: string): Promise<string> {
 
 /**
  * Redirect AnimeGG-signed MP4 URLs to a controlled real file. Matches the
- * provider's own URL shape (`/play/<id>/video.mp4?...`) — nothing else.
+ * provider's own URL shape (`/play/<id>/video.mp4?...`) - nothing else.
  * Every other request passes through, so resolution + relay + player
  * wiring are all genuinely exercised; only the final bytes are stable.
  */
@@ -84,11 +84,11 @@ export async function routeControlledHls(page: Page): Promise<void> {
  * Scope upstream blocking WITHOUT breaking the identity doubles.
  *
  * CONSTRAINT (verified 2026-10-10): a later-registered `/^https?:\/\//`
- * handler swallows requests and earlier glob routes NEVER fire — so this
+ * handler swallows requests and earlier glob routes NEVER fire - so this
  * helper FULFILLS the identity endpoints itself (same doubles as
  * test-auth) instead of continue()ing into them. The only place that
  * registers the broad pattern: call at most once per page, AFTER setupAuth's glob
- * routes (they become inert shadows — harmless, still unrouted in
+ * routes (they become inert shadows - harmless, still unrouted in
  * afterEach). `blocked` records every aborted URL so tests can assert the
  * block actually did something (a vacuous no-op route would also yield
  * no-source and prove nothing).
@@ -102,7 +102,7 @@ export async function blockUpstreamMedia(
   await page.route(/^https?:\/\//, async (route) => {
     const url = route.request().url()
     const method = route.request().method()
-    // Identity doubles (fulfilled here — never continued, never upstream).
+    // Identity doubles (fulfilled here - never continued, never upstream).
     if (url.includes('api.myanimelist.net/v2/users/@me') || url.includes('/api/mal/users/@me')) {
       if (url.includes('/animelist') || url.includes('/mangalist')) {
         await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ data: [], paging: {} }) })

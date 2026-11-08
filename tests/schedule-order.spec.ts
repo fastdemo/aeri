@@ -117,7 +117,7 @@ test.describe('Airing soon order with a watching list', () => {
   test('a list entry airing later drops below the sooner rail titles', async ({ page }) => {
     test.setTimeout(120_000)
     await page.addInitScript(() => {
-      // AniList tracker seed — the ONLY tracker whose list entries carry
+      // AniList tracker seed - the ONLY tracker whose list entries carry
       // nextAiringEpisode (MAL nodes do not).
       localStorage.setItem('aeri:anilist:token', 'aeri-test-token')
       localStorage.setItem('aeri:anilist:token_type', 'Bearer')

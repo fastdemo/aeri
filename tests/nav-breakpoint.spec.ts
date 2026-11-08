@@ -17,7 +17,7 @@ import { seedTestAuth, routeTestMalIdentity } from './helpers/test-auth'
  *   - the bell↔profile divider is gone in every auth state and at every
  *     width;
  *   - the bar never causes horizontal page overflow, including the tightest
- *     inline width (640px, signed out — the widest case: search + Sign in);
+ *     inline width (640px, signed out - the widest case: search + Sign in);
  *   - the right cluster order is search → bell → profile.
  *
  * The hero-pill half of the contract is asserted in the last test; it is
@@ -25,7 +25,7 @@ import { seedTestAuth, routeTestMalIdentity } from './helpers/test-auth'
  * renders with a real trending title.
  */
 
-const SWITCH = 640 // Tailwind `sm` — the hero pill's own step
+const SWITCH = 640 // Tailwind `sm` - the hero pill's own step
 
 type NavState = Awaited<ReturnType<typeof navState>>
 
@@ -137,7 +137,7 @@ test.describe('top bar compaction', () => {
     // Right cluster order: search field → bell → profile (divider removal must
     // not reshuffle the cluster).
     expect(above.rightLabels).toEqual(['Search anime', 'Airing schedule', 'Profile'])
-    // Profile lands on the bar's content edge — no stray divider gap.
+    // Profile lands on the bar's content edge - no stray divider gap.
     expect(above.profileRight).toBe(above.contentRight)
   })
 
@@ -183,7 +183,7 @@ test.describe('top bar compaction', () => {
 })
 
 /**
- * D151 (2026-10-30) — navbar repaint hardening.
+ * D151 (2026-10-30) - navbar repaint hardening.
  *
  * Owner reports: (1) on a hard refresh the desktop search field showed a
  * spinner-like ghost inside the pill until the page finished painting;
@@ -265,7 +265,7 @@ test.describe('navbar repaint hardening (D151)', () => {
  * GitHub is NOT in the navbar (owner 2026-10-31: "remove github from the
  * navbar"). The top bar carries only the four routes at every width, and the
  * mobile menu has no GitHub row. The repo link survives in the page footer
- * and in Settings — those are NOT nav, so they stay.
+ * and in Settings - those are NOT nav, so they stay.
  */
 test.describe('GitHub is not a navbar item', () => {
   const REPO = 'https://github.com/fastdemo/aeri'
@@ -294,7 +294,7 @@ test.describe('GitHub is not a navbar item', () => {
 
 /**
  * ⌘K / Ctrl+K / Alt+K focuses the search field (owner 2026-10-31, D157). A
- * keybind only — no badge, no new element. Desktop focuses the inline input;
+ * keybind only - no badge, no new element. Desktop focuses the inline input;
  * the compact bar opens its search dropdown with the input focused.
  */
 test.describe('search keybind', () => {

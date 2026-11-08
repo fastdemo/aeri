@@ -59,7 +59,7 @@ function shuffle<T>(arr: T[]): T[] {
 const PAGE_SIZE = 30
 
 export function Manga() {
-  // Card taps push /manga/<id> — the floating card is an overlay route on
+  // Card taps push /manga/<id> - the floating card is an overlay route on
   // top of this page.
   const [category, setCategory] = useState<(typeof categories)[number]['id']>('popular')
   const openDetail = useDetailOpen()
@@ -178,7 +178,7 @@ export function Manga() {
           {filterBar}
         </div>
 
-        {/* Split: categories left, filters right — the space between them
+        {/* Split: categories left, filters right - the space between them
             closes continuously as the window narrows. Merged: one swipeable
             strip, entered only once the lanes would actually touch. */}
         <div

@@ -39,7 +39,7 @@ export interface ProviderCapabilities {
 
 // Caller-supplied identity hints (AniList metadata the frontend already
 // holds; the worker cannot fetch AniList itself). Threaded into the
-// resolver's title matching + verification. All optional — resolution fails
+// resolver's title matching + verification. All optional - resolution fails
 // closed when verification cannot confirm the match.
 export interface ProviderHint {
   title?: string
@@ -65,7 +65,7 @@ import { getResolveContext, resolveSource, findAniwaveEpisodes, findAnimeParadis
 
 // In-worker resolution context is configured per request from worker env
 // (constant per deployment, so sharing module state across concurrent
-// requests is safe). Providers call the resolver in-process — no HTTP hop,
+// requests is safe). Providers call the resolver in-process - no HTTP hop,
 // no bearer secret on the wire.
 
 async function fetchWithTimeout(url: string, opts: RequestInit = {}, timeoutMs = 4500): Promise<Response> {
@@ -273,7 +273,7 @@ export class AnimePaheProvider implements VideoSourceProvider {
       const best = sorted[0]
       const url = best?.kwik || best?.kwik_pahe || best?.link
       if (!url || typeof url !== 'string') return []
-      // Return as embed (kwik) — player will iframe it. Type embed is honest.
+      // Return as embed (kwik) - player will iframe it. Type embed is honest.
       return [{ provider: 'animepahe', url, type: 'embed', language: 'sub', quality: String(best.resolution||'auto'), embed: true }]
     } catch { return [] }
   }
@@ -283,7 +283,7 @@ export class AnikotoProvider implements VideoSourceProvider {
   capabilities: ProviderCapabilities = { id: 'anikoto', displayName: 'AniKoto', languages: ['sub','dub'], subtitles: true, hls: true, mp4: false, embed: false, search: true, episodes: true, sources: true }
   private cache = new Map<string, {id:number, ani_id:string}>()
   // Series payloads cached in worker memory so the per-episode source call
-  // only needs the cheap getSourcesNew hop (signed URLs are never cached —
+  // only needs the cheap getSourcesNew hop (signed URLs are never cached  - 
   // neither here nor by edge cache headers on this route).
   private seriesCache = new Map<number, { at: number; data: any }>()
   private static readonly UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
@@ -292,7 +292,7 @@ export class AnikotoProvider implements VideoSourceProvider {
     const key = String(anilistId)
     if (this.cache.has(key)) return this.cache.get(key)!.id
     // Mirror the site structure: /filter HTML cards carry the API series id
-    // in data-tip plus display titles — rank by similarity, verify ani_id.
+    // in data-tip plus display titles - rank by similarity, verify ani_id.
     // (No watch-page scraping needed.)
     const scoreTitle = (t: string, romaji: string, english: string): number => {
       const n = (t || '').toLowerCase().trim()
@@ -595,7 +595,7 @@ export class AniwaveProvider implements VideoSourceProvider {
 }
 
 /**
- * AnimeParadise — VERIFIED_WORKING 2026-10-26 (Cowboy Bebop ep 1: open API
+ * AnimeParadise - VERIFIED_WORKING 2026-10-26 (Cowboy Bebop ep 1: open API
  * search → /anime/<link> (mappings.anilist = exact identity) →
  * /anime/<_id>/episode → Next.js server-action POST on /watch/<uid> →
  * streamLink → 1448x1080 HLS master + English VTT captions).
@@ -698,7 +698,7 @@ export class MiruroAliasProvider implements VideoSourceProvider {
     sources: true,
   }
   // Disabled trailer-alias: full-episode Miruro resolution is unverified
-  // (needs a maintained Miruro API bridge — see agents/streaming.md). The
+  // (needs a maintained Miruro API bridge - see agents/streaming.md). The
   // old implementation inherited YouTube-trailer sources from
   // OfficialTrailerProvider, which presented trailers as episode playback.
   // Return empty until a real episode path is verified; the class stays so

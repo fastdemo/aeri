@@ -17,7 +17,7 @@ import { chromium } from 'playwright-core'
 const BASE = process.env.AERI_BASE_URL ?? 'http://localhost:4173/aeri'
 const failures = []
 const check = (name, ok, detail = '') => {
-  console.log(`${ok ? 'ok' : 'FAIL'}  ${name}${detail ? ` — ${detail}` : ''}`)
+  console.log(`${ok ? 'ok' : 'FAIL'}  ${name}${detail ? ` - ${detail}` : ''}`)
   if (!ok) failures.push(name)
 }
 
@@ -44,7 +44,7 @@ const modalInfo = () => page.evaluate(() => {
   const dlg = document.querySelector('[role="dialog"]')
   if (!dlg) return null
   const rows = [...dlg.querySelectorAll('a[href*="/read/"]')].filter(a => !a.textContent?.match(/^Read$/))
-  // NOTE: no getBoundingClientRect here — layoutinear reads inside evaluate
+  // NOTE: no getBoundingClientRect here - layoutinear reads inside evaluate
   // can hang when the modal overlay is mid-animation. Visibility filtering
   // happens in the dedicated related tests instead.
   const m = [...dlg.querySelectorAll('section[aria-label="Related Manga"]')]
@@ -68,7 +68,7 @@ let rd = { url: await page.evaluate(() => location.hash.slice(0, 60)), loaded: 0
 try {
   const imgs = await page.evaluate(() => [...document.querySelectorAll('img[alt^="Page"]')].map(i => i.naturalWidth))
   rd.loaded = imgs.filter(w => w > 10).length
-} catch { /* reader images not ready — hash still proves routing */ }
+} catch { /* reader images not ready - hash still proves routing */ }
 check('hxh manga reader (manga route, pages render)', rd.url.includes('/read/anilist-30026/') && rd.loaded > 0, JSON.stringify(rd))
 await closeModal().catch(() => {})
 

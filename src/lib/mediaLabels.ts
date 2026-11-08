@@ -1,5 +1,5 @@
 // Display labels for media format/status. AniList uses SCREAMING enums
-// (TV, RELEASING, …), MAL uses lowercase (tv, currently_airing, …) — the UI
+// (TV, RELEASING, …), MAL uses lowercase (tv, currently_airing, …) - the UI
 // must never show the raw MAL shape, even for entries with no AniList match.
 
 export function formatLabel(raw?: string | null): string | null {

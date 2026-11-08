@@ -6,12 +6,12 @@ import { routeTestAnilistMedia } from './helpers/test-anilist'
  * PILL SYSTEM CONTRACT
  *
  * Every white control on the site uses ONE size. Reference: the active
- * "Popular" category pill on /anime — 30px tall, 12px medium text, 14px
+ * "Popular" category pill on /anime - 30px tall, 12px medium text, 14px
  * horizontal padding, 1px hairline, fully rounded.
  *
  * Every standalone white pill (button/link) and every dropdown shell must
  * render at that exact height and type scale. Decorative badges (spans) are
- * intentionally excluded — they are not controls.
+ * intentionally excluded - they are not controls.
  *
  * SEGMENTED TOGGLES ARE THE EXCEPTION: Sub/Dub and the
  * reader fit stay a TRACK + INNER PILL, not a row of standalone pills. The
@@ -92,7 +92,7 @@ async function collectPills(page: import('@playwright/test').Page): Promise<Pill
   })
 }
 
-test.describe('Pill system — one size everywhere', () => {
+test.describe('Pill system - one size everywhere', () => {
   test.beforeEach(async ({ page }) => {
     await seedTestAuth(page)
     await routeTestMalIdentity(page)
@@ -100,7 +100,7 @@ test.describe('Pill system — one size everywhere', () => {
   })
 
   for (const path of PAGES) {
-    test(`${path} — white pills and dropdowns are 30px / 12px`, async ({ page }) => {
+    test(`${path} - white pills and dropdowns are 30px / 12px`, async ({ page }) => {
       test.setTimeout(90000)
       await page.goto(path, { waitUntil: 'domcontentloaded' })
       await page.waitForTimeout(2500)
@@ -123,7 +123,7 @@ test.describe('Pill system — one size everywhere', () => {
  * category tabs it sits above. Separate from the signed-in sweep above
  * because seeding auth swaps that button for the avatar.
  */
-test('signed-out top bar — Sign in pill matches the category pill', async ({ page }) => {
+test('signed-out top bar - Sign in pill matches the category pill', async ({ page }) => {
   await page.goto('/anime', { waitUntil: 'domcontentloaded' })
   await page.waitForTimeout(2000)
   const pills = await collectPills(page)
@@ -132,4 +132,53 @@ test('signed-out top bar — Sign in pill matches the category pill', async ({ p
   expect(signIn!.height).toBeCloseTo(30, 0)
   expect(signIn!.fontSize).toBe('12px')
   expect(signIn!.fontWeight).toBe('500')
+})
+
+/**
+ * Segmented toggle geometry (D172): the selected thumb IS the track's
+ * interior - the same height as the black track and exactly half its width,
+ * flush with the left/right edges. Measured on Settings, which renders both
+ * pill-shaped toggles (Preferred audio, Reader page fit).
+ */
+test('segmented toggle thumbs fill half the track, full interior height', async ({ page }) => {
+  await seedTestAuth(page)
+  await routeTestMalIdentity(page)
+  await routeTestAnilistMedia(page)
+  await page.goto('/settings', { waitUntil: 'domcontentloaded' })
+  await page.waitForTimeout(2000)
+  const toggles = await page.evaluate(() => {
+    const out: Array<Record<string, number | string>> = []
+    for (const group of [...document.querySelectorAll('[role="radiogroup"]')]) {
+      const track = group as HTMLElement
+      const cs = getComputedStyle(track)
+      const tr = track.getBoundingClientRect()
+      if (tr.width < 4 || tr.height < 4) continue
+      if (parseFloat(cs.borderTopLeftRadius) < Math.min(tr.width, tr.height) / 2 - 1) continue
+      const thumb = track.querySelector('[role="radio"][aria-checked="true"]') as HTMLElement | null
+      if (!thumb) continue
+      const th = thumb.getBoundingClientRect()
+      const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight)
+      const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom)
+      const borderX = parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth)
+      const borderY = parseFloat(cs.borderTopWidth) + parseFloat(cs.borderBottomWidth)
+      out.push({
+        label: track.getAttribute('aria-label') ?? 'toggle',
+        trackWidth: Math.round((tr.width - padX - borderX) * 10) / 10,
+        trackHeight: Math.round((tr.height - padY - borderY) * 10) / 10,
+        thumbWidth: Math.round(th.width * 10) / 10,
+        thumbHeight: Math.round(th.height * 10) / 10,
+        thumbLeft: Math.round((th.left - tr.left - parseFloat(cs.borderLeftWidth)) * 10) / 10,
+        thumbTop: Math.round((th.top - tr.top - parseFloat(cs.borderTopWidth)) * 10) / 10,
+      })
+    }
+    return out
+  })
+
+  expect(toggles.length, 'both Settings toggles must be measured').toBe(2)
+  for (const t of toggles) {
+    expect.soft(t.thumbHeight, `${t.label} thumb fills the track height`).toBeCloseTo(Number(t.trackHeight), 0)
+    expect.soft(t.thumbWidth, `${t.label} thumb is half the track width`).toBeCloseTo(Number(t.trackWidth) / 2, 0)
+    expect.soft(t.thumbLeft, `${t.label} thumb touches the left edge`).toBeCloseTo(0, 0)
+    expect.soft(t.thumbTop, `${t.label} thumb touches the top edge`).toBeCloseTo(0, 0)
+  }
 })

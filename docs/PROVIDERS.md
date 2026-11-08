@@ -1,11 +1,11 @@
-# PROVIDERS — Aeri
+# PROVIDERS - Aeri
 
 This is the authoritative ownership map for every external service Aeri
 talks to. When code and this document disagree, the code wins; fix the
 document in the same change that discovers the drift.
 
 **The short version:** AniList is Aeri's metadata backbone. Users may
-connect **exactly two tracker providers — AniList or MyAnimeList — and
+connect **exactly two tracker providers - AniList or MyAnimeList - and
 exactly one tracker is active at a time.** Kitsu is a narrow episode-name /
 episode-thumbnail fallback, never a general metadata provider. Video
 providers supply playback only.
@@ -21,7 +21,7 @@ providers supply playback only.
 | Canonical identity (`internalId`, `anilistId`, `malId`) | AniList id + its `idMal`; MAL id for tracker-only entries | none | Kitsu |
 | Episode / chapter totals | AniList | the active tracker's own count for an entry with no AniList record; the video-provider catalog may widen the count when AniList has none or is clearly incomplete | Kitsu |
 | Episode names + episode thumbnails | AniList | Kitsu, **whole-entry only**, under the gate in §3 | MAL, video providers |
-| User's list, progress, status, score, tracker dates | Active tracker: AniList **or** MAL | none — no merge, no fan-out | Kitsu |
+| User's list, progress, status, score, tracker dates | Active tracker: AniList **or** MAL | none - no merge, no fan-out | Kitsu |
 | Playback sources, source mapping, duration hints | Video-provider registry (AniWave / AnimeGG / AnimeParadise) | next enabled provider | Kitsu |
 
 Two deliberate edge cases, both verified in code:
@@ -37,7 +37,7 @@ Two deliberate edge cases, both verified in code:
 
 ---
 
-## 2. Tracker choice — exactly two
+## 2. Tracker choice - exactly two
 
 `TrackingProviderId = 'anilist' | 'mal'` (`src/storage/preferences.ts`).
 There is no third tracker. The active tracker is persisted as the
@@ -65,7 +65,7 @@ tracker preference resets and the app returns Home.
 
 ---
 
-## 3. Kitsu episode fallback — the whole-entry gate
+## 3. Kitsu episode fallback - the whole-entry gate
 
 Kitsu is used for **episode names and episode thumbnails only**. It never
 supplies a tracker, identity, totals, discovery rows, descriptions, show
@@ -75,13 +75,13 @@ artwork, scores, statuses, or any other metadata. The contract lives in
 ### Gate
 
 The gate is evaluated on the AniList data that **survives the display
-guards** — `anilistEpisodeMetadataSurvivesGuards()` in
+guards** - `anilistEpisodeMetadataSurvivesGuards()` in
 `src/lib/episodes.ts` calls `survivingStreamingEpisodes()` and then asks
 whether any surviving row has a usable title/thumbnail. Data the guards
 throw away is not usable data (D127). In order:
 
 1. Apply the season-pollution guard (`discardSeasonPollutedStreaming`,
-   which needs relations — a `PREQUEL` entry with the same episode count)
+   which needs relations - a `PREQUEL` entry with the same episode count)
    and the local-range guard, then remove trailer/preview entries and sort
    (`filterAndSortStreamingEpisodes`).
 2. If **any** surviving entry has a non-generic title or a valid `http(s)`
@@ -135,14 +135,14 @@ GET https://kitsu.io/api/edge/anime/<kitsuId>/episodes
 `useKitsuEpisodes()` returns `idle | loading | resolved | unavailable |
 error` plus the `allowed` gate flag:
 
-- `idle` — AniList has usable metadata, the title is manga, or there is no
+- `idle` - AniList has usable metadata, the title is manga, or there is no
   record. No request.
-- `loading` — the gate is open and Kitsu is in flight. Only fields that are
+- `loading` - the gate is open and Kitsu is in flight. Only fields that are
   still empty show a skeleton.
-- `resolved` — Kitsu names/thumbnails are merged **by episode number**.
-- `unavailable` — no mapping, or Kitsu has no usable rows. Placeholder: the
+- `resolved` - Kitsu names/thumbnails are merged **by episode number**.
+- `unavailable` - no mapping, or Kitsu has no usable rows. Placeholder: the
   show's own artwork + `Episode N`.
-- `error` — network/HTTP/timeout. Also placeholder; not cached as absence.
+- `error` - network/HTTP/timeout. Also placeholder; not cached as absence.
 
 If Kitsu has nothing, the UI keeps the existing placeholder. No fabricated
 titles, no poster-as-episode-thumbnail fakery, no provider titles.
@@ -151,14 +151,14 @@ titles, no poster-as-episode-thumbnail fakery, no provider titles.
 
 The fallback is display-only and is used by:
 
-- `components/detail/DetailModal.tsx` — E-line and `EpisodeList`
+- `components/detail/DetailModal.tsx` - E-line and `EpisodeList`
 - `components/episodes/EpisodeList.tsx`
-- `pages/Watch.tsx` — episode selector / next-episode labels
-- `components/cards/AnimeCard.tsx` — continue variant's next-episode name
+- `pages/Watch.tsx` - episode selector / next-episode labels
+- `components/cards/AnimeCard.tsx` - continue variant's next-episode name
   (D128; gated on its resolved AniList record, one request per card)
 
 Cards: only the **continue** variant calls it, and only after its own AniList
-record resolves and the display guards discard that record's list (D128) —
+record resolves and the display guards discard that record's list (D128)  - 
 one request for one card, never per rail item. Default cards never call it.
 Proven by `tests/continue-card-episode-name.spec.ts` (CG R2: the caption is
 Kitsu's episode-5 name, never S1's row).
@@ -197,7 +197,7 @@ and discarded rows are exactly what opens the fallback (D127).
 
 `src/providers/video/registry.ts` owns playback. Verified providers are
 AniWave (Worker resolver HLS; Tier 1), AnimeParadise (Worker resolver HLS +
-English VTT; Tier 1, sub-only — D136), and AnimeGG (browser-direct MP4;
+English VTT; Tier 1, sub-only - D136), and AnimeGG (browser-direct MP4;
 Tier 2 fallback). **Default resolution order (owner, D144):
 AniWave → AnimeParadise → AnimeGG**, subject to Settings toggles/order. **MegaVid was removed
 entirely (D124, 2026-10-24):** its JSON returns
@@ -276,7 +276,7 @@ the upstream origin.
   `["<uid>","<animeId>"]` with a `Referer` matching the watch URL.
 - **Playback:** 1080p HLS master (353 TS segments for Bebop E1) plus an
   English VTT (`/captions?url=`); only `type:'vtt'` tracks labelled English
-  are used. Sub-only — the Dub toggle stays disabled for this source.
+  are used. Sub-only - the Dub toggle stays disabled for this source.
 - **Upstream MIME wart:** `/ts` returns valid MPEG-TS bytes as
   `image/jpeg` on most segments and `text/html` on ~10% of them. The relay
   therefore sniffs the buffered head (`mediaContentType`): TS sync bytes at
@@ -310,8 +310,8 @@ the upstream origin.
 
 ## 6. Verification (2026-10-24)
 
-- `npx tsc --noEmit` — clean.
-- Production build — clean (Vite 8; existing chunk-size warnings only).
+- `npx tsc --noEmit` - clean.
+- Production build - clean (Vite 8; existing chunk-size warnings only).
 - Deterministic browser probes (`kitsu-episode.probe.spec.ts` 7/7):
   - AniList data → **0** Kitsu requests, AniList title/thumb rendered.
   - zero AniList data → exactly one AniList mapping + one episode page;
@@ -330,7 +330,7 @@ the upstream origin.
 - Watch source/UI probe (D124, production 2026-10-24; **superseded in part
   by D128, 2026-10-25**: the heading order is now `Synopsis` ABOVE
   `Episodes`, the header carries an `N episodes` count, and the h1 is the
-  show name with no episode suffix — the geometry below still records the
+  show name with no episode suffix - the geometry below still records the
   D124 nav/tile state): source picker shows
   one option `aniwave` (provider-only; no `auto`, language, or trailing
   Auto). Sub playback advanced 2.955s and Dub 2.501s, both

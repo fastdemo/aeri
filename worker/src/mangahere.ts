@@ -4,11 +4,11 @@
  * Verified 2026-09-27 (direct probes):
  * - Search: GET /search?title=<q> (plain HTML), series links `/manga/<slug>/`.
  * - Series page: /manga/<slug>/, chapter links `/manga/<slug>/c<N>/1.html`
- *   (chapter list may be paged/JS-driven — per-chapter links verified).
+ *   (chapter list may be paged/JS-driven - per-chapter links verified).
  * - Chapter pages: packed-JS `newImgs` array (Dean Edwards packer) decoding
  *   to zjcdn.mangahere.org JPEGs (verified 200, 221KB).
  * - Images accept Referer: https://www.mangahere.cc/ (relayed via the
- *   signed /api/manga/img relay — suffix allowlist extended).
+ *   signed /api/manga/img relay - suffix allowlist extended).
  *
  * Security: public HTML only. No auth/CAPTCHA/DRM bypass.
  */
@@ -130,7 +130,7 @@ function unpackPackedJs(packed: string): string | null {
     const radix = parseInt(strM[2], 10)
     const symtab = strM[4].split('|')
     if (radix < 2 || radix > 62 || !symtab.length) return null
-    // Radix can exceed 36 (62 = 0-9a-zA-Z) — mirror the packer's own alphabet.
+    // Radix can exceed 36 (62 = 0-9a-zA-Z) - mirror the packer's own alphabet.
     const digits = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'.slice(0, radix)
     const word = (n: number): string => {
       let s = ''
@@ -203,7 +203,7 @@ export async function mhGetPages(providerChapterId: string, signal?: AbortSignal
   if (!res.ok) throw new Error(`pages ${res.status}`)
   const html = await res.text()
   // Primary: packed-JS newImgs array. The eval statement runs to
-  // </script> (the packed payload itself is ~6KB — a bounded {0,4000}
+  // </script> (the packed payload itself is ~6KB - a bounded {0,4000}
   // regex stops inside the decoder, not the payload). Slice from the
   // eval start to the closing script tag instead.
   const evalStart = html.indexOf('eval(function(p,a,c,k,e,d)')

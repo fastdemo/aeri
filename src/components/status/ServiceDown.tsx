@@ -50,7 +50,7 @@ export function ServiceDown({ down }: { down: ServiceDownInfo }) {
       <p className="mt-4 max-w-[420px] text-[13px] leading-relaxed text-[var(--text-muted)]">
         {down.reason
           ? `${down.reason} It's not your connection and not a problem on Aeri's end.`
-          : `It's not your connection, and it's not Aeri — ${service} is offline right now. Aeri reconnects on its own the moment it's back.`}
+          : `It's not your connection, and it's not Aeri - ${service} is offline right now. Aeri reconnects on its own the moment it's back.`}
       </p>
 
       <div className="mt-8 flex items-center gap-2.5">
@@ -81,7 +81,7 @@ export function ServiceDown({ down }: { down: ServiceDownInfo }) {
       <p className="mt-6 text-[11px] text-[var(--text-faint)]">
         {checking
           ? `Asking ${service} again...`
-          : 'Your list, progress and settings are kept on this device — nothing was lost.'}
+          : 'Your list, progress and settings are kept on this device - nothing was lost.'}
       </p>
 
       <div className="mt-12 flex items-center gap-4" aria-hidden>

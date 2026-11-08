@@ -14,7 +14,7 @@ import type { Page } from '@playwright/test'
  *    itself signed in through its UNCHANGED code path:
  *    getMalToken() → non-null → isAuthenticated → MALContext loads.
  * 2. Route the app's own network calls to test doubles via
- *    `page.route` (Playwright request interception — invisible to
+ *    `page.route` (Playwright request interception - invisible to
  *    production, dies with the test page):
  *    - `api.myanimelist.net/v2/users/@me*` → synthetic Viewer + list
  *    - `graphql.anilist.co` → per-title Media records from
@@ -23,7 +23,7 @@ import type { Page } from '@playwright/test'
  *      controlled HLS) so each suite asserts exactly what it proves.
  *
  * Why MAL and not AniList for the auth seed? MALContext validates auth
- * purely from localStorage (`getMalToken()` + `isMalTokenExpired()` — no
+ * purely from localStorage (`getMalToken()` + `isMalTokenExpired()` - no
  * expiry key means not expired). It THEN calls loadUser → malProvider
  * .getUser → malFetch('/users/@me') which we intercept. AniListContext
  * instead immediately fires a REAL `Viewer` query on mount; intercepting
@@ -32,7 +32,7 @@ import type { Page } from '@playwright/test'
  * failure modes obvious.
  *
  * UNPROTECTED-ROUTE CONTRACT: tests that assert signed-out redirects must
- * NOT call signInTestUser — a fresh browser context has empty localStorage,
+ * NOT call signInTestUser - a fresh browser context has empty localStorage,
  * so isAuthenticated is false through the same unchanged code path.
  */
 
@@ -91,8 +91,8 @@ function malEntry(e: TestListEntry) {
       status: e.status ?? (isManga ? 'reading' : 'watching'),
       score: e.score ?? 0,
       // One progress field per kind (MAL splits them). The mapper reads
-      // `num_chapters_read ?? num_episodes_watched` — and `??` does NOT
-      // skip 0 — so the cross-kind field must be OMITTED (undefined, which
+      // `num_chapters_read ?? num_episodes_watched` - and `??` does NOT
+      // skip 0 - so the cross-kind field must be OMITTED (undefined, which
       // JSON drops) exactly like the real MAL API does. Zeroing it made
       // anime progress always read 0 and broke every anime-seeded probe.
       num_episodes_watched: isManga ? undefined : (e.progress ?? 0),
@@ -105,7 +105,7 @@ function malEntry(e: TestListEntry) {
 /**
  * Seed test auth into the page's localStorage. Call BEFORE navigating to
  * an authenticated route. Uses the production storage keys with a
- * synthetic token — the app reads them through its normal
+ * synthetic token - the app reads them through its normal
  * getMalToken()/isMalTokenExpired() path.
  */
 export async function seedTestAuth(page: Page): Promise<void> {
@@ -139,13 +139,13 @@ export async function seedTestAuth(page: Page): Promise<void> {
  * Note/AoT/Frieren) are ALWAYS seeded into the by-id map, even when the
  * caller passes no list entries. Rationale: the app's MAL enrichment and
  * detail paths fetch `/anime/{malId}` for ANY watched title (not just
- * list members) — an empty map would let those requests escape to the
+ * list members) - an empty map would let those requests escape to the
  * real upstream, making tests network-dependent. Seeded titles carry
  * zero progress (not in list); explicit `entries` override them.
  *
  * WORKER-BRIDGE ROUTES: on localhost the app has no same-origin worker,
  * so specs set customVideoApiUrl to the production worker for provider
- * paths — which ALSO reroutes MAL fetches to `/api/mal/*` FIRST (before
+ * paths - which ALSO reroutes MAL fetches to `/api/mal/*` FIRST (before
  * the direct api.myanimelist.net fallback). The `/api/mal/*` branch below
  * answers those worker-shaped requests with the SAME test doubles, so the
  * fake token NEVER reaches the real upstream (it would 401 → the app
@@ -155,7 +155,7 @@ export async function seedTestAuth(page: Page): Promise<void> {
  *
  * ROUTING CONSTRAINT (verified 2026-10-10): Playwright does NOT chain a
  * later-registered `/^https?:\/\//` handler into an earlier glob via
- * route.continue() — the broad handler swallows the request and the
+ * route.continue() - the broad handler swallows the request and the
  * earlier route NEVER fires (real upstream → 401). Therefore the
  * fail-closed test MUST NOT install its own broad regex; it reuses the
  * scoped `blockUpstreamMedia()` helper (the only place that registers the
@@ -167,7 +167,7 @@ export async function routeTestMalIdentity(page: Page, entries: TestListEntry[] 
     const url = route.request().url()
     if (url.includes('/animelist') || url.includes('/mangalist')) {
       // Kind-faithful like the real MAL API: each list endpoint returns ONLY
-      // entries of its own kind — serving everything on both endpoints made
+      // entries of its own kind - serving everything on both endpoints made
       // the combined list contain kindless duplicates.
       const kind = url.includes('/mangalist') ? 'manga' : 'anime'
       const scoped = entries.filter((e) => (e.mediaType === 'manga' ? kind === 'manga' : kind === 'anime'))
@@ -186,7 +186,7 @@ export async function routeTestMalIdentity(page: Page, entries: TestListEntry[] 
   })
   // Detail-by-id endpoints (enrichment fallback / direct MAL detail):
   // answer from the seeded list so no real upstream is ever touched.
-  // NOTE: registered BEFORE the my_list_status routes — Playwright
+  // NOTE: registered BEFORE the my_list_status routes - Playwright
   // matches routes in reverse registration order, so the more specific
   // write routes below must win over this broad GET-shape route.
   const DEFAULT_ENTRIES: TestListEntry[] = [
@@ -222,7 +222,7 @@ export async function routeTestMalIdentity(page: Page, entries: TestListEntry[] 
       body: JSON.stringify({ ...malNode(e), my_list_status: { status: 'reading', score: 0, num_chapters_read: 0 } }),
     })
   })
-  // Writes (PUT/POST/DELETE my_list_status) are accepted — the app's write
+  // Writes (PUT/POST/DELETE my_list_status) are accepted - the app's write
   // path (updateProgress/Status/Rating/Remove) is exercised for real; only
   // the upstream persistence is doubled. Registered AFTER the broad
   // detail routes so they win (Playwright matches in reverse order).
@@ -280,7 +280,7 @@ export async function routeTestMalIdentity(page: Page, entries: TestListEntry[] 
     await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' })
   })
   // Provider/video calls addressed to the production origin are REAL
-  // cross-origin fetches (no route — the localhost bridge pattern is
+  // cross-origin fetches (no route - the localhost bridge pattern is
   // customVideoApiUrl → production worker, documented in setPrefs).
 }
 /** Remove ALL test routes (auth + anilist + media). Call in afterEach. */
@@ -299,7 +299,7 @@ export async function unrouteTestDoubles(page: Page): Promise<void> {
 /**
  * Assert the signed-out redirect contract IN the app: visiting a protected
  * route with an empty context must land back on `/` (Home). Path-based
- * URLs (BrowserRouter): Home is pathname `/` — transiently `/?signin=1`
+ * URLs (BrowserRouter): Home is pathname `/` - transiently `/?signin=1`
  * while the sign-in popup hint is being stripped; either is a pass. The
  * caller must use a FRESH context (no seedTestAuth, no routed identity).
  */

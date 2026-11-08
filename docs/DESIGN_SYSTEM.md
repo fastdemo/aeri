@@ -1,4 +1,4 @@
-# DESIGN_SYSTEM — Aeri
+# DESIGN_SYSTEM - Aeri
 
 ## Philosophy
 
@@ -17,7 +17,7 @@ Quiet UI, loud artwork. Aeri borrows Netflix's cinematic browsing contract: hero
   --surface-elevated: #1e1e21;
   --border: rgba(255,255,255,0.07);
   --border-strong: rgba(255,255,255,0.12);
-  /* 50% of --border-strong — the shared hero/card frame hairline (D127) */
+  /* 50% of --border-strong - the shared hero/card frame hairline (D127) */
   --border-card: color-mix(in srgb, var(--border-strong) 50%, transparent);
   --text: #f2f2f3;
   --text-muted: #9a9aa0;
@@ -33,8 +33,8 @@ Page background: near-black (#070708). Surfaces are subtly lighter, not cards wi
 **Browser chrome follows the theme (D149).** Safari 26 tints the window and
 toolbar from the `<body>` background color and ignores `<meta
 name="theme-color">` (WebKit bug 301756). `applyTheme()` paints the theme's
-`--bg` inline on `<body>`/`<html>` on every switch — Mocha tints the Safari
-window purple (`#1e1e2e`), Aeri Light tints it light (`#fafafa`) — rewrites
+`--bg` inline on `<body>`/`<html>` on every switch - Mocha tints the Safari
+window purple (`#1e1e2e`), Aeri Light tints it light (`#fafafa`) - rewrites
 the `theme-color` meta for engines that still honor it (iOS < 26, Chrome
 Android), and sets `color-scheme` from the background's brightness so native
 scrollbars/select popups match.
@@ -47,7 +47,7 @@ The hero and the media player share one corner radius: **28px**
 
 The hero and every artwork card share one edge: a 1px `--border-card`
 hairline (half-strength, computed `rgba(255,255,255,0.08)` on the default
-theme — alpha-0.5 white reads as an outline). `.frame-glass` draws the hero
+theme - alpha-0.5 white reads as an outline). `.frame-glass` draws the hero
 rim as an overlay with a 3px masked `backdrop-filter: blur(8px)`; `.frame-soft`
 draws the card line plus a short inward glow and deliberately no per-tile
 backdrop filter (30–100 captures re-introduced browser tiling over artwork).
@@ -63,14 +63,14 @@ at rest and only gets `blur(8px)` while `.card-art:hover` on a
 blur layer at all (108 → 0 card layers on Home). While any scroller is
 moving (D143), `html[data-scrolling="1"]` (set by `lib/scrollQuiet.ts`)
 removes the frost, hides the hover glyph/caption and pins the artwork's
-hover brighten at 0.96 — a card sliding under a parked cursor must never
+hover brighten at 0.96 - a card sliding under a parked cursor must never
 toggle a backdrop blur mid-scroll. The flag clears 140ms after the last
 scroll event and the normal hover treatment returns.
 
 ### Dividers (D134)
 
 Episode and chapter list separators (and their list frames) use
-`--divider: color-mix(in srgb, var(--text) 8%, var(--surface))` — **opaque**,
+`--divider: color-mix(in srgb, var(--text) 8%, var(--surface))` - **opaque**,
 pre-composited over `--surface`. An 8%-alpha line composites with whatever
 row background is under it, so re-sorting the list moved the hovered row and
 the line under the first row appeared to change colour. Opaque means one
@@ -79,7 +79,7 @@ colour in every row, in both sort directions. Section rules
 
 **Reader progress bar (D143, glow removed D148).** On `/read/*` the navbar
 hairline becomes a 2px scroll track (15% `--text`) with a **flat** `--text`
-fill — no neon glow (the 6px `shadow-[0_0_6px_var(--text)]` is gone; D139 had
+fill - no neon glow (the 6px `shadow-[0_0_6px_var(--text)]` is gone; D139 had
 removed it, D143 reintroduced it, the owner removed it for good on
 2026-10-29). The fill is still hidden at ratio 0 (`opacity` driven by the
 same rAF paint as the transform) so a zero-length bar leaves no sliver. The
@@ -87,7 +87,7 @@ bar also stays at zero until every page image has resolved
 (`aeri:reader-pages`).
 
 **Top bar chrome (D151).** The scrolled bar is a **flat opaque `--bg`** with
-no `backdrop-filter` — the old `bg/95 + blur-md` layer let iOS re-sample the
+no `backdrop-filter` - the old `bg/95 + blur-md` layer let iOS re-sample the
 video's fullscreen frame when the player exited, which read as a smeared
 transparency gradient over the bar. The always-on gradient layer stays (it
 only shows during the 300ms cross-fade and over the page background). The
@@ -105,8 +105,8 @@ menu trigger. The menu glyph is Lucide `menu` (three rules). Text controls
 
 **Compaction step (D129).** The bar has exactly ONE breakpoint: **640px**
 (Tailwind `sm`), the same step at which the hero dot pill leaves the hero's
-top-right corner for the bottom-center. Below 640 the bar is compact — menu
-trigger + search icon; from 640 up it is inline — Home / Anime / Manga /
+top-right corner for the bottom-center. Below 640 the bar is compact - menu
+trigger + search icon; from 640 up it is inline - Home / Anime / Manga /
 My List + the search field. Never two different mobile breakpoints on one
 screen. A true-width fit check (hidden measurer built from the same
 `SectionLinks` component as the live row, compared against the bar's content
@@ -135,7 +135,7 @@ the signed-out bar). Nav link gap and logo→nav gap are 20px below `lg`,
 - Base unit 4px. Page gutters: 24px mobile, 48px desktop (max-width 1600px).
 - Row gap 8px. Section gap 32px.
 - Radius: card 6px, modal 12px. Buttons and dropdowns are pills (fully
-  rounded) — one geometry, see Pills & dropdowns.
+  rounded) - one geometry, see Pills & dropdowns.
 
 ### Pills & dropdowns (D130, 2026-10-26)
 
@@ -162,14 +162,14 @@ One pill geometry for the whole app, imported from
 - **Segmented toggles stay toggles** (owner correction, 2026-10-26): Sub/Dub
   on Watch and the preferred-audio / reader-fit controls on Settings keep
   their original TRACK + INNER PILL. The size rule applies to the control as
-  a whole — 1px border + 4px track padding + a 20px inner pill (16px
-  `leading-4` + 2px padding) = **30px** — not to the thumb. Never convert a
+  a whole - 1px border + 4px track padding + a 20px inner pill (16px
+  `leading-4` + 2px padding) = **30px** - not to the thumb. Never convert a
   segmented toggle into a row of standalone pills; "same size" is not
   permission to change the component.
 - **On/off is the Aeri switch** (`components/ui/Switch.tsx`), never a native
   checkbox (D145). 32×18 hairline track + 12px knob. **Its color scheme is
-  the Sub/Dub segmented toggle's** (D147): ON is the active pill — solid
-  `--text` track with the `--on-text` knob — and OFF is the inactive pill — a
+  the Sub/Dub segmented toggle's** (D147): ON is the active pill - solid
+  `--text` track with the `--on-text` knob - and OFF is the inactive pill - a
   bare `--border-strong` track with a 45% text knob. No `--accent` anywhere,
   so Aeri Light inverts exactly like its Sub/Dub control. Knob slide and
   track color run 200ms on the entrance curve; the track contracts slightly
@@ -184,13 +184,13 @@ One pill geometry for the whole app, imported from
   a six-dot `GripVertical` button at the left, 35% text tint, `cursor-grab`.
   Dragging lifts the row (`rounded-md`, `--surface-elevated`, hairline ring)
   and slides the rows between source and target; the order commits on drop.
-  The grip is a real button — focus + ↑/↓ reorders — so removing a visible
+  The grip is a real button - focus + ↑/↓ reorders - so removing a visible
   arrow pair never removes keyboard access.
 - The Watch episode nav (Prev / current / Next) also keeps its original
   component: three solid white pills, `px-4`, **semibold 600**, the middle
   one a non-interactive span. Only its height is unified to 30px (a
   transparent 1px border pins the box without drawing a line).
-- List status tabs (My List) are standalone pills — solid active, soft rest.
+- List status tabs (My List) are standalone pills - solid active, soft rest.
 - **Dropdowns are always `FilterSelect`** (the "All Genres" control): 30px
   shell, 12px medium value, 12px chevron at `right-2`, `--bg-soft` fill,
   `--border` hairline, transparent native `<select>` covering the whole
@@ -218,7 +218,7 @@ One pill geometry for the whole app, imported from
   video are not drag sources (`-webkit-user-drag: none`). Page text and
   artwork cannot be copied or dragged into another app.
 - Form controls (`input`, `textarea`, `select`, `[contenteditable='true']`)
-  opt back in with `user-select: text` — the search box and every settings
+  opt back in with `user-select: text` - the search box and every settings
   field must stay usable. Native clipboard buttons keep working:
   `navigator.clipboard` does not depend on a selection.
 - This is deliberate and site-wide (owner request). Do not "restore" text
@@ -229,7 +229,7 @@ One pill geometry for the whole app, imported from
 ### Navigation
 
 - Height 56px, sticky, `background: linear-gradient(#070708 0%, rgba(7,7,8,0) 100%)` at top, solid #070708 on scroll.
-- Left: "Aeri" wordmark (18px, 600, tracking -0.02em). Center links: Home, Browse, My List (13px, muted, active white) — nothing else (D155: the GitHub link was removed from the bar; the repo link lives in the footer and Settings). Right: Search, Profile.
+- Left: "Aeri" wordmark (18px, 600, tracking -0.02em). Center links: Home, Browse, My List (13px, muted, active white) - nothing else (D155: the GitHub link was removed from the bar; the repo link lives in the footer and Settings). Right: Search, Profile.
 - Icon-only controls share a 32×32 box (menu / search / bell; see Nav hitboxes).
 - No sidebar. Quiet.
 
@@ -237,12 +237,12 @@ One pill geometry for the whole app, imported from
 
 - Height 56vh desktop (min 420px, max 680px), 62vh mobile. Width full-bleed within gutter.
 - Backdrop image: `object-cover`, centered, cinematic crop.
-- Gradients (D156, denser D157 — ONE rule set in `globals.css`, shared by both hero copies):
+- Gradients (D156, denser D157 - ONE rule set in `globals.css`, shared by both hero copies):
   - `.hero-scrim-left`: 720px wide, column-bound (never full-bleed), **9 tapering stops** `--bg` 97 → 93 → 85 → 74 → 60 → 44 → 27 → 13 → 0% (alpha) at 0/12/26/40/54/68/80/90/100%. Ends past the 560px text column so long titles and the description stay on the scrim.
   - `.hero-scrim-bottom`: 45% tall, 0 → 4 → 12 → 26 → 44 → 64 → 82 → 93 → 100% at 0/12/26/40/54/68/82/92/100%.
   - `.hero-scrim-top`: 96px, 40 → 30 → 17 → 8 → 2 → 0% at 0/30/55/75/90/100%.
   - `.detail-banner-scrim` (preview card): 12 stops, 76 → 70 → 56 → 34 → 10 → 0% at 0–53%, then 7 → 24 → 48 → 72 → 89 → 100% at 62–100%.
-  - **House rule for every gradient on the site:** 6+ tapering stops, and each zero end is written `color-mix(in srgb, var(--bg) 0%, transparent)` — same hue at zero alpha, never the `transparent` keyword. Three-stop ramps between partial `--bg` and the keyword read as a milky panel with a visible shelf, especially on a light theme.
+  - **House rule for every gradient on the site:** 6+ tapering stops, and each zero end is written `color-mix(in srgb, var(--bg) 0%, transparent)` - same hue at zero alpha, never the `transparent` keyword. Three-stop ramps between partial `--bg` and the keyword read as a milky panel with a visible shelf, especially on a light theme.
 - Hero copy carries **no text shadow** (D157; the D154 shadow was halved in D156 and removed in D157). Contrast is bought from the scrim: the left ramp starts at 97% of `--bg` under the type. `.hero-copy` is a paint-free marker class shared by the hero copy and the preview-card banner title.
 - Content sits left, max-width 560px, padding 0 48px. Title → meta (Type · Year · Episodes · Rating) → description (2-line clamp, muted) → actions.
 - Buttons: Primary Play (white pill, 30px, 12px/500, black text) + secondary More Info (soft pill, same 30px geometry, backdrop-blur).
@@ -253,7 +253,7 @@ One pill geometry for the whole app, imported from
 - Title 14px, 600, white, margin-bottom 10px.
 - Cards in horizontal flex, `overflow-x: auto`, `scroll-snap-type: x mandatory`, hidden scrollbar, gap 8px.
 - Scroll buttons appear on hover desktop, always visible on focus.
-- Rows must not be boxed — transparent background, continuous feel.
+- Rows must not be boxed - transparent background, continuous feel.
 
 ### AnimeCard
 
@@ -261,7 +261,7 @@ One pill geometry for the whole app, imported from
 - **Shape lives in `src/components/cards/cardGeometry.ts`** (D137): art aspect,
   intrinsic `<img>` dims and rail widths are read from that module by
   `AnimeCard` AND by every loading skeleton. A skeleton never hardcodes an
-  aspect ratio — that is how `/manga` came to load with anime-shaped boxes.
+  aspect ratio - that is how `/manga` came to load with anime-shaped boxes.
 - **Hover blur is hover-only** (D137): the whole-card scrim keeps its ~50%
   darkening and 200ms fade, but `.card-frost` applies `backdrop-filter:
   blur(8px)` only while `.card-art:hover`, and only under
@@ -276,7 +276,7 @@ One pill geometry for the whole app, imported from
 - Hover: `scale-[1.04]`, transition 180ms ease-out, `z-index` lift, reveal title overlay.
 - Variants:
   - `default`: artwork + title overlay on hover
-  - `continue`: artwork + floating 3px progress pill (D150, palette D155) — 8px inset from left/right/bottom, **theme ink** (15% `--text` track + `--text` fill + 6px `--text` neon glow), backed by a bottom `--bg` scrim (the Watch episode-thumbnail gradient, 40px, full card width) so the pill never sits on raw art in either theme; no backdrop blur, no ring; hides on art hover so the normal caption band shows show name + next episode
+  - `continue`: artwork + floating 3px progress pill (D150, palette D155) - 8px inset from left/right/bottom, **theme ink** (15% `--text` track + `--text` fill + 6px `--text` neon glow), backed by a bottom `--bg` scrim (the Watch episode-thumbnail gradient, 40px, full card width) so the pill never sits on raw art in either theme; no backdrop blur, no ring; hides on art hover so the normal caption band shows show name + next episode
   - `compact`: smaller width for dense rows
 - Never show score/year/genre badges by default.
 
@@ -284,7 +284,7 @@ One pill geometry for the whole app, imported from
 
 - Dark overlay `rgba(0,0,0,0.78)` + backdrop blur 2px. Centered panel width 88vw max 980px.
 - The veil is a **static, fixed, `pointer-events-none` layer behind the
-  scroller** — never paint the tint or the `backdrop-filter` on the scroll
+  scroller** - never paint the tint or the `backdrop-filter` on the scroll
   container itself (D146). A filtered scroller promotes the whole scrollable
   height into one composited layer and becomes a containing block for fixed
   descendants; the scroller stays paint-transparent and owns only scrolling
@@ -297,7 +297,7 @@ One pill geometry for the whole app, imported from
 
 - The page is the **plain background with the video on top**: no wrapper
   fill, no artwork poster behind the picture. (The 2026-10-26 revision keeps
-  the corners and adds the hero frame — see below.)
+  the corners and adds the hero frame - see below.)
 - The Video.js skin keeps its **STOCK 28px corner radius**
   (`--media-border-radius` is not overridden). The wrapper is
   `rounded-[28px]` so every layer shares the same curve.
@@ -309,7 +309,7 @@ One pill geometry for the whole app, imported from
 - The loading state is the page background + spinner; the no-source state is
   the page background + copy/actions. Never paint a backdrop image under a
   pending player.
-- **Synopsis is full width** — the same width as the episode grid (the page
+- **Synopsis is full width** - the same width as the episode grid (the page
   container), no `max-w-[720px]` reading column.
 - Episode tiles: watched = 40% base scrim + `check-lg`; the CURRENT episode
   uses the same overlay with `audio-lines` (no "Now playing" chip). Both
@@ -329,7 +329,7 @@ One pill geometry for the whole app, imported from
 - The transform-bearing entrance classes (`.anim-pop-in`,
   `.anim-pop-in-center`) use `animation-fill-mode: backwards`, **never
   `both`** (D146). Their keyframes end at the identity transform, so `both`
-  would retain `transform: scale(1)` forever and keep the element composited —
+  would retain `transform: scale(1)` forever and keep the element composited  - 
   on the detail card that meant a 2344 x 173,954 px GPU layer re-rastered
   during scroll, which flickered. Opacity-only fades may still use `both`.
 - Always: `@media (prefers-reduced-motion: reduce) { * { animation: none !important }}`
@@ -348,7 +348,7 @@ Prohibited: neon borders, glowing buttons, glassmorphism panels, giant modals, d
 ## Copy Voice (hard rules)
 
 - **Never all-caps text.** No `uppercase` class, no letter-spaced shouty labels
-  (`TRACKING`, `SIGN IN`, …) — not for headers, badges, or buttons. Sentence
+  (`TRACKING`, `SIGN IN`, …) - not for headers, badges, or buttons. Sentence
   case everywhere. Selection state is shown with border + radio dot, never
   with a caps badge.
 - Quiet, plain words: "Sign in", "Connect", "Disconnect", "Continue".

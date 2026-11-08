@@ -1,9 +1,9 @@
 /**
- * Aeri switch — the one on/off control in Settings.
+ * Aeri switch - the one on/off control in Settings.
  *
  * COLOR SCHEME = THE SUB/DUB SEGMENTED TOGGLE (owner instruction 2026-10-29):
- * the ON state is the active pill exactly — solid `--text` fill with the
- * `--on-text` knob — and the OFF state is the inactive pill: hairline
+ * the ON state is the active pill exactly - solid `--text` fill with the
+ * `--on-text` knob - and the OFF state is the inactive pill: hairline
  * `--border-strong` track with a muted `--text` knob. Nothing here references
  * `--accent`, so every theme (including Aeri Light, where `--text` is dark and
  * `--on-text` light) reads the same as the audio toggle beside it.
@@ -42,7 +42,7 @@ export function Switch({
 }: {
   checked: boolean
   onChange: (checked: boolean) => void
-  /** Accessible name — the visual control carries no text. */
+  /** Accessible name - the visual control carries no text. */
   label: string
   disabled?: boolean
 }) {

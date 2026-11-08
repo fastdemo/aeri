@@ -3,11 +3,11 @@ import { seedTestAuth, routeTestMalIdentity } from './helpers/test-auth'
 import { routeTestAnilistMedia } from './helpers/test-anilist'
 
 /**
- * MANGA READER — MAL-BACKED IDS (regression)
+ * MANGA READER - MAL-BACKED IDS (regression)
  *
  * Root cause: MAL tracker entries carry `internalId: mal-<malId>` (the list
  * mapper) and every Read/Continue link is built from `internalId`, but
- * `anilistMetadata.getManga()` only understood numeric/`anilist-` ids —
+ * `anilistMetadata.getManga()` only understood numeric/`anilist-` ids  - 
  * `Number('mal-23390')` is NaN, so the reader answered NOT_FOUND for nearly
  * every signed-in MAL manga even though the detail page had just listed its
  * chapters. `getManga` now mirrors `getAnime` and resolves `mal-` ids through
@@ -18,7 +18,7 @@ import { routeTestAnilistMedia } from './helpers/test-anilist'
  * wall, and the `anilist-` path must keep working.
  */
 
-test.describe('Manga reader — MAL-backed ids', () => {
+test.describe('Manga reader - MAL-backed ids', () => {
   test.beforeEach(async ({ page }) => {
     await seedTestAuth(page)
     await routeTestMalIdentity(page)
@@ -63,9 +63,9 @@ test.describe('Manga reader — MAL-backed ids', () => {
     await expect(page.getByRole('heading', { name: 'Berserk' }).first()).toBeVisible({ timeout: 45000 })
     await page.waitForSelector('select[aria-label="Select chapter"]', { timeout: 45000 })
 
-    // The SUBTITLE under the title reads `Chapter 1 · Weeb Central` (middle
-    // dot, the registry's own provider name — one spelling everywhere) and the
-    // dropdown pill stays exactly as it was — the standalone "Source: …" line
+    // The SUBTITLE under the title reads `Chapter 1 · WeebCentral` (middle
+    // dot, the registry's own provider name - one spelling everywhere) and the
+    // dropdown pill stays exactly as it was - the standalone "Source: …" line
     // is gone.
     const header = await page.evaluate(() => {
       const h1 = document.querySelector('h1') as HTMLElement | null
@@ -81,12 +81,12 @@ test.describe('Manga reader — MAL-backed ids', () => {
       }
     })
     expect(header.sourceLine, 'the standalone Source line is gone').toBe(false)
-    expect(header.subtitle, 'subtitle reads "<chapter> · <provider>"').toBe('Chapter 1 · Weeb Central')
+    expect(header.subtitle, 'subtitle reads "<chapter> · <provider>"').toBe('Chapter 1 · WeebCentral')
     expect(header.subtitle).not.toContain(' - ')
     // The dropdown pill is untouched: chapter only, no provider suffix.
     expect(header.pill, 'dropdown pill stays chapter-only').toBe('Chapter 1')
     expect(header.pill).not.toContain(' · ')
-    // The dropdown list stays chapter-only — the provider is not repeated on
+    // The dropdown list stays chapter-only - the provider is not repeated on
     // every row.
     for (const option of header.options) expect(option).not.toContain(' · ')
   })

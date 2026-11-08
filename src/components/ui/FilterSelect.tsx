@@ -8,7 +8,7 @@ export interface FilterOption {
 }
 
 /**
- * Shared pill dropdown — the filter selects from the Anime/Manga browse tabs.
+ * Shared pill dropdown - the filter selects from the Anime/Manga browse tabs.
  * The native select is transparent and covers the WHOLE pill, so every pixel
  * opens the menu (no dead space, no unclickable prefix/suffix/padding); the
  * visible row (prefix + value + suffix + chevron) is pointer-events-none.
@@ -16,7 +16,7 @@ export interface FilterOption {
  *
  * `tone="solid"` is the white-button exception (reader chapter picker, Watch
  * episode picker): white fill, `--on-text` label and chevron, no visible
- * border OR focus ring — the same treatment as the Prev/Next white pills
+ * border OR focus ring - the same treatment as the Prev/Next white pills
  * beside them. The 1px transparent border is geometry only (the shared 30px
  * pill), and the chevron carries a 2.5 viewBox stroke so it reads at the same
  * optical weight as the 12px text arrows on those pills.

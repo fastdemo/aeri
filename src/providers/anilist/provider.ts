@@ -106,7 +106,7 @@ query ($userId: Int!, $type: MediaType) {
           # AIRING PROGRESS: the Continue Watching bar and
           # the preview card measure progress against episodes that HAVE
           # AIRED ("3 of 3" when 3 aired and 3 watched), so the list record
-          # needs the next-airing marker — not just the planned total.
+          # needs the next-airing marker - not just the planned total.
           nextAiringEpisode { airingAt timeUntilAiring episode }
           averageScore
           genres
@@ -256,7 +256,7 @@ export class AniListProvider implements TrackingProvider {
 
   /**
    * The user's full list (anime + manga). `opts.force` bypasses BOTH cache
-   * layers and rewrites them — the pull-sync path (focus/online/visibility)
+   * layers and rewrites them - the pull-sync path (focus/online/visibility)
    * and the Profile refresh button use it, because scores/statuses changed
    * on anilist.co are invisible behind the 24 h IDB snapshot otherwise.
    */
@@ -289,7 +289,7 @@ export class AniListProvider implements TrackingProvider {
     const lists = [...(aData.MediaListCollection?.lists ?? []), ...(mData?.MediaListCollection?.lists ?? [])]
     const entries: AnimeListEntry[] = []
     for (const list of lists) {
-      // Include custom lists too per docs — already iterating all
+      // Include custom lists too per docs - already iterating all
       for (const e of list.entries) {
         const mapped = mapAniListEntryToAeri(e)
         if (mapped) entries.push(mapped)
@@ -329,12 +329,12 @@ export class AniListProvider implements TrackingProvider {
 
   // Helpers to find existing list entry id
   private async findEntryIdForMedia(mediaId: number, token: string, isManga = false): Promise<number | null> {
-    // Try to locate existing entry via user's list — use cached list if possible, otherwise query single?
+    // Try to locate existing entry via user's list - use cached list if possible, otherwise query single?
     // For simplicity, fetch user's list and find
     try {
       const list = await this.getAnimeList(token)
       const found = list.find((e) => e.anime.identity.anilistId === mediaId)
-      // Need entry id — we lost it in mapping? Extend mapping to include entry id? We'll need to store entry id via anime identity? Better to refetch with entry id map
+      // Need entry id - we lost it in mapping? Extend mapping to include entry id? We'll need to store entry id via anime identity? Better to refetch with entry id map
       // For now, we re-query MediaList with specific media query to get entry id via mediaListEntry
       if (found) {
         // Re-query media to get mediaListEntry. The type MUST match the
@@ -369,7 +369,7 @@ export class AniListProvider implements TrackingProvider {
       mutationId = { id: entryId, progress: episode }
     } else {
       // NEW ENTRY: a progress write that creates the
-      // entry must also stamp today's start date — otherwise the title
+      // entry must also stamp today's start date - otherwise the title
       // lands in Watching with no start date, and a later explicit
       // "Watching" re-save used to be a no-op.
       const now = new Date()

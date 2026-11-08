@@ -1,6 +1,6 @@
 import type { Anime } from '../types/anime'
 
-// Deterministic recommendation engine — genre overlap is primary, popularity/rating/recency are tie-breakers.
+// Deterministic recommendation engine - genre overlap is primary, popularity/rating/recency are tie-breakers.
 // Keeps the same signature used by Home.tsx (topPicks, Because you watched) but avoids popularity dominating overlap.
 
 export function getRecommendations(userGenres: string[], all: Anime[]): Anime[] {

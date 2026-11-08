@@ -73,7 +73,7 @@ export async function buildMalAuthorizeUrl(): Promise<string> {
   // a crossed/broken build env (e.g. the AniList numeric ID ending up here)
   // would otherwise dump the user on MAL's bare 400 page with no way back.
   if (!/^[0-9a-f]{32}$/i.test(MAL_CLIENT_ID)) {
-    throw new Error('MAL client ID looks wrong (not 32-char hex) — this build was baked with a bad VITE_MAL_CLIENT_ID. Not opening MyAnimeList to avoid a dead-end error page.')
+    throw new Error('MAL client ID looks wrong (not 32-char hex) - this build was baked with a bad VITE_MAL_CLIENT_ID. Not opening MyAnimeList to avoid a dead-end error page.')
   }
   const verifier = randomString(96) // 43-128, use 96
   const state = randomString(32)
@@ -138,7 +138,7 @@ export async function exchangeMalCodeForToken(code: string, verifier: string): P
     const msg = json?.error_description || json?.error || json?.message || res.statusText
     // MAL only supports the `plain` PKCE method; anything else fails verification
     if (/code_challenge|plain|verifier/i.test(String(msg))) {
-      throw new Error(`MAL token exchange failed: ${msg} — PKCE mismatch (code/challenge out of sync). Connect once and approve promptly.`)
+      throw new Error(`MAL token exchange failed: ${msg} - PKCE mismatch (code/challenge out of sync). Connect once and approve promptly.`)
     }
     throw new Error(msg || `MAL token exchange failed (${res.status})`)
   }
@@ -189,7 +189,7 @@ export async function handleMalOAuthCallback(): Promise<string | null> {
     const base = import.meta.env.BASE_URL as string
     const clean = `${window.location.origin}${base}`
     window.history.replaceState(null, '', clean)
-    throw new Error(`MAL authorization failed: ${error}${errorDesc ? ` — ${errorDesc}` : ''}`)
+    throw new Error(`MAL authorization failed: ${error}${errorDesc ? ` - ${errorDesc}` : ''}`)
   }
 
   if (!code) return null
@@ -215,7 +215,7 @@ export async function handleMalOAuthCallback(): Promise<string | null> {
     const base = import.meta.env.BASE_URL as string
     const clean = `${window.location.origin}${base}`
     window.history.replaceState(null, '', clean)
-    throw new Error('MAL state mismatch — possible CSRF. Try again.')
+    throw new Error('MAL state mismatch - possible CSRF. Try again.')
   }
 
   const verifier = getMalCodeVerifier()
@@ -249,9 +249,9 @@ export async function handleMalOAuthCallback(): Promise<string | null> {
     const clean = `${window.location.origin}${base}`
     window.history.replaceState(null, '', clean)
     if (/invalid_grant|invalid_client|invalid_code|expired|already used/i.test(msg)) {
-      // Dead code (expired, already used, or client mismatch) — a fresh
+      // Dead code (expired, already used, or client mismatch) - a fresh
       // Connect starts clean instead of retrying the dead code forever.
-      throw new Error(`That login attempt expired (MAL said: ${msg}) — please Connect again, once, then approve. If it keeps failing, check the MAL client ID and registered redirect URL.`)
+      throw new Error(`That login attempt expired (MAL said: ${msg}) - please Connect again, once, then approve. If it keeps failing, check the MAL client ID and registered redirect URL.`)
     }
     throw e
   }

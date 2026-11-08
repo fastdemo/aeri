@@ -3,8 +3,8 @@
 // Why this exists: AniList 403-blocks ALL requests from Cloudflare Worker IPs
 // ("manually blocked"), so the Cloudflare Worker's /api/anilist/token proxy can
 // never complete the Authorization Code exchange. This tiny server does exactly
-// one thing — POST /api/anilist/token -> https://anilist.co/api/v2/oauth/token
-// with ANILIST_CLIENT_SECRET injected server-side — and is meant to run on any
+// one thing - POST /api/anilist/token -> https://anilist.co/api/v2/oauth/token
+// with ANILIST_CLIENT_SECRET injected server-side - and is meant to run on any
 // NON-Cloudflare host (Fly.io, Render, Railway, a VPS, ...).
 //
 // The secret never leaves this process: it is only ever sent upstream to

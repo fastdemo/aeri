@@ -44,7 +44,7 @@ export function DetailModal({
   const { isAuthenticated, combinedList, updateStatus, updateRating, updateProgress, removeEntry, error: trackingError, trackingProvider } = useTracking()
   const [syncing, setSyncing] = useState<string | null>(null)
   const [localError, setLocalError] = useState<string | null>(null)
-  // EXIT ANIMATION: every dismiss path — ✕, click-outside, Esc — funnels
+  // EXIT ANIMATION: every dismiss path - ✕, click-outside, Esc - funnels
   // through dismiss(): run the reverse keyframes on the card (scale/fade
   // out, mirroring aeri-pop-in) and on the scrim, THEN commit the real
   // close. 190ms ≈ the out duration; the guard keeps double-escapes
@@ -79,7 +79,7 @@ export function DetailModal({
   const currentScore = baseEntry?.score ?? null
   // RICHER-WINS DISPLAY (nothing renders until the metadata is final).
   // `baseEntry?.anime ?? anime` used to swap the list
-  // copy in UNCONDITIONALLY — a MAL-lite row (no relations/season/streaming)
+  // copy in UNCONDITIONALLY - a MAL-lite row (no relations/season/streaming)
   // downgraded a complete AniList record the card already held, and the
   // enrichment drip only upgraded it again seconds later: the sparse-card-
   // then-fill flip. Now the complete record wins the
@@ -102,8 +102,8 @@ export function DetailModal({
   // metadata. AniList titles/thumbs always win when present.
   const kitsuEpisodes = useKitsuEpisodes(displayAnime, rawDisplayAnime)
   const titles = getTitleHierarchy(displayAnime)
-  // TAB TITLE: the overlay carries the ENTRY's name —
-  // "Assassination Classroom - Aeri" — and the stack restores the page
+  // TAB TITLE: the overlay carries the ENTRY's name  - 
+  // "Assassination Classroom - Aeri" - and the stack restores the page
   // beneath ("Home - Aeri") when the card closes.
   useAeriTitle(titles.primary || null, 'override')
   const isMovie = displayAnime.format?.toUpperCase() === 'MOVIE'
@@ -144,7 +144,7 @@ export function DetailModal({
     ? (displayAnime.chapters && displayAnime.chapters > 0 ? displayAnime.chapters : 0)
     : (displayAnime.episodes && displayAnime.episodes > 0 ? displayAnime.episodes : 0)
   // AIRED TOTAL: the progress readout and bar are measured
-  // against episodes that HAVE AIRED — "3 of 3" when a show has aired 3 and
+  // against episodes that HAVE AIRED - "3 of 3" when a show has aired 3 and
   // the viewer watched 3, never "3 of 12". Manga keeps its chapter total
   // (there is no airing schedule for chapters).
   const airedTotal = isMangaKind ? knownTotal : getAiredTotal(displayAnime, knownTotal)
@@ -173,15 +173,15 @@ export function DetailModal({
     return 0
   })()
 
-  // E-line (E1 • title) — ALWAYS the episode Resume/continue will open: the
-  // NEXT episode — one past the last completed episode, so a viewer who
+  // E-line (E1 • title) - ALWAYS the episode Resume/continue will open: the
+  // NEXT episode - one past the last completed episode, so a viewer who
   // finished episode 20 sees e21's info above the
   // description. 1 for an unstarted show, clamped to the known total,
   // hidden entirely when fully caught up. The show description paragraph
-  // below stays the SHOW's description — never a placeholder.
-  // The NAME comes from the ANILIST record — AniList owns all names.
+  // below stays the SHOW's description - never a placeholder.
+  // The NAME comes from the ANILIST record - AniList owns all names.
   // The record reaching the modal rarely carries streamingEpisodes
-  // (pool/list copies don't), so resolve it eagerly — same AniList-first
+  // (pool/list copies don't), so resolve it eagerly - same AniList-first
   // record the cards mount-fetch (shared IDB cache + inflight dedupe +
   // patient 429 retry, so bursts can starve it only temporarily).
   const [nextEpName, setNextEpName] = useState<string | null>(null)
@@ -228,7 +228,7 @@ export function DetailModal({
     return () => document.removeEventListener('keydown', onKey)
   }, [dismiss])
 
-  // Body lock — must not delay navigation. Save/restore overflow synchronously on mount/unmount;
+  // Body lock - must not delay navigation. Save/restore overflow synchronously on mount/unmount;
   // hashchange/popstate will unmount this modal AFTER route has already changed (HashRouter push is sync).
   useEffect(() => {
     const prevBody = document.body.style.overflow
@@ -236,7 +236,7 @@ export function DetailModal({
     // Prevent background scroll without creating a stacking context that captures pointer events
     document.body.style.overflow = 'hidden'
     // iOS: also lock html to prevent rubber-band scroll from swallowing hashchange
-    // but keep pointer events on fixed header (z-50) unaffected — overflow hidden does not intercept clicks
+    // but keep pointer events on fixed header (z-50) unaffected - overflow hidden does not intercept clicks
     return () => {
       document.body.style.overflow = prevBody
       document.documentElement.style.overflow = prevHtml
@@ -245,7 +245,7 @@ export function DetailModal({
 
   // New modal always opens at the very top: reset the overlay scroller on
   // mount (it persists across opens) and focus the dialog without scrolling
-  // the page underneath (preventScroll — the background is body-locked).
+  // the page underneath (preventScroll - the background is body-locked).
   // In-card related swaps reuse this instance (same route element), so the
   // identity key also re-runs this: the swapped record starts at the top
   // and receives focus, like a freshly opened card.
@@ -256,7 +256,7 @@ export function DetailModal({
   }, [displayKey])
 
   // SEASON + YEAR COLLAPSE: a releasing TV entry renders "TV • Fall 2026 •
-  // Airing" — season and year share ONE segment ("Fall 2026") in the year's
+  // Airing" - season and year share ONE segment ("Fall 2026") in the year's
   // slot; everything else keeps its own.
   const seasonYear = displayAnime.season && displayAnime.year
     ? `${displayAnime.season.charAt(0)}${displayAnime.season.slice(1).toLowerCase()} ${displayAnime.year}`
@@ -276,10 +276,10 @@ export function DetailModal({
         aria-hidden
         className={`pointer-events-none fixed inset-x-0 bottom-0 top-14 z-40 bg-[color-mix(in_srgb,var(--bg)_75%,transparent)] backdrop-blur-[2px] ${closing ? 'anim-fade-out' : 'anim-fade-in'}`}
       />
-      {/* CLICK-OUT ANYWHERE: clicking the veil — including the
-          bottom part of the overlay — closes the card. The VEIL itself is the
+      {/* CLICK-OUT ANYWHERE: clicking the veil - including the
+          bottom part of the overlay - closes the card. The VEIL itself is the
           close target. The old `<button fixed inset-0>` backdrop was trapped
-          by this scroller's `backdrop-blur` — blur (like filter) makes the
+          by this scroller's `backdrop-blur` - blur (like filter) makes the
           scroller the containing block for fixed descendants, so the button
           laid out in CONTENT coordinates and scrolled away with the card:
           only clicks near the top of an unscrolled overlay reached it. A
@@ -299,9 +299,9 @@ export function DetailModal({
           tabIndex={-1}
           className={`relative my-2 flex max-h-none w-full max-w-[980px] flex-col overflow-visible rounded-xl bg-[var(--bg-soft)] shadow-[0_24px_64px_var(--shadow)] outline-none sm:my-6 ${closing ? 'anim-pop-out-center' : 'anim-pop-in-center'}`}
         >
-          {/* Bare ✕ — no circular background, the glyph is 20px (up from 14),
+          {/* Bare ✕ - no circular background, the glyph is 20px (up from 14),
               and a soft shadow in the THEME's own shadow color
-              keeps it legible over bright art. No scale/motion on hover — a
+              keeps it legible over bright art. No scale/motion on hover - a
               quiet opacity ease only. */}
           <button
             onClick={dismiss}
@@ -327,7 +327,7 @@ export function DetailModal({
 
             <div className="absolute bottom-0 left-0 right-0 flex flex-wrap items-center gap-2 px-4 pb-4 sm:px-6">
               {/* Watched progress on the preview card (anime AND manga).
-                  D155: neon — the fill glows in its OWN ink (6px --text),
+                  D155: neon - the fill glows in its OWN ink (6px --text),
                   matching the Continue Watching pill, instead of a --shadow
                   halo that read as a flat smear. The 2px track sits on the
                   banner's bottom gradient, so it never floats on raw art. */}
@@ -356,13 +356,13 @@ export function DetailModal({
                 </Link>
               )}
               {/* The progress line reports what WAS WATCHED (numEp), never the
-                  resume target (progress+1) — "6 of 25" means six watched, not
+                  resume target (progress+1) - "6 of 25" means six watched, not
                   "you are about to watch 6". Manga reads "N of M chapters";
                   anime keeps "N of M • P% watched". */}
               {hasWatched && (
                 <span className="text-xs text-[var(--text-muted)]">
                   {isMangaKind
-                    ? `${numEp} of ${knownTotal > 0 ? knownTotal : '—'}`
+                    ? `${numEp} of ${knownTotal > 0 ? knownTotal : ' - '}`
                     : (<>{numEp}{airedTotal > 0 ? ` of ${airedTotal}` : ''} • {barPercent}% watched</>)}
                 </span>
               )}
@@ -370,7 +370,7 @@ export function DetailModal({
               {/* SINGLE list control, plain two-way toggle: not in list → +
                   adds as Plan to Watch / Plan to Read; in list → ✓ removes the
                   entry entirely. No inline menu: the Status pill below the hero
-                  (TrackerCompact) already owns every status change AND removal —
+                  (TrackerCompact) already owns every status change AND removal  - 
                   the old popup duplicated those writes one tap away. One button,
                   two functions: add, remove. */}
               {isAuthenticated && (
@@ -439,7 +439,7 @@ export function DetailModal({
               }}
               onProgress={async (n) => {
                 setSyncing('progress')
-                // Manual edit — still syncs while Incognito is on.
+                // Manual edit - still syncs while Incognito is on.
                 try { await updateProgress(displayAnime, n, { manual: true }) }
                 catch (e) { setLocalError(e instanceof Error ? e.message : 'Couldn’t update progress') }
                 finally { setSyncing(null) }
@@ -450,7 +450,7 @@ export function DetailModal({
           {/* Content grid: row 1 = description | metadata, row 2 =
               episodes/chapters | related. Row 2 is a SINGLE shared grid row,
               so the Episodes header and the Related Shows header start at
-              exactly the same y by construction — the conditional E-line lives
+              exactly the same y by construction - the conditional E-line lives
               in row 1 and shifts row 2 down for BOTH columns equally.
               DOM order (D,M,E,R,mobile) is the mobile stacking order;
               lg placement puts D|M on row 1 and E|R on row 2.
@@ -458,7 +458,7 @@ export function DetailModal({
           <div className="grid gap-6 px-4 py-5 sm:px-6 lg:grid-cols-[1.7fr_0.9fr]">
             {/* Row 1, col 1: title/meta/E-line/description. */}
             <div className="min-w-0 lg:col-start-1 lg:row-start-1">
-              {/* Mobile title hierarchy — visible only when desktop overlay hidden */}
+              {/* Mobile title hierarchy - visible only when desktop overlay hidden */}
               <div className="mb-3 sm:hidden">
                 <h2 className="text-[20px] font-semibold leading-none tracking-tighter text-[var(--text)]">{titles.primary}</h2>
                 {titles.native && <p className="mt-1 text-xs text-[var(--text-muted)]">{titles.native}</p>}
@@ -469,14 +469,14 @@ export function DetailModal({
                 <ScoreBadge anime={displayAnime} trackingProvider={trackingProvider} />
               </div>
 
-              {/* E-line renders only with real content — never a spacer. */}
+              {/* E-line renders only with real content - never a spacer. */}
               {!isMovie && !isMangaKind && hasEpline && (
                 <p className="mt-2 text-[12px] font-semibold text-[var(--text)]">
                   Episode {eplineNumber} {eplineTitle ? `• ${eplineTitle}` : ''}
                 </p>
               )}
               {/* Manga mirror of the E-line: the NEXT chapter's info
-                  above the description — Chapter <next> + the provider unit's
+                  above the description - Chapter <next> + the provider unit's
                   own title when it carries one. Hidden when nothing new is
                   left (the button restarts at chapter 1 instead). */}
               {isMangaKind && !restart && (
@@ -496,7 +496,7 @@ export function DetailModal({
               </div>
             </div>
 
-            {/* Row 2, col 1: episodes/chapters — THE shared header row. */}
+            {/* Row 2, col 1: episodes/chapters - THE shared header row. */}
             <div className="min-w-0 lg:col-start-1 lg:row-start-2">
               {isMangaKind ? (
                 <ChapterList key={displayKey} manga={displayAnime} />
@@ -507,7 +507,7 @@ export function DetailModal({
               )}
             </div>
 
-            {/* Row 2, col 2: related — same grid row as episodes, so headers
+            {/* Row 2, col 2: related - same grid row as episodes, so headers
                 start at exactly the same y. Anime surfaces query type: ANIME;
                 manga surfaces query type: MANGA (mixed adaptation relations
                 render per-entry with the correct card + route either way). */}
@@ -537,7 +537,7 @@ export function DetailModal({
                 between metadata rows and Related (stacked layout only)
                 renders ONLY while content follows it: loading skeletons
                 appear without the divider, final emptiness hides divider
-                and block — never a line above nothing. */}
+                and block - never a line above nothing. */}
             <div className="min-w-0 space-y-2 border-t border-[var(--border)] pt-4 text-xs leading-5 lg:hidden">
               <SidebarMeta anime={displayAnime} />
               {mobileRelated && (mobileRelated.loading || (mobileRelated.entries?.length ?? 0) > 0) && (
@@ -560,8 +560,8 @@ export function DetailModal({
   )
 }
 
-// Manga mirror of the E-line: `Ch <next>` of the chapter Resume will open —
-// progress+1 (clamped, computed by the parent's resumeEpisodeNumber) — with
+// Manga mirror of the E-line: `Ch <next>` of the chapter Resume will open  - 
+// progress+1 (clamped, computed by the parent's resumeEpisodeNumber) - with
 // the provider unit's own title when that unit carries a distinguishing
 // name (the provider label IS the chapter name; a bare "Chapter N" adds
 // nothing after "Ch N"). Resolution shares ChapterList's resolver and its
@@ -584,8 +584,8 @@ function MangaNextLine({ manga, next, watched }: { manga: Anime; next: number; w
         let extra: string | null = null
         if (u) {
           const label = (u.label ?? '').trim()
-          extra = label && !/^chapter\s*\d*\s*[-–—:.]?\s*$/i.test(label)
-            ? label.replace(/^chapter\s*\d*\s*[-–—:.]?\s*/i, '').trim() || null
+          extra = label && !/^chapter\s*\d*\s*[-–:.]?\s*$/i.test(label)
+            ? label.replace(/^chapter\s*\d*\s*[-–:.]?\s*/i, '').trim() || null
             : null
         }
         if (!cancelled) setUnitExtra(extra)
@@ -604,10 +604,10 @@ function MangaNextLine({ manga, next, watched }: { manga: Anime; next: number; w
 function SidebarMeta({ anime }: { anime: Anime }) {
   const displayAnime = anime
   // Manga catalogue rows (AniList staff/tags/endDate). Catalogue display
-  // ONLY — these never imply readable chapters (see ChapterList header).
+  // ONLY - these never imply readable chapters (see ChapterList header).
   const isManga = ['MANGA', 'NOVEL', 'ONE_SHOT'].includes(displayAnime.format?.toUpperCase() ?? '')
   const staffLine = isManga && displayAnime.staff?.length
-    ? displayAnime.staff.map(s => s.role && s.role.toLowerCase() !== s.name.toLowerCase() ? `${s.name} — ${s.role}` : s.name).join(', ')
+    ? displayAnime.staff.map(s => s.role && s.role.toLowerCase() !== s.name.toLowerCase() ? `${s.name} - ${s.role}` : s.name).join(', ')
     : null
   const tagsLine = isManga && displayAnime.tags?.length
     ? displayAnime.tags.map(t => t.name).join(', ')

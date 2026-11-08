@@ -12,7 +12,7 @@ import { ANILIST_GENRES } from '../lib/genres'
 import { pillSolid, pillSoft } from '../components/ui/buttonStyles'
 
 // STATUS = THE SAME PILL ROW as the Anime page: Browse's category lane
-// verbatim — same geometry/copy/active fill — with statuses as the labels,
+// verbatim - same geometry/copy/active fill - with statuses as the labels,
 // in list order. NO Status dropdown (statuses appear nowhere as a select;
 // the four browse dropdowns remain).
 const statusTabs: { id: AnimeStatus | 'all'; label: string }[] = [
@@ -45,18 +45,18 @@ export function MyList() {
   const { isAuthenticated, trackingProvider, combinedList, loading, error, authExpired } = useTracking()
   const ani = useAniList()
   const mal = useMAL()
-  // Card taps push detail URLs — the floating card is an overlay route on
+  // Card taps push detail URLs - the floating card is an overlay route on
   // top of this page, not local component state.
   const openDetail = useDetailOpen()
   // Same header language as the Anime/Manga browse tabs: title + 1-line
   // "Discover … • <tracker>" description (text-xs faint). The tracker is
-  // the active provider (AniList/MyAnimeList) — metadata is AniList either
+  // the active provider (AniList/MyAnimeList) - metadata is AniList either
   // way, so the suffix names the active tracker exactly like Home rows do.
   const trackerName = trackingProvider === 'anilist' ? 'AniList' : trackingProvider === 'mal' ? 'MyAnimeList' : 'AniList'
 
   // Production: real list only when authenticated; unauth shows empty with CTA (no fake anime).
   // Most recently active first (entries without activity timestamps keep provider order at the end).
-  // MY LIST RULE: anime only (manga has its own surfaces — reader, profile).
+  // MY LIST RULE: anime only (manga has its own surfaces - reader, profile).
   const isAnimeEntry = (e: AnimeListEntry) => {
     const mt = e.anime.identity.mediaType
     if (mt) return mt === 'ANIME'
@@ -64,9 +64,9 @@ export function MyList() {
   }
   const animeOnly = isAuthenticated && combinedList ? combinedList.filter(isAnimeEntry) : []
   const byRecent = (a: AnimeListEntry, b: AnimeListEntry) => (b.updatedAt ?? -1) - (a.updatedAt ?? -1)
-  // FILTERS — the browse-dropdown set, client-side over the loaded list:
+  // FILTERS - the browse-dropdown set, client-side over the loaded list:
   // status (tracker canon), genre/year/season/format read the entry record
-  // itself. Entries missing a field (thin MAL list copies) match ALLs only —
+  // itself. Entries missing a field (thin MAL list copies) match ALLs only  - 
   // the honest degenerate form, same as the season rule on Browse.
   const yearPreset = yearPresets.find(y => y.label === yearKey) ?? yearPresets[0]
   const filtered: Anime[] = (() => {
@@ -120,10 +120,10 @@ export function MyList() {
       )}
 
       {/* Filter row = THE ANIME LANE: Browse's category-pills lane verbatim
-          — same pill geometry/copy/active fill — with STATUSES as the
+          - same pill geometry/copy/active fill - with STATUSES as the
           labels, in list order. Wide: pills LEFT, the four browse dropdowns
           RIGHT (justify-between, as Browse). Narrow: one joined swipeable
-          scroller, nothing clips. Statuses exist ONLY as pills — the
+          scroller, nothing clips. Statuses exist ONLY as pills - the
           status dropdown is REMOVED. */}
       <div className="mt-4 hidden min-w-0 flex-nowrap items-center justify-between gap-4 py-0.5 lg:flex">
         <div className="flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto no-scrollbar">
@@ -211,7 +211,7 @@ export function MyList() {
       ) : !loading ? (
         <>
           {/* THE ANIME-PAGE GRID, verbatim: same columns/gaps/classes as
-              Browse and every card the DEFAULT variant —
+              Browse and every card the DEFAULT variant  - 
               no continue-style caption/progress strip here; progress
               lives in the preview card. Anime List is anime-kind only. */}
           <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
@@ -226,7 +226,7 @@ export function MyList() {
               <p className="text-sm text-[var(--text-faint)]">Nothing here yet.</p>
               <p className="mt-1 text-xs text-[var(--text-faint)]">
                 {status !== 'all' || genre !== 'All' || yearKey !== 'All Years' || season !== 'All' || format !== 'All'
-                  ? 'No titles match these filters — Clear returns everything.'
+                  ? 'No titles match these filters - Clear returns everything.'
                   : 'Add titles from Anime or Search, or update status in the detail view.'}
               </p>
             </div>

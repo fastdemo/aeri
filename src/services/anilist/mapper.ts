@@ -39,7 +39,7 @@ export interface AniListMedia {
   genres?: string[] | null
   studios?: { nodes?: { name: string; isAnimationStudio: boolean }[] | null; edges?: { isMain: boolean }[] | null } | null
   format?: string | null // TV, MOVIE etc; anime queries never return MANGA and vice versa
-  type?: string | null // ANIME | MANGA — authoritative when present
+  type?: string | null // ANIME | MANGA - authoritative when present
   popularity?: number | null
   streamingEpisodes?: { title?: string | null; thumbnail?: string | null; url?: string | null; site?: string | null }[] | null
   trailer?: { id?: string | null; site?: string | null } | null
@@ -51,7 +51,7 @@ export interface AniListMedia {
   nextAiringEpisode?: { airingAt: number; timeUntilAiring: number; episode: number } | null
   airingSchedule?: { nodes: { airingAt: number; episode: number }[] } | null
   isAdult?: boolean | null
-  /** AniList relation edges (informational only — powers Related Entries, never identity). */
+  /** AniList relation edges (informational only - powers Related Entries, never identity). */
   relations?: AniListMediaRelations | null
 }
 
@@ -80,9 +80,9 @@ export interface AniListMediaListEntryRaw {
   status?: string | null // CURRENT, COMPLETED, PLANNING, PAUSED, DROPPED, REPEATING
   progress?: number | null
   score?: number | null // raw float, in the USER's scoring format
-  /** `score(format: POINT_10_DECIMAL)` alias — always a 0-10 scale. */
+  /** `score(format: POINT_10_DECIMAL)` alias - always a 0-10 scale. */
   score10?: number | null
-  updatedAt?: number | null // unix seconds — drives most-recent-first sorting
+  updatedAt?: number | null // unix seconds - drives most-recent-first sorting
   media?: AniListMedia | null
 }
 
@@ -136,7 +136,7 @@ export function mapAniListMediaToAnime(media: AniListMedia, mediaType?: 'ANIME' 
     native: media.title?.native ?? undefined,
   }
   const cover = media.coverImage?.extraLarge ?? media.coverImage?.large ?? media.coverImage?.medium ?? ''
-  // Banner fallback to cover if missing — hero expects landscape
+  // Banner fallback to cover if missing - hero expects landscape
   const banner = media.bannerImage ?? cover
 
   const year = media.seasonYear ?? media.startDate?.year ?? undefined
@@ -146,7 +146,7 @@ export function mapAniListMediaToAnime(media: AniListMedia, mediaType?: 'ANIME' 
   // precision, e.g. 85 -> 8.5; display formats the decimals)
   const rating = media.averageScore != null ? media.averageScore / 10 : undefined
 
-  // Only animation studios — not all studios (producers are not studios)
+  // Only animation studios - not all studios (producers are not studios)
   const studios = (() => {
     const nodes = media.studios?.nodes ?? []
     const edges = media.studios?.edges ?? []
@@ -167,7 +167,7 @@ export function mapAniListMediaToAnime(media: AniListMedia, mediaType?: 'ANIME' 
   })()
 
   // Preserve original order/length for index-based episode normalization.
-  // Do NOT filter by title/thumbnail — an entry with only url is still an episode slot,
+  // Do NOT filter by title/thumbnail - an entry with only url is still an episode slot,
   // filtering would compress the array and shift subsequent titles (Death Note bug).
   // Only discard truly empty entries (no title, no thumbnail, no url, no site).
   const streamingEpisodes = (() => {
@@ -195,14 +195,14 @@ export function mapAniListMediaToAnime(media: AniListMedia, mediaType?: 'ANIME' 
     episode: n.episode,
   })).filter(n => typeof n.airingAt === 'number' && typeof n.episode === 'number') ?? undefined
 
-  // Identity boundary: AniList id alone is NOT sufficient — the same
+  // Identity boundary: AniList id alone is NOT sufficient - the same
   // numeric id under ANIME vs MANGA is a different entity (HxH anime vs
   // HxH manga). Callers pass the query's media type; the response's own
   // `type` field wins when present; format infers it otherwise
   // (MANGA/NOVEL/ONE_SHOT ⇒ MANGA, else ANIME).
   // Manga catalogue metadata: staff (creators first), tags by rank,
   // endDate. Absent when the query did not request them (anime surfaces)
-  // — never fabricated. Translators and other long-tail roles are dropped:
+  // - never fabricated. Translators and other long-tail roles are dropped:
   // catalogue shows creators, not full credits. Names AND roles both
   // trimmed: AniList roles carry volume ranges ("Story & Art (vols 1-41)")
   // that would overflow the sidebar row untrimmed.
@@ -291,7 +291,7 @@ export function mapAniListEntryToAeri(entry: AniListMediaListEntryRaw): AnimeLis
   anime.listStatus = status
 
   // SCORE NORMALIZATION: the list query also asks for
-  // `score(format: POINT_10_DECIMAL)` — a fixed 0-10 scale that is immune to
+  // `score(format: POINT_10_DECIMAL)` - a fixed 0-10 scale that is immune to
   // the account's scoring format. Prefer it, and keep the raw field as a
   // fallback: POINT_100 values (>10) divide down, POINT_5 stays on a 0-5
   // scale but is still a valid ordinal for Highest/Lowest tiers. 0 = unrated

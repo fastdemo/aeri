@@ -3,7 +3,7 @@ import type { Anime } from '../../types/anime'
 export interface MangaChapter {
   id: string
   mangaId: string
-  /** Provider unit id (WeebCentral ULID). Opaque — one unit is NOT always one chapter (may be a volume). */
+  /** Provider unit id (WeebCentral ULID). Opaque - one unit is NOT always one chapter (may be a volume). */
   providerChapterId: string
   /** Provider's original label, preserved verbatim: "Chapter 386", "Vol. 3", "Volume 3", "Prologue 2". */
   label: string
@@ -13,14 +13,14 @@ export interface MangaChapter {
   kind?: string
   /**
    * Provider's own unit type. 'volume' for Volume/Vol labels, else
-   * 'chapter'. Drives display wording ("Volume 3" vs "Chapter 12") —
+   * 'chapter'. Drives display wording ("Volume 3" vs "Chapter 12")  - 
    * never rename a volume to a chapter.
    */
   unitType?: 'volume' | 'chapter'
   publishedAt?: string
   /**
    * Off-site (licensed) link for a unit the provider does NOT host pages
-   * for — MangaDex external chapters. Present only alongside
+   * for - MangaDex external chapters. Present only alongside
    * `externalOnly: true`; the reader never opens these as pages.
    */
   externalUrl?: string
@@ -39,7 +39,7 @@ export interface MangaChapter {
  * synthesizes one when the label is bare. Never converts volume↔chapter.
  */
 export function unitDisplayLabel(u: Pick<MangaChapter, 'label' | 'number' | 'kind' | 'unitType'>): string {
-  // WeebCentral (and some mirrors) label manga units "Episode N" — their
+  // WeebCentral (and some mirrors) label manga units "Episode N" - their
   // site vocabulary, not ours. A manga reader must read "Chapter N" (the
   // reader's vocabulary); this is display-only, the stored
   // provider label is untouched. Any suffix after the number is preserved.
@@ -52,7 +52,7 @@ export function unitDisplayLabel(u: Pick<MangaChapter, 'label' | 'number' | 'kin
 /**
  * Sort key for provider units: numeric when the number parses, else null
  * (caller keeps provider order for those). Volumes and chapters sort in
- * separate runs — never interleaved by raw number.
+ * separate runs - never interleaved by raw number.
  */
 export function unitSortKey(u: Pick<MangaChapter, 'number' | 'unitType'>): number | null {
   return typeof u.number === 'number' && Number.isFinite(u.number) ? u.number : null
@@ -60,7 +60,7 @@ export function unitSortKey(u: Pick<MangaChapter, 'number' | 'unitType'>): numbe
 
 /**
  * Presentation-layer ordering for provider units. Numeric within each
- * unit-type run (1,2,3,10,11 — never lexicographic); units without a
+ * unit-type run (1,2,3,10,11 - never lexicographic); units without a
  * parseable number keep provider order at the end of their run. Volumes
  * sort as their own run after chapters in oldest-first mode (provider's
  * volumes are typically compilations, not the serial sequence).
@@ -99,7 +99,7 @@ export interface MangaProviderMatch {
   verified?: boolean
   /**
    * AniList published chapter total captured at match time. A cached match
-   * is reusable only for the same expectation — prevents serving one
+   * is reusable only for the same expectation - prevents serving one
    * manga's series to another manga sharing the worker cache key space.
    */
   expectedChapters?: number
@@ -120,7 +120,7 @@ export type MediaKind = 'anime' | 'manga'
 
 /**
  * Verification status of a provider. Only `verified` providers appear in
- * Settings — `unverified`/`broken` exist in code but are never user-facing.
+ * Settings - `unverified`/`broken` exist in code but are never user-facing.
  * Verified = full end-to-end flow confirmed in the CURRENT architecture
  * (manga: search→match→units→pages→rendered images; anime: match→episodes→
  * sources→advancing playback), with date recorded in agents/changelog.md.

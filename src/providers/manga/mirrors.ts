@@ -118,7 +118,7 @@ function makeMirrorProvider(cfg: {
         const curCh = options?.mangaChapters ?? manga.chapters
         const hitCh = (hit as any).expectedChapters
         if (typeof curCh === 'number' && typeof hitCh === 'number' && curCh !== hitCh) {
-          // Different manga — do not reuse.
+          // Different manga - do not reuse.
         } else return hit
       }
       try {
@@ -178,7 +178,7 @@ export const bato1Provider = makeMirrorProvider({
   name: 'Bato1',
   blurb: 'Working Bato mirror (bato1.com), WEBP pages',
   // UNVERIFIED 2026-10-10: bt-match throws `error code: 1101` on the live
-  // worker (upstream Cloudflare-gates worker egress — /filter serves a
+  // worker (upstream Cloudflare-gates worker egress - /filter serves a
   // challenge page, and the absolute-href markup broke the old relative
   // parser). Dark in Settings, never requested, until a live probe passes.
   status: 'unverified' as const,
@@ -196,7 +196,7 @@ export const kakalotFunProvider = makeMirrorProvider({
   blurb: 'Working Kakalot mirror (.fun), direct PNG pages',
   // UNVERIFIED 2026-10-10: kk-match throws `error code: 1101` on the live
   // worker (upstream serves the CF challenge-platform shell to worker
-  // egress — zero result markup). Dark in Settings, never requested,
+  // egress - zero result markup). Dark in Settings, never requested,
   // until a live probe passes.
   status: 'unverified' as const,
   matchPath: (anilistId, hints) => `/api/manga/kk-match/${anilistId}${hints}`,

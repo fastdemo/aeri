@@ -69,8 +69,8 @@ const FINISHED_QUERY = buildPageQuery('END_DATE_DESC', ', status: FINISHED')
 
 /**
  * HOME FEED. Home used to fire FOUR separate page queries carrying the full
- * detail field set — description HTML, every relation edge, streaming
- * episodes, airing schedule — for a page that only paints tiles. Measured
+ * detail field set - description HTML, every relation edge, streaming
+ * episodes, airing schedule - for a page that only paints tiles. Measured
  * against the live API on 2026-10-25:
  *
  *   old: 4 requests · ~967 KB · ~2.0 s wall (and 4 slots of the burst limit)
@@ -78,7 +78,7 @@ const FINISHED_QUERY = buildPageQuery('END_DATE_DESC', ', status: FINISHED')
  *
  * The four rails ride ONE aliased request under a single cache key. Fields
  * are exactly what a card/hero render needs; `description` stays for the
- * hero. Relations and streaming episodes are NOT here — detail pages fetch
+ * hero. Relations and streaming episodes are NOT here - detail pages fetch
  * the full record, and `getAnime` requires relations in a shared record, so
  * these light records are never published to the shared media cache (see
  * `mapHomePage`).
@@ -138,7 +138,7 @@ query ($id: Int) {
 `
 
 // Manga catalogue extensions: staff (authors/artists), tags, endDate.
-// Requested ONLY on the manga detail query — page/search queries skip
+// Requested ONLY on the manga detail query - page/search queries skip
 // them (same cache key shape, no extra requests on rails). Absent on
 // anime records by construction.
 const MANGA_CATALOGUE_FIELDS = `
@@ -159,7 +159,7 @@ query ($id: Int) {
 // BY-MAL LOOKUPS ARE TYPE-SCOPED IN BOTH THE QUERY AND THE CACHE KEY. MAL ids
 // and AniList anime/manga ids are three separate numeric spaces; a number can
 // be a valid animal id AND manga id in AniList simultaneously. Anime entries
-// must never resolve a MAL lookup to a manga work (or vice versa) — separate
+// must never resolve a MAL lookup to a manga work (or vice versa) - separate
 // queries AND separate `anilist:bymal:{kind}:<id>` keys keep that boundary.
 const MEDIA_BY_MAL_QUERY = `
 query ($malId: Int) {
@@ -181,9 +181,9 @@ query ($malId: Int) {
 // BATCHED BY-MAL LOOKUPS (D111): ONE
 // request per ≤50-id chunk resolves the ENTIRE tracker list, instead of one
 // request per entry (which crawled through the rate limit and let throttled
-// shows vanish — the continue row appeared late and incomplete). An id ABSENT
+// shows vanish - the continue row appeared late and incomplete). An id ABSENT
 // from a chunk that completed is a DEFINITIVE
-// non-mapping — the filter matched and found nothing — not a failure, so the
+// non-mapping - the filter matched and found nothing - not a failure, so the
 // negative is seeded under the same kind-scoped per-id key (24h, like every
 // cache) and the entry can keep a stable identity until AniList maps it.
 // Field parity with the per-id queries keeps seeded records indistinguishable:
@@ -224,17 +224,17 @@ query ($search: String, $perPage: Int) {
 function mapPage(res: { Page: { media: AniListMedia[] } }, mediaType?: 'ANIME' | 'MANGA'): ReturnType<typeof mapAniListMediaToAnime>[] {
   // HOME RULE: TV + MOVIE only. Home rows consume hook data directly
   // (bypassing any page-level pool), so the filter lives HERE at
-  // ingestion — every consumer (home rows, hero, pools) inherits it.
+  // ingestion - every consumer (home rows, hero, pools) inherits it.
   // OVA/ONA/SPECIAL/MUSIC never appear on Home (Continue Watching is the
   // only exempt surface). MANGA-type queries are unaffected. Format comes
-  // straight from the provider record — no title-specific hacks.
+  // straight from the provider record - no title-specific hacks.
   const out = (res.Page.media ?? [])
     .filter((m) => mediaType === 'MANGA' || ['TV', 'MOVIE'].includes(((m as AniListMedia).format ?? '').toUpperCase()))
     .map((m) => mapAniListMediaToAnime(m, mediaType))
   // Page results are full media records (relations included): publish each
   // to the shared cache so later detail visits cost zero network AND still
   // get Related Shows/Manga. Records without relation edges are NOT
-  // published — a stale relations-less entry would hide related sections.
+  // published - a stale relations-less entry would hide related sections.
   for (const a of out) {
     if (a.identity.anilistId && (a.relations?.edges?.length ?? 0) > 0) putCachedAnime(a.identity.anilistId, a)
   }
@@ -343,7 +343,7 @@ export class AniListMetadataProvider implements AnimeMetadataProvider {
   /**
    * ONE request for Home's four rails (see HOME_FEED_QUERY). Cached as a
    * single unit (`anilist:home:<perPage>`, memory 5 min + IDB 24 h) so a
-   * return visit paints every row from one cache read — no request at all
+   * return visit paints every row from one cache read - no request at all
    * while warm, one request when cold.
    */
   async getHomeFeed(perPage = 24, signal?: AbortSignal): Promise<HomeFeed> {
@@ -430,7 +430,7 @@ export class AniListMetadataProvider implements AnimeMetadataProvider {
     }
     const anilistId = id.startsWith('anilist-') ? Number(id.replace('anilist-', '')) : Number(id)
     if (Number.isNaN(anilistId)) throw new ProviderError('NOT_FOUND', 'We couldn’t find that anime.', false)
-    // Shared media record first — but ONLY when it carries relations.
+    // Shared media record first - but ONLY when it carries relations.
     // Older cached entries (written before relations rode on Media queries)
     // lack them; using one would permanently hide Related Shows/Manga.
     // Fall through to network so the fresh record includes relations.
@@ -448,7 +448,7 @@ export class AniListMetadataProvider implements AnimeMetadataProvider {
   async getManga(id: string, signal?: AbortSignal): Promise<import('../../types/anime').Anime> {
     // MAL-backed ids resolve through idMal, exactly like getAnime. MAL
     // tracker entries carry `internalId: mal-<malId>` (mapper.ts) and every
-    // Read link is built from that internalId — without this branch
+    // Read link is built from that internalId - without this branch
     // `Number('mal-23390')` is NaN, so /read/mal-23390/… answered "Manga not
     // found" for every signed-in MAL manga even though the detail page had
     // just listed its chapters.
@@ -466,7 +466,7 @@ export class AniListMetadataProvider implements AnimeMetadataProvider {
     if (shared) return shared
     if (signal?.aborted) throw signal.reason ?? new DOMException('Aborted', 'AbortError')
     type Res = { Media: AniListMedia }
-    // Manga detail must query type: MANGA — the ANIME query returns null for
+    // Manga detail must query type: MANGA - the ANIME query returns null for
     // manga ids (that's why the reader showed "not found"). Fail closed on
     // type: if AniList says this id is not manga-kind, reject (callers must
     // not render an anime record as manga).
@@ -488,7 +488,7 @@ export class AniListMetadataProvider implements AnimeMetadataProvider {
     return mapAniListMediaToAnime(data.Media)
   }
 
-  /** Manga record by MAL id — tracker-manga entries resolve here. MANGA
+  /** Manga record by MAL id - tracker-manga entries resolve here. MANGA
    *  type-scoped query + `anilist:bymal:manga:` cache key: the same numeric
    *  MAL id must never satisfy the anime kind (or be satisfied by one). */
   async getMangaByMalId(malId: number, signal?: AbortSignal): Promise<import('../../types/anime').Anime> {
@@ -501,7 +501,7 @@ export class AniListMetadataProvider implements AnimeMetadataProvider {
   /**
    * BATCHED resolution for a whole tracker list (D111): resolves up to 50
    * MAL ids per request, mapping each record to the kind-scoped space and
-   * seeding the per-id cache keys — positives AND definitive negatives — so
+   * seeding the per-id cache keys - positives AND definitive negatives - so
    * subsequent single lookups (`getAnimeByMalId`/`getMangaByMalId`) answer
    * from cache with zero network, and detail opens are warm.
    *
@@ -511,8 +511,8 @@ export class AniListMetadataProvider implements AnimeMetadataProvider {
    * THROTTLED chunks retry patient-style (cooldown-aware, ≤4 attempts) before
    * giving up; a failed chunk makes the method THROW (never a silent partial)
    * so callers fall back to the per-entry pipeline for those ids. Ids absent
-   * from a SUCCESSFUL chunk are definitive non-mappings — reported as
-   * `unmapped` — and their per-id key is seeded with the null Media shape
+   * from a SUCCESSFUL chunk are definitive non-mappings - reported as
+   * `unmapped` - and their per-id key is seeded with the null Media shape
    * single lookups read back (no repeat network on later passes).
    */
   async getBatchByMalIds(
@@ -535,7 +535,7 @@ export class AniListMetadataProvider implements AnimeMetadataProvider {
       const chunk = ids.slice(i, i + 50)
       type Res = { Page: { media: AniListMedia[] } }
       // Patient retry: a cold 429 here is the gate to the WHOLE list staying
-      // hidden — worth bounded cooldown-aware retries, unlike per-entry calls.
+      // hidden - worth bounded cooldown-aware retries, unlike per-entry calls.
       let data: Res | null = null
       let lastErr: unknown = null
       for (let attempt = 0; attempt < 4; attempt++) {
@@ -549,7 +549,7 @@ export class AniListMetadataProvider implements AnimeMetadataProvider {
           break
         } catch (e: any) {
           if (e?.code !== 'THROTTLED' || attempt === 3) { lastErr = e; break }
-          // Ignore per-caller abort during the cooldown wait — the effect
+          // Ignore per-caller abort during the cooldown wait - the effect
           // unmount races its own signal; the next attempt rechecks.
           const remain = (() => { try { return Math.max(0, getAnilistStats().cooldownUntil - Date.now()) } catch { return 0 } })()
           await new Promise<void>((r) => setTimeout(r, Math.min(Math.max(remain, 1500), 90_000)))
@@ -567,7 +567,7 @@ export class AniListMetadataProvider implements AnimeMetadataProvider {
           if (anime.identity.anilistId) putCachedAnime(anime.identity.anilistId, anime, type)
           chunkResolved.set(malId, anime)
           // Seed the single-lookup key with the EXACT response shape the
-          // per-id getter reads (`data.Media`) — later calls are cache hits.
+          // per-id getter reads (`data.Media`) - later calls are cache hits.
           void anilistCachePut(`anilist:bymal:${kind}:${malId}`, { Media: m })
         } else {
           chunkUnmapped.push(malId)
@@ -612,13 +612,13 @@ export class AniListMetadataProvider implements AnimeMetadataProvider {
 export const anilistMetadataProvider = new AniListMetadataProvider()
 
 /**
- * Patient anime lookup — the reliability upgrade for NAME surfaces. Same
+ * Patient anime lookup - the reliability upgrade for NAME surfaces. Same
  * provider `getAnime`, but THROTTLED attempts
  * (AniList 429 / burst cooldown) retry after the shared cooldown lifts,
  * up to `maxAttempts`. Other error kinds never retry (404, AUTH…). Late
  * names beat bare captions, so this is deliberately long-limbed; it is
  * for small single-record lookups ONLY (cards, modal E-line), never list
- * pages — the shared client already parks those during cooldown.
+ * pages - the shared client already parks those during cooldown.
  */
 export async function getAnimePatient(id: string, maxAttempts = 4): Promise<import('../../types/anime').Anime | null> {
   for (let attempt = 0; attempt < maxAttempts; attempt++) {

@@ -86,7 +86,7 @@ export function EpisodeList({ anime, rawAnime, hideHeader }: { anime: Anime; raw
     return (
       <div className="space-y-1">
         {!hideHeader && (
-          // Same fixed 20px header geometry as the Related columns — see
+          // Same fixed 20px header geometry as the Related columns - see
           // the header-geometry note in this file's main header.
           <div className="mb-2 flex h-5 items-center justify-between gap-2">
             <h3 className="text-[14px] font-semibold leading-5 text-[var(--text)]">Episodes</h3>
@@ -112,7 +112,7 @@ export function EpisodeList({ anime, rawAnime, hideHeader }: { anime: Anime; raw
     if (!isAuthenticated || !combinedList) return null
     const malId = anime.identity.malId
     const anilistId = anime.identity.anilistId
-    // malId namespaces collide across MAL anime/manga — accept a malId hit
+    // malId namespaces collide across MAL anime/manga - accept a malId hit
     // only when media kinds agree (EpisodeList is anime-only context).
     const selfManga = ['MANGA', 'NOVEL', 'ONE_SHOT'].includes(anime.format?.toUpperCase() ?? '')
     return combinedList.find((e) => {
@@ -138,7 +138,7 @@ export function EpisodeList({ anime, rawAnime, hideHeader }: { anime: Anime; raw
     <div className="space-y-1">
       {!hideHeader && (
         // FIXED-HEIGHT HEADER ROW: the Episodes/count line
-        // and Related's header sat a few px apart — the h5 sort button threw
+        // and Related's header sat a few px apart - the h5 sort button threw
         // the baseline row to 22px vs Related's natural 20px line). Both
         // header rows are now h-5 (20px) items-center, so Episodes/count and
         // Related Anime/Related Manga start at the SAME y across columns.
@@ -169,16 +169,16 @@ export function EpisodeList({ anime, rawAnime, hideHeader }: { anime: Anime; raw
           // Per-row state: skeleton ONLY while that field is genuinely still
           // loading (the whole-entry Kitsu fallback is in flight). A
           // resolved-but-absent field renders the quiet "Episode N" fallback
-          // — never a fake thumbnail or a provider title.
+          // - never a fake thumbnail or a provider title.
           const titleLoading = ep.fieldState?.title === 'loading'
           const thumbLoading = ep.fieldState?.thumbnail === 'loading'
           // ATOMIC ROW (owner 2026-10-28): the name and the artwork are ONE
-          // unit — a row must never show a real title next to a skeleton
+          // unit - a row must never show a real title next to a skeleton
           // thumbnail (or the reverse) while the Kitsu fallback resolves.
           // Both fields reveal in the same frame once neither is loading.
           const rowLoading = titleLoading || thumbLoading
           // PLACEHOLDER RULE: an episode without its own
-          // thumbnail shows the SHOW's artwork — never a bare tile. The
+          // thumbnail shows the SHOW's artwork - never a bare tile. The
           // skeleton only runs when there is no artwork at all yet.
           const thumb = ep.thumbnail || fallbackThumb
           const showThumbSkeleton = rowLoading
@@ -189,7 +189,7 @@ export function EpisodeList({ anime, rawAnime, hideHeader }: { anime: Anime; raw
           // last:border-b-0. Toggling the border class per position made the
           // width animate 0→1px while the colour was still currentColor
           // (white), so the row that moved from last to first flashed a
-          // white line. transition-colors only — the border width must snap,
+          // white line. transition-colors only - the border width must snap,
           // never animate.
           return (
             <Link

@@ -5,11 +5,11 @@
  * Root cause: D137 made `.card-frost`'s 8px `backdrop-filter` hover-only.
  * That is the right call for idle cost, but during a scroll every card
  * passing under a parked cursor enters/leaves :hover repeatedly, so a large
- * backdrop blur is created and destroyed many times per second — the whole
+ * backdrop blur is created and destroyed many times per second - the whole
  * tile flashes as the compositor re-blurs it.
  *
  * Fix: a single document-level capture listener marks
- * `html[data-scrolling="1"]` for the duration of any scroll (any scroller —
+ * `html[data-scrolling="1"]` for the duration of any scroll (any scroller  - 
  * window, the detail card, a horizontal row), and globals.css turns the
  * hover frost/controls off while that flag is set. When scrolling stops the
  * flag clears and the normal hover treatment returns. Capture phase is

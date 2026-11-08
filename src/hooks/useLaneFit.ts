@@ -9,7 +9,7 @@ import { useLayoutEffect, useRef, useState } from 'react'
  * that exact width they merge into one horizontal scroller.
  *
  * The answer is measured, never guessed from a breakpoint. A hidden copy of
- * both lanes — same children, same 8px gap — is laid out at its natural
+ * both lanes - same children, same 8px gap - is laid out at its natural
  * width (`w-max`) and compared with the row's content box. Because the copy
  * is the same JSX as the live row, a filter that appears or disappears (the
  * Clear button) is counted automatically and the measurement can never drift

@@ -8,7 +8,7 @@ import { useDetailOpen } from '../hooks/useDetailOpen'
 export function Search() {
   const [params] = useSearchParams()
   const q = params.get('q') ?? ''
-  // Card taps push detail URLs — the floating card is an overlay route on
+  // Card taps push detail URLs - the floating card is an overlay route on
   // top of the results page.
   const openDetail = useDetailOpen()
 

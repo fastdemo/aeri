@@ -59,7 +59,7 @@ async function fetchAnilistTokenWithFallback(body: URLSearchParams): Promise<{ r
   // This handles the case where customVideoApiUrl is not set but we are on https://aeri.fastdemo.workers.dev/
   urls.push(`/api/anilist/token`)
   urls.push(`/anilist/token`)
-  // Do NOT fallback to direct https://anilist.co/api/v2/oauth/token — that would require client_secret in browser
+  // Do NOT fallback to direct https://anilist.co/api/v2/oauth/token - that would require client_secret in browser
   let lastError: any = null
   let preferredUnreachable = false
   let blockedSeen = false
@@ -78,7 +78,7 @@ async function fetchAnilistTokenWithFallback(body: URLSearchParams): Promise<{ r
           body: body.toString(),
           signal: ctrl.signal,
         })
-        // A Cloudflare-hosted base is always IP-blocked by AniList — even a
+        // A Cloudflare-hosted base is always IP-blocked by AniList - even a
         // user-configured custom endpoint pointing at the Worker. Don't stop
         // here; fall through to the next base instead of failing the login.
         let blocked = false
@@ -98,7 +98,7 @@ async function fetchAnilistTokenWithFallback(body: URLSearchParams): Promise<{ r
       const isCors = /Failed to fetch|NetworkError|Load failed|CORS/i.test(msg)
       const isAbort = (e as any)?.name === 'AbortError'
       // A network failure on the preferred (absolute, non-Cloudflare) login
-      // server usually means the browser/ad-blocker blocked it — remember so
+      // server usually means the browser/ad-blocker blocked it - remember so
       // the final error can say so instead of blaming AniList.
       if (i === 0 && preferredHost && /^https?:\/\//.test(url)) preferredUnreachable = true
       if (isCors && !isAbort) continue
@@ -141,7 +141,7 @@ export async function exchangeAnilistCodeForToken(code: string, state: string | 
   const expectedState = getAnilistOAuthState()
   if (state && expectedState && state !== expectedState) {
     clearAnilistOAuthState()
-    throw new Error('AniList state mismatch — possible CSRF. Try again.')
+    throw new Error('AniList state mismatch - possible CSRF. Try again.')
   }
   const redirectUri = getAnilistRedirectUri()
   const body = new URLSearchParams()
@@ -176,7 +176,7 @@ export async function exchangeAnilistCodeForToken(code: string, state: string | 
       // unreachable from this browser (ad-blocker/Brave Shields commonly block
       // the auth host). Say which, so the user can act on it.
       if (preferredUnreachable && preferredHost) {
-        throw new Error(`Couldn't reach the AniList login server (${preferredHost}) — your browser, ad-blocker, or Brave Shields may be blocking it. Allow it and try again; browsing still works meanwhile.`)
+        throw new Error(`Couldn't reach the AniList login server (${preferredHost}) - your browser, ad-blocker, or Brave Shields may be blocking it. Allow it and try again; browsing still works meanwhile.`)
       }
       // No separate login server was ever configured: this build is missing
       // VITE_AUTH_API_URL, so the app could only ask the Worker (blocked).
@@ -185,13 +185,13 @@ export async function exchangeAnilistCodeForToken(code: string, state: string | 
       if (talkingToSelf) {
         throw new Error('AniList login is not configured for this hosting (missing login-server address in the build). Browsing still works; the site owner needs to rebuild with VITE_AUTH_API_URL set.')
       }
-      throw new Error('AniList login is temporarily unavailable — browsing still works. Please try again later.')
+      throw new Error('AniList login is temporarily unavailable - browsing still works. Please try again later.')
     }
     if (/invalid_grant|invalid_code|code.*expired/i.test(String(msg))) {
-      throw new Error(`AniList token exchange failed: ${msg} — the code may have expired. Try logging in again.`)
+      throw new Error(`AniList token exchange failed: ${msg} - the code may have expired. Try logging in again.`)
     }
     if (/client_secret|secret/i.test(String(msg))) {
-      throw new Error(`AniList token exchange failed: ${msg} — Worker secret ANILIST_CLIENT_SECRET may be missing or incorrect. Configure it in Cloudflare dashboard > Workers > aeri > Settings > Variables > Secrets.`)
+      throw new Error(`AniList token exchange failed: ${msg} - Worker secret ANILIST_CLIENT_SECRET may be missing or incorrect. Configure it in Cloudflare dashboard > Workers > aeri > Settings > Variables > Secrets.`)
     }
     throw new Error(msg || `AniList token exchange failed (${res.status})`)
   }
@@ -218,7 +218,7 @@ export async function handleAnilistOAuthCallback(): Promise<string | null> {
     const base = (import.meta as any).env?.BASE_URL as string || '/'
     const clean = `${window.location.origin}${base}`
     window.history.replaceState(null, '', clean)
-    throw new Error(`AniList authorization failed: ${error}${errorDesc ? ` — ${errorDesc}` : ''}`)
+    throw new Error(`AniList authorization failed: ${error}${errorDesc ? ` - ${errorDesc}` : ''}`)
   }
 
   if (!code) return null
@@ -243,11 +243,11 @@ export async function handleAnilistOAuthCallback(): Promise<string | null> {
     const base = (import.meta as any).env?.BASE_URL as string || '/'
     const clean = `${window.location.origin}${base}`
     window.history.replaceState(null, '', clean)
-    throw new Error('AniList state mismatch — possible CSRF. Try again.')
+    throw new Error('AniList state mismatch - possible CSRF. Try again.')
   }
 
   if (!getAnilistOAuthState() && state) {
-    // No stored state (e.g., fresh context, storage cleared) — still allow but warn
+    // No stored state (e.g., fresh context, storage cleared) - still allow but warn
     // Do not throw, just proceed
   }
 

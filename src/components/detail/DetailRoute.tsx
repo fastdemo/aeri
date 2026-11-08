@@ -26,12 +26,12 @@ const MAX_AUTO_RETRIES = 12 // ~60s ≈ the shared cooldown window
  * The route-driven floating card. /anime/:id and /manga/:id render THIS
  * (not the old standalone page): the card floats over the page it was
  * opened from, and deep links float it over Home by default. Replaces
- * src/pages/AnimeDetail.tsx entirely — the modal
+ * src/pages/AnimeDetail.tsx entirely - the modal
  * holds every feature the page had (episodes, metadata sidebar, related
  * grid) plus Resume + tracker editing, which the page never had.
  *
  * Resolution order: the fully-populated record that rode in with the
- * navigation (card click — instant, no refetch) → the tracking list copy
+ * navigation (card click - instant, no refetch) → the tracking list copy
  * (covers 'mal-…' ids the AniList detail query cannot resolve) → the
  * type-scoped AniList Media fetch (deep links, shared URLs, stripped
  * history state).
@@ -41,7 +41,7 @@ export function DetailRoute({ kind }: { kind: 'anime' | 'manga' }) {
   const location = useLocation()
   const navigate = useNavigate()
   const { combinedList } = useTracking()
-  // The record that rode in with THIS history entry — read fresh on every
+  // The record that rode in with THIS history entry - read fresh on every
   // render, never frozen in instance state. A related swap pushes the SAME
   // route instance (React Router reconciles identical elements; no remount
   // when only the :id param changes), so an entry carried in useState would
@@ -66,9 +66,9 @@ export function DetailRoute({ kind }: { kind: 'anime' | 'manga' }) {
 
   // Fetch whenever the best available record is incomplete (lite list rows,
   // related tiles, deep links). Complete rail records skip the network
-  // entirely — the common row-click open stays instant. retryNonce re-runs
+  // entirely - the common row-click open stays instant. retryNonce re-runs
   // that fetch IN PLACE for the Retry button: the card must never reload
-  // the page — window.location.reload() here was a real full-refresh path
+  // the page - window.location.reload() here was a real full-refresh path
   // in the exact open→fail→retry flow.
   const [retryNonce, setRetryNonce] = useState(0)
   const fetchId = isCompleteRecord(carriedAnime) ? undefined : id
@@ -80,7 +80,7 @@ export function DetailRoute({ kind }: { kind: 'anime' | 'manga' }) {
   const errorCode = kind === 'anime' ? animeQuery.errorCode : mangaQuery.errorCode
 
   // Prefer any COMPLETE record (a fetched full record beats a lite carried
-  // or list copy — the card upgrades in place once the full record lands);
+  // or list copy - the card upgrades in place once the full record lands);
   // otherwise paint the best available, so a failed enrichment still renders
   // a real card instead of an error wall.
   const resolved =
@@ -169,9 +169,9 @@ export function DetailRoute({ kind }: { kind: 'anime' | 'manga' }) {
   // READY GATE: a record that fails the completeness test
   // (lite list copy, related tile) holds the skeleton while its enrichment
   // fetch runs; when the fetch settles, the best record we hold paints even
-  // if incomplete — the card never blocks forever, and it never shows a
+  // if incomplete - the card never blocks forever, and it never shows a
   // half-populated card that then fills in piece by piece. THROTTLED is
-  // the one exception: while the ladder is running, hold the skeleton —
+  // the one exception: while the ladder is running, hold the skeleton  - 
   // the cooldown is the only thing between the card and its final record.
   if ((!isCompleteRecord(resolved) && loading) || (!isCompleteRecord(resolved) && throttleHold)) {
     return (
@@ -182,7 +182,7 @@ export function DetailRoute({ kind }: { kind: 'anime' | 'manga' }) {
   }
 
   // DetailModal renders its own overlay + backdrop + Esc handling, so it
-  // mounts bare — DetailPanel geometry above is only for the loading and
+  // mounts bare - DetailPanel geometry above is only for the loading and
   // error states so the handoff is visually identical.
   return (
     <DetailModal
@@ -196,7 +196,7 @@ export function DetailRoute({ kind }: { kind: 'anime' | 'manga' }) {
 
 /** Card-shaped skeleton body (hero band + text row + two-column layout).
  * Shared by the loading state and the ready-gate hold so both mirror the
- * floating card's geometry exactly — no spinners. */
+ * floating card's geometry exactly - no spinners. */
 function DetailSkeleton() {
   return (
     <>

@@ -16,7 +16,7 @@ import type { MangaChapter, MangaPage, MangaProvider } from '../providers/manga/
 import { getMangaProviderById, mangaProviderLabel, resolveChaptersWithFallback } from '../providers/manga/mangadex'
 
 /**
- * Prev / chapter picker / next — one row, three cells.
+ * Prev / chapter picker / next - one row, three cells.
  *
  * Previous (earlier in display order, idx-1) sits on the LEFT and next
  * (later, idx+1) on the RIGHT, both following the chapterOrder pref via
@@ -99,12 +99,12 @@ function ChapterNavButtons({
 /**
  * Manga reader (`/read/:id/:chapter`). Architectural sibling of Watch:
  * same route-convention shape, same loading/error shell, same progress
- * persistence pattern — but manga-native behavior:
+ * persistence pattern - but manga-native behavior:
  * - vertical continuous scroll (default; `readerMode` reserves single/double)
  * - lazy page images, per-image retry, no layout shift while loading
  * - chapter selector + prev/next, keyboard navigation
  * - progress = chapter + page (throttled IDB writes, no per-scroll setState
- *   into global state — local refs + one throttled persist)
+ *   into global state - local refs + one throttled persist)
  */
 export function Read() {
   const { id, chapter } = useParams<{ id: string; chapter: string }>()
@@ -134,7 +134,7 @@ export function Read() {
 
   // Chapter list (verified+enabled providers, registry order). Records
   // which provider won so pages + external links use the SAME provider
-  // (unit IDs are provider-scoped — never mix providers within a title).
+  // (unit IDs are provider-scoped - never mix providers within a title).
   const [chapters, setChapters] = useState<MangaChapter[] | null>(null)
   const [chaptersError, setChaptersError] = useState<string | null>(null)
   const [activeMangaProvider, setActiveMangaProvider] = useState<MangaProvider | null>(null)
@@ -154,7 +154,7 @@ export function Read() {
 
   // Re-resolve when manga provider prefs change (enable/disable/reorder):
   // orderTick in deps re-runs resolution against the CURRENT registry
-  // order — the resolver reads prefs itself, so no stale priority.
+  // order - the resolver reads prefs itself, so no stale priority.
   useEffect(() => {
     if (!manga) return
     const controller = new AbortController()
@@ -180,7 +180,7 @@ export function Read() {
         // Licensed titles (e.g. Solo Leveling, One Piece post-2026) host
         // zero readable units: the resolver returns the first all-external
         // source's off-site links instead of a dead wall. Never an error
-        // when those links exist — they ARE the answer.
+        // when those links exist - they ARE the answer.
         setExternalUnits(res.externalUnits?.length ? res.externalUnits : null)
         if (!res.chapters.length && !res.externalUnits?.length) {
           setChaptersError(res.error && res.error === 'No Manga providers are enabled.' ? res.error : 'Couldn’t load chapters')
@@ -208,12 +208,12 @@ export function Read() {
    * Resolve the URL param to a readable unit.
    *
    * `requested` carries the param ONLY when it could not be matched exactly
-   * — the reader then shows a one-line notice instead of pretending. A
+   * - the reader then shows a one-line notice instead of pretending. A
    * miss never dead-ends: numeric targets (`ch-N`, written by every Resume /
    * Read button) snap to the nearest unit after N, then before N, then the
    * last unit. Skip-numbered catalogues (volumes, .5 chapters, provider gaps)
    * previously left `currentChapter === null`, which rendered the header
-   * with "Loading chapters…" forever — the "chapter not found" wall
+   * with "Loading chapters…" forever - the "chapter not found" wall
    * on most titles. An unknown raw provider id (list rebuilt by another
    * source) falls back to the first unit instead of a blank reader.
    */
@@ -251,12 +251,12 @@ export function Read() {
   const newerChapter = prevChapter
 
   // Pages for the current unit. Provider comes from the unit's own id
-  // prefix — the list is single-source (one winning provider), but pages
+  // prefix - the list is single-source (one winning provider), but pages
   // still serve by the unit's own prefix as a
   // safety net (a stale cached list from another provider must not 404).
   // activeMangaProvider is the fallback only when the prefix names an
   // unknown/disabled provider.
-  // NOTE: pages are keyed per chapter — do NOT clear on chapter change
+  // NOTE: pages are keyed per chapter - do NOT clear on chapter change
   // (clearing causes a pages=null render that resets effects keyed on
   // pages.length and drops in-flight resume state).
   const [pages, setPages] = useState<MangaPage[] | null>(null)
@@ -264,7 +264,7 @@ export function Read() {
   const [pagesLoading, setPagesLoading] = useState(false)
   const pagesByChapterRef = useRef<Map<string, MangaPage[]>>(new Map())
 
-  // READER PAGE READINESS — the navbar's scroll bar is only meaningful once
+  // READER PAGE READINESS - the navbar's scroll bar is only meaningful once
   // the document has stopped growing. Every page image reports load/error
   // here; when the whole chapter has resolved, publish `aeri:reader-pages`
   // (plus a dataset mirror) so Navbar starts painting the fill. Errors
@@ -278,7 +278,7 @@ export function Read() {
   const readiness = useMemo(() => ({ resolved: new Set<number>(), ready: false }), [pages])
   const markPageResolved = useCallback((index: number, url: string) => {
     // A late load from the previous chapter must never count toward the
-    // current one — only a page whose URL still exists at this index does.
+    // current one - only a page whose URL still exists at this index does.
     if (!pages || !pages.some(p => p.index === index && p.url === url)) return
     readiness.resolved.add(index)
     if (!readiness.ready && readiness.resolved.size >= pages.length) {
@@ -312,7 +312,7 @@ export function Read() {
     setPagesLoading(true)
     // Cross-provider guard: the URL chapter param must belong to the
     // resolved list. A raw id from another title/provider (stale
-    // bookmark, hand-typed URL) resolves pages against the WRONG series —
+    // bookmark, hand-typed URL) resolves pages against the WRONG series  - 
     // fail closed instead.
     if (chapters && !chapters.some(c => c.providerChapterId === currentChapter.providerChapterId && c.id === currentChapter.id)) {
       setPagesError('Chapter not found in this title.')
@@ -341,17 +341,17 @@ export function Read() {
   }, [currentChapter?.providerChapterId, currentChapter?.id, chapters, activeMangaProvider])
 
   // Resume: stored read position. Identity = AniList Manga ID + provider +
-  // provider unit ID — never a bare chapter number, never shared across
+  // provider unit ID - never a bare chapter number, never shared across
   // titles. Key: `read:<internalId>` (internalId is anilist-<id>).
   // NOTE: getReadPos takes the BARE internalId (it prepends `read:`).
-  // NOTE 2: must depend on the resolved chapter param, not just manga —
+  // NOTE 2: must depend on the resolved chapter param, not just manga  - 
   // when navigating manga→reader the manga object arrives before chapters
   // resolve; reading too early is fine (resume applies when pages land via
   // resumeRef), but a STALE resume from a previous title must never apply.
   const [resume, setResume] = useState<{ chapterId: string; page: number } | null>(null)
   useEffect(() => {
     setResume(null)
-    // GUEST MODE: no saved position is read — a signed-out reader always
+    // GUEST MODE: no saved position is read - a signed-out reader always
     // opens at the top of the chapter (fully fresh, like incognito).
     if (!manga || !isAuthenticated) return
     let cancelled = false
@@ -368,7 +368,7 @@ export function Read() {
   useEffect(() => { completedRef.current = false }, [currentChapter?.providerChapterId])
 
   // PROGRESS VALIDITY: a tracker write requires a
-  // properly loaded manga — at least one tracker id, a real chapter number,
+  // properly loaded manga - at least one tracker id, a real chapter number,
   // provider pages, and a chapter inside the known total when one exists.
   // Broken/partial records write NOTHING (that was the reported bug).
   const canTrackChapter = Boolean(
@@ -381,8 +381,8 @@ export function Read() {
     (pages?.length ?? 0) > 0,
   )
 
-  // opening a chapter puts the title in Reading — status
-  // + start date — even when the chapter is unfinished (the "I started this"
+  // opening a chapter puts the title in Reading - status
+  // + start date - even when the chapter is unfinished (the "I started this"
   // signal, separate from chapter completion). Written once per open, only
   // when the entry isn't already Watching. Incognito suppresses it.
   const trackingStatus = trackingEntry?.status ?? manga?.listStatus ?? null
@@ -410,7 +410,7 @@ export function Read() {
   const flushRef = useRef<() => void>(() => {})
   const persistPos = useCallback((force = false) => {
     if (!manga || !currentChapter || !pages?.length) return
-    // GUEST MODE (owner 2026-10-28): signed-out reading is a fresh session —
+    // GUEST MODE (owner 2026-10-28): signed-out reading is a fresh session  - 
     // no read position is written. Tracker progress is already gated below.
     if (!isAuthenticated) return
     // Guard: never overwrite a nonzero saved page with page 0. On mount the
@@ -425,7 +425,7 @@ export function Read() {
       id: `read:${manga.identity.internalId}`,
       chapterId: currentChapter.providerChapterId,
       chapterLabel: unitDisplayLabel(currentChapter),
-      // The serving provider (unit's own prefix), not the resolver winner —
+      // The serving provider (unit's own prefix), not the resolver winner  - 
       // resume must reopen the same pages, not the winner's equivalent.
       provider: currentChapter.id.split('-')[0] || 'unknown',
       page: pageRef.current,
@@ -435,7 +435,7 @@ export function Read() {
     // Reached ~80% of the chapter → counts as read for the tracker
     // (+1 chapter). Discrete pages: furthest page >= 80% of the page count.
     // Invalid/partial records never reach this branch (canTrackChapter).
-    // never REGRESS the tracker — rereading chapter 3
+    // never REGRESS the tracker - rereading chapter 3
     // while progress is 12 must leave progress at 12. Only a not-yet-counted
     // chapter advances it.
     const readThreshold = Math.max(1, Math.ceil(pages.length * 0.8))
@@ -451,7 +451,7 @@ export function Read() {
   // Skip when the user never scrolled (pageRef 0): flushing 0 would erase
   // a valid saved position (e.g. reopen → close before scrolling).
   useEffect(() => () => { if (pageRef.current > 0) flushRef.current() }, [currentChapter?.providerChapterId])
-  // Also flush on page hide (tab close / navigation) — beacon-style.
+  // Also flush on page hide (tab close / navigation) - beacon-style.
   useEffect(() => {
     const onHide = () => { try { if (pageRef.current > 0) flushRef.current() } catch {} }
     document.addEventListener('visibilitychange', onHide)
@@ -466,7 +466,7 @@ export function Read() {
   const pageElsRef = useRef<Map<number, HTMLElement>>(new Map())
   // Resume scroll: after pages render, jump ONCE to the saved page.
   // The old implementation retried `scrollIntoView` every 800ms (up to 16
-  // times) while images below resolved — each retry yanked the viewport
+  // times) while images below resolved - each retry yanked the viewport
   // again, so opening a chapter "scrolled along" with the loading pages.
   // Now the jump is readiness-gated: wait until the target exists AND every
   // page ABOVE it has resolved (their heights are final, so one scroll lands
@@ -529,7 +529,7 @@ export function Read() {
   }, [pages?.length, currentChapter?.providerChapterId, readiness, resume])
   useEffect(() => {
     observerRef.current?.disconnect()
-    // NOTE: do NOT clear pageElsRef here — ref callbacks attach before
+    // NOTE: do NOT clear pageElsRef here - ref callbacks attach before
     // passive effects run, so clear() would wipe the just-populated map and
     // the observer would watch zero elements (broke all scroll tracking and
     // resume). Stale entries self-clean: register deletes on unmount.
@@ -551,7 +551,7 @@ export function Read() {
       }
     }, { rootMargin: '0px 0px -40% 0px' })
     observerRef.current = obs
-    // Observe after paint — elements register via ref callback below.
+    // Observe after paint - elements register via ref callback below.
     const t = setTimeout(() => {
       for (const el of pageElsRef.current.values()) obs.observe(el)
     }, 50)
@@ -603,7 +603,7 @@ export function Read() {
   }
   // Identity guard: the reader route resolves type: MANGA. If the resolved
   // record is actually an anime (stale cross-type cache, wrong id), fail
-  // closed — never render an anime as manga, never send it to providers.
+  // closed - never render an anime as manga, never send it to providers.
   const mangaFormat = (manga.format ?? '').toUpperCase()
   if (mangaFormat !== '' && mangaFormat !== 'MANGA' && mangaFormat !== 'NOVEL' && mangaFormat !== 'ONE_SHOT') {
     return (
@@ -620,14 +620,14 @@ export function Read() {
   const fit = prefs.readerFit ?? 'width'
 
   // Which provider serves THIS chapter's pages. Merged lists mix providers,
-  // so the winner alone is misleading — the unit's own id prefix is the
+  // so the winner alone is misleading - the unit's own id prefix is the
   // truth. Unknown prefix (stale cache) shows nothing rather than a guess.
   // This rides on the chapter pill as a `· Provider` suffix (the standalone
   // "Source: …" line is gone).
   const chapterProvider = (() => {
     const prov = currentChapter?.id.split('-')[0] || ''
     // Registry name, not a local table (2026-11-06): one spelling for every
-    // provider, everywhere — Settings, the reader subtitle, the chapter list.
+    // provider, everywhere - Settings, the reader subtitle, the chapter list.
     return mangaProviderLabel(prov)
   })()
 
@@ -641,7 +641,7 @@ export function Read() {
         <div className="min-w-0 flex-1">
           <h1 className="truncate text-[15px] font-semibold text-[var(--text)]">{titles.primary}</h1>
           {/* Chapter + serving provider: the subtitle carries
-              `Chapter 1 · Weeb Central` — chapter, middle dot, provider (the
+              `Chapter 1 · WeebCentral` - chapter, middle dot, provider (the
               registry's own name; 2026-11-06). The
               chapter picker lives on the nav rows, next to prev/next. */}
           <p className="truncate text-xs text-[var(--text-faint)]">
@@ -657,7 +657,7 @@ export function Read() {
           readable unit instead of a dead reader. */}
       {chapterFallbackNotice && currentChapter && (
         <p className="pb-3 text-[11px] leading-5 text-[var(--text-muted)]">
-          {/^ch-/.test(chapterFallbackNotice) ? 'That chapter' : 'That chapter link'} isn&apos;t in this source&apos;s list — opened{' '}
+          {/^ch-/.test(chapterFallbackNotice) ? 'That chapter' : 'That chapter link'} isn&apos;t in this source&apos;s list - opened{' '}
           <span className="text-[var(--text)]">{unitDisplayLabel(currentChapter)}</span> instead.
         </p>
       )}
@@ -665,7 +665,7 @@ export function Read() {
       {chaptersError && !chapters && (
         <div className="rounded-lg border border-[var(--border)] bg-[var(--text)]/[0.03] px-4 py-6 text-center">
           <p className="text-sm text-[var(--warn)]">{chaptersError}</p>
-          <p className="mt-1 text-xs text-[var(--text-faint)]">The manga providers may be busy — try again shortly.</p>
+          <p className="mt-1 text-xs text-[var(--text-faint)]">The manga providers may be busy - try again shortly.</p>
         </div>
       )}
 
@@ -674,7 +674,7 @@ export function Read() {
           <p className="text-sm text-[var(--text-muted)]">No readable English chapters available for this title.</p>
           {externalUnits && externalUnits.length > 0 ? (
             <div className="mt-3">
-              <p className="text-xs text-[var(--text-faint)]">Licensed — read officially:</p>
+              <p className="text-xs text-[var(--text-faint)]">Licensed - read officially:</p>
               <div className="mt-2 flex flex-wrap justify-center gap-2">
                 {externalUnits.slice(0, 6).map((u, i) => (
                   <a key={i} href={u.url} target="_blank" rel="noopener noreferrer" className={pillSoft}>{u.label}</a>
@@ -687,7 +687,7 @@ export function Read() {
         </div>
       )}
 
-      {/* Prev / picker / next (top) — always both sides, picker centred */}
+      {/* Prev / picker / next (top) - always both sides, picker centred */}
       {currentChapter && (
         <div className="mb-4">
           <ChapterNavButtons
@@ -701,7 +701,7 @@ export function Read() {
         </div>
       )}
 
-      {/* Pages — vertical continuous */}
+      {/* Pages - vertical continuous */}
       {pagesLoading && (
         <div className="space-y-3" aria-label="Loading pages">
           {[1, 2].map(i => (
@@ -720,7 +720,7 @@ export function Read() {
           </div>
         </div>
       )}
-      {/* A provider that answers 200 with zero pages used to render NOTHING —
+      {/* A provider that answers 200 with zero pages used to render NOTHING  - 
           a blank reader with no explanation (the second half of the "chapter
           not found" reports). Name the unit and offer the way out. */}
       {pages && pages.length === 0 && !pagesLoading && !pagesError && currentChapter && (
@@ -755,7 +755,7 @@ export function Read() {
         </div>
       )}
 
-      {/* End-of-chapter nav (bottom) — same three cells; 16px below the last
+      {/* End-of-chapter nav (bottom) - same three cells; 16px below the last
           page, matching the 16px between the top nav and the first page. */}
       {pages && pages.length > 0 && (
         <div className="mt-4">
@@ -770,13 +770,14 @@ export function Read() {
         </div>
       )}
 
-      {/* Synopsis — same block as Watch, above the related rail. */}
-      <div className="mt-10 max-w-[720px]">
+      {/* Synopsis - same block, same rhythm as Watch: 24px below the reader
+          nav, then the related rails. */}
+      <div className="mt-6 max-w-[720px]">
         <h2 className="mb-2 text-sm font-semibold text-[var(--text)]">Synopsis</h2>
         <p className="text-sm leading-6 text-[var(--text-muted)]">{manga.description || 'No description available.'}</p>
       </div>
 
-      {/* Related — anime adaptations first (the most common reason a reader
+      {/* Related - anime adaptations first (the most common reason a reader
           looks sideways), then manga. Both rails read the SAME relations
           list; RelatedRow splits it by each node's own format, so an entry
           can never appear in the wrong rail or open on the wrong route. */}
@@ -790,10 +791,10 @@ export function Read() {
 function ReadRelatedRows({ anilistId, relations }: { anilistId: number; relations: import('../types/anime').Anime['relations'] }) {
   const { entries, loading } = useRelatedEntries(`page-manga-${anilistId}:${anilistId}`, relations, 'MANGA')
   return (
-    <>
-      <RelatedRow entries={entries} loading={loading} mediaKind="anime" title="Related Anime" className="mt-12" />
-      <RelatedRow entries={entries} loading={loading} mediaKind="manga" title="Related Manga" className="mt-12" />
-    </>
+    <div className="mt-10 space-y-8">
+      <RelatedRow entries={entries} loading={loading} mediaKind="anime" title="Related Anime" />
+      <RelatedRow entries={entries} loading={loading} mediaKind="manga" title="Related Manga" />
+    </div>
   )
 }
 

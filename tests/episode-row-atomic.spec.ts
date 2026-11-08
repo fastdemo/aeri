@@ -118,7 +118,7 @@ test('episode rows reveal name + thumbnail together after the Kitsu fallback', a
   await expect(page.getByRole('dialog')).toBeVisible({ timeout: 90_000 })
   await expect(page.locator('h3:has-text("Episodes")')).toBeVisible({ timeout: 60_000 })
 
-  // LOADING: every row is a skeleton — no real name, no real artwork, and
+  // LOADING: every row is a skeleton - no real name, no real artwork, and
   // the two skeletons are present together.
   const thumbSkeletons = page.locator('[aria-label="Loading episode thumbnail"]')
   const titleSkeletons = page.locator('[aria-label="Loading episode details"]')

@@ -1,4 +1,4 @@
-# Streaming Architecture Research — Aeri
+# Streaming Architecture Research - Aeri
 
 > **Historical document (pre-Cloudflare-Worker streaming, 2026-08/09).** Its "static GH Pages, no backend" premises described that era. Current reality: the Cloudflare Worker serves `dist/` + same-origin `/api/*` (see `docs/DEPLOYMENT.md`); playback is one lazy Video.js v10 player + default skin + `HlsJsVideo` (D125, 2026-10-24), and embed/iframe sources are filtered out. Verified provider truth lives in `agents/streaming.md` and `src/providers/video/registry.ts`. Probe evidence below is dated and kept as-is.
 
@@ -8,9 +8,9 @@
 
 Aeri is a **static GitHub Pages SPA** (Vite + HashRouter, no backend). Browser playback is constrained by:
 
-* **CORS** — most anime search/episode/source APIs do not send `Access-Control-Allow-Origin` for `https://fastdemo.github.io`.
-* **Embed restrictions** — `X-Frame-Options` / `CSP frame-ancestors` blocks iframe embeds from unauthorized origins.
-* **No secrets in client** — `VITE_*` is public at build time; no token refresh without server.
+* **CORS** - most anime search/episode/source APIs do not send `Access-Control-Allow-Origin` for `https://fastdemo.github.io`.
+* **Embed restrictions** - `X-Frame-Options` / `CSP frame-ancestors` blocks iframe embeds from unauthorized origins.
+* **No secrets in client** - `VITE_*` is public at build time; no token refresh without server.
 
 Existing Aeri already has the right abstraction to support future playback without coupling UI to a provider:
 
@@ -24,7 +24,7 @@ VideoProvider (interface)
         Watch.tsx + VideoPlayer.tsx (never knows provider impl)
 ```
 
-`src/storage/preferences.ts:customVideoApiUrl` + `VITE_VIDEO_API_URL` already allow a self-hosted backend to be injected without rebuild: `GET /health`, `GET /episodes/:id`, `GET /sources/:id?language=`. The player reads `preferredAudio` / `preferredQuality` from `preferences`, and provider selection follows `enabledProviders` + `providerOrder` (D141 — there is no per-source pin).
+`src/storage/preferences.ts:customVideoApiUrl` + `VITE_VIDEO_API_URL` already allow a self-hosted backend to be injected without rebuild: `GET /health`, `GET /episodes/:id`, `GET /sources/:id?language=`. The player reads `preferredAudio` / `preferredQuality` from `preferences`, and provider selection follows `enabledProviders` + `providerOrder` (D141 - there is no per-source pin).
 
 The goal below is to list **viable, maintainable, legitimate** architectures that fit this model.
 
@@ -33,15 +33,15 @@ The goal below is to list **viable, maintainable, legitimate** architectures tha
 ## 1. Constraints that eliminate whole classes of approaches
 
 * **Static only, no server sessions** (`AGENTS.md:1`). So any architecture requiring server-side session cookies, DB, or secrets must be opt-in external (worker, not built into GH Pages).
-* **HashRouter + base `/aeri/`** — deep links must not 404. Any embed must allow `https://fastdemo.github.io` as ancestor.
-* **Legal** — no scraping of pirate indexes, no bypass of paywalls/ads/DRM, no proxy that launders unauthorized sources. If a source does not explicitly allow browser embedding, it is not viable.
-* **Maintainability** — provider HTML structure changes frequently. Browser-scraped providers (AllAnime, AnimePahe, Anikoto, etc.) were investigated in Phase 7 and all failed `PLAYBACK_MATRIX.md` T0–T3 (CORS or HTML error). Any architecture depending on fragile DOM scraping is not maintainable.
+* **HashRouter + base `/aeri/`** - deep links must not 404. Any embed must allow `https://fastdemo.github.io` as ancestor.
+* **Legal** - no scraping of pirate indexes, no bypass of paywalls/ads/DRM, no proxy that launders unauthorized sources. If a source does not explicitly allow browser embedding, it is not viable.
+* **Maintainability** - provider HTML structure changes frequently. Browser-scraped providers (AllAnime, AnimePahe, Anikoto, etc.) were investigated in Phase 7 and all failed `PLAYBACK_MATRIX.md` T0–T3 (CORS or HTML error). Any architecture depending on fragile DOM scraping is not maintainable.
 
 ---
 
 ## 2. Viable architectures (ranked)
 
-### A. Official licensed embeds — most legitimate, lowest maintenance
+### A. Official licensed embeds - most legitimate, lowest maintenance
 
 **How:** Use official embeddable players from licensed distributors that explicitly allow embedding:
 
@@ -53,9 +53,9 @@ The goal below is to list **viable, maintainable, legitimate** architectures tha
 
 **Cons:** Coverage limited to titles the licensor makes embeddable; not every anime has an embed; search for licensed URL requires a licensed-API mapping (AniList sometimes has `siteUrl`/`streamingEpisodes` but often not).
 
-**Aeri fit:** Add `OfficialEmbedProvider` already scaffolded in `src/providers/video/official.ts`. Feed it a mapping table `anilistId -> licensedEmbedUrl` (curated or via a licensed API). This is already behind `VITE_VIDEO_API_URL` optional — when no embed exists, show existing `Video unavailable • Tried:` UI.
+**Aeri fit:** Add `OfficialEmbedProvider` already scaffolded in `src/providers/video/official.ts`. Feed it a mapping table `anilistId -> licensedEmbedUrl` (curated or via a licensed API). This is already behind `VITE_VIDEO_API_URL` optional - when no embed exists, show existing `Video unavailable • Tried:` UI.
 
-### B. Bring-your-own backend — GH Pages stays static, playback is external opt-in
+### B. Bring-your-own backend - GH Pages stays static, playback is external opt-in
 
 **How:** Keep GH Pages static, but allow the user (or deployer) to configure a **self-hosted, authorized** video worker:
 
@@ -82,11 +82,11 @@ The goal below is to list **viable, maintainable, legitimate** architectures tha
 
 All browser-direct providers were probed from `https://fastdemo.github.io` origin via `fetch` + `PLAYBACK_MATRIX.md` T0–T3:
 
-* AllAnime `https://api.allanime.day/api` — allows `Origin: https://fastdemo.github.io` but requires exact `SearchInput` GraphQL variables and Cloudflare Turnstile; returns `BAD_USER_INPUT` / `Just a moment` HTML, no stable CORS `sources` for browser.
-* AnimePahe `https://animepahe.ru/api` — `CORS: no Allow-Origin` (`ERR_FAILED`), `301 → animepahe.su` HTML “Domain for Sale” for release, `301` not CORS.
-* Anikoto `https://anikototv.to/ajax/...` — `ERR_NAME_NOT_RESOLVED`.
-* MegaPlay `https://megaplay.buzz/api` — `200` CORS OK but body `Error - MegaPlay` HTML.
-* AnimeParadise `https://www.animeparadise.moe/api` — CORS blocked.
+* AllAnime `https://api.allanime.day/api` - allows `Origin: https://fastdemo.github.io` but requires exact `SearchInput` GraphQL variables and Cloudflare Turnstile; returns `BAD_USER_INPUT` / `Just a moment` HTML, no stable CORS `sources` for browser.
+* AnimePahe `https://animepahe.ru/api` - `CORS: no Allow-Origin` (`ERR_FAILED`), `301 → animepahe.su` HTML “Domain for Sale” for release, `301` not CORS.
+* Anikoto `https://anikototv.to/ajax/...` - `ERR_NAME_NOT_RESOLVED`.
+* MegaPlay `https://megaplay.buzz/api` - `200` CORS OK but body `Error - MegaPlay` HTML.
+* AnimeParadise `https://www.animeparadise.moe/api` - CORS blocked.
 
 None yield `content-type: video/*` or `application/vnd.apple.mpegurl` with `#EXTM3U` in a browser `fetch` from GH Pages. Therefore a pure-browser provider is **not viable** without a server.
 
@@ -94,14 +94,14 @@ None yield `content-type: video/*` or `application/vnd.apple.mpegurl` with `#EXT
 
 ## 4. Recommended path for Aeri
 
-1. **Keep A.** (official embeds) as the zero-backend happy path — expand `official.ts` mapping over time.
-2. **Keep B.** (BYO worker via `customVideoApiUrl` / `VITE_VIDEO_API_URL`) as the GH Pages-compatible real playback path — no Aeri backend, user opts in.
+1. **Keep A.** (official embeds) as the zero-backend happy path - expand `official.ts` mapping over time.
+2. **Keep B.** (BYO worker via `customVideoApiUrl` / `VITE_VIDEO_API_URL`) as the GH Pages-compatible real playback path - no Aeri backend, user opts in.
 3. **Do not invest** in browser-scraped providers; document them as infeasible in `PLAYBACK_MATRIX.md`.
-4. **Do not compromise** UI/data work for streaming — playback remains behind `VideoPlayer` abstraction, shows `Finding… → Tried: … → Retry` when no source.
+4. **Do not compromise** UI/data work for streaming - playback remains behind `VideoPlayer` abstraction, shows `Finding… → Tried: … → Retry` when no source.
 
 ---
 
-## 5. Seanime study — streaming-only architecture (2026-09-01)
+## 5. Seanime study - streaming-only architecture (2026-09-01)
 
 Seanime was reviewed specifically for **streaming** (torrent intentionally excluded) via `5rahim/seanime` (Go + React, 4.1k stars) and `seanime-extensions` docs.
 
@@ -124,7 +124,7 @@ Seanime was reviewed specifically for **streaming** (torrent intentionally exclu
   The extension marketplace (`seanime-extensions`, `SinonCute/seanime-extensions` via AniMapper) installs a `manifest.json` raw URL; the server fetches and runs it in Goja.
 * **Source discovery/resolution.** Provider `search` fetches an upstream API with server `fetch` (custom `headers`, `Cookie`, `Referer`, `user-agent`), parses HTML/JSON, returns `SearchResult[]`. `findEpisodes` paginates `api?m=release&id=...&page=N`, normalizes `number` (subtracts lowest, filters non-integers). `findEpisodeServer` fetches the episode page (`/play/...`), extracts `button[data-src]` / `kwik` iframe, then decodes `eval(...)` packed JS to get the `m3u8`.
 * **Passing sources to the player.** `EpisodeServer.videoSources` is passed to Seanime's `VideoCore` (Denshi/Electron libmpv or web `hls.js`). Headers from the provider (`Referer`) are forwarded to the HLS loader. Subtitles come as `EpisodeServer.videoSources[].subtitles[]`.
-* **Provider fallbacks & failure handling.** `getSettings().episodeServers` declares fallback servers (`["kwik"]`, etc.). `findEpisodes` throws `No episodes found` when empty; `findEpisodeServer` throws `Failed to fetch episode server` when `kwik` regex misses. Seanime surfaces `Tried:` and retries next server — same UX Aeri already has (`Tried: ... • Retry`).
+* **Provider fallbacks & failure handling.** `getSettings().episodeServers` declares fallback servers (`["kwik"]`, etc.). `findEpisodes` throws `No episodes found` when empty; `findEpisodeServer` throws `Failed to fetch episode server` when `kwik` regex misses. Seanime surfaces `Tried:` and retries next server - same UX Aeri already has (`Tried: ... • Retry`).
 * **External API/worker is mandatory.** All three steps use server `fetch` with privileges the browser lacks (no CORS, can set `Cookie`/`Referer`). Seanime's Go server (or `seanime-server-mobile` on `127.0.0.1:43211`) is that API. The web frontend (`seanime-web`) never talks directly to upstream anime sites.
 
 ### What this means for Aeri (static GH Pages, no backend)
@@ -140,15 +140,15 @@ Seanime was reviewed specifically for **streaming** (torrent intentionally exclu
 
 ### Concrete recommendation for Aeri
 
-1. **Do not add torrent functionality** — no BitTorrent client, no debrid, no download UI.
+1. **Do not add torrent functionality** - no BitTorrent client, no debrid, no download UI.
 2. **Keep the BYO worker as the sanctioned streaming path** (already wired). The worker should implement Seanime's three-step shape but via simple authenticated endpoints:
-   `GET /health` → `GET /episodes/:anilistId` → `GET /sources/:episodeId?language=sub|dub` returning `VideoSourceEnhanced[]` with `url`, `type: 'm3u8'`, `quality`, `headers`, `subtitles`. Aeri's `worker/` Cloudflare template is the place for this — it can run the same `fetch`+`Referer`+`Cookie` logic Seanime's Goja does, but as a plain Worker.
+   `GET /health` → `GET /episodes/:anilistId` → `GET /sources/:episodeId?language=sub|dub` returning `VideoSourceEnhanced[]` with `url`, `type: 'm3u8'`, `quality`, `headers`, `subtitles`. Aeri's `worker/` Cloudflare template is the place for this - it can run the same `fetch`+`Referer`+`Cookie` logic Seanime's Goja does, but as a plain Worker.
 3. **Keep official embeds as the zero-backend path** (Seanime does not prioritize this, but for Aeri it is the only no-worker legitimate option). Expand `src/providers/video/official.ts` only with licensor-permitted iframe URLs.
-4. **Do not reintroduce browser-scraped providers.** They are fragile (upstream HTML changes) and CORS-blocked — exactly why Seanime runs them server-side.
+4. **Do not reintroduce browser-scraped providers.** They are fragile (upstream HTML changes) and CORS-blocked - exactly why Seanime runs them server-side.
 
-## 6. Aeri implementation — MAL + Streaming + Because You Watched (live)
+## 6. Aeri implementation - MAL + Streaming + Because You Watched (live)
 
-### MAL — first-class via worker
+### MAL - first-class via worker
 
 MAL is CORS-blocked on `https://fastdemo.github.io` for all `myanimelist.net` and `api.myanimelist.net` fetches (see `docs/MAL_BROWSER_FEASIBILITY.md`). The fix is a **worker proxy**, not a browser hack:
 
@@ -159,7 +159,7 @@ MAL is CORS-blocked on `https://fastdemo.github.io` for all `myanimelist.net` an
 * **Tracking fan-out:** `src/contexts/TrackingContext.tsx:updateProgress|Status|Rating` still fans out to both AniList and MAL when authenticated, but `src/services/mal/client.ts` now deduplicates via `inflight` and `memoryCache`, and `TrackingContext` uses `Promise.allSettled` with per-provider `catch(()=>{})` so a MAL 404/401 does not roll back AniList. No duplicate writes beyond the intentional dual-sync.
 * **UI:** `src/pages/MyList.tsx` + `src/pages/Settings.tsx` already show `12 titles • AniList` vs `• MAL` vs `• AniList • MAL`, handle `authExpired`, `loading`, empty list, and manual token fallback. No fake data.
 
-### Streaming — real provider + player
+### Streaming - real provider + player
 
 Aeri keeps the `VideoProvider` abstraction from `src/providers/video/types.ts` and `registry.ts`, now backed by the worker:
 
@@ -180,7 +180,7 @@ Aeri keeps the `VideoProvider` abstraction from `src/providers/video/types.ts` a
 
 * **Watch page:** `src/pages/Watch.tsx` is now a streaming interface, not a placeholder. It resolves `sanitizedAnimeForWatch` + `seriesGroup` + `numberingCtx` (`getNumberingOffsetAndMode`) to compute `effectiveSeasonNumber` and `displayEpNum`/`localEpNum`, shows `S:E` in top bar and title, `prev/next` via `getDisplayEpisodeNumber`, episode grid with `S:E` labels, source selector + SUB/DUB toggle, `Finding…` / `Tried:` / `Retry` (bypassCache) / `Change source` → `/settings`, `No playable source` when `tried` exhausted, and local `watchPos` resume.
 
-### Because You Watched — weighted random
+### Because You Watched - weighted random
 
 `src/pages/Home.tsx:becauseContext` now scores each `combinedList` entry by `statusWeight * scoreWeight * ratingWeight * popularityWeight * recencyWeight * availabilityWeight * poolBoost`, filters to those with `overlapCount >=2` (can actually recommend), takes top 10, then weighted random pick via `Math.random()*total`. `becauseRecommendations` takes `getRecommendations(refGenres, candidates)` top 16 then `shuffle` sample 8, so both reference and lineup vary on refresh while staying genre-relevant and never including `listIds` duplicates.
 
@@ -191,7 +191,7 @@ Aeri keeps the `VideoProvider` abstraction from `src/providers/video/types.ts` a
 * Add server-side MAL OAuth token exchange/refresh so Settings → MAL Connect works from GH Pages (worker sets CORS for `myanimelist.net` flow).
 * Keep client `src/providers/video/registry.ts` timeout `3500ms` + parallel fallback; do not lower further (already Phase 7.1 optimized).
 
-## 8. Phase 14 — Mangayomi research + AniKoto HLS (2026-09-06)
+## 8. Phase 14 - Mangayomi research + AniKoto HLS (2026-09-06)
 
 **Researched (extension source code read, not READMEs):** Mangayomi JS extensions
 (`Mallyd11/mangayomi-anime-extensions`: hianime.js, anikoto.js, miruro index),
@@ -204,21 +204,21 @@ with heavy use of **third-party resolver services** (vidnest.fun, myronix /
 shirayuki, bibiemb) run in parallel with fallbacks. Native advantages Aeri
 cannot copy: no CORS, arbitrary Referer/Origin headers, residential IPs, local
 JS evaluation. Closest adaptable pattern: JSON resolver APIs (no JS unpack)
-called server-side — exactly what Aeri implemented below.
+called server-side - exactly what Aeri implemented below.
 
 **Provider verdicts (all probed live from worker egress + sandbox browser):**
 
 | Provider | Resolution | Playback | Cause |
 |----------|-----------|----------|-------|
 | AniKoto → MegaPlay | ✅ full chain working | ❌ IP-gated | `anikotoapi.site` + `megaplay.buzz/stream/getSourcesNew` (AJAX header) return real m3u8 + VTT; CDN family (`imgnex/mikora/akirax/shiora`) 403-challenges worker + test IPs; megaplay embeds render "Error - MegaPlay", no video |
-| AnimePahe | ❌ | — | API returns CF challenge HTML (not JSON) from worker egress |
-| Miruro pipe | ❌ | — | documented hard-block of datacenter IPs incl. Cloudflare Workers; bypass needs `curl_cffi` TLS impersonation (impossible on Workers) |
-| HiAnime (.to 521, .ms flaky) | ❌ unreliable | — | origin errors/timeouts from all vantage points |
+| AnimePahe | ❌ | - | API returns CF challenge HTML (not JSON) from worker egress |
+| Miruro pipe | ❌ | - | documented hard-block of datacenter IPs incl. Cloudflare Workers; bypass needs `curl_cffi` TLS impersonation (impossible on Workers) |
+| HiAnime (.to 521, .ms flaky) | ❌ unreliable | - | origin errors/timeouts from all vantage points |
 | VidNest API | ✅ JSON+decode works | ❌ IP-gated | same CDN family block |
-| Shirayuki/myronix | ❌ down | — | timeout direct, 522 via worker |
+| Shirayuki/myronix | ❌ down | - | timeout direct, 522 via worker |
 | AllAnime | ⚠️ partial | ❌ gated | search + episode lists work **from browsers** (CORS-open); `episode()` sourceUrls demands `AA_CRYPTO_MISSING` handshake (persisted-query hash rotated; admin tracks `adminAaCryptoViolations`) |
 
-**Conclusion — Option A verdict:** viable for *resolution*, not sufficient for
+**Conclusion - Option A verdict:** viable for *resolution*, not sufficient for
 *playback* from datacenter/test networks. No new backend was built; instead
 the existing Worker abstraction gained a real AniKoto→MegaPlay provider
 (`worker/src/providers.ts`: data-tip ranked resolve, embed data-id extraction,

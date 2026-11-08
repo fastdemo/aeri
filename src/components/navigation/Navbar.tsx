@@ -49,6 +49,18 @@ function SectionLinks({
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false)
+  // Does the current page paint a hero wash? HeroAmbient announces itself
+  // (D170). The bar's ambient copy is MOUNTED only while a wash exists: the
+  // old always-mounted layer was an empty blurred + gradient-masked composited
+  // layer on every page, and iOS smeared that layer after exiting fullscreen
+  // (owner report 2026-11-07). `ambientMounted` keeps it alive for the 300ms
+  // scroll fade-out, then drops the filtered layer entirely.
+  const [hasWash, setHasWash] = useState(false)
+  const [ambientMounted, setAmbientMounted] = useState(false)
+  // Fullscreen round-trips can leave a stale composited sample of the bar's
+  // filtered ambient layer on WebKit. Bumping this key remounts the layer so
+  // the browser rebuilds it from scratch (D170).
+  const [ambientEpoch, setAmbientEpoch] = useState(0)
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false)
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
   const [query, setQuery] = useState('')
@@ -70,7 +82,7 @@ export function Navbar() {
   const mobileSearchRef = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
   const location = useLocation()
-  // Suggestion picks push the show's canonical URL — the floating card is
+  // Suggestion picks push the show's canonical URL - the floating card is
   // the overlay detail route on top of the page behind it.
   const openDetail = useDetailOpen()
   const { user: anilistUser, isAuthenticated: anilistAuth } = useAniList()
@@ -106,8 +118,14 @@ export function Navbar() {
     document.addEventListener('fullscreenchange', onViewport)
     document.addEventListener('webkitfullscreenchange', onViewport)
     // Native <video> fullscreen on iOS fires these on the video element and
-    // they do NOT bubble — capture catches them.
+    // they do NOT bubble - capture catches them.
     document.addEventListener('webkitendfullscreen', onViewport, true)
+    // A filtered layer that lived through a fullscreen round-trip can keep a
+    // stale sample. Rebuild it once the transition has settled.
+    const rebuildAmbient = () => setAmbientEpoch((n) => n + 1)
+    document.addEventListener('fullscreenchange', rebuildAmbient)
+    document.addEventListener('webkitfullscreenchange', rebuildAmbient)
+    document.addEventListener('webkitendfullscreen', rebuildAmbient, true)
     return () => {
       cancelAnimationFrame(raf)
       window.removeEventListener('scroll', onScroll)
@@ -118,16 +136,45 @@ export function Navbar() {
       document.removeEventListener('fullscreenchange', onViewport)
       document.removeEventListener('webkitfullscreenchange', onViewport)
       document.removeEventListener('webkitendfullscreen', onViewport, true)
+      document.removeEventListener('fullscreenchange', rebuildAmbient)
+      document.removeEventListener('webkitfullscreenchange', rebuildAmbient)
+      document.removeEventListener('webkitendfullscreen', rebuildAmbient, true)
     }
   }, [])
 
+  // HeroAmbient marks the document while a wash is painted. Read the current
+  // state on attach (no mount-order race) and follow later changes. Mount
+  // immediately when a wash appears; when it goes away (route change) or the
+  // page scrolls, drop the layer right away / after the fade finishes.
+  useEffect(() => {
+    const root = document.documentElement
+    const sync = () => setHasWash(root.hasAttribute('data-hero-wash'))
+    sync()
+    const mo = new MutationObserver(sync)
+    mo.observe(root, { attributes: true, attributeFilter: ['data-hero-wash'] })
+    return () => mo.disconnect()
+  }, [])
+
+  useEffect(() => {
+    if (hasWash && !scrolled) {
+      setAmbientMounted(true)
+      return
+    }
+    if (!hasWash) {
+      setAmbientMounted(false)
+      return
+    }
+    const t = window.setTimeout(() => setAmbientMounted(false), 320)
+    return () => window.clearTimeout(t)
+  }, [hasWash, scrolled])
+
   // Reader progress: on /read/* the navbar's divider is a scroll progress
   // bar instead of a hairline. The fill is written straight to the DOM from
-  // a rAF — a scroll-linked bar must not re-render the navbar every frame.
+  // a rAF - a scroll-linked bar must not re-render the navbar every frame.
   // The document height changes as reader images arrive, so a
   // ResizeObserver repaints when the track grows, not just on scroll.
   // GATE: while pages are still loading the document height is a moving
-  // target, so every ratio is wrong — Read.tsx publishes
+  // target, so every ratio is wrong - Read.tsx publishes
   // `aeri:reader-pages` (plus the dataset mirror) once every page has
   // resolved, and the fill stays at zero until then.
   const isReader = location.pathname.startsWith('/read/')
@@ -149,7 +196,7 @@ export function Navbar() {
       const max = doc.scrollHeight - doc.clientHeight
       const ratio = max > 0 ? Math.min(1, Math.max(0, window.scrollY / max)) : 0
       el.style.transform = `scaleX(${ratio})`
-      // Flat fill — no neon glow (owner instruction 2026-10-29). The fill is
+      // Flat fill - no neon glow (owner instruction 2026-10-29). The fill is
       // still hidden at zero length so a scaleX(0) bar cannot leave a
       // subpixel sliver at the left edge.
       el.style.opacity = ratio > 0 ? '1' : '0'
@@ -185,7 +232,7 @@ export function Navbar() {
   }, [isReader])
 
   // Reset mobile transient UI on any route change (prevents overlay persisting and intercepting clicks).
-  // NOTE: the detail card is now the overlay route — it must NOT be cleared
+  // NOTE: the detail card is now the overlay route - it must NOT be cleared
   // here; opening/closing a card is itself a route change.
   useEffect(() => {
     setMobileNavOpen(false)
@@ -209,14 +256,14 @@ export function Navbar() {
     } catch {}
   }, [])
 
-  // Close suggestions + profile menu on outside pointerdown — unified
+  // Close suggestions + profile menu on outside pointerdown - unified
   // pointer event, no microtask delay.
   // The desktop search box, mobile search dropdown, profile menu, AND the
   // portaled popups (search suggestions / schedule / profile, which live
   // in document.body via HeaderPopup) all count as inside. The portal
   // nodes are outside searchRef/profileRef/scheduleRef, so without this
   // their pointerdown would setShowSuggestions(false) BEFORE the click
-  // fires — unmounting the row and swallowing the tap (regression from
+  // fires - unmounting the row and swallowing the tap (regression from
   // the portal migration: rows rendered but never opened).
   // Bell/profile buttons have dedicated refs for HeaderPopup anchoring;
   // the wrapper div refs remain the inside-test (button is inside them).
@@ -245,9 +292,9 @@ export function Navbar() {
   // Anchor for the suggestions popup: the input itself (left-aligned,
   // same width as the focused input = 240px). The popup is a body portal
   // (HeaderPopup) so its backdrop-blur samples the real page at every
-  // scroll position — see HeaderPopup's doc comment.
+  // scroll position - see HeaderPopup's doc comment.
   const searchInputRef = useRef<HTMLInputElement>(null)
-  // Compact-bar search field — the ⌘K fallback target when the inline input
+  // Compact-bar search field - the ⌘K fallback target when the inline input
   // is not mounted (below the fit breakpoint).
   const mobileSearchInputRef = useRef<HTMLInputElement>(null)
   // Bell + avatar anchors for the portaled popups (body portal, same as search).
@@ -270,7 +317,7 @@ export function Navbar() {
     setShowSuggestions(false)
   }
 
-  // Desktop nav items — Settings lives in the profile menu, not the top bar.
+  // Desktop nav items - Settings lives in the profile menu, not the top bar.
   // Fixed gaps: the left cluster uses ONE gap value at all scales so logo↔nav
   // spacing never breathes during scaling transitions.
   // MY LIST IS ALWAYS VISIBLE: signed-out visitors see the
@@ -289,7 +336,7 @@ export function Navbar() {
 
   // Signed-out My List: prompt sign-in, never navigate to a page that can
   // only show a locked state. Shared by the live nav and the measurer copy
-  // (the measurer's copy never fires — it is visibility:hidden).
+  // (the measurer's copy never fires - it is visibility:hidden).
   const onSectionClick = (to: string, e: React.MouseEvent) => {
     if (to === '/list' && !isAuthenticated) {
       e.preventDefault()
@@ -308,7 +355,7 @@ export function Navbar() {
   ]
 
   // Fit-based breakpoint: show the inline nav only when everything fits in
-  // one row AND the viewport is at the hero's `sm` step (640px) — the hero's
+  // one row AND the viewport is at the hero's `sm` step (640px) - the hero's
   // dot pill tucks into the top-right corner below 640 and returns to the
   // bottom-center at 640, so the nav's compact (menu + search icon) mode
   // must begin at that same
@@ -325,7 +372,7 @@ export function Navbar() {
   const [navFits, setNavFits] = useState(false)
   // LAYOUT effect, not passive: measuring after the first paint let the
   // compact bar (menu + search icon) paint for a frame before flipping to
-  // the inline links + search input — a visible "pop" on every hard refresh,
+  // the inline links + search input - a visible "pop" on every hard refresh,
   // worse the slower the bundle is (owner report 2026-10-30). The measurer
   // is always mounted, so the read is valid before the first paint and the
   // state flip lands in the same frame.
@@ -334,7 +381,7 @@ export function Navbar() {
       const bar = barRef.current
       const m = measureRef.current
       if (!bar || !m) return
-      // clientWidth includes the bar's px-4/6/12 padding — compare against
+      // clientWidth includes the bar's px-4/6/12 padding - compare against
       // the CONTENT box, or the padding would read as free space.
       const cs = getComputedStyle(bar)
       const inner =
@@ -355,7 +402,7 @@ export function Navbar() {
     try {
       ;(document as any).fonts?.ready?.then?.(() => measure())?.catch?.(() => {})
     } catch {}
-    // auth state / late layout shifts change widths — re-measure shortly after
+    // auth state / late layout shifts change widths - re-measure shortly after
     const t = setTimeout(measure, 300)
     return () => {
       window.removeEventListener('resize', measure)
@@ -365,12 +412,12 @@ export function Navbar() {
   }, [desktopNav.length, isAuthenticated])
 
   // ⌘K / Ctrl+K / Alt+K (owner 2026-10-31, Alt added same day): focus the
-  // search field so you can type immediately. A keybind only — no new chrome,
+  // search field so you can type immediately. A keybind only - no new chrome,
   // no hint badge. On the wide bar it focuses (and selects) the inline input;
   // when the bar is compact the same keys open the search dropdown, whose
   // input autofocuses. Shift variants are left alone (⌘⇧K belongs to the
   // browser/devtools), and the handler never runs while a modifier-less
-  // typing target is involved — ⌘K inside an input still means "search",
+  // typing target is involved - ⌘K inside an input still means "search",
   // which is the point.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -397,7 +444,7 @@ export function Navbar() {
   // right cluster (search input, bell, avatar / Sign in) with identical
   // classes, always mounted invisibly so widths are TRUE at every scale. It
   // never intercepts clicks and never affects layout. Rendered OUTSIDE
-  // <header> (fragment sibling) so no header query can match it — the old
+  // <header> (fragment sibling) so no header query can match it - the old
   // in-header measurer hijacked `header > div` lookups and broke every width
   // reading (iPad Pro 834px incident). Query the bar via [data-navbar-bar].
   const measurer = (
@@ -427,24 +474,24 @@ export function Navbar() {
     <>
     {measurer}
     {/* The background-color is ON THE FIXED ELEMENT ITSELF, and that is not
-        cosmetic — it is the iOS 26 status-bar fix (D163, second pass).
+        cosmetic - it is the iOS 26 status-bar fix (D163, second pass).
 
         iOS 26 no longer reads <meta name="theme-color"> for the strip behind
         the clock/battery: WebKit reports the fixed element at the top edge
         and iOS paints the strip with THAT element's plain background-color,
         re-reading it on every check. An absolutely-positioned child (the old
         `data-nav-solid` div) is ignored by that algorithm, and an element
-        with no plain colour is sampled ONCE and frozen — which is exactly
+        with no plain colour is sampled ONCE and frozen - which is exactly
         what the owner saw: a blurred band with stale page content sitting
         where the black strip used to be. A plain colour here makes the strip
         solid `--bg` and keeps it in sync with the theme.
 
-        It also means the bar's own paint is always flat `--bg` — no resting
+        It also means the bar's own paint is always flat `--bg` - no resting
         transparency, no gradient, no blur. That cut the Home page wash off
         at y=56, and the owner read the bar as a separate black band ("before
         that the top bar was also a part of the ambient now its not"). D166
         paints the wash back INSIDE the bar as a clipped child layer
-        (`data-nav-ambient`, see `.nav-ambient` in globals.css) — the opaque
+        (`data-nav-ambient`, see `.nav-ambient` in globals.css) - the opaque
         colour still lives on this element, so the iOS strip contract above is
         untouched, and the ambient never covers it. NO BACKDROP FILTER
         (owner report 2026-10-30): iOS fullscreen restore smeared the old
@@ -455,13 +502,13 @@ export function Navbar() {
         disappears"). iOS WebKit can drop a plain fixed layer while the
         scroll view rubber-bands; promoting the bar to its own GPU layer is
         the documented remedy and keeps it painted through the bounce. The
-        bounce itself is NOT disabled — `overscroll-behavior` stays default,
+        bounce itself is NOT disabled - `overscroll-behavior` stays default,
         so the page still rubber-bands. The transform also gives the header
         its own containing block, which is fine: every child is absolute
         against it. */}
     <header
       data-nav-solid
-      className="fixed inset-x-0 top-0 z-50 isolate h-14 touch-manipulation bg-[var(--bg)] [transform:translateZ(0)]"
+      className="fixed inset-x-0 top-0 z-50 isolate h-[var(--nav-total)] touch-manipulation bg-[var(--bg)] pt-[var(--safe-top)] [transform:translateZ(0)]"
       style={{ touchAction: 'manipulation' } as any}
       aria-label="Primary"
     >
@@ -472,7 +519,7 @@ export function Navbar() {
           child paints it at the wash's own blur/opacity, and `.nav-ambient`
           clips it to the bar and re-applies the old `nav-top-fade` dimming
           ramp (30% → 100%) so it is faint under the logo and meets the real
-          wash at full strength on the bottom edge — no seam.
+          wash at full strength on the bottom edge - no seam.
           TWO art layers, mirroring the wash's own crossfade (owner report
           2026-11-05: the bar's tint changed later than the page's): the
           outgoing artwork stays painted while the incoming one loads, then
@@ -481,7 +528,9 @@ export function Navbar() {
           solid layer fading in did: once the page moves, the bar is flat
           `--bg` again. On any page without a hero wash the vars are unset, so
           this paints nothing at all. */}
+      {ambientMounted && (
       <div
+        key={ambientEpoch}
         aria-hidden
         data-nav-ambient
         className={`nav-ambient pointer-events-none absolute inset-0 transition-opacity duration-300 ${
@@ -491,8 +540,9 @@ export function Navbar() {
         <div className="nav-ambient-art nav-ambient-art-prev hero-wash-mask" />
         <div className="nav-ambient-art hero-wash-mask" />
       </div>
+      )}
       {/* Divider. Every page gets a hairline; the reader swaps it for a
-          scroll progress bar in the Continue Watching bar's geometry —
+          scroll progress bar in the Continue Watching bar's geometry  - 
           15% track and a FLAT `--text` fill. No neon glow: the 6px shadow
           was removed on the owner's instruction (2026-10-29) and the fill
           stays hidden at zero length so scaleX(0) leaves no sliver.
@@ -521,10 +571,10 @@ export function Navbar() {
       )}
       <div ref={barRef} data-navbar-bar="true" className="relative z-10 mx-auto flex h-full max-w-[1600px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-12 lg:gap-6">
         {/* Left cluster: logo + nav/menu share ONE gap. The mobile (menu
-            collapsed) branch halves it — the old gap-6 (24px)
+            collapsed) branch halves it - the old gap-6 (24px)
             read as detached on phones. Desktop keeps gap-6. */}
         <div className={navFits ? 'flex items-center gap-5 lg:gap-6' : 'flex items-center gap-3'}>
-          {/* Logo — simple Aeri, unselectable */}
+          {/* Logo - simple Aeri, unselectable */}
           <Link
             to="/"
             onClick={() => dispatchNavigate('/')}
@@ -542,8 +592,8 @@ export function Navbar() {
           </>
           ) : (
           /* on small scalings the menu + search
-             triggers match the BELL — same 32px hitbox, same muted rest
-             color — so the icon row reads as one control group. Lucide
+             triggers match the BELL - same 32px hitbox, same muted rest
+             color - so the icon row reads as one control group. Lucide
              `menu` (three rules) replaces the old bulleted `list` glyph.
              The smaller box also pulls the icon 6px closer to the wordmark
              without touching the 12px cluster gap. */
@@ -559,7 +609,7 @@ export function Navbar() {
           )}
         </div>
 
-        {/* The mobile lane packs tighter — the search
+        {/* The mobile lane packs tighter - the search
             trigger is a 32px bell-sized box (was 44px), so the glyph sits
             8px closer to the bell at the same cluster gap; the 6px gap trims
             the rest. Desktop keeps gap-3. */}
@@ -582,7 +632,7 @@ export function Navbar() {
                    2026-10-30): Safari left a spinner-like ghost inside the
                    field while a hard refresh was still painting. The input
                    sits on the opaque navbar anyway, so the 8% fill is all
-                   the depth it needs — and transitioning `backdrop-filter`
+                   the depth it needs - and transitioning `backdrop-filter`
                    re-blurred the area behind the field every frame. */
                 className="h-8 w-[150px] rounded-full border border-[var(--border)] bg-[var(--text)]/[0.08] py-0 pl-8 pr-3 text-[13px] text-[var(--text)] placeholder:text-[var(--text-faint)] transition-[width,background-color,border-color] focus:border-[var(--border-strong)] focus:bg-[var(--text)]/[0.12] focus:outline-none lg:w-[200px] lg:focus:w-[240px]"
               />
@@ -688,7 +738,7 @@ export function Navbar() {
                       </span>
                       <span className="text-xs font-medium text-[var(--text)]">Settings</span>
                     </Link>
-                    {/* Incognito (circle-only state): a plain on/off mode —
+                    {/* Incognito (circle-only state): a plain on/off mode  - 
                         automatic tracker writes stop and every tab reads
                         "Incognito - Aeri".
                         Manual edits still sync. The ROW is always normal;
@@ -732,7 +782,7 @@ export function Navbar() {
       </div>
 
       {mobileSearchOpen && !navFits && (
-        <div ref={mobileSearchRef} className="absolute left-0 right-0 top-14 border-t border-[var(--border)] bg-[var(--bg)] px-4 py-3 shadow-lg shadow-black/20">
+        <div ref={mobileSearchRef} className="absolute left-0 right-0 top-[var(--nav-total)] border-t border-[var(--border)] bg-[var(--bg)] px-4 py-3 shadow-lg shadow-black/20">
           <form onSubmit={onSearch} className="flex items-center gap-2">
             <input
               ref={mobileSearchInputRef}
@@ -755,7 +805,7 @@ export function Navbar() {
         </div>
       )}
       {mobileNavOpen && !navFits && (
-        <nav className="absolute left-0 right-0 top-14 border-t border-[var(--border)] bg-[var(--bg)] px-4 py-3 shadow-lg shadow-black/20 anim-slide-down" aria-label="Mobile sections">
+        <nav className="absolute left-0 right-0 top-[var(--nav-total)] border-t border-[var(--border)] bg-[var(--bg)] px-4 py-3 shadow-lg shadow-black/20 anim-slide-down" aria-label="Mobile sections">
           <div className="flex flex-col gap-1">
             {mobileNav.filter(l => l.to !== '/search').map((l) => (
               <Link

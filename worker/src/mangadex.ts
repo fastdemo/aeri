@@ -13,15 +13,15 @@
  *   volume (string|null), title, pages, externalUrl. Max limit 500; `total`
  *   gives the full count (paginate with offset when total > fetched).
  * - External chapters (externalUrl set, pages=0) host NO images on MangaDex
- *   (licensed/DMCA'd, e.g. all of Solo Leveling EN) — filtered out of the
+ *   (licensed/DMCA'd, e.g. all of Solo Leveling EN) - filtered out of the
  *   readable list, surfaced separately as external links.
  * - At-home: GET /at-home/server/<chapterUuid> →
  *   { baseUrl, chapter: { hash, data[], dataSaver[] } }. Page URL:
  *   <baseUrl>/data-saver/<hash>/<file> (default; ~38% smaller) or
- *   <baseUrl>/data/<hash>/<file> (full). Filenames are opaque — never derive.
+ *   <baseUrl>/data/<hash>/<file> (full). Filenames are opaque - never derive.
  * - Covers: https://uploads.mangadex.org/covers/<mangaUuid>/<fileName>
  *   (.512.jpg thumbnail variant).
- * - No auth. Documented limit 5 req/s — worker serializes per-request with a
+ * - No auth. Documented limit 5 req/s - worker serializes per-request with a
  *   small gap; 429 → single backoff retry, else honest error.
  * - Fail closed: no confident match → throw (never a random series); no
  *   readable pages → empty with reason (never fabricated).
@@ -149,7 +149,7 @@ function pickBest(cands: { m: any; s: number; alBonus: boolean; alMismatch?: boo
   const tied = ranked.filter(r => r.s === best.s && r.m.id !== best.m.id)
   if (tied.length) {
     // Exact tie: prefer the AniList-linked candidate (verified mapping beats
-    // title text). Otherwise fail closed — never a random series.
+    // title text). Otherwise fail closed - never a random series.
     const alLinked = [best, ...tied].filter(r => r.alBonus)
     if (alLinked.length === 1) return alLinked[0]
     throw new Error('ambiguous match')
@@ -187,11 +187,11 @@ export async function mdxSearchAndMatch(
     const attrs = m.attributes ?? {}
     // Verified mapping ONLY when links.al points at THIS anilistId. A
     // links.al pointing elsewhere (e.g. the parent series for a side
-    // story) is evidence AGAINST — never a bonus.
+    // story) is evidence AGAINST - never a bonus.
     const linkedAl = String(attrs?.links?.al ?? '')
     const alBonus = linkedAl !== '' && linkedAl === alId
     const alMismatch = linkedAl !== '' && linkedAl !== alId
-    // AniList-linked candidate: verified mapping — score floor 100.
+    // AniList-linked candidate: verified mapping - score floor 100.
     const s = alBonus ? 100 : Math.max(
       titleScore(mdxTitle(attrs), variants),
       ...altTitlesOf(attrs).map(a => titleScore(a, variants)),
@@ -294,7 +294,7 @@ export async function mdxGetChapters(
   let rows: any[] = fj?.data ?? []
   // Paginate when the title has >500 EN chapters. Cap at 2000 rows: beyond
   // that the title is a pagination outlier, and unbounded fetching would
-  // become a request storm (One Piece-scale feeds). The cap is internal —
+  // become a request storm (One Piece-scale feeds). The cap is internal  - 
   // the UI renders whatever arrived, oldest-first.
   const ROW_CAP = 2000
   for (let off = rows.length; off < total && rows.length < ROW_CAP; off += 500) {
@@ -341,7 +341,7 @@ export async function mdxGetChapters(
     // MangaDex reports a PLACEHOLDER page count of 1 for external chapters
     // (verified 2026-10-25: One Piece's 5 EN rows are all externalUrl with
     // pages=1 and mdx-pages returns 0). Treating pages>0 as readable put
-    // those rows in the reader, which then resolved to zero pages — the
+    // those rows in the reader, which then resolved to zero pages - the
     // "chapter not found" wall. A genuinely mirrored unit has >1 page.
     if (a.externalUrl && !(a.pages > 1)) { external.push(unit); continue }
     if (!(a.pages > 0)) { external.push(unit); continue }
@@ -353,7 +353,7 @@ export async function mdxGetChapters(
 
 /**
  * Page image URLs for a MangaDex chapter UUID. quality='saver' (default,
- * ~38% smaller) or 'data' (full). URLs are per-chapter (rotating host) —
+ * ~38% smaller) or 'data' (full). URLs are per-chapter (rotating host)  - 
  * resolved fresh, never cached across chapters.
  */
 export async function mdxGetPages(

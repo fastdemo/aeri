@@ -5,7 +5,7 @@
  * (`POST https://graphql.anilist.co` with MEDIA_QUERY / MEDIA_BY_MAL_QUERY)
  * inside the Playwright browser context. They carry catalogue metadata
  * (titles, episode counts, malId linkage) so Watch/AnimeDetail can render
- * and resolve provider episodes. They carry NO playback bytes — media
+ * and resolve provider episodes. They carry NO playback bytes - media
  * resolution always runs the REAL provider chain (AniWave / AnimeGG)
  * unless a test explicitly routes those hosts to a controlled double
  * (see tests/helpers/test-media.ts).
@@ -45,19 +45,19 @@ export const FIXTURE_MEDIA: FixtureMedia[] = [
   { anilistId: 154587, malId: 52991, romaji: 'Sousou no Frieren', english: 'Frieren', episodes: 28, format: 'TV', year: 2023 },
   // Manga-kind (Berserk, AniList 30002 / MAL 2) for the manga card probes.
   // KIND-SCOPED semantics: the manga fixture is only served to MANGA-kind
-  // queries — the same numeric MAL id (2) must never satisfy an anime read
+  // queries - the same numeric MAL id (2) must never satisfy an anime read
   // (D104 boundary, kind-dispatched batch).
   { anilistId: 30002, malId: 2, romaji: 'Berserk', english: 'Berserk', episodes: 0, chapters: 392, format: 'MANGA', year: 1989 },
   // CURRENTLY AIRING: 12 planned, 3 aired, 3 watched must
-  // read "3 of 3" — never "3 of 12".
+  // read "3 of 3" - never "3 of 12".
   { anilistId: 9001, malId: 9001, romaji: 'Probe Airing Show', english: 'Probe Airing Show', episodes: 12, format: 'TV', year: 2026, status: 'RELEASING', nextAiringEpisode: { episode: 4 } },
 ]
 
 /**
- * The ONE AniList streamingEpisodes name fixtures carry (Naruto ep 21) —
+ * The ONE AniList streamingEpisodes name fixtures carry (Naruto ep 21)  - 
  * the continue-card caption and the detail E-line assert against this
  * deterministic value. Local runs MUST NOT ride the real upstream (AniList
- * 403-blocks direct egress — verified 2026-10-21, and serial suites were
+ * 403-blocks direct egress - verified 2026-10-21, and serial suites were
  * burning rate budget): the real-AniList name path stays verified on
  * production live probes. Scanner-cleaner strips the "Episode 21 - " prefix.
  */
@@ -92,7 +92,7 @@ function toMediaJson(f: FixtureMedia) {
     popularity: 1000,
     // streamingEpisodes carries the DETERMINISTIC fixture name for Naruto
     // only (continued caption + detail E-line asserts); every other fixture
-    // is empty exactly like before — provider play titles are never
+    // is empty exactly like before - provider play titles are never
     // fabricated.
     streamingEpisodes: f.malId === 20
       ? [{ title: `Episode 21 - ${FIXTURE_EP_NAME_21}`, thumbnail: '', url: 'https://crunchyroll.com/ep21', site: 'Crunchyroll' }]
@@ -128,7 +128,7 @@ function toMediaJson(f: FixtureMedia) {
  * Build a route handler body for a MEDIA_QUERY-shaped response. Matches on
  * EITHER `id` (anilist) or `idMal` (MAL) variables so both `anilist-<id>`
  * and `mal-<id>` detail paths resolve. KIND-SCOPED (D104): when the query
- * carries a type variable, only fixtures of that kind may answer — MAL id 2
+ * carries a type variable, only fixtures of that kind may answer - MAL id 2
  * is Berserk-manga AND an unknown anime MAL id (the anime and manga id
  * spaces are independent numerics).
  */
@@ -147,7 +147,7 @@ export function mediaFixtureByVariables(vars: Record<string, unknown>): unknown 
  * Batched by-MAL resolution (enrichment D111): the app's batch query is
  * `Page(perPage: 50) { media(idMal_in: $ids, type: $type) }`. Both kinds
  * resolve from FIXTURE_MEDIA by kind; ids with no fixture are ABSENT from
- * the response — exactly the definitive-negative shape the real endpoint
+ * the response - exactly the definitive-negative shape the real endpoint
  * returns for unmapped ids.
  */
 export function mediaBatchFixtureByResponse(ids: number[], type: string): unknown {

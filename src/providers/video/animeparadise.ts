@@ -4,7 +4,7 @@ import { cachedFetch, fetchWithTimeout, hintQuery } from './base'
 import { getEffectiveVideoApiUrl } from '../../storage/preferences'
 
 /**
- * AnimeParadise anime provider — VERIFIED_WORKING 2026-10-26 (Cowboy Bebop
+ * AnimeParadise anime provider - VERIFIED_WORKING 2026-10-26 (Cowboy Bebop
  * ep 1: open API search → /anime/<link> (mappings.anilist = exact identity)
  * → /anime/<_id>/episode → Next.js server-action POST on /watch/<uid> →
  * streamLink → 1448x1080 HLS master + English VTT captions).
@@ -87,7 +87,7 @@ export class AnimeParadiseProvider implements VideoProvider {
     const anilistId = m?.[1] ?? episode.animeId.match(/anilist-(\d+)/)?.[1]
     if (!anilistId) return []
     const titleHint = options?.animeTitle?.trim() || ''
-    // HLS tokens are build/session scoped — always resolve fresh.
+    // HLS tokens are build/session scoped - always resolve fresh.
     try {
       const url = `${base}/api/sources/animeparadise-${anilistId}-${episode.number}?language=${lang}&provider=animeparadise${titleHint ? `&title=${encodeURIComponent(titleHint)}` : ''}${hintQuery(options)}`
       const res = await fetchWithTimeout(url, {}, 15000, options?.signal)

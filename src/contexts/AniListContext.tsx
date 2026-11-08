@@ -85,7 +85,7 @@ export function AniListProvider({ children }: { children: React.ReactNode }) {
 
   /**
    * List load. `opts.force` re-asks AniList even when the 24 h IDB snapshot
-   * (or the 5 min memory copy) is still fresh — the only way an entry scored
+   * (or the 5 min memory copy) is still fresh - the only way an entry scored
    * or changed on anilist.co shows up without a reload. Used by pull-sync
    * and the Profile refresh button; ordinary loads stay cached.
    */
@@ -129,7 +129,7 @@ export function AniListProvider({ children }: { children: React.ReactNode }) {
     let cancelled = false
     ;(async () => {
       // If this ?code= belongs to MAL (URL state matches stored MAL state but not
-      // AniList state), leave it for MALContext — do not attempt AniList exchange
+      // AniList state), leave it for MALContext - do not attempt AniList exchange
       // (which would show a spurious AniList error). Still load any existing token below.
       let skipCodeHandling = false
       try {
@@ -177,10 +177,10 @@ export function AniListProvider({ children }: { children: React.ReactNode }) {
       setAnimeList(null)
     }
     // Pull-sync: external changes (site/app) surface on focus, reconnect,
-    // and visibility return. No webhooks exist — this is the sync path.
+    // and visibility return. No webhooks exist - this is the sync path.
     // Bounded: 60s cooldown, token-gated, failures silent (stale list kept).
     // FORCED: a pull-sync that reads the 24h IDB snapshot can never see a
-    // score added on anilist.co — the snapshot goes stale the moment a score
+    // score added on anilist.co - the snapshot goes stale the moment a score
     // is set there. Focus/online/visibility now re-ask AniList.
     const lastSyncRef = { current: 0 }
     const pullSync = () => {

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import type { Anime } from '../../types/anime'
 import { getTitleHierarchy } from '../../lib/titles'
@@ -35,7 +35,7 @@ export function Hero({ anime, onMoreInfo, trackingProvider }: { anime: Anime; on
           fetchPriority="high"
         />
 
-        {/* Gradients — cinematic. The left scrim is still column-bound, not
+        {/* Gradients - cinematic. The left scrim is still column-bound, not
             full-bleed (a full-width 96% scrim buries the artwork's left
             ~200px in near-black and reads as a cropped/blocked edge), and
             D156 moved every ramp into globals.css (`.hero-scrim-*`) so both
@@ -45,7 +45,7 @@ export function Hero({ anime, onMoreInfo, trackingProvider }: { anime: Anime; on
           data-hero-scrim="left"
           className="hero-scrim-left absolute inset-y-0 left-0 w-full max-w-[720px]"
         />
-        {/* bottom — anchored to the box (inset-x-0 bottom-0, fixed height)
+        {/* bottom - anchored to the box (inset-x-0 bottom-0, fixed height)
             so rapid slide swaps on mobile can never leave it floating a few
             px above the hero's bottom edge. */}
         <div aria-hidden className="hero-scrim-bottom absolute inset-x-0 bottom-0 h-[45%]" />
@@ -55,7 +55,7 @@ export function Hero({ anime, onMoreInfo, trackingProvider }: { anime: Anime; on
         {/* Content. Alignment ladder: the text
             stack is vertically CENTERED whenever the hero box is tall
             enough (sm+); bottom-left is reserved for the too-small band
-            (<640), where the carousel dots-pill moves to the top-right —
+            (<640), where the carousel dots-pill moves to the top-right  - 
             the two modes always travel together. */}
         <div className="absolute inset-0 flex">
           <div className="flex w-full max-w-[560px] flex-col justify-end gap-3 px-5 pb-6 pt-16 sm:justify-center sm:pl-12 sm:pr-8 sm:pt-8 sm:pb-8 lg:pl-12 lg:pt-8 lg:pb-8 lg:pr-0">
@@ -107,7 +107,7 @@ export function Hero({ anime, onMoreInfo, trackingProvider }: { anime: Anime; on
 }
 
 // ---------------------------------------------------------------------------
-// HeroCarousel — auto-cycling hero used on Home (carousel rotation only;
+// HeroCarousel - auto-cycling hero used on Home (carousel rotation only;
 // the feed rows below never refresh on their own).
 // ---------------------------------------------------------------------------
 
@@ -126,7 +126,7 @@ export function HeroCarousel({
 }) {
   const [index, setIndex] = useState(0)
   // Outgoing slide for the crossfade layer. Recorded synchronously in
-  // setSlide (event time, before React batches the index change) — an
+  // setSlide (event time, before React batches the index change) - an
   // effect-based trail ran one commit late and could flash the wrong
   // underlay between rapid manual navigation.
   const [prevIdx, setPrevIdx] = useState<number | null>(null)
@@ -151,7 +151,7 @@ export function HeroCarousel({
   // Single choke point for slide changes: records the outgoing slide for
   // the crossfade layer, keeps the ref in sync (interval ticks need the
   // current index synchronously), no-ops when the target is already
-  // active. All hooks above the early return — no conditional hook paths.
+  // active. All hooks above the early return - no conditional hook paths.
   const setSlide = useCallback(
     (next: number) => {
       const n = animes.length
@@ -174,7 +174,7 @@ export function HeroCarousel({
 
   const advance = useCallback(() => setSlide(indexRef.current + 1), [setSlide])
 
-  // auto-cycle (carousel rotation only — never touches feed rows)
+  // auto-cycle (carousel rotation only - never touches feed rows)
   useEffect(() => {
     if (prefersReducedMotion || animes.length <= 1 || paused) return
     if (typeof document !== 'undefined' && document.hidden) return
@@ -206,11 +206,11 @@ export function HeroCarousel({
   )
 
   // Touch/drag swipe: horizontal pointer drag switches slides. Vertical
-  // drags (page scroll) are untouched — only a predominantly-horizontal
+  // drags (page scroll) are untouched - only a predominantly-horizontal
   // gesture with real displacement navigates. No library, no scroll lock.
   const dragRef = useRef<{ x: number; y: number; active: boolean } | null>(null)
   // Timestamp of the last swipe-navigation. A touch drag that ends over a
-  // side click-zone can still dispatch a click at its end point — the zones
+  // side click-zone can still dispatch a click at its end point - the zones
   // ignore clicks within a short window after a swipe so one gesture never
   // advances two slides.
   const lastNavRef = useRef(0)
@@ -234,7 +234,7 @@ export function HeroCarousel({
   const active = animes[index]!
 
   // Outgoing slide still paints underneath while the incoming image loads
-  // (and eases out over the crossfade once it is) — never a blank window,
+  // (and eases out over the crossfade once it is) - never a blank window,
   // never a mid-load text-over-wrong-image frame. Recorded synchronously
   // in setSlide; the keyed HeroSlide remount owns the new layer's
   // load/error flags, so no trailing-effect bookkeeping remains.
@@ -291,18 +291,18 @@ export function HeroCarousel({
           onMoreInfo={onMoreInfo}
         />
 
-        {/* Side click-zones + dots — Netflix/minimal style */}
+        {/* Side click-zones + dots - Netflix/minimal style */}
         {animes.length > 1 && (
           <>
             {/* Invisible side click-zones (the arrow
-                ICONS are removed — the left side AREA of the
+                ICONS are removed - the left side AREA of the
                 hero navigates back, the right side AREA forward). Real
                 buttons for keyboard/AT parity, but no chrome at rest; a
                 keyboard focus shows only a thin inset ring. They sit above
                 the gradients but UNDER the dots pill (z-20); the slide's
                 text column is pointer-events-none except its Play/More
-                Info controls, so taps on empty hero areas — including over
-                the text stack — always reach a zone. The swipe guard stops
+                Info controls, so taps on empty hero areas - including over
+                the text stack - always reach a zone. The swipe guard stops
                 a drag ending over a zone from navigating twice. */}
             <button
               onClick={() => { if (Date.now() - lastNavRef.current < 500) return; go(index - 1) }}
@@ -316,7 +316,7 @@ export function HeroCarousel({
             />
 
             {/* Pill dots: bottom-center on desktop; on mobile tucked into
-                the top-right corner (out of the text column's way — the
+                the top-right corner (out of the text column's way - the
                 shorter 4:3 hero has no free bottom edge: bottom-3 collides
                 with More Info, bottom-16 collides with the meta line).
                 z-20 keeps the pill above the side click-zones so dot taps
@@ -348,7 +348,7 @@ export function HeroCarousel({
       </div>
 
       {/* Keyframes: text rise-in, image fade-in, ken-burns zoom-out. All
-          MOUNT-triggered — they restart exactly when the keyed HeroSlide
+          MOUNT-triggered - they restart exactly when the keyed HeroSlide
           remounts, deterministically, whether or not the image was in the
           HTTP cache. (The old transition-from-onLoad silently skipped the
           zoom for cached images: React batched away the initial scale(1.04)
@@ -360,10 +360,10 @@ export function HeroCarousel({
 }
 
 // ---------------------------------------------------------------------------
-// HeroSlide — one keyed slide (backdrop layers + gradients + text column).
+// HeroSlide - one keyed slide (backdrop layers + gradients + text column).
 // Keyed by the anime id in the parent, so a slide change REMOUNTS this
 // component: its load flags reset to fresh useState and every mount-run
-// keyframe restarts. Text mounts only after its own image is ready —
+// keyframe restarts. Text mounts only after its own image is ready  - 
 // title/description can never pair with another slide's picture again.
 // ---------------------------------------------------------------------------
 function HeroSlide({
@@ -384,7 +384,7 @@ function HeroSlide({
 
   // The mismatch fix: hold the text column until the incoming image is
   // ready (or has failed). Before, the text keyed in immediately while
-  // its image stayed at opacity 0 until onLoad — the previous slide's
+  // its image stayed at opacity 0 until onLoad - the previous slide's
   // picture sat under the INCORRECT new title/description for the whole
   // load window, reading as "wrong show's name over another show's art".
   const contentReady = loaded || failed
@@ -393,7 +393,7 @@ function HeroSlide({
     <>
       {/* Outgoing image underneath: static at scale(1), eases out once the
           incoming image reports loaded. On an incoming-image error it
-          STAYS visible — the outgoing layer must never be dropped into a
+          STAYS visible - the outgoing layer must never be dropped into a
           blank hero (the old code suppressed it on error). */}
       {prevAnime && (
         <img
@@ -410,7 +410,7 @@ function HeroSlide({
         />
       )}
       {/* Incoming image: fade + slow ken-burns zoom-out via one mount-run
-          keyframe pair — no transition timing games, no skipped animation
+          keyframe pair - no transition timing games, no skipped animation
           on cached images. On failed load it paints nothing (opacity 0)
           and the outgoing layer remains visible under the text. */}
       <img
@@ -434,7 +434,7 @@ function HeroSlide({
         }
       />
 
-      {/* Gradients — cinematic, always on top of images. Same shared scrims
+      {/* Gradients - cinematic, always on top of images. Same shared scrims
           as the static Hero (globals.css `.hero-scrim-*`, D156): 720px wide,
           deeply eased, never full-bleed. */}
       <div
@@ -457,7 +457,7 @@ function HeroSlide({
         >
           {/* Text column: pointer-events-none so the carousel's invisible
               side click-zones stay reachable everywhere except the actual
-              controls — Play/More Info re-enable pointer events themselves.
+              controls - Play/More Info re-enable pointer events themselves.
               Hero text is display copy, never selection targets. The
               sm:pr-12 / pr-[min(56px,7vw)] reservations keep the stack off
               the right click-zone edge; they were tuned against the old
@@ -474,7 +474,7 @@ function HeroSlide({
                 .join(' • ')
               return (
                 <>
-                  {/* Mobile: shorter hero — title clamps to 2 lines, no
+                  {/* Mobile: shorter hero - title clamps to 2 lines, no
                       description, compact pills. Desktop unchanged.
                       Native title hidden on mobile too: with a 2-line
                       primary + meta + pills the column overflows the
@@ -484,7 +484,7 @@ function HeroSlide({
                       display:-webkit-box to flow-root on these nodes, so
                       only the unprefixed new-model clamp renders (and it
                       needs `line-clamp: N ellipsis` to paint the
-                      ellipsis — the plain classes carry both). Sm variant
+                      ellipsis - the plain classes carry both). Sm variant
                       switches via sm:clamp-3, NOT an arbitrary
                       [-webkit-line-clamp:3] utility: unlayered plain CSS
                       wins over utility-layer rules at equal specificity,
@@ -537,14 +537,14 @@ function CarouselShell({ children, ambient }: { children: React.ReactNode; ambie
   //
   // FRAME LINE: the hero shares the card frame's 1px
   // hairline (--border-card, 50% of --border-strong) on a frosted rim
-  // (.frame-glass — same blur language as the nav/chips/hover treatment).
+  // (.frame-glass - same blur language as the nav/chips/hover treatment).
   // Drawn as an overlay instead of a real border: a border on this
   // composited, overflow-clipped layer made Chrome tile stale
   // backdrop-filter snapshots into the slide artwork, and an overlay cannot
   // shift the 1px layout the carousel's ken-burns geometry depends on.
   //
   // AMBIENT (D162): the page wash lives on this OUTER wrapper so it can
-  // bleed past the card — inside the clipped layer it would be cropped to
+  // bleed past the card - inside the clipped layer it would be cropped to
   // nothing. The wrapper is layout-neutral (the card still owns the box) and
   // paints no background of its own. The wash is full-bleed (100vw + 40px,
   // centred, clipped by body's overflow-x: clip) and Home's feed rows sit on
@@ -561,7 +561,7 @@ function CarouselShell({ children, ambient }: { children: React.ReactNode; ambie
 }
 
 // ---------------------------------------------------------------------------
-// HeroAmbient — the Netflix-style page wash behind the hero.
+// HeroAmbient - the Netflix-style page wash behind the hero.
 //
 // The SAME backdrop image is painted (not sampled): full-bleed, blurred
 // hard, then masked vertically into --bg so the page is tinted behind the
@@ -583,7 +583,7 @@ function HeroAmbient({
   const [loaded, setLoaded] = useState(false)
   // The outgoing layer exists only for the crossfade. Leaving it mounted at
   // `opacity: 0` kept a second full-size filtered layer alive for the whole
-  // session — pure scroll cost for something invisible (owner report
+  // session - pure scroll cost for something invisible (owner report
   // 2026-11-05: mobile scroll lag). Drop it once the fade has finished.
   const [prevVisible, setPrevVisible] = useState(Boolean(prevAnime))
   useEffect(() => {
@@ -612,9 +612,23 @@ function HeroAmbient({
   // page paints `background-image: none`.
   const washRef = useRef<HTMLDivElement | null>(null)
   const backdrop = anime.backdropImage
-  useEffect(() => {
+  // LAYOUT effect, not passive: the navbar paints a copy of this wash, and a
+  // passive effect runs AFTER the browser has already painted once. On a
+  // slide change the keyed remount removes these vars in the commit and the
+  // passive effect set them back a frame later, so the bar went blank (or
+  // held the old art) for a frame and then caught up. Publishing before
+  // paint makes the bar track the page's fade from its first frame (D170).
+  useLayoutEffect(() => {
     const root = document.documentElement
     root.style.setProperty('--hero-wash-image', `url("${backdrop}")`)
+    // Tell the bar a wash exists. Without this the bar painted an empty
+    // filtered layer (blur + gradient mask, no image) on every page, and
+    // iOS smeared that composited layer after exiting fullscreen (owner
+    // report 2026-11-07: "small gradient blur on the navbar, especially
+    // after unfull screen"). The bar now mounts the layer only when there is
+    // something to paint. An attribute (not a custom event) so the bar can
+    // also read the CURRENT state when it attaches, with no mount-order race.
+    root.toggleAttribute('data-hero-wash', true)
     const el = washRef.current
     const publish = () => {
       if (!el) return
@@ -631,6 +645,7 @@ function HeroAmbient({
       root.style.removeProperty('--hero-wash-image')
       root.style.removeProperty('--hero-wash-top')
       root.style.removeProperty('--hero-wash-height')
+      root.removeAttribute('data-hero-wash')
     }
   }, [backdrop])
 
@@ -640,7 +655,7 @@ function HeroAmbient({
   //
   // The wash fades: the outgoing <img> stays at opacity 1 until the incoming
   // one has loaded, then both ease over CROSSFADE_MS. A bar copy that just
-  // swapped `background-image` had no fade at all — it went blank until the
+  // swapped `background-image` had no fade at all - it went blank until the
   // new artwork was decoded, then re-rastered the 130px blur, so the change
   // landed a few frames after the page's own wash. These two signals let the
   // bar replay the SAME sequence: `--hero-wash-prev-image` is the outgoing
@@ -651,19 +666,21 @@ function HeroAmbient({
   //
   // The attribute (not just a var) is what makes the crossfade correct in
   // BOTH directions: while it is absent the bar's layers swap INSTANTLY
-  // (that is the frame the artwork changes — no transition may run there, or
+  // (that is the frame the artwork changes - no transition may run there, or
   // the new artwork would fade out over the old one), and while it is present
   // they transition. That is also how the wash behaves: the outgoing <img>
   // mounts at opacity 1 with no fade, then both fade only once `loaded`.
   const prevBackdrop = prevAnime?.backdropImage
-  useEffect(() => {
+  // Layout effect for the same reason: the outgoing artwork must already be
+  // in the bar on the commit that swaps slides, not one painted frame later.
+  useLayoutEffect(() => {
     const root = document.documentElement
     if (prevBackdrop && prevVisible) root.style.setProperty('--hero-wash-prev-image', `url("${prevBackdrop}")`)
     else root.style.removeProperty('--hero-wash-prev-image')
     return () => { root.style.removeProperty('--hero-wash-prev-image') }
   }, [prevBackdrop, prevVisible])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const root = document.documentElement
     root.toggleAttribute('data-hero-wash-ready', loaded)
     return () => { root.removeAttribute('data-hero-wash-ready') }
@@ -687,7 +704,13 @@ function HeroAmbient({
         alt=""
         loading="eager"
         decoding="async"
-        onLoad={() => setLoaded(true)}
+        onLoad={() => {
+          // Set the shared trigger BEFORE React renders, so the bar starts
+          // its fade in the exact frame the page's <img> starts its own
+          // (D170: the owner still saw a small delay).
+          document.documentElement.setAttribute('data-hero-wash-ready', '')
+          setLoaded(true)
+        }}
         className="absolute inset-0 h-full w-full object-cover"
         style={{ opacity: loaded ? 1 : 0, transition: fade }}
       />

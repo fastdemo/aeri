@@ -2,13 +2,13 @@ import type { Anime } from '../../types/anime'
 import type { VideoProvider, VideoEpisode, VideoSourceEnhanced, ProviderCapabilities, ProviderAnimeMatch, SourceOptions } from './types'
 import { cachedFetch, fetchWithTimeout } from './base'
 
-// Miruro / aggregator backend — uses same-origin /api when deployed on Cloudflare, or VITE_VIDEO_API_URL/custom
+// Miruro / aggregator backend - uses same-origin /api when deployed on Cloudflare, or VITE_VIDEO_API_URL/custom
 import { getEffectiveVideoApiUrl } from '../../storage/preferences'
 
 export class MiruroProvider implements VideoProvider {
   id = 'miruro'
   name = 'Miruro'
-  // Episode list works but sources resolve to trailers only — not a full-episode provider.
+  // Episode list works but sources resolve to trailers only - not a full-episode provider.
   status = 'unverified' as const
   capabilities: ProviderCapabilities = {
     id: 'miruro',
@@ -41,7 +41,7 @@ export class MiruroProvider implements VideoProvider {
     if (!anilistId) return null
     return cachedFetch(`video:miruro:resolve:${anilistId}`, async () => {
       try {
-        // Try map endpoint first (AniList -> provider) — use /api prefix for Cloudflare same-origin
+        // Try map endpoint first (AniList -> provider) - use /api prefix for Cloudflare same-origin
         const res = await fetchWithTimeout(`${this.base}/api/map/${anilistId}`, {}, 3500)
         if (!res.ok) return null
         const json: any = await res.json().catch(() => null)

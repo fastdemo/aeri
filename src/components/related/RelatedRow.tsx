@@ -16,7 +16,7 @@ function isMangaFormat(format?: string | null): boolean {
  * discovery surface.
  *
  * STANDARD WIDTHS (owner 2026-10-28): every card uses the site's Home rail
- * width (`CARD_WIDTH.rail`) — the same 236/200/168px breakpoint table as
+ * width (`CARD_WIDTH.rail`) - the same 236/200/168px breakpoint table as
  * every other row. The old per-row edge-fit sizing gave Related Anime and
  * Related Manga different card widths on the same page (236px vs 245px in
  * the reader), so the two rows read as inconsistent. Item counts differ
@@ -24,7 +24,7 @@ function isMangaFormat(format?: string | null): boolean {
  * cards themselves never resize to compensate.
  *
  * Cards open the floating detail route over the current page via
- * `useDetailOpen` — the Watch/Read background stays mounted (D097).
+ * `useDetailOpen` - the Watch/Read background stays mounted (D097).
  */
 export function RelatedRow({
   entries,
@@ -32,18 +32,29 @@ export function RelatedRow({
   mediaKind,
   title,
   className,
+  matchEpisodeGrid,
 }: {
   entries: RelatedEntry[] | null
   loading: boolean
   mediaKind: 'anime' | 'manga'
   title: string
   className?: string
+  /** Watch page only (D170): at >=1024px, size each card and its 8px gap
+      exactly like the Episodes grid cell (five columns, 8px gaps, same page
+      width). Below 1024 the normal rail width is untouched. */
+  matchEpisodeGrid?: boolean
 }) {
   const openDetail = useDetailOpen()
+  // `(100% - 4 gaps of 8px) / 5` is the episode grid's own cell width at the
+  // `lg` breakpoint. The rail and the grid share the same page width and
+  // `gap-2`, so the two surfaces agree to the pixel at every desktop width.
+  const cardWidth = matchEpisodeGrid
+    ? 'w-[168px] sm:w-[200px] lg:w-[calc((100%_-_2rem)/5)]'
+    : undefined
   const list = (entries ?? []).filter(e =>
     mediaKind === 'manga' ? isMangaFormat(e.anime.format) : !isMangaFormat(e.anime.format),
   )
-  // Owner 2026-11-06: singular/plural on both counts — "1 anime" / "11
+  // Owner 2026-11-06: singular/plural on both counts - "1 anime" / "11
   // animes", "1 manga" / "25 mangas".
   const unit = mediaKind === 'manga' ? 'manga' : 'anime'
   const countLabel = `${list.length} ${unit}${list.length === 1 ? '' : 's'}`
@@ -58,6 +69,7 @@ export function RelatedRow({
       <ContentRow
         title={title}
         mediaKind={mediaKind}
+        cardWidthClass={cardWidth}
         // Count on the right, matching the Episodes header's "N episodes"
         // line (owner 2026-11-06).
         subtitle={countLabel}
@@ -68,6 +80,7 @@ export function RelatedRow({
             anime={anime}
             mediaKind={mediaKind}
             onSelect={openDetail}
+            widthClass={cardWidth}
           />
         ))}
       </ContentRow>

@@ -9,7 +9,7 @@ export function Skeleton({ className = '' }: { className?: string }) {
 }
 
 /**
- * CARD SKELETON — the card's silhouette before the data exists.
+ * CARD SKELETON - the card's silhouette before the data exists.
  *
  * Shape comes from `cardGeometry.ts` (the same module AnimeCard reads), so a
  * skeleton can never disagree with the card it becomes. That was a real bug
@@ -22,8 +22,8 @@ export function Skeleton({ className = '' }: { className?: string }) {
  *
  * Two appearances, because the two places a skeleton shows are different
  * surfaces (both were already in the product before this refactor):
- * - framed (default): rail/row card — the card frame with a shimmer sweep.
- * - flat: grid cell — a quiet surface block that pulses.
+ * - framed (default): rail/row card - the card frame with a shimmer sweep.
+ * - flat: grid cell - a quiet surface block that pulses.
  */
 export function CardSkeleton({
   mediaKind = 'anime',
@@ -33,7 +33,7 @@ export function CardSkeleton({
   mediaKind?: CardMediaKind
   /** Fill the grid cell (Browse/Manga/Search) instead of the fixed rail width. */
   fullWidth?: boolean
-  /** Grid look: no card frame, no shimmer — a quiet pulsing block. */
+  /** Grid look: no card frame, no shimmer - a quiet pulsing block. */
   flat?: boolean
 }) {
   const width = fullWidth ? CARD_WIDTH.full : `${CARD_WIDTH.rail} shrink-0`
@@ -61,10 +61,10 @@ export function RowSkeleton({
   mediaKind = 'anime',
 }: {
   title?: string
-  /** Row content shape — Watch's Related Anime passes anime, Read's passes manga. */
+  /** Row content shape - Watch's Related Anime passes anime, Read's passes manga. */
   mediaKind?: CardMediaKind
 }) {
-  // No horizontal padding here — callers (Home rows container, MyList
+  // No horizontal padding here - callers (Home rows container, MyList
   // container) already pad to the hero edge. Own px-* would double-pad
   // below lg and push bar + first card right of the hero/row-title edge.
   return (

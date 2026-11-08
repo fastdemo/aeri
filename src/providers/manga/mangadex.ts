@@ -5,7 +5,7 @@ import { getEffectiveVideoApiUrl, getPreferences } from '../../storage/preferenc
 
 function getWorkerBase(): string | null {
   // Same-origin /api on Cloudflare (or custom URL in Settings, or baked
-  // VITE_VIDEO_API_URL). Localhost preview has no Worker — callers must
+  // VITE_VIDEO_API_URL). Localhost preview has no Worker - callers must
   // handle null (provider returns [] → honest empty state, not a crash).
   try { return getEffectiveVideoApiUrl()?.replace(/\/$/, '') || null } catch { return null }
 }
@@ -76,7 +76,7 @@ async function workerJson(path: string, signal?: AbortSignal): Promise<any> {
  *
  * Units are opaque provider units with the provider's own label preserved
  * ("Chapter 386", "Oneshot: ..."). External (off-site licensed) chapters
- * never enter the reader — surfaced separately as external links.
+ * never enter the reader - surfaced separately as external links.
  */
 class MangaDexProvider implements MangaProvider {
   id = 'mangadex'
@@ -86,7 +86,7 @@ class MangaDexProvider implements MangaProvider {
   // external-link surfacing for licensed titles (Solo Leveling 16).
   status = 'verified' as const
   enabledByDefault = true
-  blurb = 'Primary — high-quality scanlations, direct CDN'
+  blurb = 'Primary - high-quality scanlations, direct CDN'
 
   private hintsOf(manga: Anime, options?: MangaSourceOptions) {
     const p = new URLSearchParams()
@@ -112,13 +112,13 @@ class MangaDexProvider implements MangaProvider {
     // Trust boundary: a cached match is reusable ONLY if it was verified
     // AND the current query carries the same chapter-count expectation.
     // A stale entry from a title-only query (no chapters hint, no verified
-    // flag semantics for THIS manga's length) must be re-resolved — never
+    // flag semantics for THIS manga's length) must be re-resolved - never
     // serve another manga's series from cache.
     if (hit && (hit as any).verified) {
       const curCh = options?.mangaChapters ?? manga.chapters
       const hitCh = (hit as any).expectedChapters
       if (typeof curCh === 'number' && typeof hitCh === 'number' && curCh !== hitCh) {
-        // Different manga — do not reuse.
+        // Different manga - do not reuse.
       } else return hit
     }
     try {
@@ -142,7 +142,7 @@ class MangaDexProvider implements MangaProvider {
       // licensed ones (`external`). Older worker versions put external
       // chapters in `chapters` with a placeholder page count of 1, so the
       // reader could open a unit that returns zero pages. Both lists are
-      // mapped here, tagged `externalOnly`, and de-duplicated by unit id —
+      // mapped here, tagged `externalOnly`, and de-duplicated by unit id  - 
       // the resolver filters tagged units out of the readable list while
       // keeping their links for the "read officially" state.
       const toUnit = (c: any, forceExternal: boolean): MangaChapter => {
@@ -195,7 +195,7 @@ import { mangaHereProvider, bato1Provider, kakalotFunProvider, mangaReadProvider
 
 export const mangaDexProvider = new MangaDexProvider()
 
-// FINAL MANGA PRIORITY (owner default, 2026-10-28 — D144):
+// FINAL MANGA PRIORITY (owner default, 2026-10-28 - D144):
 // 1. WeebCentral (Tier 1: /images fragment, PNGs)
 // 2. MangaHere (Tier 2: packed-JS decode, JPEGs)
 // 3. MangaPill (Tier 1: server-rendered, JPEGs)
@@ -204,13 +204,13 @@ export const mangaDexProvider = new MangaDexProvider()
 // 6. MangaKakalot.fun (Tier 2: working .fun mirror, PNGs)
 // 7. MangaRead (Tier 2: MangaBuddy replacement, JPEGs)
 // Dead/broken (canonical mangabuddy/mangakakalot/bato.to, mangapark,
-// comick pages) are NOT in this array — zero requests, zero timeout spent.
+// comick pages) are NOT in this array - zero requests, zero timeout spent.
 // Settings ↑/↓ persists `mangaProviderOrder` and overrides this default.
 export const mangaProviders: MangaProvider[] = [weebCentralProvider, mangaHereProvider, mangaPillProvider, mangaDexProvider, bato1Provider, kakalotFunProvider, mangaReadProvider]
 
 /**
  * Registry of ALL manga provider instances (verified or not). Settings
- * derives its Manga section from this via verifiedMangaProviders() —
+ * derives its Manga section from this via verifiedMangaProviders()  - 
  * never a hardcoded list. Resolution priority follows the user's
  * Settings → Providers order (`mangaProviderOrder` pref) when set,
  * else the default priority: WeebCentral → MangaHere → MangaPill →
@@ -220,7 +220,7 @@ export function allMangaProviders(): MangaProvider[] {
   return [...mangaProviders]
 }
 
-/** Default resolution priority (owner default, 2026-10-28 — D144). */
+/** Default resolution priority (owner default, 2026-10-28 - D144). */
 export const DEFAULT_MANGA_ORDER = ['weebcentral', 'mangahere', 'mangapill', 'mangadex', 'bato1', 'kakalot', 'mangaread']
 
 /** Effective resolution order: user order first (valid ids only), then the rest in default priority. */
@@ -244,7 +244,7 @@ export function orderedMangaProviders(): MangaProvider[] {
   return out
 }
 
-/** Only verified providers — the sole source for the Settings UI list. */
+/** Only verified providers - the sole source for the Settings UI list. */
 export function verifiedMangaProviders(): MangaProvider[] {
   return allMangaProviders().filter(p => p.status === 'verified')
 }
@@ -266,11 +266,11 @@ export function getMangaProviderById(id: string): MangaProvider | undefined {
 /**
  * Display name for a manga provider id. Chapter/unit ids are prefixed with the
  * provider id (`weebcentral-…`), and the reader + chapter list used to carry
- * their OWN hardcoded id→name tables — a second source of truth that drifted
+ * their OWN hardcoded id→name tables - a second source of truth that drifted
  * ("Kakalot" for a provider that calls itself "MangaKakalot.fun"). The owner
  * asked for every provider to appear under its real name across the UI
  * (2026-11-06), so the registry's `name` is the only source. Unknown prefixes
- * return '' — never a raw id fragment as a label.
+ * return '' - never a raw id fragment as a label.
  */
 export function mangaProviderLabel(id: string | null | undefined): string {
   if (!id) return ''
@@ -284,7 +284,7 @@ export interface ChapterResolveResult {
   /**
    * Per-provider attempt ledger (verified+enabled providers only, in the
    * order attempted; STOPS at the first provider that returned a usable
-   * catalogue — single-source rule, no later requests). Lets callers
+   * catalogue - single-source rule, no later requests). Lets callers
    * distinguish "all providers failed" from "a provider matched but hosts
    * nothing" and surface honest per-provider states. Never includes disabled
    * providers.
@@ -293,7 +293,7 @@ export interface ChapterResolveResult {
   /**
    * Off-site licensed links from the first provider whose units were ALL
    * external (it matched the title but hosts no pages). Only populated when
-   * no provider hosted anything readable — the reader then offers "read
+   * no provider hosted anything readable - the reader then offers "read
    * officially" instead of a dead "no chapters" wall.
    */
   externalUnits?: { label: string; url: string }[]
@@ -311,13 +311,13 @@ export async function resolveChaptersWithFallback(manga: Anime, signal?: AbortSi
   }
   const opts = { ...options, signal }
   let lastError: string | undefined
-  // Single-source rule: ONE source per manga — the
+  // Single-source rule: ONE source per manga - the
   // highest-priority ENABLED provider wins outright. The next enabled
   // provider is attempted only when the first hosts NOTHING readable (no
   // match, zero units, only off-site licensed units, a sliver of a long
   // series, or a request error). No cross-provider merging: every row
   // in the list belongs to the winner, so the provenance is one source the
-  // user can reason about. Disabled providers are never requested — zero
+  // user can reason about. Disabled providers are never requested - zero
   // requests, no fallback through them.
   const enabled = orderedMangaProviders().filter(p => p.status === 'verified' && mangaEnabled(p.id))
   const attempts: { providerId: string; units: number; error?: string }[] = []
@@ -341,7 +341,7 @@ export async function resolveChaptersWithFallback(manga: Anime, signal?: AbortSi
       // of 2026) as EXTERNAL chapters with a placeholder page count, and
       // every one of them returns zero pages. Counting those as "units"
       // declared the title resolvable and opened a reader that could never
-      // show a page — the "chapter not found" wall. External
+      // show a page - the "chapter not found" wall. External
       // units are never readable, so an all-external list means this source
       // hosts nothing and resolution continues to the next provider.
       const readable = chapters.filter(c => !c.externalOnly)
@@ -355,14 +355,14 @@ export async function resolveChaptersWithFallback(manga: Anime, signal?: AbortSi
         // HOSTED-PAGES PROBE. A unit list can be real
         // metadata for chapters that no longer exist: MangaDex returned
         // Chapter 1191 for One Piece with `pages: 14`, and its at-home
-        // endpoint answers 404 — the reader opened on a single dead chapter
+        // endpoint answers 404 - the reader opened on a single dead chapter
         // while MangaPill held 1,212 usable ones. Only DEGENERATE lists
         // (≤3 units) are probed, so normal catalogues resolve with no extra
         // request: the first unit is read, then the last (a removed upload
         // is often at the tail); two empty answers mean the source hosts
         // nothing. Requests are provider-cached, so the reader's own page
         // load is a cache hit, not a duplicate fetch. A THROWN probe is
-        // inconclusive — the list is accepted and the reader surfaces its own
+        // inconclusive - the list is accepted and the reader surfaces its own
         // error, so a flaky network never silently downgrades a working
         // source.
         let hosted: boolean | null = true
@@ -378,7 +378,7 @@ export async function resolveChaptersWithFallback(manga: Anime, signal?: AbortSi
         }
         if (hosted !== false) {
           // First enabled provider serving a usable catalogue ends
-          // resolution — later providers stay untouched (this is a feature:
+          // resolution - later providers stay untouched (this is a feature:
           // resolution cost is the winner's cost alone).
           return { chapters: readable, providerId: p.id, attempts }
         }

@@ -12,7 +12,7 @@
  *   https://hot.planeptune.us/manga/...png|jpg image URLs (verified real
  *   JPEG bytes, 200, no referer required).
  *
- * Security: no CAPTCHA/DRM/auth bypass — plain GET/POST of the site's public
+ * Security: no CAPTCHA/DRM/auth bypass - plain GET/POST of the site's public
  * htmx endpoints. Images are browser-direct (no referer needed, CORS
  * irrelevant for <img>); no proxy needed.
  */
@@ -98,7 +98,7 @@ const WC_MATCH_THRESHOLD = 40
 
 /**
  * Sanity-check a WeebCentral match against AniList published totals.
- * Generic rules only — no title-specific exceptions:
+ * Generic rules only - no title-specific exceptions:
  * - candidate title is shaped like a single-unit oneshot but AniList
  *   expects a long series (50+ chapters) → reject at match time.
  * - full verification happens in wcVerifyMatch (chapter-list size vs
@@ -122,7 +122,7 @@ function wcTitleSanityOk(candidateTitle: string, hint: ProviderHint | undefined)
  * - Short EXPECTED works (oneshots, 2-ch volumes like Kurapika): when
  *   AniList says the work itself is short, additionally require the
  *   candidate to be short. A 420-unit main series matched for a 2-chapter
- *   work is the mirror-image mismatch — reject when candidate exceeds
+ *   work is the mirror-image mismatch - reject when candidate exceeds
  *   10× expected AND expected ≤ 10 (generous bound for licensed gaps).
  * - Otherwise accept (licensed gaps pass).
  */
@@ -136,7 +136,7 @@ export async function wcVerifyMatch(
   try {
     list = await wcGetChapters(providerMangaId, signal)
   } catch (e) {
-    // Can't verify (network) — don't block on verification failure alone.
+    // Can't verify (network) - don't block on verification failure alone.
     return { ok: true }
   }
   const units = list.length
@@ -211,7 +211,7 @@ export async function wcSearchAndMatch(hint: ProviderHint | undefined, signal?: 
   // Replica of the browser htmx quick-search request (verified 2026-09-19:
   // the page fires POST /search/simple?location=main with HX-Request/HX-*
   // headers; without them the endpoint returns "No results found" for every
-  // query). All queries are attempted and their candidates pooled — the best
+  // query). All queries are attempted and their candidates pooled - the best
   // title score across every query wins, not just the first query with hits.
   const htmxHeaders = {
     'Content-Type': 'application/x-www-form-urlencoded',
@@ -240,7 +240,7 @@ export async function wcSearchAndMatch(hint: ProviderHint | undefined, signal?: 
   if (!candidates.length) throw new Error('no search results')
   // Walk the ranking top-down, but with a hard rule: the TOP scorer
   // decides. If it passes threshold + sanity + verification, it wins. If
-  // it fails any of those, the whole match fails closed — weaker
+  // it fails any of those, the whole match fails closed - weaker
   // candidates are never the true series in that situation (e.g. a side
   // story outscoring the series means the provider has no usable series
   // entry, not that the 4th result is secretly correct).
@@ -255,7 +255,7 @@ export async function wcSearchAndMatch(hint: ProviderHint | undefined, signal?: 
     if (wcTitleSanityOk(top.c.title, hint)) {
       const verified = await wcVerifyMatch(top.c.id, hint, signal)
       if (verified.ok) {
-        // Do NOT cache here — the route caches per-AniList-id AFTER this
+        // Do NOT cache here - the route caches per-AniList-id AFTER this
         // returns, keyed by the real anilistId. (Caching inside the matcher,
         // which never sees the id, would poison unrelated entries.)
         const out = { providerMangaId: top.c.id, providerTitle: top.c.title }
@@ -270,7 +270,7 @@ export async function wcSearchAndMatch(hint: ProviderHint | undefined, signal?: 
   }
   // Walked the whole ranking with no acceptable candidate. If the top
   // scorer passed the threshold but failed sanity/verification, that is a
-  // REAL mismatch signal (e.g. side story absorbing a series match) — fail
+  // REAL mismatch signal (e.g. side story absorbing a series match) - fail
   // closed rather than falling through to a weaker candidate that is even
   // less likely to be the true series.
   throw new Error('no confident match')
@@ -287,12 +287,12 @@ function parseChapterList(html: string): WcChapter[] {
     const inner = m[2]
     // Chapter label lives in its OWN <span class=""> ("Chapter 386",
     // "Prologue 2", "# 95"); sibling spans hold Last Read / new badges.
-    // Never use the whole anchor text — it mixes badges + timestamps.
+    // Never use the whole anchor text - it mixes badges + timestamps.
     const spanTexts = [...inner.matchAll(/<span class="">([^<]{1,60})<\/span>/g)]
       .map((s) => s[1].replace(/\s+/g, ' ').trim())
       .filter(Boolean)
     const raw = spanTexts[0] ?? inner.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60)
-    // Provider units are opaque readable units — chapters, missions,
+    // Provider units are opaque readable units - chapters, missions,
     // prologues, epilogues, oneshots, OR volumes. Never rename a volume to
     // a chapter: kind captures the provider's own prefix, unitType drives
     // display wording ("Volume 3" vs "Chapter 12" vs "Mission 140").
@@ -352,7 +352,7 @@ export async function wcGetPages(providerChapterId: string, signal?: AbortSignal
   if (!res.ok) throw new Error(`pages ${res.status}`)
   const html = await res.text()
   // Page-image hosts rotate: planeptune (hot/scans-hot) AND lowee
-  // (official.lowee.us — observed 2026-09-20 on Uzumaki/Eri units).
+  // (official.lowee.us - observed 2026-09-20 on Uzumaki/Eri units).
   // Accept any same-shape https image URL, then gate by suffix allowlist
   // at the relay (never an open proxy).
   const urls = [...new Set(

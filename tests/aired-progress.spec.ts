@@ -6,7 +6,7 @@ import { routeTestAnilistMedia } from './helpers/test-anilist'
  * AIRED-EPISODE PROGRESS + STABLE LIST DIVIDERS.
  *
  * Progress is measured against episodes that HAVE AIRED, not the planned
- * season total — the preview card follows the same rule. The fixture is a
+ * season total - the preview card follows the same rule. The fixture is a
  * 12-episode RELEASING show whose next episode is 4 (so 3 have aired) with 3
  * watched: the old code read 3 of 12 (25%), the new code must read 3 of 3
  * (100%).
@@ -29,12 +29,12 @@ test.describe('Aired-episode progress', () => {
     await setup(page)
     await page.goto('/', { waitUntil: 'domcontentloaded' })
 
-    // The floating continue pill (D150/D155) — not the old 2px flush bar.
+    // The floating continue pill (D150/D155) - not the old 2px flush bar.
     const track = page.locator('[data-continue-bar]').first()
     await expect(track).toBeVisible({ timeout: 30000 })
 
     // The card's AniList enrichment lands a moment later (the list copy has
-    // no airing schedule) — poll until the bar reaches full width.
+    // no airing schedule) - poll until the bar reaches full width.
     await expect
       .poll(async () => {
         const sizes = await track.evaluate((el) => {

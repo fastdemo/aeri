@@ -3,12 +3,12 @@ import { routeTestMalIdentity } from './helpers/test-auth'
 import { routeTestAnilistMedia } from './helpers/test-anilist'
 
 /**
- * D149 — the browser's own chrome follows the Aeri theme.
+ * D149 - the browser's own chrome follows the Aeri theme.
  *
  * Safari 26 derives the window/toolbar tint from the page background and
  * ignores `<meta name="theme-color">` (WebKit bug 301756). Aeri therefore
  * paints the theme's `--bg` onto `<html>` and `<body>` inline on every
- * `applyTheme()` call — the body is the element Safari samples, so switching
+ * `applyTheme()` call - the body is the element Safari samples, so switching
  * themes must change that element itself, not just a CSS variable on `:root`.
  * The meta is kept in sync for engines that still honor it (iOS < 26, Chrome
  * Android), and `color-scheme` flips with the palette so native controls and
@@ -47,7 +47,7 @@ const readChrome = (page: Page) =>
       bodyInline: body.style.backgroundColor,
       bodyComputed: getComputedStyle(body).backgroundColor,
       // iOS 26 installed web apps tint the status bar from the fixed element at
-      // the top edge (the navbar), not from `theme-color` — see D168.
+      // the top edge (the navbar), not from `theme-color` - see D168.
       navInline: nav ? nav.style.backgroundColor : null,
       navComputed: nav ? getComputedStyle(nav).backgroundColor : null,
       storedBg: localStorage.getItem('aeri:theme-bg'),

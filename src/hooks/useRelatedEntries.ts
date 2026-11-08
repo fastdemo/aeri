@@ -129,14 +129,14 @@ type RelatedResponse = {
 
 const MEM_TTL = 1000 * 60 * 30
 const MEM_MAX = 100
-// Instance-scoped mem/inflight MIRRORS keyed by the caller's scopedId —
+// Instance-scoped mem/inflight MIRRORS keyed by the caller's scopedId  - 
 // each RelatedEntries mount keeps its own render mirror. The NETWORK/IDB
 // cache inside anilistGraphQL is CANONICAL (`anilist:related:<type>:<id>`,
 // no scope): the underlying data is identical for every mount, so desktop
 // + mobile instances of the same card share ONE fetch and ONE IDB row
 // instead of each firing its own 12-hop fan (the old scope-namespaced keys
 // multiplied cold card opens into ~26 GraphQL requests and drove AniList
-// 429 storms — the shared cooldown then parked everything for ~60s, which
+// 429 storms - the shared cooldown then parked everything for ~60s, which
 // is exactly the observed 50/50 failures and 30s waits).
 const mem = new Map<string, { at: number; data: RelatedEntry[] }>()
 const inflight = new Map<string, Promise<RelatedEntry[]>>()
@@ -144,7 +144,7 @@ const inflight = new Map<string, Promise<RelatedEntry[]>>()
 // Second-hop budget: at most 6 neighbors fetched over the network, in
 // ~140ms-staggered starts (a simultaneous 12-query burst trips AniList's
 // burst limiter). Skip the fan entirely when the direct list is already
-// rich (>= 8 entries) — transitive closure adds little there.
+// rich (>= 8 entries) - transitive closure adds little there.
 const HOP_MAX = 6
 const HOP_RICH = 8
 const HOP_STAGGER_MS = 140
@@ -165,7 +165,7 @@ async function fetchRelated(anilistId: number, mediaType: 'ANIME' | 'MANGA', sig
     { id: anilistId },
     // CANONICAL, type-scoped cache identity: anime-16498 relations must
     // never satisfy a manga-16498 read (or vice versa). Mount scopes do NOT
-    // participate — every instance of the same media shares this row.
+    // participate - every instance of the same media shares this row.
     { cacheKey: `anilist:related:${mediaType}:${anilistId}`, useCache: true, signal },
   )
   const edges = data.Media?.relations?.edges ?? []
@@ -219,7 +219,7 @@ async function fetchRelated(anilistId: number, mediaType: 'ANIME' | 'MANGA', sig
 }
 
 /**
- * Related Entries for one AniList anime id. Informational/navigation only —
+ * Related Entries for one AniList anime id. Informational/navigation only  - 
  * never identity, tracking, or streaming. Uses the entry's own `relations`
  * when the caller already holds them (zero extra requests); otherwise one
  * cached relations-only query. Deduped by media id, current entry excluded,
@@ -233,11 +233,11 @@ async function fetchRelated(anilistId: number, mediaType: 'ANIME' | 'MANGA', sig
  * (adaptations) render with the correct card + route per entry.
  *
  * The first param is a namespaced key `<scope>:<anilistId>` (scope =
- * modal-desktop, modal-mobile, page, watch) — it keys each mount's own
+ * modal-desktop, modal-mobile, page, watch) - it keys each mount's own
  * render MIRROR (mem/inflight) so instances never mix states. The network
  * and IDB cache inside anilistGraphQL is CANONICAL per media
  * (`anilist:related:<type>:<id>`): the underlying data is identical for
- * every mount, so concurrent instances share one fetch and one IDB row —
+ * every mount, so concurrent instances share one fetch and one IDB row  - 
  * a cold card open costs one relations query + a capped, staggered hop
  * fan, not one set per mount.
  */
@@ -262,7 +262,7 @@ export function useRelatedEntries(
     // closure rule as fetchRelated; direct entries render immediately,
     // indirect ones merge in when their cached queries resolve).
     // TRUST BOUNDARY: preloaded edges come from the caller's own Media
-    // query (same AniList type by construction — MEDIA_QUERY vs
+    // query (same AniList type by construction - MEDIA_QUERY vs
     // MEDIA_MANGA_QUERY). When the fallback query runs, it asks for
     // `mediaType` explicitly. Either way, related NODES carry their own
     // format and are routed per-entry (manga → /manga, anime → /anime/…),
@@ -304,7 +304,7 @@ export function useRelatedEntries(
       )
       rankEntries(out)
       setState({ entries: out, loading: false })
-      // Background second hop: same closure rule as fetchRelated — canonical
+      // Background second hop: same closure rule as fetchRelated - canonical
       // cache keys (shared across all mounts), staggered starts, capped at
       // HOP_MAX network targets, skipped when the direct list is already
       // rich, and skipped entirely while the AniList cooldown is armed (a
@@ -369,7 +369,7 @@ export function useRelatedEntries(
       inflight.set(scopedId as string, p)
       return p
     })()
-    // IDB before network (repeat visits: zero requests) — canonical key,
+    // IDB before network (repeat visits: zero requests) - canonical key,
     // shared by every mount of the same media.
     getCache<{ entries: RelatedEntry[]; at: number }>(`anilist:related:${mediaType}:${anilistId}`)
       .then((cached: { entries: RelatedEntry[]; at: number } | null) => {
@@ -398,7 +398,7 @@ export function useRelatedEntries(
         }
       })
     return () => { cancelled = true; controller.abort() }
-  // Stringify preloaded edges as the dep — stable identity without refetch loops.
+  // Stringify preloaded edges as the dep - stable identity without refetch loops.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scopedId, mediaType, JSON.stringify(preloaded?.edges?.map(e => [e.relationType, e.node?.id]) ?? null)])
 

@@ -12,7 +12,7 @@ import type { Anime, AnimeListEntry } from '../types/anime'
 import { pillSolid, pillSoft } from '../components/ui/buttonStyles'
 
 // Profile: the home page's row MATERIALS on the user's
-// own page — a home-styled "Currently Watching" row with NORMAL cards (not
+// own page - a home-styled "Currently Watching" row with NORMAL cards (not
 // the continue variant), user-score-sorted "Highest Rated" / "Lowest Rated"
 // rows, and the home page's "My List" row verbatim at the bottom. All four
 // rows derive from the ACTIVE tracker's list (exactly one writer per
@@ -24,7 +24,7 @@ export function Profile() {
   const { user: malUser } = useMAL()
   const openDetail = useDetailOpen()
   // Avatar + name follow the ACTIVE tracker (switching MAL/AniList swaps
-  // both) — same precedence as the navbar (active account first).
+  // both) - same precedence as the navbar (active account first).
   const user = trackingProvider === 'mal' ? (malUser ?? anilistUser) : (anilistUser ?? malUser)
   const trackerName = trackingProvider === 'mal' ? 'MyAnimeList' : 'AniList'
 
@@ -40,7 +40,7 @@ export function Profile() {
     : null
 
   const isAnimeEntry = (e: AnimeListEntry) => {
-    // PROFILE RULE: anime only — same boundary as Home + the My List tab
+    // PROFILE RULE: anime only - same boundary as Home + the My List tab
     // (manga has the reader + My List manga tab as its own surfaces).
     const mt = e.anime.identity.mediaType
     if (mt) return mt === 'ANIME'
@@ -48,7 +48,7 @@ export function Profile() {
   }
 
   // Continuation of the home Continue Watching row (D101): strict status
-  // watch (statuses normalized at the provider boundary — works for both
+  // watch (statuses normalized at the provider boundary - works for both
   // trackers), most-recently-updated first, list order as tiebreak.
   // ONLY the card variant changes on profile: these are NORMAL anime cards.
   const currentlyWatching: Anime[] = useMemo(() => {
@@ -64,7 +64,7 @@ export function Profile() {
 
   // User-score rows with the TIER-FILL rule: take whole
   // score tiers starting from the extreme until the row holds AT LEAST 10
-  // titles — the tier that crosses the minimum is included whole ("8×10★ +
+  // titles - the tier that crosses the minimum is included whole ("8×10★ +
   // 2×9★ → 10 shows; 11×10★ → 11; 1×10★ + 13×9★ → 14"). Fewer than 10
   // scored titles in total → all of them (a minimum can't be met).
   // Scores arrive normalized 0–10 at both provider boundaries (MAL raw 0–10;
@@ -114,7 +114,7 @@ export function Profile() {
   }, [combinedList])
 
   // HONEST EMPTY STATE. Both score rows are hidden when
-  // nothing is scored — that is correct, but on its own it reads as "the
+  // nothing is scored - that is correct, but on its own it reads as "the
   // rows are broken" (the reported Highest/Lowest bug). Report the real
   // reason instead: the rows need scores, and scores added on anilist.co are
   // pulled on the next sync. `refresh` forces past the 24 h list cache.
@@ -130,7 +130,7 @@ export function Profile() {
   }, [combinedList])
 
   const stats = useMemo(() => {
-    // PROFILE RULE: anime only — same boundary as Home + My List tab.
+    // PROFILE RULE: anime only - same boundary as Home + My List tab.
     const list = (combinedList ?? []).filter(isAnimeEntry)
     const byStatus = (s: string) => list.filter(e => e.status === s).length
     const scores = list.map(e => e.score ?? 0).filter(s => s > 0)
@@ -205,7 +205,7 @@ export function Profile() {
             { label: 'Planned', value: stats.planned },
             { label: 'Episodes', value: stats.eps },
             { label: 'Total', value: stats.total },
-            { label: 'Mean score', value: stats.mean != null ? (formatRating(stats.mean) ?? stats.mean) : '—' },
+            { label: 'Mean score', value: stats.mean != null ? (formatRating(stats.mean) ?? stats.mean) : ' - ' },
           ].map(s => (
             <div key={s.label} className="rounded-xl border border-[var(--border)] bg-[var(--text)]/[0.02] p-4">
               <p className="text-xl font-semibold text-[var(--text)]">{s.value}</p>
@@ -232,7 +232,7 @@ export function Profile() {
         ) : (
           <>
             {/* Right-side descriptions are personal labels, replacing the
-                "N titles • tracker" count — exactly these three; the row
+                "N titles • tracker" count - exactly these three; the row
                 TITLES keep the functional names. Currently Watching borrows
                 home's Continue Watching muscle (same filter + ordering + row
                 chrome) on normal cards. */}
@@ -278,7 +278,7 @@ export function Profile() {
                 <p className="mx-auto mt-1 max-w-[46ch] text-xs leading-5 text-[var(--text-faint)]">
                   Highest Rated and Lowest Rated are built from the scores on your {trackerName} list.
                   {trackingProvider === 'anilist'
-                    ? ' Rate titles in My List — or on anilist.co — and refresh to pull them in.'
+                    ? ' Rate titles in My List - or on anilist.co - and refresh to pull them in.'
                     : ' Rate a title in My List and it will show up here.'}
                 </p>
                 {trackingProvider === 'anilist' && (

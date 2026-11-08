@@ -18,8 +18,8 @@
 //
 // Env:
 //   PORT              (default 8788)
-//   RESOLVER_SECRET   (required for /api/* — 32+ random hex)
-//   PUBLIC_URL        (e.g. https://aeri-stream.fly.dev — used to mint URLs)
+//   RESOLVER_SECRET   (required for /api/* - 32+ random hex)
+//   PUBLIC_URL        (e.g. https://aeri-stream.fly.dev - used to mint URLs)
 //   ALLOWED_ORIGIN    (default https://aeri.fastdemo.workers.dev; comma list or *; localhost always allowed for dev)
 
 import { createServer } from 'node:http'
@@ -260,7 +260,7 @@ async function awGet(path, referer, signal, timeoutMs = 8000) {
 }
 
 // AniWave anime resolution cache: title-match verdicts (aniwave exposes no
-// cross-provider ids, so title similarity IS the verification — see scoring).
+// cross-provider ids, so title similarity IS the verification - see scoring).
 const awResolveCache = new Map()
 const AW_RESOLVE_TTL_MS = 10 * 60 * 1000
 
@@ -752,7 +752,7 @@ const server = createServer(async (req, res) => {
         log({ ev: 'stream-bin', host, ct, status: up.status, range: req.headers.range || '-' })
         res.writeHead(up.status, headers)
         // Backpressure-aware pipe: never end a Content-Length response short
-        // (clients surface that as protocol errors) — destroy instead.
+        // (clients surface that as protocol errors) - destroy instead.
         let broken = false
         const pump = async (value) => {
           if (res.writableEnded || res.destroyed) return false

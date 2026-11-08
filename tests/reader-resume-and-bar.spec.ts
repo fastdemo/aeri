@@ -3,10 +3,10 @@ import { routeTestAnilistMedia } from './helpers/test-anilist'
 import { seedTestAuth, routeTestMalIdentity } from './helpers/test-auth'
 
 /**
- * MANGA READER — guest access, flat progress bar, and resume placement.
+ * MANGA READER - guest access, flat progress bar, and resume placement.
  *
  * 1. A signed-out visitor can read (owner 2026-10-28): no auth seeding.
- * 2. The reader progress fill is a FLAT `--text` bar — the 6px neon glow was
+ * 2. The reader progress fill is a FLAT `--text` bar - the 6px neon glow was
  *    removed on the owner's instruction (2026-10-29). It is still hidden at
  *    scaleX(0).
  * 3. Resume places the viewport ONCE. The old code retried scrollIntoView
@@ -103,7 +103,7 @@ test.describe('Manga reader', () => {
       return { opacity: cs.opacity, shadow: cs.boxShadow, transform: cs.transform }
     })
     expect(atTop.opacity, 'fill hidden at the top').toBe('0')
-    expect(atTop.shadow, 'reader progress fill is flat — no neon glow').toBe('none')
+    expect(atTop.shadow, 'reader progress fill is flat - no neon glow').toBe('none')
 
     await page.evaluate(() => window.scrollTo(0, Math.round(document.documentElement.scrollHeight * 0.5)))
     await expect.poll(async () => (await bar.evaluate((el) => getComputedStyle(el).opacity)), { timeout: 10_000 }).toBe('1')
@@ -113,7 +113,7 @@ test.describe('Manga reader', () => {
 
   test('resume jumps once, after the pages above it resolve', async ({ page }) => {
     test.setTimeout(180_000)
-    // Resume is a member feature (guests read fresh — see the guest test).
+    // Resume is a member feature (guests read fresh - see the guest test).
     await seedTestAuth(page)
     await routeTestMalIdentity(page)
     const urls = ['/fixture-page-0.svg', '/fixture-page-1.svg', '/fixture-page-2.svg']

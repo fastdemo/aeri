@@ -26,14 +26,14 @@ jobs:
       - run: npm ci
       - run: npm run build
         env:
-          # Production Cloudflare build variables — do not hardcode in source
+          # Production Cloudflare build variables - do not hardcode in source
           VITE_ANILIST_CLIENT_ID: '50024'
           VITE_MAL_CLIENT_ID: 'ce55a1d587f549b33c1fa36ec10fe8d2'
           VITE_VIDEO_API_URL: ''
           VITE_AUTH_API_URL: 'https://aeri.fastdemo.deno.net'
           AERI_BASE: '/'
       # Automatic guard: fail the run if the build didn't bake the IDs above
-      # (two login outages shipped exactly this way — see docs/RELEASING.md).
+      # (two login outages shipped exactly this way - see docs/RELEASING.md).
       - run: npm run verify:build
         env:
           VITE_ANILIST_CLIENT_ID: '50024'

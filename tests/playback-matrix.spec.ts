@@ -1,5 +1,5 @@
 /**
- * Playback Matrix — Phase 13 QA
+ * Playback Matrix - Phase 13 QA
  * Real streaming matrix for AniKoto + AnimePahe (+ demo control; trailer
  * controls retired with the playback-chain removal).
  * Distinguishes HTTP 200 from actual playback (readyState>=2, videoWidth>0, currentTime advances).
@@ -124,7 +124,7 @@ async function assertVideoElementPlayback(page: Page) {
   // T2: element exists and has frames
   const probe = await page.evaluate(probeVideoElementEval) as ReturnType<typeof probeVideoElementEval>
   const v2 = verdictFromVideoProbe(probe as any)
-  expect(v2.ok, `T2 video element: ${v2.reason ?? 'ok'} — probe=${JSON.stringify(probe).slice(0, 800)}`).toBeTruthy()
+  expect(v2.ok, `T2 video element: ${v2.reason ?? 'ok'} - probe=${JSON.stringify(probe).slice(0, 800)}`).toBeTruthy()
 
   // T3: currentTime advances after play()
   await page.evaluate(() => {
@@ -152,7 +152,7 @@ async function assertVideoElementPlayback(page: Page) {
 async function assertEmbedPlayback(page: Page, expectedYtId?: string | null) {
   const probe = await page.evaluate(probeEmbedElementEval) as ReturnType<typeof probeEmbedElementEval>
   const v2 = verdictFromEmbedProbe(probe as any, expectedYtId ?? null)
-  expect(v2.ok, `T2 embed: ${v2.reason ?? 'ok'} — probe=${JSON.stringify(probe).slice(0, 700)}`).toBeTruthy()
+  expect(v2.ok, `T2 embed: ${v2.reason ?? 'ok'} - probe=${JSON.stringify(probe).slice(0, 700)}`).toBeTruthy()
   // T3 for embed: iframe must have loaded (no CSP/XFO block)
   // We cannot read cross-origin frame, but load event + boundingBox proves it didn't block at T0.
   await expect(page.locator('iframe')).toBeVisible({ timeout: 8000 })
@@ -169,10 +169,10 @@ async function dismissResumeIfPresent(page: Page) {
 }
 
 // ---------------------------------------------------------------------------
-// Unit-ish: body sniff / HLS manifest — synchronous, no browser
+// Unit-ish: body sniff / HLS manifest - synchronous, no browser
 // ---------------------------------------------------------------------------
 
-test.describe('Tier 0/1 — 200 vs body sniff (no browser needed)', () => {
+test.describe('Tier 0/1 - 200 vs body sniff (no browser needed)', () => {
   test('classifyFetchResponse flags HTML error even with 200', () => {
     const html = '<html><head><title>Error - MegaPlay</title></head><body>Error</body></html>'
     const v = classifyFetchResponse({ status: 200, headers: { 'content-type': 'text/html' }, bodySnippet: html, url: 'https://megaplay.example/video.mp4' })
@@ -215,9 +215,9 @@ test.describe('Tier 0/1 — 200 vs body sniff (no browser needed)', () => {
 // Anime mapping: each provider must NOT hallucinate episodes; title guard for One Piece
 // ---------------------------------------------------------------------------
 
-test.describe('Anime mapping — provider episode mapping sanity', () => {
+test.describe('Anime mapping - provider episode mapping sanity', () => {
   for (const anime of ANIMES) {
-    test(`${anime.label} (${anime.anilistId}) — normalizeEpisodes titles are not picsum/poster/offset polluted`, async ({ page }) => {
+    test(`${anime.label} (${anime.anilistId}) - normalizeEpisodes titles are not picsum/poster/offset polluted`, async ({ page }) => {
       // Go to detail, not watch, to inspect episode list via DOM or anilist fetch
       await page.goto(`/anime/anilist-${anime.anilistId}`, { waitUntil: 'domcontentloaded' })
       // Detail should show real titles, not generic picsum; allow 5s for AniList fetch
@@ -239,23 +239,23 @@ test.describe('Anime mapping — provider episode mapping sanity', () => {
 // Matrix: AniKoto × Anime × Episode × Lang (sub/dub)
 // Worker era (D065): the in-worker resolver backs these cells, so EXPECT
 // either correctly-unavailable (no-source + tried[]) or genuinely playable
-// (T2/T3) — never a false-200 success. Budgets are resolution-aware (90s).
+// (T2/T3) - never a false-200 success. Budgets are resolution-aware (90s).
 // ---------------------------------------------------------------------------
 
 for (const provider of PROVIDERS) {
   // Worker era (D065): this GH-Pages-era matrix is retired. anikoto cells
-  // resolve but MegaPlay CDN bytes are documented poison (D062 — can never
+  // resolve but MegaPlay CDN bytes are documented poison (D062 - can never
   // pass T2/T3 through no fault of the app); animepahe is an honest stub.
-  // Coverage moved to 'Worker era — in-worker resolver smoke' below, which
+  // Coverage moved to 'Worker era - in-worker resolver smoke' below, which
   // tests the WORKING provider (aniwave) plus the anti-masquerade contract.
-  test.describe.skip(`Provider ${provider} — anime mapping × episode mapping × source resolution [retired D065]`, () => {
+  test.describe.skip(`Provider ${provider} - anime mapping × episode mapping × source resolution [retired D065]`, () => {
     for (const anime of ANIMES) {
       for (const ec of EPS) {
         const ep = ec.getN(anime)
         // Skip irrational oob for movie where final+1 would be 2 but movie should show details not ep2
-        // Keep it — must still not crash
+        // Keep it - must still not crash
         for (const lang of (['sub', 'dub'] as Lang[])) {
-          // AnimePahe is sub-only — dub case is intentionally a filtering test
+          // AnimePahe is sub-only - dub case is intentionally a filtering test
           const isDubPahe = provider === 'animepahe' && lang === 'dub'
           const title = `${provider} × ${anime.label} ${anime.anilistId} × ${ec.label} ep${ep} × ${lang}${isDubPahe ? ' (sub-only → filter)' : ''}${ec.shouldBeOob ? ' (oob)' : ''}`
           test(title, async ({ page }) => {
@@ -278,8 +278,8 @@ for (const provider of PROVIDERS) {
 
             // Wait for source decision. Worker-era real resolution (cold
             // resolve 5-20s + render) legitimately shows Finding longer than
-            // the old 4.2s parallel budget — wait until it clears (45s cap).
-            // Finding overlay must clear (T4) — just not on the old clock.
+            // the old 4.2s parallel budget - wait until it clears (45s cap).
+            // Finding overlay must clear (T4) - just not on the old clock.
             try {
               await page.waitForFunction(
                 () => !document.body.innerText.includes('Finding'),
@@ -290,7 +290,7 @@ for (const provider of PROVIDERS) {
             }
             const state = await getWatchState(page)
             // Must not be stuck in Finding forever
-            expect(state.hasFinding, `T4: Finding overlay should clear for ${title} — got: ${state.body.slice(0, 400)}`).toBeFalsy()
+            expect(state.hasFinding, `T4: Finding overlay should clear for ${title} - got: ${state.body.slice(0, 400)}`).toBeFalsy()
 
             // Classify outcome
             const isOob = !!ec.shouldBeOob
@@ -305,7 +305,7 @@ for (const provider of PROVIDERS) {
             }
 
             // GH-Pages era (no worker), the CORRECT verdict was UNAVAILABLE.
-            // Worker era (D065): a real upstream may PLAY — both outcomes pass
+            // Worker era (D065): a real upstream may PLAY - both outcomes pass
             // (no-source must list tried[]; playable must pass T2/T3).
             // A false success would be: hasPlayable with a 200 HTML error masquerading as video.
             // So we assert: EITHER hasNoSource (correctly unavailable with tried[]) OR hasPlayable passes full T2/T3.
@@ -318,7 +318,7 @@ for (const provider of PROVIDERS) {
                 const probe = await page.evaluate(probeVideoElementEval) as ReturnType<typeof probeVideoElementEval>
                 // If a video element sneaked in with no-source overlay, it must be in error state (proves not false success)
                 const v2 = verdictFromVideoProbe(probe as any)
-                // Allow hidden video behind overlay only if it is in error/no_source — not ready
+                // Allow hidden video behind overlay only if it is in error/no_source - not ready
                 expect(v2.ok, 'video behind no-source overlay must not be ready (else false success)').toBeFalsy()
               }
             } else if (hasPlayable) {
@@ -329,12 +329,12 @@ for (const provider of PROVIDERS) {
                 await assertEmbedPlayback(page)
               }
             } else {
-              // Neither — might be trailer embed loading slowly; give extra 2s then re-check
+              // Neither - might be trailer embed loading slowly; give extra 2s then re-check
               await page.waitForTimeout(2000)
               const s2 = await getWatchState(page)
               // After extra wait, one of the two must be true
               const any = s2.hasVideo || s2.hasIframe || s2.hasNoSource
-              expect(any, `neither video/iframe nor no-source after 6s for ${title} — body: ${s2.body.slice(0, 600)}`).toBeTruthy()
+              expect(any, `neither video/iframe nor no-source after 6s for ${title} - body: ${s2.body.slice(0, 600)}`).toBeTruthy()
               if (s2.hasNoSource) {
                 expect(s2.tried.length > 0 || s2.body.includes('Tried')).toBeTruthy()
               } else if (s2.hasVideo) {
@@ -351,7 +351,7 @@ for (const provider of PROVIDERS) {
 }
 
 // ---------------------------------------------------------------------------
-// Worker era (D065) — in-worker resolver smoke. Tests the WORKING provider
+// Worker era (D065) - in-worker resolver smoke. Tests the WORKING provider
 // (aniwave) end-to-end plus the anti-masquerade contract for legacy paths.
 // The 10-minute continuous soak remains manual acceptance (PLAYBACK_MATRIX §8-9).
 // ---------------------------------------------------------------------------
@@ -371,7 +371,7 @@ async function setAudioPref(page: Page, l: 'sub' | 'dub' = 'sub') {
 async function warmUpPlayback(page: Page, label: string) {
   // Sandbox/CI egress can buffer slowly: start muted playback and wait for
   // first frames (rs>=2) before the instant T2 probe runs (60s cap). A
-  // poisoned/dead source never reaches rs 2 — the T2 assertion still guards.
+  // poisoned/dead source never reaches rs 2 - the T2 assertion still guards.
   await page.evaluate(() => {
     const v = document.querySelector('video') as HTMLVideoElement | null
     if (v) {
@@ -403,14 +403,14 @@ async function waitForDecision(page: Page, label: string) {
   return state
 }
 
-test.describe('Worker era — in-worker resolver smoke', () => {
+test.describe('Worker era - in-worker resolver smoke', () => {
   test('aniwave Bebop E1 sub → real playback (T2/T3)', async ({ page }) => {
     test.setTimeout(120_000)
     await setAudioPref(page, 'sub')
     await gotoWatch(page, 1, 1)
     await dismissResumeIfPresent(page)
     const state = await waitForDecision(page, 'bebop-e1')
-    expect(state.hasVideo, `expected a video element for bebop-e1 — ${state.body.slice(0, 300)}`).toBeTruthy()
+    expect(state.hasVideo, `expected a video element for bebop-e1 - ${state.body.slice(0, 300)}`).toBeTruthy()
     await warmUpPlayback(page, 'bebop-e1')
     await assertVideoElementPlayback(page)
   })
@@ -421,7 +421,7 @@ test.describe('Worker era — in-worker resolver smoke', () => {
     await gotoWatch(page, 1, 2)
     await dismissResumeIfPresent(page)
     const state = await waitForDecision(page, 'bebop-e2')
-    expect(state.hasVideo, `expected a video element for bebop-e2 — ${state.body.slice(0, 300)}`).toBeTruthy()
+    expect(state.hasVideo, `expected a video element for bebop-e2 - ${state.body.slice(0, 300)}`).toBeTruthy()
     await warmUpPlayback(page, 'bebop-e2')
     await assertVideoElementPlayback(page)
   })
@@ -432,7 +432,7 @@ test.describe('Worker era — in-worker resolver smoke', () => {
     await gotoWatch(page, 154587, 1)
     await dismissResumeIfPresent(page)
     const state = await waitForDecision(page, 'frieren-e1')
-    expect(state.hasVideo, `expected a video element for frieren-e1 — ${state.body.slice(0, 300)}`).toBeTruthy()
+    expect(state.hasVideo, `expected a video element for frieren-e1 - ${state.body.slice(0, 300)}`).toBeTruthy()
     await warmUpPlayback(page, 'frieren-e1')
     await assertVideoElementPlayback(page)
   })
@@ -453,30 +453,30 @@ test.describe('Worker era — in-worker resolver smoke', () => {
 
 // ---------------------------------------------------------------------------
 // Controls: Official + Demo must be PLAYABLE (proves harness can detect real playback)
-// If these fail, the harness itself is broken — not the providers.
+// If these fail, the harness itself is broken - not the providers.
 // ---------------------------------------------------------------------------
 
-test.describe('Controls — demo (HLS) must be PLAYABLE', () => {
+test.describe('Controls - demo (HLS) must be PLAYABLE', () => {
   // Official-trailer control RETIRED 2026-10-10: trailers are never playback
   // sources (Phase 1 removal). The demo HLS control below proves the
   // harness detects real playback; trailer absence is covered by the
   // no-source path (no playable source, no iframe masquerade).
-  test.skip('official trailer control retired — trailers removed from playback chain', async () => {})
+  test.skip('official trailer control retired - trailers removed from playback chain', async () => {})
 
   test('demo: Direct mux HLS manifest + VideoPlayer HLS wiring (proves HLS vs 200)', async ({ page }) => {
     test.setTimeout(24_000)
-    // No AniList dependency — directly proves HLS path distinguishes 200 HTML from real manifest
+    // No AniList dependency - directly proves HLS path distinguishes 200 HTML from real manifest
     const res = await page.request.get('https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8')
     expect(res.status()).toBe(200)
     const ct = res.headers()["content-type"] ?? ""
     expect(ct.toLowerCase()).toMatch(/mpegurl|mpegURL|application\/vnd\.apple\.mpegurl|audio\/mpegurl/)
     const body = await res.text()
     expect(isHlsManifest(body), "mux master should be #EXTM3U + EXT-X-STREAM-INF").toBeTruthy()
-    // Validate body is not HTML error (T1) — proves HLS vs 200 HTML
+    // Validate body is not HTML error (T1) - proves HLS vs 200 HTML
     expect(body.toLowerCase()).not.toContain("<html")
     expect(body).toContain("#EXT-X-STREAM-INF")
     // Verify VideoPlayer HLS path can actually reach readyState>=2 via an isolated <video> with a tiny CORS MP4
-    // (Mux HLS requires hls.js; we verify direct MP4 path as proxy for decoder readiness — same T2/T3 checks)
+    // (Mux HLS requires hls.js; we verify direct MP4 path as proxy for decoder readiness - same T2/T3 checks)
     await page.setContent(`
       <html><body style="margin:0;background:#000">
         <video id="v" controls playsinline muted crossorigin="anonymous" style="width:640px;height:360px;background:#000"></video>
@@ -514,7 +514,7 @@ test.describe('Controls — demo (HLS) must be PLAYABLE', () => {
   })
 
   test('T0/T1 negative: megaplay/animepahe HTML error is not misclassified as playable', async ({ page }) => {
-    // These are the exact failure modes the matrix guards against — 200 with HTML body
+    // These are the exact failure modes the matrix guards against - 200 with HTML body
     const res1 = await page.request.get('https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8').catch(() => null)
     expect(res1).not.toBeNull()
     // Synthesize: a 200 HTML body must be T1 fail even though status is 200
@@ -536,7 +536,7 @@ test.describe('Source switching & fallback', () => {
   // Trailer fallback retired 2026-10-10: no trailer provider exists in the
   // chain. Fallback is between full-episode providers only (aniwave →
   // animegg); when all fail the honest state is "No playable source".
-  test('legacy source pinning is gone — resolution follows the enabled order', async ({ page }) => {
+  test('legacy source pinning is gone - resolution follows the enabled order', async ({ page }) => {
     test.setTimeout(22_000)
     await page.goto('/aeri/', { waitUntil: 'domcontentloaded' }).catch(() => page.goto('/', { waitUntil: 'domcontentloaded' }))
     await page.evaluate(() => {
@@ -544,7 +544,7 @@ test.describe('Source switching & fallback', () => {
         const raw = localStorage.getItem('aeri:prefs')
         const p = raw ? JSON.parse(raw) : {}
         // Pre-D141 key: may still exist in a returning browser's storage.
-        // It must be ignored — provider order is the only mechanism now.
+        // It must be ignored - provider order is the only mechanism now.
         p.preferredProvider = 'anikoto'
         p.preferredAudio = 'sub'
         localStorage.setItem('aeri:prefs', JSON.stringify(p))
@@ -590,10 +590,10 @@ test.describe('Source switching & fallback', () => {
     const hasVideo = await page.evaluate(() => !!document.querySelector('video'))
     const hasIframe = await page.evaluate(() => !!document.querySelector('iframe'))
     if (hasVideo || hasIframe) {
-      // If playable, it must be a full-episode source — never a trailer.
+      // If playable, it must be a full-episode source - never a trailer.
       const src = await page.evaluate(() => (document.querySelector('iframe') as HTMLIFrameElement | null)?.src ?? '')
       expect(src).not.toMatch(/youtube/)
-      // No strict assert on dub vs sub here — just that it's not a false pahe dub
+      // No strict assert on dub vs sub here - just that it's not a false pahe dub
       expect(body.toLowerCase()).not.toContain('an error')
     } else {
       expect(body).toContain('No playable source')
@@ -616,7 +616,7 @@ test.describe('Source switching & fallback', () => {
     await page.waitForTimeout(4500)
     let state = await getWatchState(page)
     if (!state.hasVideo) {
-      test.skip(true, 'demo video not available in this env — switching test requires demo HLS')
+      test.skip(true, 'demo video not available in this env - switching test requires demo HLS')
       return
     }
     await assertVideoElementPlayback(page)
@@ -670,7 +670,7 @@ test.describe('Mobile / Desktop', () => {
     await page.waitForTimeout(3500)
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1)
     expect(overflow, 'mobile should not have horizontal overflow').toBeFalsy()
-    // Episode grid should be 2-col on mobile (not desktop 5-col) — check we have grid
+    // Episode grid should be 2-col on mobile (not desktop 5-col) - check we have grid
     const gridVisible = await page.locator('text=Episodes').first().isVisible().catch(() => false)
     expect(gridVisible).toBeTruthy()
     // Prev/Next must be tappable 44px min is checked via bbox

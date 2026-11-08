@@ -64,7 +64,7 @@ async function workerJson(path: string, signal?: AbortSignal): Promise<any> {
  * MangaPill manga provider. Server-rendered HTML (no JS, no auth, no
  * CAPTCHA): GET /search?q= → /manga/<id>/<slug> → /chapters/<mid>-<pid>/…
  * Page images are CDN JPEGs via the signed `/api/manga/img` relay (the CDN
- * requires a mangapill.com Referer — the relay sends the per-host referer).
+ * requires a mangapill.com Referer - the relay sends the per-host referer).
  *
  * Identity: numeric manga id is stable; chapter key = <mangaId>-<pageId>.
  * Labels are the provider's own ("Chapter N[.M]") preserved verbatim.
@@ -79,7 +79,7 @@ class MangaPillProvider implements MangaProvider {
   // titles, WeebCentral matching none of them, and MangaHere matching but
   // returning 502 "empty page list". MangaPill matched ALL five sampled
   // titles (Berserk, One Punch-Man, Jujutsu Kaisen, One Piece, Kimetsu) with
-  // 13–44 relayed JPEG pages each — with it off by default, those titles had
+  // 13–44 relayed JPEG pages each - with it off by default, those titles had
   // no readable source at all. It is now the working fallback, not an opt-in.
   status = 'verified' as const
   enabledByDefault = true
@@ -109,13 +109,13 @@ class MangaPillProvider implements MangaProvider {
     // Trust boundary: a cached match is reusable ONLY if it was verified
     // AND the current query carries the same chapter-count expectation.
     // A stale entry from a title-only query (no chapters hint, no verified
-    // flag semantics for THIS manga's length) must be re-resolved — never
+    // flag semantics for THIS manga's length) must be re-resolved - never
     // serve another manga's series from cache.
     if (hit && (hit as any).verified) {
       const curCh = options?.mangaChapters ?? manga.chapters
       const hitCh = (hit as any).expectedChapters
       if (typeof curCh === 'number' && typeof hitCh === 'number' && curCh !== hitCh) {
-        // Different manga — do not reuse.
+        // Different manga - do not reuse.
       } else return hit
     }
     try {

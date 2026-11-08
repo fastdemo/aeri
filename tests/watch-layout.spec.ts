@@ -14,7 +14,7 @@ import { routeTestAnilistMedia } from './helpers/test-anilist'
  *     public MP4, so the player mounts deterministically.
  *
  * Rules under test:
- *   1. The h1 carries the SHOW NAME only — no "— Episode N" suffix.
+ *   1. The h1 carries the SHOW NAME only - no " -  Episode N" suffix.
  *   2. Synopsis sits ABOVE Episodes.
  *   3. The Episodes header shows a right-aligned "N episodes" count.
  *   4. With video mounted the player is a full-bleed band: top/bottom
@@ -91,7 +91,7 @@ test.describe('Watch layout contract', () => {
     )
     const synopsis = h2s.indexOf('Synopsis')
     const episodes = h2s.indexOf('Episodes')
-    expect(synopsis, `Synopsis heading must exist — ${JSON.stringify(h2s)}`).toBeGreaterThanOrEqual(0)
+    expect(synopsis, `Synopsis heading must exist - ${JSON.stringify(h2s)}`).toBeGreaterThanOrEqual(0)
     expect(episodes).toBeGreaterThan(synopsis)
 
     // 3. "N episodes" count, right-aligned against the Episodes header.
@@ -115,7 +115,7 @@ test.describe('Watch layout contract', () => {
     expect(header!.spanLeft).toBeGreaterThan(header!.headingLeft)
 
     // 4. Player surface: the page
-    // background with the video on top — no wrapper fill, no wrapper border,
+    // background with the video on top - no wrapper fill, no wrapper border,
     // no artwork poster. The Video.js skin keeps its STOCK 28px corner radius,
     // and the player wears the hero's frosted frame (.frame-glass) instead of
     // the skin's own 1px line (which .aeri-player keeps transparent).
@@ -155,7 +155,7 @@ test.describe('Watch layout contract', () => {
     expect(player!.bottom).toBe('0px')
     expect(player!.left).toBe('0px')
     expect(player!.right).toBe('0px')
-    // Stock Video.js radius — not the old 0px rectangle, not a custom value.
+    // Stock Video.js radius - not the old 0px rectangle, not a custom value.
     expect(player!.radius).toBe('28px')
     expect(player!.videoRadius).toBe('28px')
     expect(player!.boxRadius).toBe('28px')
@@ -170,6 +170,46 @@ test.describe('Watch layout contract', () => {
     expect(player!.posterImgs, 'no artwork may sit behind the video').toBe(0)
 
     await page.screenshot({ path: 'OpenCode/screens/watch-layout-1440.png', fullPage: false })
+  })
+
+  test('no stray Details control on a phone-width player page', async ({ page }) => {
+    test.setTimeout(180000)
+    // Owner 2026-11-07: the tight mobile row truncated the old always-on
+    // "Details" link to "detailssssssss...". The link is gone completely, not
+    // just hidden below some width - a series page has no Details affordance
+    // at any viewport.
+    await page.setViewportSize({ width: 390, height: 844 })
+    await setupAuth(page)
+    await routeDirectMp4(page)
+    await openWatch(page, 1)
+    await expect(page.getByRole('link', { name: 'Details', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'Details', exact: true })).toHaveCount(0)
+    const text = await page.locator('main').innerText()
+    expect(text).not.toMatch(/\bdetails/i)
+
+    // D171: at phone widths the player keeps the page's 16px left/right
+    // margins instead of bleeding to the screen edge, and it lines up with
+    // the title/content column.
+    const edges = await page.evaluate(() => {
+      const video = document.querySelector('video')
+      const player = video?.closest('.aspect-video') as HTMLElement | null
+      const h1 = document.querySelector('main h1') as HTMLElement | null
+      const p = player?.getBoundingClientRect()
+      const t = h1?.getBoundingClientRect()
+      // Margins are measured against the page column, not the viewport:
+      // Chromium keeps an 11px classic scrollbar gutter out of
+      // `innerWidth` while still narrowing the layout box.
+      const col = player?.parentElement?.getBoundingClientRect()
+      return {
+        left: p && col ? Math.round(p.left - col.left) : null,
+        right: p && col ? Math.round(col.right - p.right) : null,
+        titleLeft: t && col ? Math.round(t.left - col.left) : null,
+      }
+    })
+    expect(edges.left, 'player keeps the left page margin').toBe(16)
+    expect(edges.right, 'player keeps the right page margin').toBe(16)
+    expect(edges.left, 'player aligns with the title column').toBe(edges.titleLeft)
+    await page.screenshot({ path: 'OpenCode/screens/watch-phone-390.png' })
   })
 
   test('resume prompt reads the saved position and closes on Resume', async ({ page }) => {

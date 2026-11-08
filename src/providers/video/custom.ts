@@ -6,7 +6,7 @@ import { getEffectiveVideoApiUrl } from '../../storage/preferences'
 export class CustomProvider implements VideoProvider {
   id = 'custom'
   name = 'Custom'
-  // User-configured endpoint — no fixed upstream to verify; configured per install.
+  // User-configured endpoint - no fixed upstream to verify; configured per install.
   status = 'unverified' as const
   capabilities: ProviderCapabilities = {
     id: 'custom',

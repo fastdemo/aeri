@@ -7,7 +7,7 @@ type State<T> = { data: T | null; loading: boolean; error: string | null }
 
 function friendlyError(e: unknown, fallback: string): string {
   // THROTTLED must never surface a countdown/timer to users during normal
-  // browsing — the page keeps cached data and recovers quietly. Only when NO
+  // browsing - the page keeps cached data and recovers quietly. Only when NO
   // usable data exists at all does the caller show this generic line.
   if (e instanceof ProviderError && e.code === 'THROTTLED') {
     return 'AniList is busy right now. Showing cached content.'
@@ -32,7 +32,7 @@ function useData<T>(fetcher: (signal: AbortSignal) => Promise<T>, deps: any[]): 
       .catch(e => {
         if (cancelled || controller.signal.aborted || (e as any)?.name === 'AbortError') return
         // THROTTLED with existing data: keep the cached page, clear the error
-        // — no countdown banner during normal browsing.
+        // - no countdown banner during normal browsing.
         if (e instanceof ProviderError && e.code === 'THROTTLED') {
           if (!cancelled) setState(s => (s.data ? { data: s.data, loading: false, error: null } : { data: s.data, loading: false, error: friendlyError(e, 'Something went wrong.') }))
           return
@@ -50,7 +50,7 @@ function useData<T>(fetcher: (signal: AbortSignal) => Promise<T>, deps: any[]): 
 }
 
 /**
- * HOME FEED — one aliased AniList request for all four Home rails (see
+ * HOME FEED - one aliased AniList request for all four Home rails (see
  * HOME_FEED_QUERY). Replaces the four independent page hooks Home used to
  * call: one cache key, one request, one loading state, one error.
  */
@@ -89,7 +89,7 @@ export function useBrowse(params: { sort?: string; status?: string; genre?: stri
   const [page, setPage] = useState(1)
   // Request generation: every filter change bumps it. Late responses from
   // a PREVIOUS filter (page 2/3 in flight when the user switched tabs)
-  // are dropped even if their AbortController didn't catch them — only
+  // are dropped even if their AbortController didn't catch them - only
   // the current generation may commit state.
   const genRef = useRef(0)
 
@@ -102,7 +102,7 @@ export function useBrowse(params: { sort?: string; status?: string; genre?: stri
     const gen = genRef.current
     // Filter change clears ALL old items first: keep stale data only when
     // appending page 2+ of the SAME filter (p > 1). A new filter (p === 1)
-    // renders empty + skeleton until its own response lands — a slow old
+    // renders empty + skeleton until its own response lands - a slow old
     // response can never leave foreign items in the grid.
     const p = params.page ?? page
     setState(s => ({ ...s, data: p === 1 ? null : s.data, loading: true, error: null }))
@@ -235,7 +235,7 @@ export function useAnimeDetail(id: string | undefined, nonce = 0): State<Anime> 
   return state
 }
 
-/** Manga detail — same lifecycle as useAnimeDetail but queries type: MANGA. */
+/** Manga detail - same lifecycle as useAnimeDetail but queries type: MANGA. */
 export function useMangaDetail(id: string | undefined, nonce = 0): State<Anime> & { errorCode: ProviderErrorCode | null } {
   const [state, setState] = useState<{ data: Anime | null; loading: boolean; error: string | null; errorCode: ProviderErrorCode | null }>({ data: null, loading: !!id, error: null, errorCode: null })
   useEffect(() => {

@@ -1,5 +1,5 @@
 /**
- * PILL SYSTEM — one button size for the whole app.
+ * PILL SYSTEM - one button size for the whole app.
  *
  * The reference is the white "Popular" category pill on the Anime/Manga
  * tabs: 30px tall (6px vertical padding + 16px line-height + 1px border),
@@ -10,7 +10,7 @@
  * these strings so a future change lands everywhere at once.
  *
  * Solid  = primary action (white fill, black label)
- * Soft   = secondary action (10% text tint, muted label) — the same shape and
+ * Soft   = secondary action (10% text tint, muted label) - the same shape and
  *          height as the inactive category pill, so a solid and a soft pill
  *          sit flush side by side.
  *

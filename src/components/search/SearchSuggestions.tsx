@@ -11,7 +11,7 @@ type Props = {
   onPreview?: (anime: Anime) => void
 }
 
-/** Hover features do not exist on touch — pointer/mouse
+/** Hover features do not exist on touch - pointer/mouse
  *  hover must never drive the active-row highlight there (a tap would flash
  *  it). Keyboard arrows and clicks are unaffected. */
 const CAN_HOVER =
@@ -26,7 +26,7 @@ export function SearchSuggestions({ query, onClose, onPreview }: Props) {
   const navigate = useNavigate()
 
   const openPreview = (anime: Anime) => {
-    // Hand the selection to the parent (Navbar) which renders DetailModal —
+    // Hand the selection to the parent (Navbar) which renders DetailModal  - 
     // rendering it here would unmount it along with the dropdown when it closes.
     onPreview?.(anime)
     onClose?.()
@@ -157,7 +157,7 @@ export function SearchSuggestions({ query, onClose, onPreview }: Props) {
         </button>
         )
   }
-  // Inner content only — the glass panel chrome + fixed positioning
+  // Inner content only - the glass panel chrome + fixed positioning
   // come from HeaderPopup (Navbar portals it to body so backdrop-blur
   // samples the real page at every scroll position). The outer
   // listbox wrapper keeps role semantics + keyboard handling; the

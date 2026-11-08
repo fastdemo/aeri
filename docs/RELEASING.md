@@ -1,18 +1,18 @@
-# RELEASING — Aeri (how to ship without breaking login)
+# RELEASING - Aeri (how to ship without breaking login)
 
 > **Incident 2026-10-17 (D095):** production was deleted in error for ~30 min
 > and fully restored the same day (version `98daa425`, `verify:live` 8/8).
 > The checklist below is the live runbook again. One outstanding gap:
-> `MAL_CLIENT_SECRET` is not present on the worker since the incident — needed
+> `MAL_CLIENT_SECRET` is not present on the worker since the incident - needed
 > only if the MAL app is confidential; if MAL login fails with
 > `invalid_client`, owner runs `npx wrangler secret put MAL_CLIENT_SECRET
 > --env production` (keychain).
 
 Read this before every production deploy. Two login outages (D049, 2026-09-06)
 had the same root cause: **a build that didn't bake the required `VITE_*` env
-vars**. The app cannot recover from that at runtime — it must be rebuilt.
+vars**. The app cannot recover from that at runtime - it must be rebuilt.
 
-## 0. Agent preflight — can this session ship? (30 seconds)
+## 0. Agent preflight - can this session ship? (30 seconds)
 
 Run these three checks first. If all pass, the session can do the full loop
 (code → push incl. workflows → deploy → live-verify) with no owner help:
@@ -27,7 +27,7 @@ git push --dry-run origin main 2>&1 | tail -1
 env -u XDG_CONFIG_HOME npx wrangler whoami 2>&1 | tail -2
 # want: account/scopes output, NOT "You are not authenticated".
 # WHY the env prefix: agent shells run with XDG_CONFIG_HOME pointed at the
-# sandbox, but `wrangler login` stores credentials in the DEFAULT location —
+# sandbox, but `wrangler login` stores credentials in the DEFAULT location  - 
 # without the prefix wrangler looks in the wrong place and reports logged-out.
 # If truly logged out anywhere: owner runs `npx wrangler login` once in a
 # normal terminal (persists machine-wide).
@@ -44,28 +44,28 @@ whose hands it needs. Never claim "live" from a push alone.
 
 | Path | Requires | Status |
 |------|----------|--------|
-| Push to `main` (auto) | Nothing extra — CI builds, runs `verify:build`, deploys | **Live since 2026-09-06** (owner added repo secrets; proven by run 34016758269, all steps green) |
-| `gh workflow run deploy-worker.yml --ref main` | `gh` auth (no Cloudflare login needed — CI uses secrets) | Manual re-deploy without new code |
-| Local `wrangler deploy` | Cloudflare login + correct `.env` | **Emergency only — see race rule below** |
+| Push to `main` (auto) | Nothing extra - CI builds, runs `verify:build`, deploys | **Live since 2026-09-06** (owner added repo secrets; proven by run 34016758269, all steps green) |
+| `gh workflow run deploy-worker.yml --ref main` | `gh` auth (no Cloudflare login needed - CI uses secrets) | Manual re-deploy without new code |
+| Local `wrangler deploy` | Cloudflare login + correct `.env` | **Emergency only - see race rule below** |
 
 **Race rule (learned 2026-09-06): Cloudflare is last-writer-wins.** A manual
 local deploy landing on top of a CI deploy (or vice versa) silently replaces
-live with whichever build was *worse* — this twice shipped a bundle missing
+live with whichever build was *worse* - this twice shipped a bundle missing
 `VITE_AUTH_API_URL` minutes after a good deploy, with no error anywhere
 (visible in `wrangler versions list` as uploads seconds apart). So:
 **never manual-deploy within 5 minutes of a push/dispatch, and never push
-while a manual deploy is in flight — ideally, never manual-deploy at all now
+while a manual deploy is in flight - ideally, never manual-deploy at all now
 that CI autodeploys.** When in doubt, `npm run verify:live`
 tells you what actually won; re-dispatch CI to restore the known-good build.
 
-Agents: pushes now ship by themselves — but still close the loop with
+Agents: pushes now ship by themselves - but still close the loop with
 `npm run verify:live` (bundle evidence, never the badge). The preflight below
 matters mostly for local emergency deploys.
 
-## 1. Preflight — the `.env` check (non-negotiable)
+## 1. Preflight - the `.env` check (non-negotiable)
 
 The production build MUST bake all three (see `.env.example`). CI sets them
-via workflow env; **local deploys read your shell `.env`** — that mismatch
+via workflow env; **local deploys read your shell `.env`** - that mismatch
 caused both outages.
 
 ```bash
@@ -82,7 +82,7 @@ Missing vars and their symptoms:
 |---------|-----------------|
 | `VITE_AUTH_API_URL` | AniList login always fails: app falls back to same-origin Worker → `ANILIST_IP_BLOCKED` (502). App now says "not configured for this hosting". Browsing unaffected. |
 | `VITE_MAL_CLIENT_ID` | MAL login says "Client ID not configured". |
-| `VITE_ANILIST_CLIENT_ID` | AniList login misconfigured (defaults may mask it — don't rely on defaults). |
+| `VITE_ANILIST_CLIENT_ID` | AniList login misconfigured (defaults may mask it - don't rely on defaults). |
 
 ## 2. Build
 
@@ -99,7 +99,7 @@ npx wrangler deploy --env production   # env.production is pinned to Worker `aer
 (First time on a machine: `npx wrangler login`. Sandboxed shells may need
 `env -u XDG_CONFIG_HOME` so wrangler finds the login.)
 
-## 4. Verify live — bundle grep, not the badge
+## 4. Verify live - bundle grep, not the badge
 
 The workflow badge has reported failure while publishing and vice versa. Trust
 only the bundle content. Automatic version (also wired into CI after every
@@ -122,7 +122,7 @@ grep -o 'CLIENT_SECRET[^"]*' /tmp/aeri-live.js | sort -u
 curl -s -o /dev/null -w 'root:%{http_code}\n' https://aeri.fastdemo.workers.dev/
 curl -s -o /dev/null -w 'health:%{http_code}\n' https://aeri.fastdemo.workers.dev/api/health
 # In-worker resolver self-test (needs RESOLVER_SECRET bearer; read-only):
-# expect {"ok":true,...} with allowlist + CDN steps — proves egress + pipeline
+# expect {"ok":true,...} with allowlist + CDN steps - proves egress + pipeline
 curl -s -H "Authorization: Bearer $RESOLVER_SECRET" https://aeri.fastdemo.workers.dev/api/diag
 ```
 
@@ -131,7 +131,7 @@ Optional deeper checks:
 ```bash
 # auth-proxy alive + secret present (expect secretConfigured:true)
 # NOTE (D066): Fly host is dead; URL becomes the Deno project URL once the
-# owner creates it. Until then this check is expected to fail — login falls
+# owner creates it. Until then this check is expected to fail - login falls
 # back to the blocked Worker and AniList login stays unavailable.
 curl -s <AUTH_PROXY_URL>/health
 # Worker MAL proxy reaches MAL (fake code → MAL's own 401, NOT a network error)
@@ -152,8 +152,8 @@ curl -s -X POST https://aeri.fastdemo.workers.dev/api/mal/token \
 ## 6. Failure catalog
 
 - Live bundle lacks `aeri.fastdemo.deno.net` → rebuild with `VITE_AUTH_API_URL` (this doc, step 1), redeploy.
-- `ANILIST_IP_BLOCKED` on a correctly-built client → the request went to the Worker, meaning the auth-proxy fetch failed browser-side (ad-blocker / Brave Shields blocking the auth host, or the host is down — D066) — client now says so explicitly.
+- `ANILIST_IP_BLOCKED` on a correctly-built client → the request went to the Worker, meaning the auth-proxy fetch failed browser-side (ad-blocker / Brave Shields blocking the auth host, or the host is down - D066) - client now says so explicitly.
 - CI red at `npx ... wrangler --version` / `CLOUDFLARE_API_TOKEN` error → repo secrets missing (owner action, step 5). Code is still validated by the build step.
 - Blank page after deploy → `base` mismatch (view source: script src must be `/assets/...` for Worker hosting).
 
-Related: `docs/DEPLOYMENT.md` (hosting detail), `docs/RELEASING.md` (pre-deploy checklist — read before every release), `docs/DECISIONS.md` D041/D049/D051 (why things are shaped this way).
+Related: `docs/DEPLOYMENT.md` (hosting detail), `docs/RELEASING.md` (pre-deploy checklist - read before every release), `docs/DECISIONS.md` D041/D049/D051 (why things are shaped this way).

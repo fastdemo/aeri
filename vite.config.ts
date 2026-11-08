@@ -2,7 +2,7 @@ import tailwindcss from '@tailwindcss/vite'
 import react from '@vitejs/plugin-react'
 import { defineConfig, loadEnv } from 'vite'
 
-// Base path: '/' — the site lives at the Cloudflare Worker origin root.
+// Base path: '/' - the site lives at the Cloudflare Worker origin root.
 // The GitHub Pages `/aeri/` era was removed entirely on 2026-10-17 (D096):
 // no GITHUB_PAGES / AERI_DEPLOY_TARGET switches remain. `AERI_BASE` stays as
 // an escape hatch.

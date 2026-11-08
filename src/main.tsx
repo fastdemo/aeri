@@ -11,14 +11,14 @@ installScrollQuiet()
 
 // Legacy in-app hash URLs (pre-BrowserRouter era; any link/bookmark copied
 // before the routing swap, e.g. `/#/anime/16498` or `/#/search?q=x`) are
-// translated to their clean path form — once at boot, and again on any
+// translated to their clean path form - once at boot, and again on any
 // later hashchange (a fragment-only address-bar edit while the app is
 // already open is a same-document navigation, so the app must catch it).
 // BrowserRouter observes history only via popstate, so a post-mount
 // translation re-dispatches it for an instant route sync. Path-style URLs
 // are the canonical form from here on.
-// (The 2026-10-18 ⟳ reload-after-card diagnostic that lived here — a
-// sessionStorage `aeri-detail-open` mark + 20s tab-title prefix — was
+// (The 2026-10-18 ⟳ reload-after-card diagnostic that lived here - a
+// sessionStorage `aeri-detail-open` mark + 20s tab-title prefix - was
 // removed; every app-side reload path is gone.)
 
 function translateLegacyHash() {
@@ -44,7 +44,7 @@ translateLegacyHash()
 window.addEventListener('hashchange', translateLegacyHash)
 
 // Apply persisted theme before first render (no wrong-theme flash).
-// Reads the same `aeri:prefs` key the app persists — no new storage.
+// Reads the same `aeri:prefs` key the app persists - no new storage.
 try {
   const raw = localStorage.getItem('aeri:prefs')
   const saved = raw ? (JSON.parse(raw) as { theme?: string }).theme : undefined
@@ -53,7 +53,7 @@ try {
   try { applyTheme('aeri-dark') } catch {}
 }
 
-// Early MAL OAuth callback handling before the router mounts — MAL uses ?code= & state= at the static document
+// Early MAL OAuth callback handling before the router mounts - MAL uses ?code= & state= at the static document
 // (origin + base, e.g. https://aeri.fastdemo.workers.dev/). The code stays in
 // the query for MALContext; after exchange the context cleans the URL itself.
 try {
@@ -69,7 +69,7 @@ try {
     if (code && verifier && stateOk) {
       // Defer token exchange to the React context (which has proper error handling and worker fallback)
       // Just keep the code in the URL for handleMalOAuthCallback to pick up, then clean URL to /
-      // Do not clear code/state here — let the context handle the exchange once
+      // Do not clear code/state here - let the context handle the exchange once
     } else if (err) {
       // Clean error from URL and hand back to HashRouter to avoid loop
       url.searchParams.delete('error')

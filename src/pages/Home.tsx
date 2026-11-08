@@ -108,7 +108,7 @@ function sampleVaried(pool: Anime[], count: number, used?: Set<string>, key?: st
   return ordered.slice(0, count)
 }
 
-// Ensure a row always has `min` items — fills from fallback pool if the primary pool is short
+// Ensure a row always has `min` items - fills from fallback pool if the primary pool is short
 // (e.g. Hidden Gems only has 5 candidates in the current 96-item allPool). Avoids the "5 cards then big empty" look.
 function ensureMinRow(primary: Anime[], fallback: Anime[], min: number, used?: Set<string>, key?: string, order?: (key: string, items: Anime[]) => Anime[]): Anime[] {
   if (!primary.length && !fallback.length) return []
@@ -123,7 +123,7 @@ function ensureMinRow(primary: Anime[], fallback: Anime[], min: number, used?: S
   const need = min - result.length
   result = [...result, ...candidates.slice(0, need)]
   if (result.length >= min) return result
-  // Still short (fallback also exhausted) — allow cross-row duplicates, just avoid intra-row duplicates
+  // Still short (fallback also exhausted) - allow cross-row duplicates, just avoid intra-row duplicates
   const seenResult = new Set(result.map(a => a.identity.internalId))
   const extra = ord('extra', primary.filter(a => !seenResult.has(a.identity.internalId)))
   result = [...result, ...extra.slice(0, min - result.length)]
@@ -147,7 +147,7 @@ export function Home() {
   const navigate = useNavigate()
   const openDetail = useDetailOpen()
 
-  // Card taps push a detail URL (/anime/<id> or /manga/<id>) — the floating
+  // Card taps push a detail URL (/anime/<id> or /manga/<id>) - the floating
   // card renders as an overlay route on top of this page, so component
   // state (rows, scroll) survives open/close. Guests open the same card:
   // browsing + watching/reading is public (owner 2026-10-28); only My List,
@@ -186,7 +186,7 @@ export function Home() {
   const { trending, popular, airing, news } = rails
 
   // HOME RULE: anime only. Manga progress lives in the reader/My List,
-  // never in this row — even when a manga watching entry exists.
+  // never in this row - even when a manga watching entry exists.
   const isAnimeEntry = (e: AnimeListEntry) => {
     const mt = e.anime.identity.mediaType
     if (mt) return mt === 'ANIME'
@@ -194,7 +194,7 @@ export function Home() {
   }
   const continueWatching: Anime[] = useMemo(() => {
     if (!isAuthenticated || !combinedList) return []
-    // Strict: only status=watching (works for both trackers — statuses are
+    // Strict: only status=watching (works for both trackers - statuses are
     // normalized at the provider boundary). Every entry stands alone: no
     // franchise merging, no season collapsing. No title cap: show everything.
     const filtered = combinedList
@@ -208,7 +208,7 @@ export function Home() {
     return sorted.map(({ e }) => e.anime)
   }, [isAuthenticated, combinedList])
 
-  // Home My List: anime only (manga has its own surfaces — reader, My List tab).
+  // Home My List: anime only (manga has its own surfaces - reader, My List tab).
   const myList: Anime[] = useMemo(() => {
     if (isAuthenticated && combinedList) return combinedList.filter(isAnimeEntry).map((e) => e.anime)
     return []
@@ -219,7 +219,7 @@ export function Home() {
   // Hero: only popular and/or currently airing. STABLE across data
   // arrivals within a session: the pool grows as queries resolve (popular
   // lands before airing, etc.), but the hero must not re-pick mid-session
-  // — a re-pick swaps the mounted <img> (keyed by id) and flashes a
+  // - a re-pick swaps the mounted <img> (keyed by id) and flashes a
   // half-loaded backdrop over the previous one (reads as a left-edge
   // glitch during the crossfade window). Lock the first non-empty pick.
   // The lock keys on the DATA SIGNATURE (pool id set), not array order:
@@ -242,7 +242,7 @@ export function Home() {
     const sig = [...new Set(base.map(a => a.identity.internalId))].sort().join(',')
     if (heroesLocked.current && heroesLocked.current.sig === sig) return heroesLocked.current.heroes
     // New set (first load or genuinely new data): pick once, then lock.
-    // If a lock already exists, keep it (mid-session arrivals) — only the
+    // If a lock already exists, keep it (mid-session arrivals) - only the
     // very first pick populates.
     if (heroesLocked.current?.heroes.length) return heroesLocked.current.heroes
     const picked = stableOrder('heroes', base).slice(0, 7)
@@ -251,12 +251,12 @@ export function Home() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [popular.data, airing.data, trending.data])
 
-  // Pool for derived categories and recommendations (deduplicated) — use larger pool for variety.
+  // Pool for derived categories and recommendations (deduplicated) - use larger pool for variety.
   // HOME RULE: TV + MOVIE only (OVA/ONA/SPECIAL/MUSIC never appear in
-  // home rows — Continue Watching is the only exempt row). The filter
+  // home rows - Continue Watching is the only exempt row). The filter
   // MUST live inside the fetch layer (mapPage, below), not here: these
   // rows consume hook data DIRECTLY (variedTrending, variedPopular, …),
-  // bypassing allPool entirely — a pool-only filter leaves those rows
+  // bypassing allPool entirely - a pool-only filter leaves those rows
   // unfiltered. mapPage drops non-TV/MOVIE ANIME records at ingestion so
   // every consumer (pool, rows, hero) inherits it. The format comes
   // straight from the provider record (no title-specific hacks).
@@ -269,9 +269,9 @@ export function Home() {
     ])
   }, [trending.data, popular.data, airing.data, news.data])
 
-  // --- Personalized: "Because you watched X" — ONE row, ONE show.
+  // --- Personalized: "Because you watched X" - ONE row, ONE show.
   // FROZEN per mount: the reference show is picked once (most-recently-
-  // updated entry) and never re-picks mid-session — background refetches
+  // updated entry) and never re-picks mid-session - background refetches
   // landing later must not swap the row out from under the user.
   // (The old 50/50 coin flip + random top-10 pick re-rolled as list/pool
   // data arrived, which is why the row "updated on its own".)
@@ -283,7 +283,7 @@ export function Home() {
       if (!first) return 0
       return allPool.filter(a => !listIds.has(a.identity.internalId) && a.genres[0]?.toLowerCase() === first).length
     }
-    // "Because you watched" only takes ANIMES — the reference entry (the
+    // "Because you watched" only takes ANIMES - the reference entry (the
     // title in the row header) must be an anime; manga entries never become
     // the reference. (The row
     // items always were pool-anime; it was the header that went manga.)
@@ -305,7 +305,7 @@ export function Home() {
     return { refTitle, subtitle, items }
   }, [isAuthenticated, combinedList, allPool])
 
-  // Derived categories from pool (filtered, not additional fetches) — varied pools, always ≥10 for visual fullness
+  // Derived categories from pool (filtered, not additional fetches) - varied pools, always ≥10 for visual fullness
   const derived = useMemo(() => {
     if (!allPool.length) return null
     const pool = allPool
@@ -327,7 +327,7 @@ export function Home() {
     const hiddenGems = hiddenBase.length ? ensureMinRow(sampleVaried(hiddenBase, Math.min(16, hiddenBase.length), undefined, 'gems', stableOrder), pool, 12, undefined, 'gems', stableOrder) : []
     // If hidden gems pool is tiny (e.g. 5 in 96), ensureMinRow pads from allPool to 10
 
-    // Top Picks for You — based on user's top genres across list, varied
+    // Top Picks for You - based on user's top genres across list, varied
     let topPicks: Anime[] | null = null
     let topGenres: string[] = []
     if (isAuthenticated && combinedList && combinedList.length) {
@@ -345,11 +345,11 @@ export function Home() {
     return { highlyRated, shortShuffled, actionPicks, romancePicks, hiddenGems, topPicks, topGenres }
   }, [allPool, isAuthenticated, combinedList, stableOrder])
 
-  // Build dynamic home feed — stable per mount (fresh variety each full load,
+  // Build dynamic home feed - stable per mount (fresh variety each full load,
   // never reshuffled by background refetches mid-session)
   const middleSections = useMemo(() => {
     const used = new Set<string>()
-    // EVERY home row shows at least 10 shows — more
+    // EVERY home row shows at least 10 shows - more
     // when data allows. After under-12 sampling from a category page and
     // cross-row dedupe, ensureMinRow pads any thin line-up from the full
     // pool (used-aware) so no row ends visibly short.
@@ -363,7 +363,7 @@ export function Home() {
       return { key, title, subtitle, data: padded }
     }
 
-    // Stable slices for API categories — same lineup until data changes
+    // Stable slices for API categories - same lineup until data changes
     const variedTrending = trending.data ? stableOrder('sec:tr', trending.data).slice(0, 12) : null
     const variedPopular = popular.data ? stableOrder('sec:pop', popular.data).slice(0, 12) : null
     const variedAiring = airing.data ? stableOrder('sec:air', airing.data).slice(0, 12) : null
@@ -401,7 +401,7 @@ export function Home() {
       if (v.length) { for (const x of v) used.add(x.identity.internalId); sections.push({ key: 'gems', title: 'Hidden Gems', subtitle: 'Low-key favorites', data: v }) }
     }
 
-    // personalized sections near bottom but before My List — keep them together, also varied but not deduped aggressively
+    // personalized sections near bottom but before My List - keep them together, also varied but not deduped aggressively
     const personalized: typeof sections = []
     if (derived?.topPicks?.length) {
       const v = ensureMinRow(derived.topPicks, allPool, 12, undefined, 'sec:toppicks', stableOrder)
@@ -454,7 +454,7 @@ export function Home() {
             <div className="flex aspect-[21/9] w-full items-center justify-center rounded-xl bg-[var(--text)]/[0.03] px-6 text-center lg:min-h-[460px]">
               <div>
                 <p className="text-sm text-[var(--warn)]">{trending.error}</p>
-                <p className="mt-1 text-xs text-[var(--text-faint)]">Hero unavailable — other rows still work</p>
+                <p className="mt-1 text-xs text-[var(--text-faint)]">Hero unavailable - other rows still work</p>
               </div>
             </div>
           ) : heroes.length ? (
@@ -471,7 +471,7 @@ export function Home() {
           layer painted in the root stacking context; the feed must sit above
           it, and this one wrapper holds every row on Home. */}
       <div className="relative z-10 space-y-6 px-4 pt-5 sm:px-6 lg:mx-auto lg:w-full lg:max-w-[1600px] lg:space-y-7 lg:px-12">
-        {/* Continue — only when signed in (spec logged-out: must not appear at all) */}
+        {/* Continue - only when signed in (spec logged-out: must not appear at all) */}
         {isAuthenticated ? (
           loading ? (
             <RowSkeleton title="Continue Watching" />
@@ -489,7 +489,7 @@ export function Home() {
           </div>
         )}
 
-        {/* Dynamic home feed — Trending first, rest shuffled, personalized before My List */}
+        {/* Dynamic home feed - Trending first, rest shuffled, personalized before My List */}
         {middleSections.map(s => (
           <ContentRow key={s.key} title={s.title} subtitle={s.subtitle}>
             {s.data.map(a => (

@@ -4,15 +4,15 @@ import { routeTestAnilistMedia } from './helpers/test-anilist'
 import { blockUpstreamMedia } from './helpers/test-media'
 
 /**
- * Authenticated playback — the repaired end of the playback harness.
+ * Authenticated playback - the repaired end of the playback harness.
  *
  * AUTH: every test here (except the signed-out contract suite) seeds the
  * production MAL localStorage keys with the synthetic `aeri-test-token`
  * and routes `api.myanimelist.net/v2/users/@me*` + `graphql.anilist.co`
- * to test doubles. Production auth code is UNCHANGED — see
+ * to test doubles. Production auth code is UNCHANGED - see
  * tests/helpers/test-auth.ts for the isolation argument.
  *
- * MEDIA STRATEGY (explicit per suite — never silent):
+ * MEDIA STRATEGY (explicit per suite - never silent):
  * - "deterministic" suites route media bytes to CONTROLLED doubles
  *   (302 → real MDN MP4; real mux multivariant playlist, real upstream
  *   segments). They prove: guards pass, episode grid works, provider
@@ -55,7 +55,7 @@ async function setupAuth(page: Page) {
   await routeTestAnilistMedia(page)
   // Worker bridge prefs must exist BEFORE first navigation: addInitScript
   // runs before page scripts, so getEffectiveVideoApiUrl() sees the bridge
-  // on the very first load (goto → setPrefs would be too late — the app
+  // on the very first load (goto → setPrefs would be too late - the app
   // reads prefs during initial render).
   await page.addInitScript(() => {
     try {
@@ -70,12 +70,12 @@ async function setupAuth(page: Page) {
 
 async function setPrefs(page: Page, prefs: Record<string, unknown>) {
   // addInitScript (not evaluate): tests run setPrefs BEFORE goto, when the
-  // page is still about:blank — evaluate there writes to an opaque origin
+  // page is still about:blank - evaluate there writes to an opaque origin
   // (discarded on navigation; verified 2026-10-10: prefs missing → aniwave
   // baseless → no-source). Init scripts run at document start on the REAL
   // origin, so prefs exist before the app's first render reads them.
   // Localhost has no same-origin worker: point the app at the production
-  // worker for provider/video paths (documented local-preview pattern —
+  // worker for provider/video paths (documented local-preview pattern  - 
   // customVideoApiUrl → getEffectiveVideoApiUrl). Production runs are
   // same-origin and ignore this without effect.
   await page.addInitScript((p: Record<string, unknown>) => {
@@ -92,7 +92,7 @@ async function setPrefs(page: Page, prefs: Record<string, unknown>) {
 }
 
 async function waitForDecision(page: Page, label: string) {
-  // WAIT FOR A STABLE TERMINAL STATE — not merely the absence of "Finding".
+  // WAIT FOR A STABLE TERMINAL STATE - not merely the absence of "Finding".
   // "Finding" clears between the episode phase and the source phase, and
   // no-source can render TRANSIENTLY (sources settled empty while a
   // re-resolution is still queued after providerEpisodes flip the
@@ -117,7 +117,7 @@ async function waitForDecision(page: Page, label: string) {
   const s = last ?? await watchState(page)
   expect(
     s.hasVideo || s.hasIframe || s.hasNoSource || s.body.includes("isn't available right now"),
-    `must reach a STABLE terminal player decision for ${label} — ${s.body.slice(0, 300)}`,
+    `must reach a STABLE terminal player decision for ${label} - ${s.body.slice(0, 300)}`,
   ).toBeTruthy()
   return s
 }
@@ -142,7 +142,7 @@ async function assertAdvancingPlayback(page: Page, label: string) {
 
 
 // ---------------------------------------------------------------------------
-// Suite A — signed-out contract (NO auth seed, fresh context)
+// Suite A - signed-out contract (NO auth seed, fresh context)
 // ---------------------------------------------------------------------------
 
 test.describe('Signed-out route guards (no auth seed)', () => {
@@ -155,10 +155,10 @@ test.describe('Signed-out route guards (no auth seed)', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Suite B — authenticated entry (no media doubles needed)
+// Suite B - authenticated entry (no media doubles needed)
 // ---------------------------------------------------------------------------
 
-test.describe('Authenticated entry — guards pass, episode grid works', () => {
+test.describe('Authenticated entry - guards pass, episode grid works', () => {
   test.beforeEach(async ({ page }) => {
     await setupAuth(page)
   })
@@ -170,7 +170,7 @@ test.describe('Authenticated entry — guards pass, episode grid works', () => {
     const s = await waitForDecision(page, 'watch-loads')
     expect(s.path).toContain('/watch/anilist-20/1')
     // A decision must be reached: video, iframe, or honest no-source.
-    expect(s.hasVideo || s.hasIframe || s.hasNoSource, `must reach a player decision — ${s.body.slice(0, 300)}`).toBeTruthy()
+    expect(s.hasVideo || s.hasIframe || s.hasNoSource, `must reach a player decision - ${s.body.slice(0, 300)}`).toBeTruthy()
   })
 
   test('AnimeDetail loads without redirect', async ({ page }) => {
@@ -227,16 +227,16 @@ test.describe('Authenticated entry — guards pass, episode grid works', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Suite C — deterministic playback (AnimeGG resolution, controlled bytes)
+// Suite C - deterministic playback (AnimeGG resolution, controlled bytes)
 // ---------------------------------------------------------------------------
 
-test.describe('Deterministic playback — provider resolves, player advances', () => {
+test.describe('Deterministic playback - provider resolves, player advances', () => {
   test.beforeEach(async ({ page }) => {
     await setupAuth(page)
     // No media doubles: aniwave's signed relay bytes flow for real. The
     // suite is deterministic because aniwave resolution is server-side
     // (title-hinted, fail-closed match) and the relay serves allowlisted
-    // CDN bytes — no browser-CORS lottery. If the aniwave upstream itself
+    // CDN bytes - no browser-CORS lottery. If the aniwave upstream itself
     // is down, these fail LOUDLY (no-source assertion), never silently.
   })
 
@@ -248,8 +248,8 @@ test.describe('Deterministic playback — provider resolves, player advances', (
     await setPrefs(page, { preferredAudio: 'sub' })
     await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
     const s = await waitForDecision(page, 'aniwave-e1')
-    expect(s.hasNoSource, `Aniwave must resolve (upstream live?) — ${s.tried || s.body.slice(0, 200)}`).toBeFalsy()
-    expect(s.hasVideo, `expected a video element — ${s.body.slice(0, 300)}`).toBeTruthy()
+    expect(s.hasNoSource, `Aniwave must resolve (upstream live?) - ${s.tried || s.body.slice(0, 200)}`).toBeFalsy()
+    expect(s.hasVideo, `expected a video element - ${s.body.slice(0, 300)}`).toBeTruthy()
     await assertAdvancingPlayback(page, 'aniwave-e1')
   })
 
@@ -274,7 +274,7 @@ test.describe('Deterministic playback — provider resolves, player advances', (
         .map(o => (o as HTMLOptionElement).textContent ?? ''),
     )
     const haystack = `${triedLine}\n${sourceLabels.join('\n')}`.toLowerCase()
-    expect(haystack.length, `expected provider evidence in the UI — ${s.body.slice(0, 200)}`).toBeGreaterThan(0)
+    expect(haystack.length, `expected provider evidence in the UI - ${s.body.slice(0, 200)}`).toBeGreaterThan(0)
     for (const dead of ['allanime', 'animepahe', 'anikoto', 'megaplay', 'animeparadise', 'anineko', 'miruro', 'official', 'demo', 'custom']) {
       expect(haystack, `dead/unverified provider '${dead}' must never be requested`).not.toContain(dead)
     }
@@ -294,10 +294,10 @@ test.describe('Deterministic playback — provider resolves, player advances', (
 })
 
 // ---------------------------------------------------------------------------
-// Suite D — HLS wiring via the app's own player (no byte doubles)
+// Suite D - HLS wiring via the app's own player (no byte doubles)
 // ---------------------------------------------------------------------------
 
-test.describe('HLS wiring — app player advances on live relay bytes', () => {
+test.describe('HLS wiring - app player advances on live relay bytes', () => {
   test.beforeEach(async ({ page }) => {
     await setupAuth(page)
     // NO media routes: the app's own VideoPlayer pulls the signed relay
@@ -310,7 +310,7 @@ test.describe('HLS wiring — app player advances on live relay bytes', () => {
     await setPrefs(page, { preferredAudio: 'sub', volume: 0.35 })
     await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
     const s = await waitForDecision(page, 'app-player-hls')
-    expect(s.hasVideo, `expected the app player — ${s.body.slice(0, 300)}`).toBeTruthy()
+    expect(s.hasVideo, `expected the app player - ${s.body.slice(0, 300)}`).toBeTruthy()
     expect(s.hasIframe, 'Video.js must be the only player path (no iframe)').toBeFalsy()
     const skin = await page.evaluate(() => {
       const el = document.querySelector('.video-skin') as HTMLElement | null
@@ -338,7 +338,7 @@ test.describe('HLS wiring — app player advances on live relay bytes', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Suite D2 — deterministic direct-source paths (worker source route only)
+// Suite D2 - deterministic direct-source paths (worker source route only)
 // ---------------------------------------------------------------------------
 
 const FLOWER_MP4 = 'https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4'
@@ -370,7 +370,7 @@ async function routeDirectSource(
   })
 }
 
-test.describe('Direct-source paths — HlsJsVideo (deterministic)', () => {
+test.describe('Direct-source paths - HlsJsVideo (deterministic)', () => {
   test.beforeEach(async ({ page }) => {
     await setupAuth(page)
   })
@@ -381,7 +381,7 @@ test.describe('Direct-source paths — HlsJsVideo (deterministic)', () => {
     await routeDirectSource(page, { url: FLOWER_MP4, type: 'mp4' })
     await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
     const s = await waitForDecision(page, 'direct-mp4')
-    expect(s.hasVideo, `expected the direct MP4 player — ${s.body.slice(0, 300)}`).toBeTruthy()
+    expect(s.hasVideo, `expected the direct MP4 player - ${s.body.slice(0, 300)}`).toBeTruthy()
     expect(s.hasIframe, 'no iframe fallback for a direct source').toBeFalsy()
     const state = await page.evaluate(() => {
       const v = document.querySelector('video') as HTMLVideoElement
@@ -407,7 +407,7 @@ test.describe('Direct-source paths — HlsJsVideo (deterministic)', () => {
     const s = await waitForDecision(page, 'embed-filtered')
     expect(s.hasVideo, 'an embed-only source must not create a <video>').toBeFalsy()
     expect(s.hasIframe, 'an embed-only source must not create an <iframe>').toBeFalsy()
-    expect(s.hasNoSource, `must reach the honest no-source UI — ${s.body.slice(0, 300)}`).toBeTruthy()
+    expect(s.hasNoSource, `must reach the honest no-source UI - ${s.body.slice(0, 300)}`).toBeTruthy()
     expect(s.body).toContain('No playable source')
   })
 
@@ -484,10 +484,10 @@ test.describe('Direct-source paths — HlsJsVideo (deterministic)', () => {
 })
 
 // ---------------------------------------------------------------------------
-// Suite E — LIVE provider playback (explicitly labeled, upstream-dependent)
+// Suite E - LIVE provider playback (explicitly labeled, upstream-dependent)
 // ---------------------------------------------------------------------------
 
-test.describe('LIVE provider playback (real upstream bytes — may fail on outage)', () => {
+test.describe('LIVE provider playback (real upstream bytes - may fail on outage)', () => {
   test.beforeEach(async ({ page }) => {
     await setupAuth(page)
     // NO media routes: every byte comes from real upstreams.
@@ -498,14 +498,14 @@ test.describe('LIVE provider playback (real upstream bytes — may fail on outag
     await setPrefs(page, { preferredAudio: 'sub' })
     await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
     const s = await waitForDecision(page, 'live-aniwave')
-    expect(s.hasNoSource, `provider must resolve live — ${s.tried || s.body.slice(0, 200)}`).toBeFalsy()
-    expect(s.hasVideo, `expected a video element — ${s.body.slice(0, 300)}`).toBeTruthy()
+    expect(s.hasNoSource, `provider must resolve live - ${s.tried || s.body.slice(0, 200)}`).toBeFalsy()
+    expect(s.hasVideo, `expected a video element - ${s.body.slice(0, 300)}`).toBeTruthy()
     await assertAdvancingPlayback(page, 'live-aniwave')
   })
 
   test('LIVE: relay-blocked playback degrades honestly (no shell masquerade)', async ({ page }) => {
     // With the relay's media bytes blocked, the app must reach an HONEST
-    // terminal state: no-source (fail closed) or an error box — never a
+    // terminal state: no-source (fail closed) or an error box - never a
     // <video> with a dead src masquerading as playback, never a trailer.
     // (Fallback to a second full-episode provider cannot be proven on
     // localhost: every verified provider needs either the relay or a
@@ -513,7 +513,7 @@ test.describe('LIVE provider playback (real upstream bytes — may fail on outag
     // runs exercise the true cross-provider fallback.)
     //
     // MEDIA_ERROR tolerance: with bytes blocked the player fires error
-    // code 4 (MEDIA_ERR_SRC_NOT_SUPPORTED) — that IS the honest signal
+    // code 4 (MEDIA_ERR_SRC_NOT_SUPPORTED) - that IS the honest signal
     // here. Assert the video element carries the error (not silent
     // emptiness) and no YouTube trailer appears.
     test.setTimeout(180000)
@@ -544,7 +544,7 @@ test.describe('LIVE provider playback (real upstream bytes — may fail on outag
         // Old player surfaced MEDIA_ERR_SRC_NOT_SUPPORTED on <video>;
         // Video.js owns the error surface via its default skin dialog
         // (hls.js manifest failure is not a native media error). Either
-        // is honest — a dead element with no error is not.
+        // is honest - a dead element with no error is not.
         expect(
           probe!.err === 4 || probe!.dialogVisible,
           `blocked bytes must surface an error (video=${probe!.err}, dialog=${probe!.dialogText})`,
@@ -561,7 +561,7 @@ test.describe('LIVE provider playback (real upstream bytes — may fail on outag
     test.setTimeout(180000)
     // Single broad route per page (see ROUTING CONSTRAINT in test-auth):
     // blockUpstreamMedia fulfills identity itself and aborts everything
-    // except the app shell + metadata fixtures. Relay NOT allowed here —
+    // except the app shell + metadata fixtures. Relay NOT allowed here  - 
     // episodes, sources, playlists, segments all die upstream.
     const blocked: string[] = []
     await blockUpstreamMedia(page, blocked)
@@ -569,21 +569,21 @@ test.describe('LIVE provider playback (real upstream bytes — may fail on outag
     await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
     const s = await waitForDecision(page, 'live-fail-closed')
     // Guards still pass (auth + metadata fixtures are test-scoped and live);
-    // with every upstream blocked, the honest state is no-source — never a
+    // with every upstream blocked, the honest state is no-source - never a
     // shell masquerading as playback, never a trailer.
     expect(s.hasVideo, 'blocked upstreams must not produce a video element').toBeFalsy()
-    expect(s.hasNoSource, `must show honest no-source — ${s.body.slice(0, 200)}`).toBeTruthy()
+    expect(s.hasNoSource, `must show honest no-source - ${s.body.slice(0, 200)}`).toBeTruthy()
     const src = await page.evaluate(() => (document.querySelector('iframe') as HTMLIFrameElement | null)?.src ?? '')
     expect(src).not.toMatch(/youtube/)
     // Sanity: SOMETHING upstream was actually blocked (else the test proves
-    // nothing — a no-op route also yields no-source).
-    expect(blocked.length, `expected blocked upstream requests — got ${blocked.length}`).toBeGreaterThan(0)
+    // nothing - a no-op route also yields no-source).
+    expect(blocked.length, `expected blocked upstream requests - got ${blocked.length}`).toBeGreaterThan(0)
     await page.unroute(/^https?:\/\//).catch(() => {})
   })
 })
 
 // ---------------------------------------------------------------------------
-// Suite B2 — watch-page interactivity during playback (desktop + mobile)
+// Suite B2 - watch-page interactivity during playback (desktop + mobile)
 // ---------------------------------------------------------------------------
 // Regression battery for the reported "page unresponsive once streaming
 // starts" issue. Investigation (2026-10-10, production build

@@ -21,7 +21,7 @@ export interface AnimeEpisode {
    * neutral skeleton while a field is loading, the real value when it
    * resolves, and a quiet fallback ONLY when the field is confirmed
    * unavailable (upstream genuinely lacks it) or errored (provider down).
-   * A late response may only fill fields that are still loading — it must
+   * A late response may only fill fields that are still loading - it must
    * NEVER overwrite a resolved value (stale-overwrite guard in the merge
    * helpers below).
    */
@@ -63,7 +63,7 @@ export function fieldQuality(v: string | undefined, state: 'loading' | 'resolved
 
 /**
  * Merge a late episode-metadata patch into an existing episode. Only fills
- * fields that are still loading/empty — never overwrites resolved values
+ * fields that are still loading/empty - never overwrites resolved values
  * with fallback or stale data. Returns the (possibly unchanged) episode.
  */
 export function mergeEpisodeField<T extends Pick<AnimeEpisode, 'title' | 'thumbnail' | 'fieldState'>>(
@@ -159,7 +159,7 @@ function isValidHttpUrl(url: string): boolean {
  * means at least one non-generic title or one real thumbnail AND that list
  * survives the season-pollution / range guards. Partial AniList data is
  * still AniList data: missing rows keep the UI placeholder and Kitsu is
- * never mixed in. A list the guards discard does not count — see
+ * never mixed in. A list the guards discard does not count - see
  * `anilistEpisodeMetadataSurvivesGuards`.
  *
  * Pass the RAW streaming list here from `anilistEpisodeMetadataSurvivesGuards`
@@ -211,19 +211,19 @@ export function filterAndSortStreamingEpisodes(
 
 /**
  * SEASON-POLLUTION GUARD. AniList frequently attaches ANOTHER season's
- * crunchyroll listing to a sequel entry — verified upstream: Code Geass R2
+ * crunchyroll listing to a sequel entry - verified upstream: Code Geass R2
  * (2904) carries S1's full 25-row list (identical titles AND crunchyroll
  * urls), and 86: Part 2 (131586) carries Part 1's 11 rows over its own 12.
  * There is no local way to re-derive the correct titles, so when the
  * pollution signals fire the list is dropped entirely: clean "Episode N"
- * rows with the show's own cover as the thumbnail are always correct —
+ * rows with the show's own cover as the thumbnail are always correct  - 
  * wrong-season titles never are. Only FINISHED/CANCELLED entries are
  * tested: airing shows legitimately grow their lists week by week.
  *
  * (i) Row-count mismatch on a finished entry (streaming rows ≠ the entry's
  *     own episode count).
  * (ii) Finished entry with a prequel of the SAME episode count and an
- *     equally long streaming list — the exact shape AniList's
+ *     equally long streaming list - the exact shape AniList's
  *     first-season copies take (CG R2). Trade-off (documented): a
  *     correct same-length sequel loses its titles too; generic-but-correct
  *     rows beat detailed-but-wrong ones.
@@ -248,7 +248,7 @@ export function discardSeasonPollutedStreaming(anime: Anime): Anime {
 }
 
 /**
- * Sanitize anime streaming for display (standalone entry — no group model).
+ * Sanitize anime streaming for display (standalone entry - no group model).
  * - strips season-polluted lists (see discardSeasonPollutedStreaming)
  * - filters trailers
  * - sorts ascending
@@ -282,7 +282,7 @@ export function sanitizeAnimeForDisplay(anime: Anime): Anime {
  * gate asked only "does the raw list contain a title/thumbnail?", so a
  * season-polluted list (AniList id 2904 carries S1's 25 Crunchyroll rows)
  * counted as usable even though `sanitizeAnimeForDisplay` throws the whole
- * list away — the UI then showed bare "Episode N" placeholders forever and
+ * list away - the UI then showed bare "Episode N" placeholders forever and
  * Kitsu was never consulted. Data the guards discard is NOT usable data.
  *
  * True = AniList can render at least one real title/thumbnail in the UI.
@@ -349,7 +349,7 @@ export function resolveEpisodeCount(
  *
  * Kitsu entries in a franchise sometimes carry FRANCHISE-absolute numbers
  * (a 25-episode sequel listed as 26..50) while Aeri's locals are 1..N. An
- * exact miss therefore falls back to a contiguous-offset list — only when
+ * exact miss therefore falls back to a contiguous-offset list - only when
  * the numbers really are a single run starting above 1, so a sparse or
  * partial list can never be mapped onto the wrong episodes.
  */
@@ -387,7 +387,7 @@ export function normalizeEpisodes(
     rawStreaming ? { ...anime, streamingEpisodes: rawStreaming } : anime
   )
   // Fallback gate follows the DISPLAY guards (2026-10-25): a list the
-  // season-pollution/range guards discard cannot suppress Kitsu — that was
+  // season-pollution/range guards discard cannot suppress Kitsu - that was
   // Code Geass R2 (polluted list dropped → bare "Episode N" forever).
   const anilistHasMetadata = anilistEpisodeMetadataSurvivesGuards(anime)
   // Apply local mismatch discard before index mapping?
@@ -511,7 +511,7 @@ export function normalizeEpisodes(
     let se: { title?: string; thumbnail?: string; url?: string; site?: string } | undefined
     if (useNumberMapping) {
       se = streamingByNumber.get(n) ?? (globalOffset ? streamingByNumber.get(n + globalOffset) : undefined)
-      // If still miss and globalOffset exists, don't fallback to index — keep undefined to avoid wrong-season title
+      // If still miss and globalOffset exists, don't fallback to index - keep undefined to avoid wrong-season title
       // If no offset and miss, fallback to index for non-global case? Only if numbers are sparse
       if (!se && !globalOffset) {
         // Check if index fallback is safe: only when numbers are sparse and not all global
@@ -535,7 +535,7 @@ export function normalizeEpisodes(
     // Field states: resolved only when a REAL value landed; loading while
     // the whole-entry Kitsu fallback is still in flight; unavailable when
     // no source has it and none is pending. The UI skeleton-binds on
-    // 'loading', falls back quietly otherwise — a generic "Episode N"
+    // 'loading', falls back quietly otherwise - a generic "Episode N"
     // label is never presented as resolved metadata.
     let titleState: 'loading' | 'resolved' | 'unavailable' | 'error' = 'unavailable'
     let thumbState: 'loading' | 'resolved' | 'unavailable' | 'error' = 'unavailable'
@@ -630,7 +630,7 @@ export function getAiredEpisodeCount(anime: Anime): number {
 /**
  * DISPLAY DENOMINATOR FOR PROGRESS. Airing shows are measured against the
  * episodes that HAVE AIRED, not the
- * planned season total — otherwise a fully caught-up viewer of a 12-episode
+ * planned season total - otherwise a fully caught-up viewer of a 12-episode
  * show sitting on episode 3 reads as 25% instead of 3 of 3. Finished shows
  * are unaffected: `getAiredEpisodeCount` returns the full episode count for
  * them, so the denominator stays the real total.
@@ -692,7 +692,7 @@ export function parseSeasonNumberFromTitle(raw: string): number | null {
 
 /**
  * Season number parsed from the title when present ("Season 2", "2nd
- * Season"), else 1. Informational display only — never identity.
+ * Season"), else 1. Informational display only - never identity.
  */
 export function getSmartSeasonNumber(anime: Anime): number {
   const candidates = [anime.title.english, anime.title.romaji].filter(Boolean) as string[]
@@ -706,7 +706,7 @@ export function getSmartSeasonNumber(anime: Anime): number {
 /**
  * Detect whether this entry's episode numbering continues globally
  * (streaming titles carry global numbers). Returns offset to add to local
- * numbers to get display numbers. Purely per-entry — no group model.
+ * numbers to get display numbers. Purely per-entry - no group model.
  */
 export function getNumberingOffsetAndMode(
   anime: Anime,

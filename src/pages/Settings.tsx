@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { Navigate } from 'react-router-dom'
 import { getPreferences, setPreferences, type Preferences } from '../storage/preferences'
 import { useAniList } from '../contexts/AniListContext'
 import { useMAL } from '../contexts/MALContext'
@@ -14,7 +14,7 @@ import { Switch, SwitchRow } from '../components/ui/Switch'
 import { SortableList } from '../components/ui/SortableList'
 import { pillSolid, pillSoft } from '../components/ui/buttonStyles'
 
-// Counters only — no tokens, no user data. Refreshes while visible.
+// Counters only - no tokens, no user data. Refreshes while visible.
 function AnilistDiagnostics() {
   const [s, setS] = useState(() => ({ ...getAnilistStats(), now: Date.now() }))
   useEffect(() => {
@@ -79,7 +79,7 @@ export function Settings() {
       await handleClearCache()
       await handleClearWatchPos()
       // Reset prefs to defaults. The theme is painted on <html> (dataset +
-      // inline vars), so it must be re-applied explicitly — removing the
+      // inline vars), so it must be re-applied explicitly - removing the
       // stored key alone would leave the old theme until the next reload.
       // The key is deleted first so stale/legacy fields cannot survive,
       // then clean defaults are re-persisted.
@@ -93,7 +93,7 @@ export function Settings() {
   }
 
 // Video providers shown in Settings = verified ONLY (registry is the
-  // single source of truth — no hardcoded list, no stubs, no dead entries).
+  // single source of truth - no hardcoded list, no stubs, no dead entries).
   const videoCaps = getProviderCapabilities().filter(c => c.id !== 'mock')
   const verifiedVideoIds = new Set(verifiedVideoProviders().map(p => p.id))
   const shownVideoCaps = videoCaps.filter(c => verifiedVideoIds.has(c.id))
@@ -116,7 +116,7 @@ export function Settings() {
     const order = prefs.mangaProviderOrder
     // No saved order: the registry array IS the default priority
     // (WeebCentral → MangaHere → MangaPill → MangaDex, D144). Never sort by
-    // a local id list — that is how MangaHere used to land first.
+    // a local id list - that is how MangaHere used to land first.
     if (!order) return mangaProviders
     const map = new Map(mangaProviders.map(p => [p.id, p] as const))
     const out: typeof mangaProviders = []
@@ -156,7 +156,7 @@ export function Settings() {
     return out
   })()
 
-  // readerFit IS read by the reader (object-fit width/height). No UI yet —
+  // readerFit IS read by the reader (object-fit width/height). No UI yet  - 
   // keep the pref (functional), surface it under Manga below.
   const readerFit = prefs.readerFit ?? 'width'
   const isAuthenticated = ani.isAuthenticated || mal.isAuthenticated
@@ -169,19 +169,32 @@ export function Settings() {
       <h1 className="text-[18px] font-semibold tracking-tight text-[var(--text)]">Settings</h1>
       <p className="text-xs text-[var(--text-faint)]">Accounts, playback, and your data.</p>
 
-      {/* About — first: identity before configuration. */}
+      {/* About - first: identity before configuration. */}
       <section className="mt-6 rounded-xl border border-[var(--border)] bg-[var(--text)]/[0.02] p-4 sm:p-5">
         <h2 className="text-sm font-semibold text-[var(--text)]">About</h2>
-        <p className="mt-1 text-xs text-[var(--text-faint)]">Aeri is a quiet anime discovery, tracking, and watching app. No tracking, no ads — your data stays in this browser.</p>
+        <p className="mt-1 text-xs text-[var(--text-faint)]">Aeri is a quiet anime discovery, tracking, and watching app. No tracking, no ads - your data stays in this browser.</p>
         <div className="mt-3 space-y-2 text-xs leading-5">
           <p><span className="text-[var(--text-faint)]">Metadata:</span> <span className="text-[var(--text)]">AniList</span><span className="mx-2 text-[color-mix(in_srgb,var(--text)_20%,transparent)]">•</span><span className="text-[var(--text-faint)]">Tracking:</span> <span className="text-[var(--text)]">{trackingProvider === 'mal' ? 'MyAnimeList' : trackingProvider === 'anilist' ? 'AniList' : 'Not connected'}</span></p>
           <p><span className="text-[var(--text-faint)]">Video:</span> <span className="text-[var(--text)]">{orderedCaps.find(c => isEnabled(c.id))?.displayName ?? 'Auto'}</span><span className="mx-2 text-[color-mix(in_srgb,var(--text)_20%,transparent)]">•</span><span className="text-[var(--text-faint)]">Storage:</span> <span className="text-[var(--text)]">This browser only</span></p>
-          <p className="pt-2">
-            <a href="https://github.com/fastdemo/aeri" className="underline hover:text-[var(--text)] text-[var(--text-faint)]">GitHub</a>
+          {/* Identity row: icon + label, divided by the same faint middot as
+              the lines above. Analytics and Design are placeholders for now -
+              underlined to read as links, but deliberately not interactive
+              and wired to nothing (D172). */}
+          <p className="flex flex-wrap items-center pt-2">
+            <a href="https://github.com/fastdemo/aeri" className="inline-flex items-center gap-1.5 text-[var(--text-faint)] underline hover:text-[var(--text)]">
+              <Icon name="github" size={12} />
+              GitHub
+            </a>
             <span className="mx-2 text-[color-mix(in_srgb,var(--text)_20%,transparent)]">•</span>
-            <a href="https://aeri.fastdemo.workers.dev/api/health" className="underline hover:text-[var(--text)] text-[var(--text-faint)]">Service status</a>
+            <span className="inline-flex items-center gap-1.5 text-[var(--text-faint)] underline">
+              <Icon name="chart-line" size={12} />
+              Analytics
+            </span>
             <span className="mx-2 text-[color-mix(in_srgb,var(--text)_20%,transparent)]">•</span>
-            <Link to="/manga" className="underline hover:text-[var(--text)] text-[var(--text-faint)]">Manga (soon)</Link>
+            <span className="inline-flex items-center gap-1.5 text-[var(--text-faint)] underline">
+              <Icon name="pen-tool" size={12} />
+              Design
+            </span>
           </p>
         </div>
       </section>
@@ -356,18 +369,18 @@ export function Settings() {
           <div>
             <p className="text-xs font-medium text-[var(--text)]">Preferred audio</p>
             <p className="text-[11px] text-[var(--text-faint)]">Sub: Japanese with subtitles. Dub: English where available. Falls back if missing.</p>
-            {/* ORIGINAL segmented toggle — size only, never a different
-                component. Track + inner pill; 1px border +
-                4px track padding + 20px inner pill = the same 30px box as
-                every other control. */}
-            <div className="mt-2 inline-flex rounded-full border border-[var(--border)] bg-[var(--bg-soft)] p-1" role="radiogroup" aria-label="Preferred audio">
+            {/* Segmented toggle: the track is the 30px control, and the
+                selected thumb fills it completely - the interior height and
+                exactly half the width, touching the track's left/right
+                edges (D172). Two equal grid columns keep the halves even. */}
+            <div className="mt-2 inline-grid h-[30px] grid-cols-2 rounded-full border border-[var(--border)] bg-[var(--bg-soft)] p-0" role="radiogroup" aria-label="Preferred audio">
               {(['sub','dub'] as const).map(lang => (
                 <button
                   key={lang}
                   role="radio"
                   aria-checked={prefs.preferredAudio === lang}
                   onClick={() => updatePref({ preferredAudio: lang })}
-                  className={`rounded-full px-4 py-0.5 text-xs font-medium leading-4 ${prefs.preferredAudio === lang ? 'bg-[var(--text)] text-[var(--on-text)]' : 'text-[var(--text-muted)] hover:text-[var(--text)]'}`}
+                  className={`h-full rounded-full px-4 text-xs font-medium leading-4 ${prefs.preferredAudio === lang ? 'bg-[var(--text)] text-[var(--on-text)]' : 'text-[var(--text-muted)] hover:text-[var(--text)]'}`}
                 >
                   {lang === 'sub' ? 'Sub' : 'Dub'}
                 </button>
@@ -407,7 +420,7 @@ export function Settings() {
                       <span className={`h-2 w-2 rounded-full shrink-0 ${dotColor}`} aria-hidden />
                       <div className="min-w-0">
                         <p className="text-xs font-medium text-[var(--text)] truncate">{c.displayName}</p>
-                        <p className="text-[10px] text-[var(--text-faint)]">{c.languages.join('/')} {c.embed ? '• embed' : ''} {c.directVideo ? '• video' : ''} • <span className={isAvailable ? 'text-[var(--ok)]' : 'text-[color-mix(in_srgb,var(--text)_30%,transparent)]'}>{label}</span>{h === 'unavailable' && <span className="text-[color-mix(in_srgb,var(--text)_20%,transparent)]"> — Requires backend</span>}</p>
+                        <p className="text-[10px] text-[var(--text-faint)]">{c.languages.join('/')} {c.embed ? '• embed' : ''} {c.directVideo ? '• video' : ''} • <span className={isAvailable ? 'text-[var(--ok)]' : 'text-[color-mix(in_srgb,var(--text)_30%,transparent)]'}>{label}</span>{h === 'unavailable' && <span className="text-[color-mix(in_srgb,var(--text)_20%,transparent)]"> - Requires backend</span>}</p>
                       </div>
                     </div>
                     <Switch checked={enabled} onChange={v => toggleProvider(c.id, v)} label={`Enable ${c.displayName}`} />
@@ -415,7 +428,7 @@ export function Settings() {
                 )
               }}
             />
-            <p className="text-[11px] text-[color-mix(in_srgb,var(--text)_30%,transparent)]">Disable providers you don’t want to try. Drag the grip to reorder — or focus it and press ↑/↓. Resolution follows this order.</p>
+            <p className="text-[11px] text-[color-mix(in_srgb,var(--text)_30%,transparent)]">Disable providers you don’t want to try. Drag the grip to reorder - or focus it and press ↑/↓. Resolution follows this order.</p>
           </div>
           <div className="space-y-2 pt-4 border-t border-[var(--border)]">
             <p className="text-xs font-medium text-[var(--text)]">Custom video server (optional)</p>
@@ -435,7 +448,7 @@ export function Settings() {
                   if (!url) return
                   try {
                     const res = await fetch(`${url}/health`, { method: 'GET' })
-                    alert(res.ok ? `✓ Available — ${url}` : `✗ ${res.status} ${res.statusText}`)
+                    alert(res.ok ? `✓ Available - ${url}` : `✗ ${res.status} ${res.statusText}`)
                   } catch (e) {
                     alert(`✗ ${String(e).slice(0,120)}`)
                   }
@@ -459,14 +472,14 @@ export function Settings() {
           <div>
             <p className="text-xs font-medium text-[var(--text)]">Reader page fit</p>
             <p className="text-[11px] text-[var(--text-faint)]">Width fills the screen; height fits whole pages.</p>
-            <div className="mt-2 inline-flex rounded-full border border-[var(--border)] bg-[var(--bg-soft)] p-1" role="radiogroup" aria-label="Reader page fit">
+            <div className="mt-2 inline-grid h-[30px] grid-cols-2 rounded-full border border-[var(--border)] bg-[var(--bg-soft)] p-0" role="radiogroup" aria-label="Reader page fit">
               {(['width','height'] as const).map(f => (
                 <button
                   key={f}
                   role="radio"
                   aria-checked={readerFit === f}
                   onClick={() => updatePref({ readerFit: f })}
-                  className={`rounded-full px-4 py-0.5 text-xs font-medium leading-4 ${readerFit === f ? 'bg-[var(--text)] text-[var(--on-text)]' : 'text-[var(--text-muted)] hover:text-[var(--text)]'}`}
+                  className={`h-full rounded-full px-4 text-xs font-medium leading-4 ${readerFit === f ? 'bg-[var(--text)] text-[var(--on-text)]' : 'text-[var(--text-muted)] hover:text-[var(--text)]'}`}
                 >
                   {f === 'width' ? 'Width' : 'Height'}
                 </button>
@@ -510,7 +523,7 @@ export function Settings() {
               )
             }}
           />
-          <p className="text-[11px] text-[color-mix(in_srgb,var(--text)_30%,transparent)]">Disable providers you don’t want to try. Drag the grip to reorder — or focus it and press ↑/↓. Resolution follows this order.</p>
+          <p className="text-[11px] text-[color-mix(in_srgb,var(--text)_30%,transparent)]">Disable providers you don’t want to try. Drag the grip to reorder - or focus it and press ↑/↓. Resolution follows this order.</p>
         </div>
       </section>
 

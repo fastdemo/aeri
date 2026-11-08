@@ -3,7 +3,7 @@ import { seedTestAuth, routeTestMalIdentity } from './helpers/test-auth'
 import { routeTestAnilistMedia } from './helpers/test-anilist'
 
 /**
- * D159 — the ⋮ on a Continue Watching card must survive the pointer handoff
+ * D159 - the ⋮ on a Continue Watching card must survive the pointer handoff
  * from thumbnail to trigger, and the card must keep its hover treatment
  * while the pointer is on the dots.
  *
@@ -85,7 +85,7 @@ test('⋮ stays visible, clickable and keeps the card hover treatment', async ({
   await expect.poll(treatment, { timeout: 5_000 }).toEqual(hovered)
 
   // THE REGRESSION: move the pointer onto the ⋮ itself. The art is no
-  // longer hovered here — only the trigger's own :hover branch keeps the
+  // longer hovered here - only the trigger's own :hover branch keeps the
   // control visible, and the treatment must not collapse.
   await trigger.hover()
   await expect.poll(opacity, { timeout: 5_000 }).toBe('1')

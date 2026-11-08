@@ -72,7 +72,7 @@ export function VideoPlayer({
       || /\.m3u8(?:$|[?#])/i.test(source.url))
   )
 
-  // Resume from initialTime — seek only after metadata is available. The
+  // Resume from initialTime - seek only after metadata is available. The
   // adapter fires loadedmetadata/durationchange; canplay covers manifests
   // whose duration becomes finite slightly after metadata.
   useEffect(() => {
@@ -152,8 +152,8 @@ export function VideoPlayer({
   // adapter never recovers: the picture stays black until the tab reloads.
   // This watchdog covers the three ways playback gets stuck:
   //   1. fatal engine error (adapter `error` / media element `error`),
-  //   2. buffer stall — "playing" but currentTime has not moved,
-  //   3. decode failure — readyState says data is here but the element
+  //   2. buffer stall - "playing" but currentTime has not moved,
+  //   3. decode failure - readyState says data is here but the element
   //      produces no picture (videoWidth 0, or frozen decoded frames while
   //      the clock advances).
   // Escalation stays inside the live engine first (startLoad for network,
@@ -221,7 +221,7 @@ export function VideoPlayer({
           window.setTimeout(() => { recovering = false }, 2500)
           return
         } catch {
-          // Engine refused the soft path — fall through to the remount.
+          // Engine refused the soft path - fall through to the remount.
         }
       }
 
@@ -378,7 +378,7 @@ export function VideoPlayer({
     try {
       const md = (navigator as any).mediaSession
       if (!md) return
-      const title = animeTitle ? `${animeTitle} — E${episodeNumber}` : `Episode ${episodeNumber}`
+      const title = animeTitle ? `${animeTitle} - E${episodeNumber}` : `Episode ${episodeNumber}`
       md.metadata = new (window as any).MediaMetadata({
         title,
         artist: animeTitle || 'Aeri',
@@ -430,7 +430,7 @@ export function VideoPlayer({
     }
   }, [subtitles, source?.url, playerEpoch])
 
-  // No direct source — Watch filters embed sources before rendering, so this
+  // No direct source - Watch filters embed sources before rendering, so this
   // is an honest guard rather than a second (iframe) player path.
   if (!source || !source.url) return null
   if (!isPlayable) {

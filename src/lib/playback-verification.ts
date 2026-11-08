@@ -1,5 +1,5 @@
 /**
- * Playback verification — distinguishes HTTP 200 from actual playback.
+ * Playback verification - distinguishes HTTP 200 from actual playback.
  * Tier model from docs/PLAYBACK_MATRIX.md §1.
  * - T0 Transport: status + headers (CORS, X-Frame-Options, CSP, content-type)
  * - T1 Source entity: body sniff (HTML error, Cloudflare, Turnstile, JSON error)
@@ -63,7 +63,7 @@ export function isJsonContentType(ct: string | null | undefined): boolean {
 export function sniffHtmlError(bodySnippet: string): string | null {
   const low = bodySnippet.toLowerCase().slice(0, 8000)
   for (const needle of HTML_ERROR_SNIPPETS) {
-    if (low.includes(needle)) return `body contains "${needle}" — expected video/hls, got error HTML`
+    if (low.includes(needle)) return `body contains "${needle}" - expected video/hls, got error HTML`
   }
   // JSON error shape
   const trimmed = low.trim()
@@ -103,7 +103,7 @@ export function classifyFetchResponse(opts: {
     }
     // embed HTML content-type is expected, but body must not be error
     const err = sniffHtmlError(opts.bodySnippet)
-    // For YouTube embed, body is HTML player — not an error — so only fail on known error snippets
+    // For YouTube embed, body is HTML player - not an error - so only fail on known error snippets
     if (err && (err.includes('domain for sale') || err.includes('error - megaplay') || err.includes('just a moment'))) {
       return { tier: 'T1', ok: false, reason: err, snippet: opts.bodySnippet.slice(0, 400) }
     }
@@ -125,14 +125,14 @@ export function classifyFetchResponse(opts: {
   if (isJsonContentType(ct)) {
     const err = sniffHtmlError(opts.bodySnippet)
     if (err) return { tier: 'T1', ok: false, reason: err, snippet: opts.bodySnippet.slice(0, 500) }
-    // JSON with {sources: []} is not an error — it's a valid empty source list
+    // JSON with {sources: []} is not an error - it's a valid empty source list
     // caller should check array length, not body sniff
     return { tier: 'T0', ok: true }
   }
   // HLS: if url is .m3u8, check manifest
   if (url.includes('.m3u8')) {
     if (!isVideoContentType(ct) && !ct.includes('mpegurl') && !ct.includes('application/octet-stream')) {
-      // some origins serve m3u8 as text/plain — allow but still sniff body
+      // some origins serve m3u8 as text/plain - allow but still sniff body
     }
     if (!isHlsManifest(opts.bodySnippet) && opts.bodySnippet.length > 0) {
       const err = sniffHtmlError(opts.bodySnippet)
@@ -146,13 +146,13 @@ export function classifyFetchResponse(opts: {
   }
   // MP4: content-type should be video/*
   if (url.includes('.mp4') && ct && !isVideoContentType(ct) && !ct.includes('video/')) {
-    // Some proxies use octet-stream — allow with length check
+    // Some proxies use octet-stream - allow with length check
     if (!ct.includes('octet-stream')) {
       return { tier: 'T1', ok: false, reason: `mp4 url has content-type ${ct}, expected video/*`, snippet: opts.bodySnippet.slice(0, 300) }
     }
   }
   if (opts.bodySnippet.length === 0) {
-    // HEAD or empty — allow but caller may check content-length
+    // HEAD or empty - allow but caller may check content-length
   }
   const err = sniffHtmlError(opts.bodySnippet)
   if (err && opts.bodySnippet.toLowerCase().includes('<html')) {
@@ -188,7 +188,7 @@ export interface EmbedProbe {
   referrerPolicy: string | null
 }
 
-// Browser-side evaluators — to be used with page.evaluate
+// Browser-side evaluators - to be used with page.evaluate
 
 export function probeVideoElementEval(): VideoElementProbe {
   const v = document.querySelector('video') as HTMLVideoElement | null
@@ -241,9 +241,9 @@ export function verdictFromVideoProbe(p: VideoElementProbe): { ok: boolean; tier
     return { ok: false, tier: 'T2', reason: `video.error code=${p.error.code} message=${p.error.message ?? ''}` }
   }
   // NETWORK_NO_SOURCE = 3
-  if (p.networkState === 3) return { ok: false, tier: 'T2', reason: 'networkState NETWORK_NO_SOURCE (3) — no compatible source' }
+  if (p.networkState === 3) return { ok: false, tier: 'T2', reason: 'networkState NETWORK_NO_SOURCE (3) - no compatible source' }
   if (p.readyState === null || p.readyState < 2) return { ok: false, tier: 'T2', reason: `readyState ${p.readyState} < 2 (HAVE_CURRENT_DATA)` }
-  if (p.videoWidth === 0 || p.videoHeight === 0) return { ok: false, tier: 'T2', reason: `videoWidth ${p.videoWidth} or videoHeight ${p.videoHeight} is 0 — decoder has no frames (200 HTML?)` }
+  if (p.videoWidth === 0 || p.videoHeight === 0) return { ok: false, tier: 'T2', reason: `videoWidth ${p.videoWidth} or videoHeight ${p.videoHeight} is 0 - decoder has no frames (200 HTML?)` }
   if (p.duration === null || !Number.isFinite(p.duration) || p.duration < 1) return { ok: false, tier: 'T2', reason: `duration ${p.duration} invalid (expected >1s finite)` }
   // T3 checks require time; caller does assertCurrentTimeAdvances separately
   return { ok: true, tier: 'T2' }

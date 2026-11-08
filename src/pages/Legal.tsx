@@ -29,7 +29,7 @@ export function Legal() {
       <div className="mt-3 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-4">
         <p className="text-[13px] leading-6 text-[var(--text-muted)]">
           <strong className="font-medium text-[var(--text)]">The short version:</strong> Aeri hosts nothing. It is a
-          window — it displays public metadata about anime and manga, and plays or shows content streamed directly
+          window - it displays public metadata about anime and manga, and plays or shows content streamed directly
           from independent third-party services. No copyrighted work is stored, uploaded, or redistributed by Aeri,
           and Aeri is not responsible for what those third parties make available.
         </p>
@@ -44,7 +44,7 @@ export function Legal() {
 
       <H>Where everything comes from</H>
       <P>
-        Metadata — titles, artwork links, descriptions, relations, scores — is displayed from AniList's public API to
+        Metadata - titles, artwork links, descriptions, relations, scores - is displayed from AniList's public API to
         identify works, the same way a review or a catalogue references them. Video streams and manga chapter pages
         are hosted and delivered by independent third-party services. Aeri references those services and reads from
         them; it does not own, control, or republish what they serve.
@@ -54,22 +54,22 @@ export function Legal() {
       <P>Copyright law is built around specific acts. Aeri's design avoids each of them:</P>
       <Lit items={[
         <><strong className="font-medium text-[var(--text)]">No reproduction.</strong> Aeri creates no copies of any work. Nothing is uploaded, mirrored, cached to disk, transcoded, or stored on Aeri's servers at any point.</>,
-        <><strong className="font-medium text-[var(--text)]">No distribution.</strong> Aeri never sends you a media file. When you press Play or Read, your browser requests the content from the third-party service that publishes it — the bytes travel from that host to you, exactly like a browser loading a website you chose to visit.</>,
+        <><strong className="font-medium text-[var(--text)]">No distribution.</strong> Aeri never sends you a media file. When you press Play or Read, your browser requests the content from the third-party service that publishes it - the bytes travel from that host to you, exactly like a browser loading a website you chose to visit.</>,
         <><strong className="font-medium text-[var(--text)]">Referencing, not republishing.</strong> Linking to publicly available content is not the same act as hosting or republishing it. Aeri labels every source it uses and never disguises where content comes from.</>,
         <><strong className="font-medium text-[var(--text)]">No protection circumvention.</strong> Aeri never breaks DRM, paywalls, or login walls, and never accesses anything that isn't already publicly reachable. If a service protects its content, Aeri simply can't see it.</>,
         <><strong className="font-medium text-[var(--text)]">No monetization of content.</strong> Aeri sells nothing, runs no ads, and charges no fee for playing or reading anything.</>,
-        <><strong className="font-medium text-[var(--text)]">Factual metadata only.</strong> Titles, names, and artwork are used to identify the works themselves — standard referencing, kept current through a public database.</>,
+        <><strong className="font-medium text-[var(--text)]">Factual metadata only.</strong> Titles, names, and artwork are used to identify the works themselves - standard referencing, kept current through a public database.</>,
       ]} />
       <P>
-        In plain terms: the acts copyright law regulates — making copies, distributing them, and communicating works to
-        the public — are done by the third-party services that host their own content, or not at all. Aeri contributes
+        In plain terms: the acts copyright law regulates - making copies, distributing them, and communicating works to
+        the public - are done by the third-party services that host their own content, or not at all. Aeri contributes
         no work of its own to that chain; it is an interface. If any rights holder still disagrees about a specific
-        reference, the maintainers remove it promptly on notice (see below) — no argument needed.
+        reference, the maintainers remove it promptly on notice (see below) - no argument needed.
       </P>
 
       <H>Technical note: the delivery relay</H>
       <P>
-        Some requests pass through Aeri's Cloudflare Worker for purely technical reasons — signing a URL for a
+        Some requests pass through Aeri's Cloudflare Worker for purely technical reasons - signing a URL for a
         provider that requires it, correcting a content type, or satisfying a referer requirement. The relay is a
         pass-through: it stores nothing, modifies nothing, and keeps no copy of any media. Relaying a request does not
         transfer ownership, rights, or responsibility over third-party content.
@@ -77,7 +77,7 @@ export function Legal() {
 
       <H>Your responsibility</H>
       <P>
-        You choose what to open. Respect the law where you live and the terms of the services you use — if a
+        You choose what to open. Respect the law where you live and the terms of the services you use - if a
         particular third-party service is not lawful in your jurisdiction, don't use it. Aeri is a neutral interface:
         it does not verify the licensing status of third-party catalogs and presents no content as its own.
       </P>
@@ -92,8 +92,8 @@ export function Legal() {
       <H>No responsibility, no guarantees</H>
       <P>
         Aeri and its maintainers are not responsible for anything that arises from using the app or the third-party
-        services it references. The app is provided <em>as is</em>, with no warranties of any kind — express or
-        implied — including availability, accuracy, fitness for a purpose, or that any source will work or remain
+        services it references. The app is provided <em>as is</em>, with no warranties of any kind - express or
+        implied - including availability, accuracy, fitness for a purpose, or that any source will work or remain
         lawful. To the fullest extent permitted by law, we accept no liability for third-party content
         (its availability, quality, legality, or safety), for anything that happens on external services, or for any
         direct, indirect, incidental, or consequential damages connected to using Aeri. You use Aeri at your own risk.
@@ -102,7 +102,7 @@ export function Legal() {
       <H>Reporting &amp; takedown</H>
       <P>
         If you believe something referenced by Aeri infringes your rights, open an issue on the project's GitHub
-        repository with the title and URL. Links are removed promptly — the project cooperates with rights holders
+        repository with the title and URL. Links are removed promptly - the project cooperates with rights holders
         first and asks questions later.
       </P>
 

@@ -10,13 +10,13 @@ const LIVE = process.env.AERI_LIVE_URL ?? 'https://aeri.fastdemo.workers.dev'
 const failures = []
 const attempts = []
 const check = (name, ok, detail = '') => {
-  console.log(`${ok ? 'ok' : 'FAIL'}  ${name}${detail ? ` — ${detail}` : ''}`)
+  console.log(`${ok ? 'ok' : 'FAIL'}  ${name}${detail ? ` - ${detail}` : ''}`)
   if (!ok) failures.push(name)
 }
 
 // Pacing + bounded retries for transient upstream/worker errors. The live
 // worker 502s under back-to-back burst load (verified 2026-10-10: 5×200
-// then a 502 on identical requests) — hammering it without gaps measures
+// then a 502 on identical requests) - hammering it without gaps measures
 // our own burst, not provider health. Every attempt is recorded; a final
 // report discloses intermittent failures even when a retry succeeds.
 const PACE_MS = 4000
@@ -41,7 +41,7 @@ async function j(url, label) {
       return res.json()
     }
     // Include the error body: the worker wraps match failures as 502 with
-    // e.g. {"error":"no confident match"} — that is a recorded provider
+    // e.g. {"error":"no confident match"} - that is a recorded provider
     // gap, NOT a transient. Only bodyless/unknown 502/503/504 shapes retry.
     const body = await res.text().catch(() => '')
     const msg = `HTTP ${res.status}: ${body.slice(0, 120)}`
@@ -50,7 +50,7 @@ async function j(url, label) {
       throw new Error(msg)
     }
     // Retry ONLY transient shapes (502/503/504 rate/egress flakes).
-    // Anything else (400/404/match errors) fails immediately — hiding a
+    // Anything else (400/404/match errors) fails immediately - hiding a
     // persistent defect behind retries would be worse than flaky red.
     if (![502, 503, 504].includes(res.status) || t === maxTries) {
       if (t > 1) attempts.push(`${label ?? url}: still failing after ${t} tries (${msg})`)
@@ -110,7 +110,7 @@ for (const c of MANGA_CASES) {
       check(`${tag} wc pages render`, urls.length > 0 && img.ok, `${urls.length}pp ${img.detail}`)
     }
   } catch (e) { check(`${tag} wc`, false, String(e).slice(0, 100)) }
-  // MangaPill has no confident match for some titles (e.g. Sayonara Eri) —
+  // MangaPill has no confident match for some titles (e.g. Sayonara Eri)  - 
   // that is a recorded limitation, not a failure. When match succeeds,
   // chapters+pages must verify.
   let mpMatched = true
@@ -135,7 +135,7 @@ for (const c of MANGA_CASES) {
     // else (crash-shape, persistent 502 with no match body) fails.
     const msg = String(e).slice(0, 160)
     if (/no confident match|no search results|ambiguous match/.test(msg)) {
-      check(`${tag} mp (no confident match — recorded gap)`, true, msg)
+      check(`${tag} mp (no confident match - recorded gap)`, true, msg)
     } else check(`${tag} mp`, false, msg)
   }
 }
@@ -147,14 +147,14 @@ try {
   check('manga Solo Leveling external links', (ch.chapters?.length ?? 0) === 0 && (ch.external?.length ?? 0) > 0, `${ch.external?.length ?? 0} ext`)
 } catch (e) { check('manga Solo Leveling external links', false, String(e).slice(0, 100)) }
 
-// ---------- Anime (verified-only chain — full episodes only; trailers
+// ---------- Anime (verified-only chain - full episodes only; trailers
 // must never appear in this chain) ----------
 const ANIME_CASES = [
   { anilistId: 21, title: 'One Piece', minEps: 1000 },
   { anilistId: 20, title: 'Naruto', minEps: 200 },
   { anilistId: 1535, title: 'Death Note', minEps: 30 },
   { anilistId: 16498, title: 'Shingeki no Kyojin', english: 'Attack on Titan', minEps: 20 },
-  { anilistId: 11061, title: 'HUNTER x HUNTER', english: 'Hunter x Hunter', minEps: 0, allowZeroEps: true, diagNote: 'aniwave has no confident HxH match (2011 vs 1999 ambiguity fails closed) — zero is honest' },
+  { anilistId: 11061, title: 'HUNTER x HUNTER', english: 'Hunter x Hunter', minEps: 0, allowZeroEps: true, diagNote: 'aniwave has no confident HxH match (2011 vs 1999 ambiguity fails closed) - zero is honest' },
   { anilistId: 154587, title: 'Sousou no Frieren', english: 'Frieren', minEps: 20 },
 ]
 for (const c of ANIME_CASES) {
@@ -162,12 +162,12 @@ for (const c of ANIME_CASES) {
     const eps = await j(`${LIVE}/api/episodes/${c.anilistId}?provider=aniwave&title=${encodeURIComponent(c.title)}`)
     const n = eps.episodes?.length ?? 0
     if (c.allowZeroEps && n === 0) {
-      check(`anime ${c.title} episodes (absent on provider — recorded gap)`, true, '0eps, no wrong data')
+      check(`anime ${c.title} episodes (absent on provider - recorded gap)`, true, '0eps, no wrong data')
     } else check(`anime ${c.title} episodes`, n >= (c.minEps ?? 1), `${n}eps`)
     const src = await j(`${LIVE}/api/sources/aniwave-${c.anilistId}-1?language=sub&provider=aniwave&title=${encodeURIComponent(c.title)}&english=${encodeURIComponent(c.title)}`)
     const urls = src.sources ?? []
     if (c.allowZeroEps && urls.length === 0) {
-      check(`anime ${c.title} sources (absent on provider — recorded gap)`, true, '0src, no wrong data')
+      check(`anime ${c.title} sources (absent on provider - recorded gap)`, true, '0src, no wrong data')
     } else check(`anime ${c.title} sources`, urls.length > 0, `${urls.length}src`)
     if (urls.length && !(c.allowZeroEps && urls.length === 0)) {
       // Walk relay: master playlist → media playlist → first TS segment, verify sync bytes.
@@ -201,7 +201,7 @@ if (failures.length) {
   process.exit(1)
 }
 if (attempts.length) {
-  console.log('\ntransient attempts (retries that recovered — upstream flake, not clean):')
+  console.log('\ntransient attempts (retries that recovered - upstream flake, not clean):')
   for (const a of attempts) console.log(`  ~ ${a}`)
 }
 console.log('\nall provider checks passed')

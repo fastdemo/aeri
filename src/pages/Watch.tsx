@@ -49,12 +49,12 @@ export function Watch() {
   const { data: remote, loading: loadingAnime } = useAnimeDetail(realId)
   // DISPLAY RECORD RULE (same root cause as AnimeDetail): the tracker's
   // list copy is a THIN MediaListCollection record (no relations, no
-  // streamingEpisodes). It supplies tracking state only — all display
+  // streamingEpisodes). It supplies tracking state only - all display
   // data comes from the full Media record, or nothing renders yet.
   const anime = remote ?? null
   // TAB TITLE: the show's own name, e.g. "Naruto - Aeri".
   // HOOK PLACEMENT RULE: this call MUST sit above the component's early
-  // returns (redirect/skeleton/not-found) — hooks are called on EVERY
+  // returns (redirect/skeleton/not-found) - hooks are called on EVERY
   // render, and a call added after an early return crashes React with
   // "Rendered more hooks than during the previous render" the moment the
   // record resolves (verify: /watch/anilist-20/21 emptied #root in the
@@ -64,7 +64,7 @@ export function Watch() {
   // floating detail card WITH the nav state (this page as background + the
   // record when held) so the card floats over the watch page and closing
   // returns here intact. A bare Link would swap the background to Home and
-  // remount the page on close — the "refresh" users saw.
+  // remount the page on close - the "refresh" users saw.
   const detailNav = anime
     ? { to: detailPath(anime), state: { background: { pathname: location.pathname, search: location.search }, anime } }
     : { to: `/anime/${id}`, state: { background: { pathname: location.pathname, search: location.search } } }
@@ -77,7 +77,7 @@ export function Watch() {
     animeYear: typeof anime?.year === 'number' ? anime.year : null,
   }
 
-  // Video provider: episodes — shell renders immediately, episode list is immediate from AniList metadata
+  // Video provider: episodes - shell renders immediately, episode list is immediate from AniList metadata
   // Video provider episodes are only for source mapping, not for UI list (which uses anime.episodes/streamingEpisodes directly)
   const [providerEpisodes, setProviderEpisodes] = useState<VideoEpisode[] | null>(null)
   const episodesLoading = false // episode list is immediate from AniList, not blocked by video provider
@@ -109,7 +109,7 @@ export function Watch() {
 
   // PROGRESS VALIDITY: never write progress from an
   // incomplete/broken record. A usable record has at least one tracker id,
-  // a real title, a finite episode number and — when the total is known —
+  // a real title, a finite episode number and - when the total is known  - 
   // an episode inside 1..total. Anything else performs NO tracker write.
   const canSyncProgress = Boolean(
     anime &&
@@ -130,7 +130,7 @@ export function Watch() {
   // Progress advances exactly once per episode, when >= 80% of a genuinely
   // loaded video has played (below), or when the video ends.
   //
-  // opening an episode DOES put the title in Watching —
+  // opening an episode DOES put the title in Watching  - 
   // status + start date, even when the episode is unfinished. This is the
   // "I started this show" signal, separate from episode completion. Written
   // once per open, only when the entry is not already Watching (so a
@@ -147,7 +147,7 @@ export function Watch() {
     updateStatus(anime, 'watching').catch(() => { autoWatchingRef.current = false })
   }, [anime, canSyncProgress, isAuthenticated, trackingStatus, updateStatus])
 
-  // Background: resolve provider episodes for source mapping (does not block UI) — abortable
+  // Background: resolve provider episodes for source mapping (does not block UI) - abortable
   useEffect(() => {
     if (!anime) return
     const controller = new AbortController()
@@ -232,7 +232,7 @@ export function Watch() {
   // EXPLICIT SEEK REQUESTS: `initialTime` only fires on mount, so Restart
   // never actually rewound an already-playing video and Resume depended on
   // the pill unmounting in the right order. Both now post a nonce'd seek to
-  // the player — the effect re-runs on every click, whatever the element's
+  // the player - the effect re-runs on every click, whatever the element's
   // ready state.
   const [seekRequest, setSeekRequest] = useState<{ time: number; nonce: number } | null>(null)
   const seekNonce = useRef(0)
@@ -242,7 +242,7 @@ export function Watch() {
   }, [])
 
   useEffect(() => {
-    // GUEST MODE (owner 2026-10-28): signed-out viewing is a fresh session —
+    // GUEST MODE (owner 2026-10-28): signed-out viewing is a fresh session  - 
     // never read a saved position (no Resume), never write one.
     if (!anime || !isAuthenticated) return
     let cancelled = false
@@ -269,8 +269,8 @@ export function Watch() {
 
   const handleTimeUpdate = useCallback((currentTime: number, duration: number) => {
     if (!anime || !Number.isFinite(duration) || duration < 30) return
-    // 80% rule: an episode counts as FINISHED — and only
-    // then does tracker progress advance (+1) — once 80% of the loaded
+    // 80% rule: an episode counts as FINISHED - and only
+    // then does tracker progress advance (+1) - once 80% of the loaded
     // video has played. Evaluated on every tick BEFORE the position-save
     // throttle so crossing the threshold is never skipped.
     if (canAdvanceProgress && isAuthenticated && !hasCompletedRef.current && currentTime / duration >= 0.8) {
@@ -354,13 +354,13 @@ export function Watch() {
     episodeOptions.unshift({ value: String(epNum), label: `Episode ${epNum}` })
   }
   // Episode tiles use the same placeholder rule as EpisodeList: an episode
-  // without its own artwork shows the show's own backdrop/cover — never a
+  // without its own artwork shows the show's own backdrop/cover - never a
   // bare empty box.
   const fallbackThumb = anime.backdropImage || anime.coverImage || ''
-  // Watched boundary for the tile ticks — same rule as the preview card's
+  // Watched boundary for the tile ticks - same rule as the preview card's
   // episode rows: everything up to the tracker's progress is seen.
   const watchedUpTo = trackedProgress
-  // Metadata line: season + year, format, duration —
+  // Metadata line: season + year, format, duration  - 
   // never the playback provider. "Fall 2006 • TV • 24m".
   const seasonLabel = formatLabel(anime.season)
   const yearLabel = anime.year ? String(anime.year) : null
@@ -369,8 +369,8 @@ export function Watch() {
     seasonYearLabel,
     formatLabel(anime.format) ?? anime.format ?? null,
     anime.duration ? `${anime.duration}m` : null,
-  ].filter(Boolean).join(' • ') || '—'
-  // Episode nav pills — the ORIGINAL shape: all three controls sit on the
+  ].filter(Boolean).join(' • ') || ' - '
+  // Episode nav pills - the ORIGINAL shape: all three controls sit on the
   // same 30px geometry (6px padding + 16px leading-4 + 1px transparent
   // border); the transparent border only pins the height, it draws nothing.
   // Previous/next are solid white; the middle control is the shared
@@ -386,7 +386,7 @@ export function Watch() {
   return (
     <div className="min-h-screen bg-[var(--bg)]">
       <div className="mx-auto max-w-[1280px] px-0 sm:px-4 lg:px-6">
-        {/* Player area — PLAIN SURFACE: the plain background with the media
+        {/* Player area - PLAIN SURFACE: the plain background with the media
             player on top. No wrapper fill and no artwork poster behind the
             picture; the previous border-y "band" hairlines are gone. The Video.js skin keeps its STOCK 28px corner
             radius, and the player wears the hero's frosted frame
@@ -394,7 +394,7 @@ export function Watch() {
             instead of the skin's own 1px line, which `.aeri-player` keeps
             transparent so the edge never doubles. The loading state is the
             page background plus a spinner, nothing else. */}
-        <div className="relative aspect-video w-full overflow-hidden rounded-[28px] bg-transparent">
+        <div className="relative mx-4 aspect-video overflow-hidden rounded-[28px] bg-transparent sm:mx-0">
           <span aria-hidden className="frame-glass z-30" />
           {/* Loading: episode finding - pointer-events-none so navbar remains clickable even while loading */}
           {isLoadingVideo && (
@@ -431,11 +431,11 @@ export function Watch() {
             </Suspense>
           )}
 
-          {/* Resume prompt — top center, clear of player controls.
+          {/* Resume prompt - top center, clear of player controls.
               Shows whenever a saved position exists (not gated on video
               readiness, which can lag behind IDB on slow networks).
               SKIN: the same frosted Aeri surface as the
-              player chrome — translucent base tint, hairline, deep shadow —
+              player chrome - translucent base tint, hairline, deep shadow  - 
               plus z-30 so no player layer can cover it. */}
           {showResume && watchPos && (
             <div className="pointer-events-none absolute inset-x-4 top-14 z-30 flex justify-center">
@@ -466,7 +466,7 @@ export function Watch() {
                 </div>
                 <p className="mt-3 text-sm font-medium text-[var(--text)]">No playable source is currently available for this {isMovie ? 'title' : 'episode'}.</p>
                 <p className="mx-auto mt-1 text-xs leading-5 text-[var(--text-muted)]">
-                  This source isn&apos;t available right now. Try another source{isMovie ? '' : ' or episode'}. Aeri resolves playback through its built-in server — you can set a custom video server URL in Settings.
+                  This source isn&apos;t available right now. Try another source{isMovie ? '' : ' or episode'}. Aeri resolves playback through its built-in server - you can set a custom video server URL in Settings.
                 </p>
                 {triedProviders.length > 0 && (
                   <p className="mt-2 text-[11px] text-[var(--text-faint)]">Tried: {triedProviders.join(' • ')}</p>
@@ -537,7 +537,7 @@ export function Watch() {
           )}
 
           {/* Back-to-detail + S:E live below the player (h1 + Episodes link):
-              no overlay chrome over the video — the OS/browser player owns it. */}
+              no overlay chrome over the video - the OS/browser player owns it. */}
 
           {/* Bottom gradient when no video */}
           {!hasVideo && <div className="watch-idle-fade pointer-events-none absolute inset-x-0 bottom-0 h-10" />}
@@ -547,7 +547,7 @@ export function Watch() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
               <h1 className="text-[15px] font-semibold text-[var(--text)]">
-                {/* The show NAME stands alone — the episode
+                {/* The show NAME stands alone - the episode
                     number lives in the Now-playing tile and the nav pills,
                     never appended to the title. */}
                 {titles.primary}
@@ -560,13 +560,13 @@ export function Watch() {
             <div className="flex flex-wrap items-center gap-3">
               {/* Source selector. Values are option INDICES, not URLs: two
                   providers can legitimately hand back the same URL, and a
-                  URL-keyed native select silently jumped to the first match —
+                  URL-keyed native select silently jumped to the first match  - 
                   the "picker does nothing" bug. */}
               {sources && sources.length > 0 && (() => {
                 // AUDIO IS A SEPARATE CONTROL: the source
                 // picker lists only the streams for the active Sub/Dub side.
                 // Its label is the provider alone (plus a REAL quality, never
-                // the "auto" placeholder) — the language lives on the toggle.
+                // the "auto" placeholder) - the language lives on the toggle.
                 const activeLanguage = selectedSource?.language ?? preferredAudio
                 const languageSources = sources.filter(s => !s.language || s.language === activeLanguage)
                 const selectedIdx = selectedSource ? languageSources.indexOf(selectedSource) : -1
@@ -589,13 +589,11 @@ export function Watch() {
                   </div>
                 )
               })()}
-              {/* SUB/DUB toggle when available — the ORIGINAL segmented
-                  toggle: track + inner pill, exactly as before; only the
-                  height is unified — 1px border + 4px track padding + a 20px
-                  inner pill (16px leading-4 + 2px padding) = 30px, the same
-                  box as every other control. */}
+              {/* SUB/DUB toggle when available - same segmented toggle as
+                  Settings: the track is the 30px control and the selected
+                  thumb fills the interior height and half the width (D172). */}
               {sources && sources.some(s => s.language) && (
-                <div className="inline-flex items-center gap-1 rounded-full border border-[var(--border)] bg-[var(--bg-soft)] p-1">
+                <div className="inline-grid h-[30px] grid-cols-2 rounded-full border border-[var(--border)] bg-[var(--bg-soft)] p-0">
                   {(['sub','dub'] as const).map(lang => {
                     const hasLang = sources.some(s => s.language === lang)
                     const isActive = selectedSource?.language === lang || (!selectedSource?.language && preferredAudio === lang)
@@ -609,7 +607,7 @@ export function Watch() {
                           const match = sources.find(s => s.language === lang)
                           if (match) setSelectedSource(match)
                         }}
-                        className={`rounded-full px-3 py-0.5 text-xs font-medium leading-4 ${isActive ? 'bg-[var(--text)] text-[var(--on-text)]' : hasLang ? 'text-[var(--text-muted)] hover:text-[var(--text)]' : 'text-[color-mix(in_srgb,var(--text)_20%,transparent)]'}`}
+                        className={`h-full rounded-full px-3 text-xs font-medium leading-4 ${isActive ? 'bg-[var(--text)] text-[var(--on-text)]' : hasLang ? 'text-[var(--text-muted)] hover:text-[var(--text)]' : 'text-[color-mix(in_srgb,var(--text)_20%,transparent)]'}`}
                       >
                         {lang === 'sub' ? 'Sub' : 'Dub'}
                       </button>
@@ -620,7 +618,7 @@ export function Watch() {
             </div>
           </div>
 
-          {/* Episode navigation — hidden for movies. Previous/next are the
+          {/* Episode navigation - hidden for movies. Previous/next are the
               white pills; the middle control is the episode picker. */}
           {!isMovie && (
             <div data-testid="episode-nav" className="mt-4 flex flex-wrap items-center gap-2">
@@ -635,7 +633,7 @@ export function Watch() {
               )}
 
               {/* Middle control: the episode picker. Same 30px pill geometry
-                  as the prev/next links, but a dropdown — the current
+                  as the prev/next links, but a dropdown - the current
                   episode is the selected option, so the row both reports and
                   changes position. */}
               {immediateEpisodes.length > 0 ? (
@@ -663,25 +661,16 @@ export function Watch() {
               )}
             </div>
           )}
-          {!isMovie && (
-            <Link
-              to={detailNav.to}
-              state={detailNav.state}
-              className={`mt-4 ${isMovie ? 'hidden' : 'inline-flex'} rounded-full bg-[color-mix(in_srgb,var(--text)_10%,transparent)] px-4 py-1.5 text-xs font-medium text-[var(--text)] hover:bg-[color-mix(in_srgb,var(--text)_15%,transparent)] sm:hidden`}
-            >
-              Details
-            </Link>
-          )}
 
-          {/* Synopsis — ABOVE the episode list: the page
+          {/* Synopsis - ABOVE the episode list: the page
               reads show → what it is → episodes → related. */}
           <div className="mt-6">
             <h2 className="mb-2 text-sm font-semibold text-[var(--text)]">Synopsis</h2>
             <p className="text-sm leading-6 text-[var(--text-muted)]">{anime.description || 'No description available.'}</p>
           </div>
 
-          {/* Episode list — this entry's own episodes, no season model.
-              Header: title left, count right — the exact
+          {/* Episode list - this entry's own episodes, no season model.
+              Header: title left, count right - the exact
               Home row header rhythm ("25 episodes"). */}
           {!isMovie && (
             <div className="mt-6">
@@ -698,14 +687,14 @@ export function Watch() {
                   {immediateEpisodes.map(ep => {
                     // CURRENT TILE: the white "Now
                     // playing" chip is gone. The playing episode wears the
-                    // SAME overlay as a watched one — 40% base scrim + glyph
-                    // — but with `audio-lines` instead of the tick, so "this
+                    // SAME overlay as a watched one - 40% base scrim + glyph
+                    // - but with `audio-lines` instead of the tick, so "this
                     // is playing" reads as sound, not as "already seen".
                     // aria-current stays for semantics.
                     const isCurrent = ep.number === epNum
                     // WATCHED TICK: the exact overlay the
-                    // preview card's episode rows use — 40% base scrim + the
-                    // check glyph — so "already seen" reads the same on both
+                    // preview card's episode rows use - 40% base scrim + the
+                    // check glyph - so "already seen" reads the same on both
                     // surfaces.
                     const isWatched = watchedUpTo > 0 && ep.number <= watchedUpTo
                     const realTitle = ep.title
@@ -730,14 +719,14 @@ export function Watch() {
                           />
                         )}
                         {/* The artwork dissolves into the page's own base color,
-                            not a black scrim — the tile edge disappears into the
+                            not a black scrim - the tile edge disappears into the
                             page in every theme. */}
                         {thumb && (
                           <div className="watch-tile-fade pointer-events-none absolute inset-0" />
                         )}
                         {/* Same hover treatment as AnimeCard (D083): base-tinted
                             scrim + 8px frost + centered play glyph. The glyph
-                            is 22px — the same 25%-smaller box every card uses. */}
+                            is 22px - the same 25%-smaller box every card uses. */}
                         <div className="pointer-events-none absolute inset-0 bg-[color-mix(in_srgb,var(--bg)_50%,transparent)] opacity-0 backdrop-blur-[8px] transition-opacity duration-200 group-hover/tile:opacity-100 group-focus-visible/tile:opacity-100" />
                         {(isCurrent || isWatched) && (
                           <span
@@ -756,7 +745,7 @@ export function Watch() {
                         <div className="pointer-events-none absolute left-1/2 top-1/2 z-20 -translate-x-1/2 -translate-y-1/2 text-[var(--text)] opacity-0 transition-opacity duration-200 group-hover/tile:opacity-100 group-focus-visible/tile:opacity-100">
                           <Icon name="play-fill" size={22} />
                         </div>
-                        {/* Soft frame — same hairline + glow as cards. */}
+                        {/* Soft frame - same hairline + glow as cards. */}
                         <div aria-hidden className="frame-soft z-20" />
                       </Link>
                     )
@@ -768,7 +757,7 @@ export function Watch() {
             </div>
           )}
 
-          {/* Related rails — Home-style landscape anime first, then the
+          {/* Related rails - Home-style landscape anime first, then the
               manga adaptations/relations underneath. Same rail, card size,
               hover treatment and focus behavior as Home; cards open the
               floating detail card over this page (D097). */}
@@ -785,8 +774,8 @@ function WatchRelatedEntries({ anilistId, relations }: { anilistId: number; rela
   const { entries, loading } = useRelatedEntries(`page-${anilistId}:${anilistId}`, relations, 'ANIME')
   return (
     <div className="mt-10 space-y-8">
-      <RelatedRow entries={entries} loading={loading} mediaKind="anime" title="Related Anime" />
-      <RelatedRow entries={entries} loading={loading} mediaKind="manga" title="Related Manga" />
+      <RelatedRow entries={entries} loading={loading} mediaKind="anime" title="Related Anime" matchEpisodeGrid />
+      <RelatedRow entries={entries} loading={loading} mediaKind="manga" title="Related Manga" matchEpisodeGrid />
     </div>
   )
 }

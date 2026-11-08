@@ -3,7 +3,7 @@ import { seedTestAuth, routeTestMalIdentity } from './helpers/test-auth'
 import { routeTestAnilistMedia } from './helpers/test-anilist'
 
 /**
- * D159 — a dead picture must recover WITHOUT reloading the tab.
+ * D159 - a dead picture must recover WITHOUT reloading the tab.
  *
  * Owner (2026-11-01): "sometimes during anime streaming the episode turns
  * black completely, and it stays like that forever that could only be

@@ -12,7 +12,7 @@ import type { Anime } from '../../types/anime'
  * search suggestions (blur panel, cover rows). No new data source:
  * nextAiringEpisode already rides on AniList metadata + list entries.
  *
- * Renders ONLY inner content — the glass panel chrome + fixed positioning
+ * Renders ONLY inner content - the glass panel chrome + fixed positioning
  * come from HeaderPopup (portaled to body, so backdrop-blur genuinely
  * samples the page). The sticky header stays transparent (a translucent bg
  * would double-layer over the panel bg and read opaque).
@@ -68,12 +68,12 @@ export function SchedulePanel({ onClose, onOpen }: { onClose: () => void; onOpen
     return `in ${Math.max(1, Math.floor(ms / 60000))}m`
   }
 
-  // Inner content only — HeaderPopup (Navbar) owns the glass panel
+  // Inner content only - HeaderPopup (Navbar) owns the glass panel
   // chrome + fixed positioning (body portal, see its doc comment). The
   // Navbar's outside-pointerdown handler owns outside-close.
   return (
     <>
-      {/* Transparent sticky header — same as search-suggestion group
+      {/* Transparent sticky header - same as search-suggestion group
           headers. A translucent bg here would double-layer over the panel
           bg and read as opaque. */}
       <p className="sticky top-0 z-10 px-3 pb-1 pt-2 text-[14px] font-semibold text-[var(--text)]" style={{ background: 'transparent' }}>

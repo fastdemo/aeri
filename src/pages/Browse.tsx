@@ -29,7 +29,7 @@ const formats = ['All', 'TV', 'MOVIE', 'OVA', 'ONA', 'SPECIAL', 'MUSIC'] as cons
 const formatLabels: Record<string, string> = { All: 'All Formats', TV: 'TV', MOVIE: 'Movie', OVA: 'OVA', ONA: 'ONA', SPECIAL: 'Special', MUSIC: 'Music' }
 
 // Column count mirrors the grid classes below (2 / sm:3 / md:4 / lg:5 / xl:6).
-// Used ONLY for display slicing — fetching is a fixed 30 (theoretical max:
+// Used ONLY for display slicing - fetching is a fixed 30 (theoretical max:
 // 6 cols x 5 rows) so resizing never refetches, it just re-slices locally.
 function useGridColumns(): number {
   const get = () => {
@@ -63,7 +63,7 @@ const PAGE_SIZE = 30 // theoretical max: 6 cols x 5 full rows
 
 export function Browse() {
   const [category, setCategory] = useState<(typeof categories)[number]['id']>('popular')
-  // Card taps push detail URLs — the floating card is an overlay route on
+  // Card taps push detail URLs - the floating card is an overlay route on
   // top of this page, not local component state.
   const openDetail = useDetailOpen()
   const [genre, setGenre] = useState('All')
@@ -92,9 +92,9 @@ export function Browse() {
   // keep server order after the shuffled head. Display only complete rows.
   // NOTE: keyed on the category ID (not just sort/status) so two categories
   // sharing a sort (e.g. Airing vs Popular, both POPULARITY_DESC) never
-  // reuse each other's shuffle — that showed stale grids on tab switches.
+  // reuse each other's shuffle - that showed stale grids on tab switches.
   // ALSO: while a new filter is loading (data null), render NOTHING from
-  // the previous filter — never the old shuffle, never old rows.
+  // the previous filter - never the old shuffle, never old rows.
   // Shuffle re-runs ONLY when the response identity changes (new headIds
   // for the same filter), never on every render: a late duplicate response
   // for an already-shown filter must not reshuffle the visible grid.
@@ -206,7 +206,7 @@ export function Browse() {
           {filterBar}
         </div>
 
-        {/* Split: categories left, filters right — the space between them
+        {/* Split: categories left, filters right - the space between them
             closes continuously as the window narrows. Merged: one swipeable
             strip, entered only once the lanes would actually touch. */}
         <div

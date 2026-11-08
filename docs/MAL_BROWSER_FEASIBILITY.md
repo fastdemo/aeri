@@ -1,4 +1,4 @@
-# MAL Browser/SPA Feasibility — Static GitHub Pages (Aeri)
+# MAL Browser/SPA Feasibility - Static GitHub Pages (Aeri)
 
 > **Historical document (pre-Worker MAL auth, 08/2026).** Written for the GH Pages era (`/aeri/` base, no backend). MAL auth now flows through the same-origin Worker token exchange (`docs/API.md`); this file remains as the dated CORS evidence record.
 
@@ -23,13 +23,13 @@ GET https://myanimelist.net/v1/oauth2/authorize?response_type=code&client_id=YOU
 - `redirect_uri` OPTIONAL if only one registered, must exactly match if sent.
 - Token exchange: `POST https://myanimelist.net/v1/oauth2/token` with `client_id`, `grant_type=authorization_code`, `code`, `code_verifier`, `redirect_uri` (optional but must match if sent), via Basic (`client_id` as username) or body. Docs show `curl` examples, no browser `fetch` example, no CORS mention.
 
-- No docs section for “browser / SPA / public client / GitHub Pages / static SPA” — only “native apps” noted for PKCE.
+- No docs section for “browser / SPA / public client / GitHub Pages / static SPA” - only “native apps” noted for PKCE.
 - ~~Current Aeri implements `code_challenge_method=S256` (SHA256 base64url)~~ Superseded by D051: Aeri now implements `code_challenge_method=plain` (`code_challenge === code_verifier`), per official docs. `S256` was proven broken live (authorize accepts it, but every token exchange fails `invalid_grant` / "Failed to verify `code_verifier`").
 
 ## 2. PKCE for browser?
 
 - **Officially:** PKCE described as for native apps, `plain` only. No explicit statement that browser SPAs are supported. No mention of `S256`.
-- **Empirically (updated, D051):** `S256` challenge is accepted by the authorize endpoint (does not error on method), but the token exchange **always** fails verification — proven broken live. `plain` is required. (On Cloudflare hosting, token exchange + API go through the same-origin Worker `/api/mal/*`, which also injects `MAL_CLIENT_SECRET` server-side; pure static GH Pages without a proxy remains CORS-blocked as described below.)
+- **Empirically (updated, D051):** `S256` challenge is accepted by the authorize endpoint (does not error on method), but the token exchange **always** fails verification - proven broken live. `plain` is required. (On Cloudflare hosting, token exchange + API go through the same-origin Worker `/api/mal/*`, which also injects `MAL_CLIENT_SECRET` server-side; pure static GH Pages without a proxy remains CORS-blocked as described below.)
 
 ## 3. CORS-enabled API endpoint for browser?
 
@@ -67,7 +67,7 @@ Not explicitly in a “must be server-side” sentence, but all token and API ex
 - **Write** `PUT /v2/anime/{id}/my_list_status` (`status`, `score`, `num_watched_episodes`), `DELETE` → same → **No**.
 - **Auth token exchange/refresh** `POST /v1/oauth2/token` → CORS-blocked → **No end-to-end auth** (authorize navigation via `window.location.href` *does* work because it is not `fetch`, but the subsequent code→token fetch fails, so auth cannot complete).
 
-**Jikan** (`https://jikan.moe`, `https://docs.api.jikan.moe`) is an **unofficial** MAL scraper, read-only, no OAuth, no `PUT` for list/status/rating — explicitly disallowed by this task as workaround for mutations.
+**Jikan** (`https://jikan.moe`, `https://docs.api.jikan.moe`) is an **unofficial** MAL scraper, read-only, no OAuth, no `PUT` for list/status/rating - explicitly disallowed by this task as workaround for mutations.
 
 ## Feasibility Report
 
@@ -94,4 +94,4 @@ Not explicitly in a “must be server-side” sentence, but all token and API ex
 
 **Evidence retained:** Playwright logs (`Origin https://fastdemo.github.io`, `REQUESTFAILED net::ERR_FAILED`, `Response to preflight... No 'Access-Control-Allow-Origin'`), `curl -v` showing no `access-control-allow-origin` for all three MAL endpoints, and official docs excerpts above. No tokens or verifiers logged.
 
-**Do not start Phase 6** (local persistence polish) until this is recorded — as instructed.
+**Do not start Phase 6** (local persistence polish) until this is recorded - as instructed.

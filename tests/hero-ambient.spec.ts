@@ -1,7 +1,7 @@
 import { test, expect, type Page } from '@playwright/test'
 
 /**
- * D162 — Netflix-style ambient behind the home hero (owner 2026-11-04,
+ * D162 - Netflix-style ambient behind the home hero (owner 2026-11-04,
  * rewritten as a page wash 2026-11-05).
  *
  * "i want to add an ambient behind the hero like netflix. basically the color
@@ -90,7 +90,7 @@ test.describe('hero ambient (D162)', () => {
     expect(await ambientBackdrop(page)).toBe(await activeBackdrop(page))
   })
 
-  test('fades into the page background below the first row — no shelf', async ({ page }) => {
+  test('fades into the page background below the first row - no shelf', async ({ page }) => {
     test.setTimeout(120_000)
     // Tall enough to see the wash's bottom edge without scrolling.
     await page.setViewportSize({ width: 1440, height: 1500 })
@@ -158,7 +158,7 @@ test.describe('hero ambient (D162)', () => {
       .not.toBe(firstSrc)
     expect(await ambientBackdrop(page)).toBe(await activeBackdrop(page))
 
-    // The outgoing layer is a crossfade aid only — once the fade finishes it
+    // The outgoing layer is a crossfade aid only - once the fade finishes it
     // is unmounted, so exactly one filtered raster is left alive (scroll cost,
     // owner report 2026-11-05).
     await expect.poll(
@@ -167,7 +167,7 @@ test.describe('hero ambient (D162)', () => {
     ).toBe(1)
   })
 
-  test('never widens the page — the wash is clipped, not scrollable', async ({ page }) => {
+  test('never widens the page - the wash is clipped, not scrollable', async ({ page }) => {
     test.setTimeout(120_000)
     await openHero(page)
 
@@ -188,7 +188,7 @@ test.describe('hero ambient (D162)', () => {
       expect(m.scrollWidth, `${width}px: the wash must not add horizontal scroll`)
         .toBeLessThanOrEqual(m.innerWidth)
       // The layer deliberately overshoots the viewport (100vw + 40px) and is
-      // clipped by body's overflow-x: clip — that is what makes it full-bleed
+      // clipped by body's overflow-x: clip - that is what makes it full-bleed
       // with no visible side edge. It must cover the viewport, not sit inside.
       expect(m.left, `${width}px: wash reaches the left edge`).toBeLessThanOrEqual(0)
       expect(m.right, `${width}px: wash covers the content viewport`)
@@ -221,14 +221,14 @@ test.describe('hero ambient with reduced motion (D162)', () => {
 })
 
 /**
- * D166 — the wash continues into the navbar (owner 2026-11-05: "before that
+ * D166 - the wash continues into the navbar (owner 2026-11-05: "before that
  * the top bar was also a part of the ambient now its not").
  *
  * The wash used to show through the bar because the bar painted nothing of its
  * own. D163 had to give the bar an opaque `--bg` (iOS 26 paints the status
  * strip from the fixed element's plain colour), which cut the wash off at
  * y=56. The bar now paints its own copy of the wash, inside the bar, from the
- * SAME image and the SAME box as the page wash — the box matters, because
+ * SAME image and the SAME box as the page wash - the box matters, because
  * `cover` scales by the short axis, so any other height would crop/zoom
  * differently and put a colour step at the seam.
  *
@@ -350,10 +350,13 @@ test.describe('the wash continues into the bar (D166)', () => {
     await openHero(page)
     await expect(page.locator('[data-nav-ambient]')).toHaveCSS('opacity', '1')
     await page.evaluate(() => window.scrollTo(0, 600))
-    await expect.poll(async () => (await barAmbient(page)).layer!.opacity, {
-      timeout: 5_000,
-      message: 'the bar returns to flat --bg when the page moves',
-    }).toBe(0)
+    // The layer fades out over 300ms, then is UNMOUNTED: the bar keeps no
+    // blurred/filtered composited layer at all while the page is scrolled
+    // (D170 - iOS smeared that empty layer after fullscreen).
+    await expect.poll(
+      () => page.locator('[data-nav-ambient]').count(),
+      { timeout: 5_000, message: 'the filtered layer is dropped after the fade' },
+    ).toBe(0)
     await page.evaluate(() => window.scrollTo(0, 0))
     await expect.poll(async () => (await barAmbient(page)).layer!.opacity, {
       timeout: 5_000,
@@ -429,7 +432,7 @@ test.describe('the wash continues into the bar (D166)', () => {
   })
 
   test('drops the bar crossfade under reduced motion', async ({ page }) => {
-    // CSS media query — engine-independent, so one browser pins it.
+    // CSS media query - engine-independent, so one browser pins it.
     test.skip(test.info().project.name !== 'chromium', 'CSS-only contract, checked once')
     test.setTimeout(120_000)
     await page.emulateMedia({ reducedMotion: 'reduce' })
@@ -444,10 +447,13 @@ test.describe('the wash continues into the bar (D166)', () => {
     test.setTimeout(120_000)
     await page.goto('/docs', { waitUntil: 'domcontentloaded' })
     await page.locator('header').waitFor({ timeout: 30_000 })
-    await expect.poll(async () => (await barAmbient(page)).art?.backgroundImage ?? '', {
-      timeout: 10_000,
-      message: 'no hero, no ambient in the bar',
-    }).toBe('none')
+    // D170: the layer is not merely transparent, it is not mounted at all -
+    // an empty blurred + masked composited layer is what iOS smeared after
+    // leaving fullscreen.
+    await expect.poll(
+      () => page.locator('[data-nav-ambient]').count(),
+      { timeout: 10_000, message: 'no hero, no ambient layer in the bar' },
+    ).toBe(0)
     const s = await barAmbient(page)
     expect(s.headerBackground).toBe(s.bodyBackground)
   })

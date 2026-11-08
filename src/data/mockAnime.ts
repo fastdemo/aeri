@@ -31,7 +31,7 @@ export const mockAnime: Anime[] = [
     identity: { internalId: 'cyberpunk-edgerunners', anilistId: 120377, malId: 42310 },
     title: { romaji: 'Cyberpunk: Edgerunners', english: 'Cyberpunk: Edgerunners' },
     description:
-      'In a dystopia overrun by corruption and cybernetic implants, a street kid tries to survive by becoming an edgerunner — a mercenary outlaw.',
+      'In a dystopia overrun by corruption and cybernetic implants, a street kid tries to survive by becoming an edgerunner - a mercenary outlaw.',
     coverImage: backdrop(1),
     backdropImage: backdropLarge(1),
     year: 2022,

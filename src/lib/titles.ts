@@ -6,7 +6,7 @@ export function isTvFormat(format?: string | null): boolean {
 
 // Display-title helper: strip known season/part suffixes so TV H1s read
 // cleanly (e.g. "Shingeki no Kyojin Season 3" -> "Shingeki no Kyojin").
-// Display-only — never identity, grouping, or matching.
+// Display-only - never identity, grouping, or matching.
 export function getFranchiseTitle(raw: string): string {
   if (!raw) return raw
   let t = raw.trim()
@@ -22,16 +22,16 @@ export function getFranchiseTitle(raw: string): string {
 }
 
 export interface TitleHierarchy {
-  /** H1 — franchise/display title (never season-specific for TV) */
+  /** H1 - franchise/display title (never season-specific for TV) */
   primary: string
-  /** Japanese/native line — title.native when exists and distinct */
+  /** Japanese/native line - title.native when exists and distinct */
   native?: string
-  /** Romanized line — title.romaji when exists and distinct from primary/native */
+  /** Romanized line - title.romaji when exists and distinct from primary/native */
   romaji?: string
 }
 
 /**
- * Global title hierarchy for Aeri. Each entry stands alone — no franchise
+ * Global title hierarchy for Aeri. Each entry stands alone - no franchise
  * grouping: H1 is the entry's own title (TV strips season suffix for
  * display), then native, then romaji, deduped.
  * Use AniList fields title.english, title.native, title.romaji.
@@ -54,7 +54,7 @@ export function getTitleHierarchy(anime: Anime): TitleHierarchy {
     return { primary, ...(native ? { native } : {}), ...(romaji ? { romaji } : {}) }
   }
 
-  // TV — strip season suffix from display titles
+  // TV - strip season suffix from display titles
   // H1: prefer english stripped, else stripped romaji
   const englishRaw = anime.title.english?.trim()
   const romajiRaw = anime.title.romaji?.trim()

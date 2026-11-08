@@ -3,7 +3,7 @@ import { seedTestAuth, routeTestMalIdentity } from './helpers/test-auth'
 import { routeTestAnilistMedia } from './helpers/test-anilist'
 
 /**
- * RELATED ROW WIDTHS — one card size across Related Anime and Related Manga.
+ * RELATED ROW WIDTHS - one card size across Related Anime and Related Manga.
  *
  * The old per-row edge-fit sizing measured each rail independently, so the
  * two rows on the same page could land on different card widths (236px anime
@@ -133,6 +133,58 @@ async function expectStandardWidths(page: Page, counts?: { anime: number; manga:
   }
 }
 
+/**
+ * D170 (owner 2026-11-07): on the media player only, at desktop widths the
+ * related rails must use the EPISODE CARD width and 8px spacing. With the
+ * five-column episode grid, a rail card is `(rail - 4*8) / 5`.
+ */
+const watchGridWidths = () => {
+  const grid = [...document.querySelectorAll('div.grid')].find((d) =>
+    d.className.includes('grid-cols-5'),
+  ) as HTMLElement | null
+  const ep = grid?.querySelector('a') as HTMLElement | null
+  const row = (title: string) => {
+    const section = [...document.querySelectorAll('section')].find(
+      (s) => s.querySelector('h2')?.textContent?.trim() === title,
+    )
+    const scroller = section?.querySelector('.no-scrollbar') as HTMLElement | null
+    const first = scroller?.firstElementChild as HTMLElement | null
+    // Measure the painted ARTWORK box, not just the outer button: a nested
+    // percentage width once left the outer cell correct while the art inside
+    // collapsed to 42px (D170).
+    const art = first?.querySelector('.card-art') as HTMLElement | null
+    return {
+      card: art ? Math.round(art.getBoundingClientRect().width) : null,
+      gap: scroller ? getComputedStyle(scroller).columnGap : null,
+      rail: scroller ? Math.round(scroller.getBoundingClientRect().width) : null,
+      subtitle: section
+        ? ((section.querySelector('h2')?.parentElement?.querySelector('span')?.textContent) || '').trim()
+        : '',
+    }
+  }
+  return {
+    ep: ep ? Math.round(ep.getBoundingClientRect().width) : null,
+    gridGap: grid ? getComputedStyle(grid).columnGap : null,
+    anime: row('Related Anime'),
+    manga: row('Related Manga'),
+  }
+}
+
+async function expectRelatedMatchesEpisodes(
+  page: Page,
+  counts: { anime: number; manga: number },
+): Promise<void> {
+  const w = await page.evaluate(watchGridWidths)
+  expect(w.ep, 'the episode grid is rendered').toBeGreaterThan(0)
+  expect(w.anime.card, 'Related Anime card width equals an episode card').toBe(w.ep)
+  expect(w.manga.card, 'Related Manga card width equals an episode card').toBe(w.ep)
+  expect(w.anime.gap, 'Related Anime uses the episode grid gap').toBe(w.gridGap)
+  expect(w.manga.gap, 'Related Manga uses the episode grid gap').toBe(w.gridGap)
+  expect(w.anime.card, 'both related rows share one card width').toBe(w.manga.card)
+  expect(w.anime.subtitle, 'Related Anime carries its count').toBe(`${counts.anime} anime${counts.anime === 1 ? '' : 's'}`)
+  expect(w.manga.subtitle, 'Related Manga carries its count').toBe(`${counts.manga} manga${counts.manga === 1 ? '' : 's'}`)
+}
+
 test.describe('Related row widths', () => {
   test('reader: anime and manga rails share the Home card width', async ({ page }) => {
     test.setTimeout(180000)
@@ -189,17 +241,34 @@ test.describe('Related row widths', () => {
     await page.goto('/watch/anilist-20/1', { waitUntil: 'domcontentloaded' })
     await page.waitForSelector('video', { timeout: 90000 })
     await page.waitForSelector('h2:has-text("Related Manga")', { timeout: 90000 })
-    await expectStandardWidths(page, { anime: 3, manga: 2 })
+    // Related rows are deferred until near the viewport (D165), so bring them
+    // in before measuring the painted art box.
+    await page.evaluate(() => {
+      const h2 = [...document.querySelectorAll('h2')].find((x) => x.textContent?.trim() === 'Related Anime')
+      h2?.scrollIntoView({ block: 'center' })
+    })
+    await page.waitForSelector('section:has(h2) .card-art', { timeout: 30000 })
+    // Parity is a desktop rule: below `lg` the rail keeps the Home width and
+    // the two-column phone episode grid is wider than that.
+    if (await page.evaluate(() => window.innerWidth >= 1024)) {
+      await expectRelatedMatchesEpisodes(page, { anime: 3, manga: 2 })
+    } else {
+      await expectStandardWidths(page, { anime: 3, manga: 2 })
+    }
 
     // The source picker names the provider the way the provider names itself
     // (owner 2026-11-06: "aniwave - __" must read "AniWave"). The stream's
     // `provider` field is the lowercase id; the label must not be.
-    const sourceText = await page.evaluate(() => {
-      const sel = document.querySelector('select[aria-label="Select video source"]') as HTMLSelectElement | null
-      return sel?.selectedOptions[0]?.textContent?.trim() ?? ''
-    })
-    // quality is "auto" here, so the label is the provider name alone.
-    expect(sourceText, 'source option is exactly the display name').toBe('AniWave')
+    // quality is "auto" here, so the label is the provider name alone. Poll:
+    // the source list resolves a tick behind the first video paint on a
+    // throttled mobile profile.
+    await expect.poll(
+      () => page.evaluate(() => {
+        const sel = document.querySelector('select[aria-label="Select video source"]') as HTMLSelectElement | null
+        return sel?.selectedOptions[0]?.textContent?.trim() ?? ''
+      }),
+      { timeout: 15_000, message: 'source option is exactly the display name' },
+    ).toBe('AniWave')
 
     await page.setViewportSize({ width: 375, height: 800 })
     await page.waitForTimeout(400)

@@ -5,7 +5,7 @@ import { test, expect } from '@playwright/test'
  *
  * The whole document is non-selectable, including links and artwork, and
  * links/images are not drag sources. Form controls are the deliberate
- * exception — a search box you cannot select text in is a broken search box.
+ * exception - a search box you cannot select text in is a broken search box.
  */
 test.describe('No-copy surface', () => {
   test('page text and artwork cannot be selected; form controls still can', async ({ page }) => {

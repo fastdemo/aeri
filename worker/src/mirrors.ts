@@ -1,7 +1,7 @@
 /**
  * Mirror-site manga providers (Worker-side): Bato1, MangaKakalot.fun,
  * MangaRead. Each mirror was independently verified 2026-09-27 as the
- * WORKING host for a dead canonical domain — implement the working host,
+ * WORKING host for a dead canonical domain - implement the working host,
  * never pretend the dead canonical works.
  *
  * - Bato1 (bato1.com): /filter?keyword= search, /manga/<slug> series
@@ -226,7 +226,7 @@ export async function kkGetChapters(slug: string, signal?: AbortSignal): Promise
   const html = await res.text()
   const out: MirrorChapter[] = []
   const seen = new Set<string>()
-  // Absolute hrefs (https://mangakakalot.fun/chapter/<slug>/chapter-N) —
+  // Absolute hrefs (https://mangakakalot.fun/chapter/<slug>/chapter-N)  - 
   // the served HTML uses absolute URLs, not root-relative (verified 2026-09-27).
   const re = /<a[^>]*href="(?:https?:\/\/[^/]+)?\/chapter\/[a-z0-9-]+\/chapter-([\d.]+)"[^>]*>/gi
   let m: RegExpExecArray | null
@@ -307,7 +307,7 @@ export async function mrGetChapters(slug: string, signal?: AbortSignal): Promise
   const html = await res.text()
   const out: MirrorChapter[] = []
   const seen = new Set<string>()
-  // Absolute hrefs (https://www.mangaread.org/manga/<slug>/chapter-N/) —
+  // Absolute hrefs (https://www.mangaread.org/manga/<slug>/chapter-N/)  - 
   // the served HTML uses absolute URLs, not root-relative (verified 2026-09-27).
   const re = /<a[^>]*href="(?:https?:\/\/[^/]+)?\/manga\/[a-z0-9-]+\/chapter-([\d.]+)\/?"[^>]*>/gi
   let m: RegExpExecArray | null
@@ -328,7 +328,7 @@ export async function mrGetPages(providerChapterId: string, signal?: AbortSignal
   if (!res.ok) throw new Error(`pages ${res.status}`)
   const html = await res.text()
   // src attributes contain literal whitespace/newlines around the URL
-  // (verified 2026-09-27) — \s-tolerant match, then trim.
+  // (verified 2026-09-27) - \s-tolerant match, then trim.
   const urls = [...new Set(
     [...html.matchAll(/<img[^>]+src="\s*(https?:\/\/[^\s"<>]+?\.(?:jpe?g|png|webp))[^\S"<>]*"[^>]*>/gi)]
       .filter(m => /wp-manga-chapter-img|uploads\/WP-manga/i.test(m[0]))

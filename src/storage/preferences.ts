@@ -19,7 +19,7 @@ export interface Preferences {
   providerOrder?: string[] | null
   /**
    * Manga provider toggles, keyed by manga provider id. Separate from
-   * `enabledProviders` (anime/video) — the two registries are independent.
+   * `enabledProviders` (anime/video) - the two registries are independent.
    * null/undefined = all verified manga providers enabled (defaults).
    */
   enabledMangaProviders?: Record<string, boolean> | null
@@ -34,7 +34,7 @@ export interface Preferences {
   preferredQuality?: string | null
   // Manga reader prefs. Mode architecture supports vertical continuous
   // (default), single-page, and double-page spread; only the default is
-  // implemented in the reader today — the setting reserves the contract.
+  // implemented in the reader today - the setting reserves the contract.
   readerMode?: 'continuous' | 'single' | 'double'
   readerDirection?: 'ltr' | 'rtl'
   readerFit?: 'width' | 'height'
@@ -60,7 +60,7 @@ export interface Preferences {
   trackingProvider?: 'anilist' | 'mal' | null
   /**
    * Incognito: while on, AUTOMATIC tracker writes are
-   * suppressed — watching an episode / reading a chapter never updates the
+   * suppressed - watching an episode / reading a chapter never updates the
    * active tracker. Manual edits (progress stepper, status menus, ratings)
    * still sync, and the tab title reads "Incognito - Aeri" everywhere.
    * Local watch/read history is intentionally unaffected.
@@ -114,7 +114,7 @@ export function getEffectiveVideoApiUrl(): string | null {
         if (!isLocal && !isGithubPages) {
           return window.location.origin
         }
-        // For GH Pages without custom URL, there is no same-origin worker — return null to trigger direct (will be CORS-blocked for MAL, but that's expected)
+        // For GH Pages without custom URL, there is no same-origin worker - return null to trigger direct (will be CORS-blocked for MAL, but that's expected)
         // For local dev without env, also return null to allow direct fetches where possible
         return null
       }
@@ -167,7 +167,7 @@ export function setTrackingProvider(p: TrackingProviderId | null) {
 }
 
 /** Incognito mode. Read synchronously at the write
- *  choke points (TrackingContext progress gate, tab-title apply) — no
+ *  choke points (TrackingContext progress gate, tab-title apply) - no
  *  provider plumbing needed. Persists like any other preference. */
 export function isIncognitoEnabled(): boolean {
   try { return getPreferences().incognito === true } catch { return false }
@@ -179,7 +179,7 @@ export function setIncognitoEnabled(enabled: boolean) {
   // and the profile menu re-reads the pill state.
   try {
     window.dispatchEvent(new CustomEvent('aeri:incognito-changed', { detail: enabled }))
-  } catch { /* non-browser (tests/SSR) — preference is still written */ }
+  } catch { /* non-browser (tests/SSR) - preference is still written */ }
 }
 
 export function isSyncEnabled(provider: SyncProvider, field: SyncField): boolean {

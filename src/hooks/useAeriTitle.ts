@@ -7,14 +7,14 @@ import { isIncognitoEnabled } from '../storage/preferences'
  * "<NAME> - Aeri". One coordinator, two slots:
  *
  * - 'base' (shell-only in App): the ROUTE fallback mapped from the
- *   pathname — "Home - Aeri", "Manga - Aeri", "Docs - Aeri" — including
+ *   pathname - "Home - Aeri", "Manga - Aeri", "Docs - Aeri" - including
  *   the search page's quoted live term (`"romance" - Aeri`). NO page
  *   component has to remember to wire a static title; the shell does it
  *   from the URL. Unknown routes fall back to plain "Aeri".
  *
  * - 'override' (a stack for live-data names): show/manga titles on the
- *   preview-card overlay, Watch and Read pages, NotFound. A STACK — not a
- *   single slot — because pages stay MOUNTED under floating cards (D100):
+ *   preview-card overlay, Watch and Read pages, NotFound. A STACK - not a
+ *   single slot - because pages stay MOUNTED under floating cards (D100):
  *   the top writer wins, and every unmount removes exactly its OWN entry,
  *   so closing a card restores the page beneath it cleanly even after
  *   related-entry swaps inside the card (no stale-name restoration).
@@ -30,10 +30,10 @@ function apply(): void {
   const top = overrideStack.length ? overrideStack[overrideStack.length - 1].name : null
   try {
     // Incognito: EVERY page's tab reads exactly
-    // "Incognito - Aeri" while the mode is on — the incognito signal is
+    // "Incognito - Aeri" while the mode is on - the incognito signal is
     // the whole title, no route/show names leak into it.
     document.title = isIncognitoEnabled() ? 'Incognito - Aeri' : aeriTitle(top ?? baseName)
-  } catch { /* no document (SSR/tests) — ignore */ }
+  } catch { /* no document (SSR/tests) - ignore */ }
 }
 
 /** Re-apply the current tab title (used by the Incognito toggle: the mode

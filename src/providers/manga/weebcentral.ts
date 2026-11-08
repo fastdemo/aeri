@@ -4,7 +4,7 @@ import { getEffectiveVideoApiUrl } from '../../storage/preferences'
 
 function getWorkerBase(): string | null {
   // Same-origin /api on Cloudflare (or custom URL in Settings, or baked
-  // VITE_VIDEO_API_URL). Localhost preview has no Worker — callers must
+  // VITE_VIDEO_API_URL). Localhost preview has no Worker - callers must
   // handle null (provider returns [] → honest empty state, not a crash).
   try { return getEffectiveVideoApiUrl()?.replace(/\/$/, '') || null } catch { return null }
 }
@@ -65,7 +65,7 @@ async function workerJson(path: string, signal?: AbortSignal): Promise<any> {
  */
 class WeebCentralProvider implements MangaProvider {
   id = 'weebcentral'
-  name = 'Weeb Central'
+  name = 'WeebCentral'
   kind = 'manga' as const
   // Verified 2026-09-20: search→match→403 units→24 signed pages→rendered
   // JPEGs (Berserk/Vagabond/Solo Leveling). Was 500-down on 2026-09-19;
@@ -100,13 +100,13 @@ class WeebCentralProvider implements MangaProvider {
     // Trust boundary: a cached match is reusable ONLY if it was verified
     // AND the current query carries the same chapter-count expectation.
     // A stale entry from a title-only query (no chapters hint, no verified
-    // flag semantics for THIS manga's length) must be re-resolved — never
+    // flag semantics for THIS manga's length) must be re-resolved - never
     // serve another manga's series from cache.
     if (hit && (hit as any).verified) {
       const curCh = options?.mangaChapters ?? manga.chapters
       const hitCh = (hit as any).expectedChapters
       if (typeof curCh === 'number' && typeof hitCh === 'number' && curCh !== hitCh) {
-        // Different manga — do not reuse.
+        // Different manga - do not reuse.
       } else return hit
     }
     try {

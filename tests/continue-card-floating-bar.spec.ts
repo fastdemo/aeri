@@ -3,7 +3,7 @@ import { seedTestAuth, routeTestMalIdentity } from './helpers/test-auth'
 import { routeTestAnilistMedia } from './helpers/test-anilist'
 
 /**
- * D150 — Continue Watching is a NORMAL AnimeCard plus a floating progress
+ * D150 - Continue Watching is a NORMAL AnimeCard plus a floating progress
  * pill, not a card with its own caption block.
  *
  * Owner (2026-10-29): "i want the continue watching cards to look the same
@@ -71,7 +71,7 @@ test('continue card = normal card + floating neon bar; hover swaps to caption', 
         height: Math.round(b.height),
         opacity: getComputedStyle(wrap).opacity,
         shadow: fill ? getComputedStyle(fill).boxShadow : null,
-        // D155: no track frost any more — the scrim does the contrast work.
+        // D155: no track frost any more - the scrim does the contrast work.
         backdrop: getComputedStyle(wrap).backdropFilter,
         trackBg: getComputedStyle(bar).backgroundColor,
         trackRing: getComputedStyle(bar).boxShadow,

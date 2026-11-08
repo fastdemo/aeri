@@ -3,7 +3,7 @@ import { seedTestAuth, routeTestMalIdentity } from './helpers/test-auth'
 import { routeTestAnilistMedia } from './helpers/test-anilist'
 
 /**
- * WATCH PAGE CONTROLS — shape, not just size.
+ * WATCH PAGE CONTROLS - shape, not just size.
  *
  *   - Prev / Next are solid white pills at the shared 30px geometry.
  *   - The middle control is the episode picker (the same dropdown as the
@@ -48,7 +48,7 @@ async function setup(page: Page): Promise<void> {
   })
 }
 
-test.describe('Watch controls — old components, unified size', () => {
+test.describe('Watch controls - old components, unified size', () => {
   test('episode nav: white prev/next pills and a 30px episode picker', async ({ page }) => {
     test.setTimeout(180000)
     await setup(page)
@@ -101,7 +101,7 @@ test.describe('Watch controls — old components, unified size', () => {
 
     // Tone exception: the episode picker is a white button (white fill,
     // --on-text label AND chevron, no visible border or focus ring). Every
-    // other dropdown — here the source picker — keeps the dark filter
+    // other dropdown - here the source picker - keeps the dark filter
     // treatment. Focus the picker first: the ring used to appear on click
     // and read as a dark border around the white pill.
     await picker.focus()
@@ -158,13 +158,24 @@ test.describe('Watch controls — old components, unified size', () => {
       if (!sub || !track) return null
       const tcs = getComputedStyle(track)
       const scs = getComputedStyle(sub)
+      const tr = track.getBoundingClientRect()
+      const sr = sub.getBoundingClientRect()
+      const bx = parseFloat(tcs.borderLeftWidth) + parseFloat(tcs.borderRightWidth)
+      const by = parseFloat(tcs.borderTopWidth) + parseFloat(tcs.borderBottomWidth)
+      const px = parseFloat(tcs.paddingLeft) + parseFloat(tcs.paddingRight)
+      const py = parseFloat(tcs.paddingTop) + parseFloat(tcs.paddingBottom)
       return {
-        trackH: Math.round(track.getBoundingClientRect().height * 10) / 10,
+        trackH: Math.round(tr.height * 10) / 10,
         trackRadius: parseFloat(tcs.borderTopLeftRadius),
         trackBorder: tcs.borderTopWidth,
         trackPad: tcs.paddingTop,
         trackBg: tcs.backgroundColor,
-        innerH: Math.round(sub.getBoundingClientRect().height * 10) / 10,
+        innerH: Math.round(sr.height * 10) / 10,
+        innerW: Math.round(sr.width * 10) / 10,
+        // D172: the thumb IS the interior - 0 padding, full interior
+        // height, half the interior width.
+        interiorH: Math.round((tr.height - by - py) * 10) / 10,
+        interiorHalfW: Math.round((tr.width - bx - px) / 2 * 10) / 10,
         innerBg: scs.backgroundColor,
         innerRadius: parseFloat(scs.borderTopLeftRadius),
       }
@@ -173,13 +184,15 @@ test.describe('Watch controls — old components, unified size', () => {
     expect(toggle!.trackH, 'the CONTROL (track) is 30px').toBeCloseTo(30, 0)
     expect(toggle!.trackRadius).toBeGreaterThanOrEqual(9999)
     expect(toggle!.trackBorder).toBe('1px')
-    expect(toggle!.trackPad).toBe('4px')
+    expect(toggle!.trackPad, 'the track has no inner padding (D172)').toBe('0px')
     // Track colour must be the SAME token as Settings' Sub/Dub toggle
     // (--bg-soft #0a0a0a), not a 4%-white wash that composites differently
     // over the player card.
     expect(toggle!.trackBg, 'track matches Settings bg-[var(--bg-soft)]').toBe('rgb(10, 10, 10)')
-    // The selected side is the inner white pill, not a standalone pill.
-    expect(toggle!.innerH).toBeCloseTo(20, 0)
+    // The selected side is the white thumb, and it fills the track: full
+    // interior height and exactly half the interior width (D172).
+    expect(toggle!.innerH).toBeCloseTo(toggle!.interiorH, 0)
+    expect(toggle!.innerW).toBeCloseTo(toggle!.interiorHalfW, 0)
     expect(toggle!.innerBg).toBe('rgb(255, 255, 255)')
     expect(toggle!.innerRadius).toBeGreaterThanOrEqual(9999)
   })

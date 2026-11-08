@@ -2,19 +2,22 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <!-- Favicon — %BASE_URL% ensures correct /aeri/ prefix on GH Pages and dev -->
+    <!-- Favicon - %BASE_URL% ensures correct /aeri/ prefix on GH Pages and dev -->
     <link rel="icon" type="image/x-icon" href="%BASE_URL%favicon.ico" />
     <link rel="icon" type="image/png" sizes="32x32" href="%BASE_URL%favicon.png" />
     <link rel="icon" type="image/svg+xml" href="%BASE_URL%favicon.svg" />
     <link rel="shortcut icon" href="%BASE_URL%favicon.ico" />
     <link rel="apple-touch-icon" href="%BASE_URL%apple-touch-icon.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- `viewport-fit=cover` lets an installed iOS app paint the status-bar
+         strip itself instead of leaving it to the system sample. The bar owns
+         that strip with its plain `--bg` (D170). -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#000000" />
     <!-- iOS Home Screen app. `default` keeps the system status bar (clock,
          battery) above the content and lets iOS tint it from `theme-color`;
          unlike `black-translucent` it keeps the icon colour readable on light
          themes, and unlike `black` it is not locked to black. iOS reads
-         `theme-color` when the app launches — before the React bundle runs —
+         `theme-color` when the app launches - before the React bundle runs  - 
          so the inline script below restores the last applied theme colour
          first (applyTheme persists it), otherwise the status bar stayed the
          static brand black on every theme. -->
@@ -33,7 +36,7 @@
         }
       } catch (e) {}
     </script>
-    <meta name="description" content="Aeri — minimal anime discovery, tracking, and watching. Cinematic browsing, quiet UI." />
+    <meta name="description" content="Aeri - minimal anime discovery, tracking, and watching. Cinematic browsing, quiet UI." />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <!-- Cal Sans: block to avoid FOUT flash, preload for early fetch -->

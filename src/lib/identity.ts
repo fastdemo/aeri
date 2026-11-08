@@ -1,6 +1,6 @@
 import type { AnimeIdentity } from '../types/anime'
 
-// Normalized mapping — never assume anilistId === malId
+// Normalized mapping - never assume anilistId === malId
 export function toInternalId(identity: AnimeIdentity): string {
   return identity.internalId
 }

@@ -1,4 +1,4 @@
-# Playback Matrix — Phase 13 QA
+# Playback Matrix - Phase 13 QA
 
 > **Current player (D125, 2026-10-24):** Watch now uses one **Video.js v10**
 > player (`VideoJsPlayer` + default `VideoSkin` + `HlsJsVideo`) for HLS and
@@ -20,7 +20,7 @@ Every cell in the matrix runs the same 5-probe ladder. A cell passes only if it 
 |------|------|----------------|-------------------------|
 | **T0** | **Transport** | `status`, `content-type`, `content-length`, `cross-origin` headers, `Access-Control-Allow-Origin`, `X-Frame-Options`, `CSP frame-ancestors`, `Range` support | `megaplay` returns `200` with `<title>Error - MegaPlay</title>` HTML body. `AllAnime` returns `200` but body is `{"errors":[{"message":"BAD_USER_INPUT"}]}` or `clock.json` `Just a moment` Turnstile. Browser reports `200` via `fetch` caught as HTML, not video. |
 | **T1** | **Source entity** | Body sniff: not `text/html`, not `application/json` error, not `…attention required…`/ `just a moment` / `error - megaplay` / `domain for sale`, `content-type` ∈ `{video/mp4, video/webm, application/vnd.apple.mpegurl, application/x-mpegURL}`, `content-length>0`, for HLS: manifest starts with `#EXTM3U` and contains `#EXTINF`, for MP4: `206 Partial Content` support or at least `accept-ranges: bytes` | `animepahe.ru` `301 → animepahe.su` returns `200` HTML “Domain for Sale”. `anikoto.to` DNS `ERR_NAME_NOT_RESOLVED` surfaces as `TypeError: Failed to fetch` not `200`, but must be distinguished from CORS `ERR_FAILED`. |
-| **T2** | **Element** | For **direct video** (`mp4`/`hls`): `<video>` exists, `src` set or HlsJsVideo attached, `networkState !== NETWORK_NO_SOURCE (=3)`, `error === null`, `readyState >= 2 (HAVE_CURRENT_DATA)`, `videoWidth>0 && videoHeight>0`, `duration` finite `>5s && < 3600*5`, `paused === false` after `play()`. For **embed**: historical only — embed-only sources are filtered by Watch since D125. | `200` iframe `onload` fires even when YouTube shows “Video unavailable” inside the frame. `200` video `src` assignment fires `loadedmetadata` with `videoWidth=0` if the resource was HTML. |
+| **T2** | **Element** | For **direct video** (`mp4`/`hls`): `<video>` exists, `src` set or HlsJsVideo attached, `networkState !== NETWORK_NO_SOURCE (=3)`, `error === null`, `readyState >= 2 (HAVE_CURRENT_DATA)`, `videoWidth>0 && videoHeight>0`, `duration` finite `>5s && < 3600*5`, `paused === false` after `play()`. For **embed**: historical only - embed-only sources are filtered by Watch since D125. | `200` iframe `onload` fires even when YouTube shows “Video unavailable” inside the frame. `200` video `src` assignment fires `loadedmetadata` with `videoWidth=0` if the resource was HTML. |
 | **T3** | **Playback** | `currentTime` advances `>0.5s` within 12s of `play()`, `timeupdate` event fires ≥2×, `playing` event fires, `ended` does **not** fire within 3s of start, `buffered.length>0` or `seekable`, HLS: HlsJsVideo/hls.js events `MANIFEST_PARSED → LEVEL_LOADED → FRAG_LOADED` with no `fatal` `ERROR`, no `MEDIA_ERROR` | `200` HLS manifest that points to 403 segments never advances `currentTime` (stalls at 0). `200` MP4 with `content-type:text/html` decodes 0 frames → `readyState` stuck at 0. |
 | **T4** | **User-visible** | No perpetual spinner (`Finding video source…` auto-cleared ≤4.5s), no `Embed failed` error, source selector reflects `tried[]`, switching source resets T2→T3 without leaking old `hls` instance, controls visible and keyboard accessible, mobile: touch scroll works, `playsInline` prevents fullscreen hijack, no `overflow-x` | A `200` that passed T0 but failed T2 was previously shown as “success” if only fetch status checked. This tier catches it. |
 
@@ -29,8 +29,8 @@ Every cell in the matrix runs the same 5-probe ladder. A cell passes only if it 
 ```
 PASS (PLAYABLE)      = T0 ✓  T1 ✓  T2 ✓  T3 ✓  T4 ✓
 PASS (CORRECTLY UNAVAILABLE) = T0 or T1 correctly fails, Watch shows "No playable source" + tried[] + Retry, no false success reported
-FAIL (FALSE 200)     = T0 ✓ but T1 ✗ or T2 ✗ — reported as failure, not success
-FAIL (STALL)         = T0–T2 ✓ but T3 ✗ — stall/timeout, reported as failure
+FAIL (FALSE 200)     = T0 ✓ but T1 ✗ or T2 ✗ - reported as failure, not success
+FAIL (STALL)         = T0–T2 ✓ but T3 ✗ - stall/timeout, reported as failure
 ```
 
 A cell is **not** green if only `fetch` returned `200`.
@@ -43,11 +43,11 @@ A cell is **not** green if only `fetch` returned `200`.
 
 | Provider | `id` | Expected GH Pages (no Worker) | With Worker `VITE_VIDEO_API_URL` | Languages | Type |
 |----------|------|-------------------------------|----------------------------------|-----------|------|
-| **AniKoto** | `anikoto` | DNS `ERR_NAME_NOT_RESOLVED` / CORS blocked → `resolveAnimeId=null` → `getEpisodes=[]` → `tried:['anikoto']` → `PASS (CORRECTLY UNAVAILABLE)` if detected correctly | Worker stub still `[]` (no scraper on Free tier) — same verdict | `sub/dub` | `embed` (would-be) |
+| **AniKoto** | `anikoto` | DNS `ERR_NAME_NOT_RESOLVED` / CORS blocked → `resolveAnimeId=null` → `getEpisodes=[]` → `tried:['anikoto']` → `PASS (CORRECTLY UNAVAILABLE)` if detected correctly | Worker stub still `[]` (no scraper on Free tier) - same verdict | `sub/dub` | `embed` (would-be) |
 | **AnimePahe** | `animepahe` | `301 → .su → Domain for Sale` HTML, CORS `ERR_FAILED` → `[]` | Same stub `[]` | `sub` only | `embed`/`hls` (would-be) |
 | **OfficialTrailer** | `official` | Browser-direct `https://graphql.anilist.co` CORS `*` → YouTube `youtube-nocookie.com/embed/<ytId>` per-anime (embed-only) → `PASS (PLAYABLE)` if trailer exists, else `PASS (CORRECTLY UNAVAILABLE)` | Worker `GET /sources/official-<id>-<ep>` → same YouTube embed (verified) → `PASS (PLAYABLE)` | `sub/dub` | `embed` |
 | **Demo (Mux)** | `demo` | `https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8` CORS `*` HLS → `PASS (PLAYABLE)` for HLS path verification only (not anime) | Worker alias same | `sub/dub` | `hls` |
-| **Custom** | `custom` | Requires `localStorage aeri:prefs.customVideoApiUrl` — if unset `[]` | If configured → full-episode `mp4/hls` via Worker proxy with `Access-Control-Allow-Origin` + `Range` → `PASS (PLAYABLE)` | `sub/dub` | `hls/mp4/embed` |
+| **Custom** | `custom` | Requires `localStorage aeri:prefs.customVideoApiUrl` - if unset `[]` | If configured → full-episode `mp4/hls` via Worker proxy with `Access-Control-Allow-Origin` + `Range` → `PASS (PLAYABLE)` | `sub/dub` | `hls/mp4/embed` |
 
 ### 2.2 Anime Fixtures
 
@@ -55,10 +55,10 @@ All IDs are `anilistId` (canonical). `expectEpisodes` is `Media.episodes ?? stre
 
 | Fixture | `anilistId` | `malId` | Title (romaji) | `expectedEps` | `late` (n-1) | `final` | Format | Notes |
 |---------|------------|---------|----------------|---------------|-------------|--------|--------|-------|
-| **AOT S1** | `16498` | `16498` | `Shingeki no Kyojin` | `25` | `24` | `25` | TV | Core provider mapping test. S2 is `20958` (12 eps) — used for global-offset guard. |
+| **AOT S1** | `16498` | `16498` | `Shingeki no Kyojin` | `25` | `24` | `25` | TV | Core provider mapping test. S2 is `20958` (12 eps) - used for global-offset guard. |
 | **Frieren** | `154587` | `52991` | `Sousou no Frieren` | `28` | `27` | `28` | TV | 28 eps, no offset, clean titles. Hero fixture. |
 | **Demon Slayer** | `101922` | `38000` | `Kimetsu no Yaiba` | `26` | `25` | `26` | TV | Popular, tests S1→S2 boundary (S2 is `145545` 11eps). |
-| **One Piece** | `21` | `21` | `One Piece` | `streamingLen≈69` shown generic (episodes `null`, global-offset guard → generic `Episode N`) | `68` | `69` | TV Airing | Edge: `episodes=null`, `streamingEpisodes` global numbers starting ~130 — matrix asserts generic not “Episode 130”. Final >1100 real count oob tested separately. |
+| **One Piece** | `21` | `21` | `One Piece` | `streamingLen≈69` shown generic (episodes `null`, global-offset guard → generic `Episode N`) | `68` | `69` | TV Airing | Edge: `episodes=null`, `streamingEpisodes` global numbers starting ~130 - matrix asserts generic not “Episode 130”. Final >1100 real count oob tested separately. |
 | **Your Name (movie)** | `21519` | `32281` | `Kimi no Na wa.` | `1` | `1` | `1` | Movie | Expect `isMovie` UI hides Ep list, no `prev/next`. |
 | **Cowboy Bebop** | `1` | `1` | `Cowboy Bebop` | `26` | `25` | `26` | TV | Canonical worker doc example (`official-1-1` → YouTube). Control. |
 
@@ -98,7 +98,7 @@ All viewports assert `prefers-reduced-motion` disables `hls.js` worker churn onl
 |------|-------|
 | **Source switching** | Load `ep1 sub` → switch `<select>` to second quality or `dub` → assert old `hls` destroyed (`hlsRef.current===null` previous), new `video.src` differs, T2→T3 re-runs and passes, `currentTime` resets to 0 then advances, no `abort` leak |
 | **Fallback** | `providerOrder` first entry on `16498/1/sub` returns `[]` → registry must try the remaining enabled providers in order with `tried[]` length `≥2`, final `sources` from the fallback provider, `provider` label in UI matches that provider |
-| **Negative 200** | Direct `fetch` to `megaplay` `200 HTML Error` and `animepahe.ru/api?m=search` `200 HTML Domain for Sale` and `allanime clock.json` `Just a moment` — all must be classified `T1 ✗` not success |
+| **Negative 200** | Direct `fetch` to `megaplay` `200 HTML Error` and `animepahe.ru/api?m=search` `200 HTML Domain for Sale` and `allanime clock.json` `Just a moment` - all must be classified `T1 ✗` not success |
 | **Cache** | Second visit to same `anilistId/ep` within 5 min must hit `video:*` `memoryCache`/`IDB` (no extra `fetch`), verified by `request` interceptor count |
 
 ---
@@ -145,18 +145,18 @@ Each row is a test case. `Expect` is with Worker unset (GH Pages live) unless no
 | 32 | switch | `1` Cowboy Bebop | 1 | 1080p→720p | [W] | load `1080p` → switch `720p` → new source `readyState>=2` | quality order |
 | 33 | mobile | `154587` Frieren | 1 | sub | no | same as #23 but viewport `375` | `playsInline`, no `overflow-x`, touch swipe, controls tappable |
 | 34 | desktop | `154587` Frieren | 1 | sub | no | same as #23 but viewport `1440` | `aspect-video` 16:9, not overflow |
-| 35 | negative 200 | — | — | — | — | `fetch(megaplay)` `200` but `text/html Error` → T1 ✗ | body sniff catches `Error - MegaPlay` |
-| 36 | negative 200 | — | — | — | — | `fetch(animepahe.su)` `200 Domain for Sale` → T1 ✗ | catches `domain for sale` |
-| 37 | negative 200 | — | — | — | — | `fetch(allanime clock.json)` `Just a moment` Turnstile → T1 ✗ | catches `just a moment` |
+| 35 | negative 200 | - | - | - | - | `fetch(megaplay)` `200` but `text/html Error` → T1 ✗ | body sniff catches `Error - MegaPlay` |
+| 36 | negative 200 | - | - | - | - | `fetch(animepahe.su)` `200 Domain for Sale` → T1 ✗ | catches `domain for sale` |
+| 37 | negative 200 | - | - | - | - | `fetch(allanime clock.json)` `Just a moment` Turnstile → T1 ✗ | catches `just a moment` |
 
 Total 37 cells. Rows 1–21 are the requested `AniKoto`/`AnimePahe` real-provider mapping × episode × lang matrix. Rows 22–37 cover source resolution, playback vs 200, switching, fallback, mobile/desktop.
 
 **Pass criteria for CI:**
 
 - Zero cells report `FAIL (FALSE 200)` or `FAIL (STALL)`.
-- Rows 1–21 are allowed to be `PASS (CORRECTLY UNAVAILABLE)` on GH Pages (CORS/DNS) — the pass is that the harness correctly identifies unavailability rather than claiming `200` success. With a configured Worker + scraper they would become `PASS (PLAYABLE)` but the same probes apply.
-- Rows 22–28 must be `PASS (PLAYABLE)` (official/demo) — these are the controls proving the Harness itself can detect real playback. If these fail, the harness is broken, not the providers.
-- Negative-200 rows 35–37 must be `T1 ✗` — proves Harness distinguishes 200 from playback.
+- Rows 1–21 are allowed to be `PASS (CORRECTLY UNAVAILABLE)` on GH Pages (CORS/DNS) - the pass is that the harness correctly identifies unavailability rather than claiming `200` success. With a configured Worker + scraper they would become `PASS (PLAYABLE)` but the same probes apply.
+- Rows 22–28 must be `PASS (PLAYABLE)` (official/demo) - these are the controls proving the Harness itself can detect real playback. If these fail, the harness is broken, not the providers.
+- Negative-200 rows 35–37 must be `T1 ✗` - proves Harness distinguishes 200 from playback.
 
 ---
 
@@ -187,22 +187,22 @@ PLAYBACK_BASE_URL=https://fastdemo.github.io/aeri/ npx playwright test tests/pla
 
 ## 5. Files
 
-- `src/lib/playback-verification.ts` — pure helpers `isRealVideoResponse`, `isHlsManifest`, `probeVideoElement`, `probeEmbedElement`, `assertCurrentTimeAdvances`. Unit-tested, no DOM dependency beyond types.
-- `tests/playback-matrix.spec.ts` — Playwright spec generating the 37 cells via `for` loops, using helpers plus live `Watch` navigation `/watch/<id>/<ep>`.
-- `playwright.config.ts` — (if missing, fallback config in spec) three projects, `webServer` auto-start.
+- `src/lib/playback-verification.ts` - pure helpers `isRealVideoResponse`, `isHlsManifest`, `probeVideoElement`, `probeEmbedElement`, `assertCurrentTimeAdvances`. Unit-tested, no DOM dependency beyond types.
+- `tests/playback-matrix.spec.ts` - Playwright spec generating the 37 cells via `for` loops, using helpers plus live `Watch` navigation `/watch/<id>/<ep>`.
+- `playwright.config.ts` - (if missing, fallback config in spec) three projects, `webServer` auto-start.
 
 ---
 
 ## 6. Relation to existing architecture
 
-- Uses `resolveEpisodesWithFallback` / `resolveSourcesWithFallback` indirectly via `Watch.tsx` UI, not direct provider import — matches user path (deep link → watch → sources). Direct provider probes complement via `fetch` interception.
+- Uses `resolveEpisodesWithFallback` / `resolveSourcesWithFallback` indirectly via `Watch.tsx` UI, not direct provider import - matches user path (deep link → watch → sources). Direct provider probes complement via `fetch` interception.
 - Honors `fetchWithTimeout 3500ms` + `registry 4000ms` parallel: probes wait `≤ 8s` total, matching Watch's `2.3s to no-source` budget.
 - Respects `VITE_VIDEO_API_URL` and `getEffectiveVideoApiUrl()` (custom URL in `localStorage`).
 - Mobile/desktop switching uses `test.use({ viewport })` not UA spoof.
 
 ---
 
-## 7. Phase 14 — AniKoto HLS via MegaPlay source API (2026-09-06)
+## 7. Phase 14 - AniKoto HLS via MegaPlay source API (2026-09-06)
 
 Resolution pipeline verified live against production (`api/*` on `aeri.fastdemo.workers.dev`):
 
@@ -222,11 +222,11 @@ New cells:
 | 40 | anikoto | `1` Bebop | 1 | dub | same (dub HLS resolves) |
 | 41 | anikoto | `154587` Frieren | 1 | sub | same |
 
-**NOT green.** Per the acceptance rule, streaming is not declared complete: no cell reaches T3 (currentTime advance) from any testable network. The pipeline is real and shippable (correct data at every hop, honest failure at the last), and playback is IP-reputation-gated — any viewer whose IP passes the CDN WAF gets full episodes; all others get the existing no-source UI.
+**NOT green.** Per the acceptance rule, streaming is not declared complete: no cell reaches T3 (currentTime advance) from any testable network. The pipeline is real and shippable (correct data at every hop, honest failure at the last), and playback is IP-reputation-gated - any viewer whose IP passes the CDN WAF gets full episodes; all others get the existing no-source UI.
 
 ---
 
-## 8. Phase 15 — AniWave + resolver: ACTUAL PLAYBACK (2026-09-07)
+## 8. Phase 15 - AniWave + resolver: ACTUAL PLAYBACK (2026-09-07)
 
 Provider: AniWave (`aniwaves.ru` filter → episode list → servers → embed extract
 → echovideo HLS / dood MP4), delivered through `aeri-stream` Fly resolver
@@ -236,20 +236,20 @@ echovideo `play.echovideo.ru/embed-1/getSources` → `st2.*`/`hls*.echovideo.*`/
 
 | # | Case | Result |
 |---|------|--------|
-| 42 | Bebop E1, aniwave/sub, desktop 1440 | `PASS (PLAYABLE)` — rs 4, 966×721, currentTime advancing past 10 min continuous, screenshot of actual episode frames |
-| 43 | Bebop E2 (episode switch) | `PASS (PLAYABLE)` — rs 4, new stream, advances |
-| 44 | Frieren E1, aniwave/sub, mobile 375 | `PASS (PLAYABLE)` — rs 4, 1280×720 source, advancing |
+| 42 | Bebop E1, aniwave/sub, desktop 1440 | `PASS (PLAYABLE)` - rs 4, 966×721, currentTime advancing past 10 min continuous, screenshot of actual episode frames |
+| 43 | Bebop E2 (episode switch) | `PASS (PLAYABLE)` - rs 4, new stream, advances |
+| 44 | Frieren E1, aniwave/sub, mobile 375 | `PASS (PLAYABLE)` - rs 4, 1280×720 source, advancing |
 | 45 | Subtitles | N/A on echovideo (hardsubbed, no tracks exposed); VTT plumbing proven separately via anikoto `<track>` elements with resolver-signed URLs |
 | 46 | Progress | watchPos persisted to IndexedDB during playback (`anilist-1` ep 1 @ 578s); resume prompt path intact |
 | 47 | Fallback honesty | anikoto poisoned streams surface player error + Retry (no fake success); demo excluded from auto-fallback chain |
 
 MegaPlay-family verdict stands (ad-slideshow PNG segments on every tested
-anime/episode/network, including clean Fly egress) — AniWave/echovideo is the
+anime/episode/network, including clean Fly egress) - AniWave/echovideo is the
 working provider; AniKoto remains available as resolution fallback.
 
 ---
 
-## 9. Phase 16 — In-worker resolver, Fly retired (2026-09-10)
+## 9. Phase 16 - In-worker resolver, Fly retired (2026-09-10)
 
 Resolver + signed delivery merged into the `aeri` Cloudflare Worker
 (`worker/src/resolver.ts`; D065). Same-origin `/api/stream` URLs, same
@@ -257,26 +257,26 @@ HMAC/allowlist/SSRF model, no Fly. Verified on preview worker + production:
 
 | # | Case | Result |
 |---|------|--------|
-| 48 | Prod diag (authed self-test, CF egress) | `PASS` — resolve 646ms, allowlist `megap.akirax.buzz`, CDN 206 `#EXTM3U` |
-| 49 | Bebop E1 prod: resolve → playlist → variant → segment | `PASS (PLAYABLE bytes)` — same-origin signed URLs, `47 40` MPEG-TS magic, FFmpeg metadata |
-| 50 | Bebop E2 + Frieren E1 resolve (×6 battery) | `PASS` — aniwave/hls every time after roburn+dpopdrop allowlist generalization |
-| 51 | Subtitles via worker | `PASS` — signed VTT, `text/vtt`, real lines ("ASTEROID BLUES", "Hey, Spike!") |
-| 52 | Range | parity — CDN ignores Range (direct fetch also 200-full); worker passes through |
+| 48 | Prod diag (authed self-test, CF egress) | `PASS` - resolve 646ms, allowlist `megap.akirax.buzz`, CDN 206 `#EXTM3U` |
+| 49 | Bebop E1 prod: resolve → playlist → variant → segment | `PASS (PLAYABLE bytes)` - same-origin signed URLs, `47 40` MPEG-TS magic, FFmpeg metadata |
+| 50 | Bebop E2 + Frieren E1 resolve (×6 battery) | `PASS` - aniwave/hls every time after roburn+dpopdrop allowlist generalization |
+| 51 | Subtitles via worker | `PASS` - signed VTT, `text/vtt`, real lines ("ASTEROID BLUES", "Hey, Spike!") |
+| 52 | Range | parity - CDN ignores Range (direct fetch also 200-full); worker passes through |
 | 53 | Auth paths | MAL via worker unchanged; AniList exchange still needs non-CF host (D066, pending) |
 
 ### 10-minute soak + suite (same day, local stack on production code)
 | # | Case | Result |
 |---|------|--------|
-| 54 | Bebop E1 continuous in-player | `PASS` — t 0→520 continuous + seek-verified 560→628 (tmax monotonic, rs 4, 0 errors, frames screenshotted at t≈12 and t≈600 incl. hardsubbed dialogue). Sandbox egress throttled (~0.5× wall); production CF edge fetches the same segments in ~1s |
-| 55 | Worker-era smoke suite (chromium) | `PASS` — 4/4 (Bebop E1 T2/T3, E2 switch, Frieren E1, anti-masquerade) + Tier 0/1 7/7. Legacy anikoto/animepahe matrix retired (documented poison/stub, D062/D065); full 501-case GH-Pages matrix not re-run (upstream-bound, not a CI gate) |
+| 54 | Bebop E1 continuous in-player | `PASS` - t 0→520 continuous + seek-verified 560→628 (tmax monotonic, rs 4, 0 errors, frames screenshotted at t≈12 and t≈600 incl. hardsubbed dialogue). Sandbox egress throttled (~0.5× wall); production CF edge fetches the same segments in ~1s |
+| 55 | Worker-era smoke suite (chromium) | `PASS` - 4/4 (Bebop E1 T2/T3, E2 switch, Frieren E1, anti-masquerade) + Tier 0/1 7/7. Legacy anikoto/animepahe matrix retired (documented poison/stub, D062/D065); full 501-case GH-Pages matrix not re-run (upstream-bound, not a CI gate) |
 
 ### Matching verification (D068, preview worker 2026-09-12, then production)
 | # | Case | Result |
 |---|------|--------|
-| 56 | Bebop/AoT/Frieren/Naruto romaji-only → provider identity | `PASS` — 80163 'Cowboy Bebop', 74865 'Attack on Titan', 74575 'Frieren…', 76396 'Naruto' |
-| 57 | Movie/season traps | `PASS` — Bebop movie→80164 (not S1); AoT S3→74861 (not S1) |
-| 58 | Fail-closed cases | `PASS` — ep99 → 0 sources; garbage title → 0 sources; anikoto wrong-year → rejected both paths |
-| 59 | Speed (production) | resolve 4.1s cold/~1s warm; playlist 2.2s; 576KB segment 11.1s @ ~50KB/s; direct CDN 8.4s @ ~68KB/s (byte-identical); worker CPU 45ms/segment (0.4%) — upstream throughput is the bottleneck |
+| 56 | Bebop/AoT/Frieren/Naruto romaji-only → provider identity | `PASS` - 80163 'Cowboy Bebop', 74865 'Attack on Titan', 74575 'Frieren…', 76396 'Naruto' |
+| 57 | Movie/season traps | `PASS` - Bebop movie→80164 (not S1); AoT S3→74861 (not S1) |
+| 58 | Fail-closed cases | `PASS` - ep99 → 0 sources; garbage title → 0 sources; anikoto wrong-year → rejected both paths |
+| 59 | Speed (production) | resolve 4.1s cold/~1s warm; playlist 2.2s; 576KB segment 11.1s @ ~50KB/s; direct CDN 8.4s @ ~68KB/s (byte-identical); worker CPU 45ms/segment (0.4%) - upstream throughput is the bottleneck |
 
 ### Benchmark rounds (D071, production, scripts/bench-stream.mjs)
 | # | Case | Result |
@@ -287,26 +287,26 @@ HMAC/allowlist/SSRF model, no Fly. Verified on preview worker + production:
 ### Source-quality mission (D072, production, scripts/bench-stream.mjs)
 | # | Case | Result |
 |---|------|--------|
-| 62 | Aniwave server census (Bebop E1) | 3 sub servers: 2× echovideo embed-1 + 1× myvidplay (dood MP4) — no hidden megacloud/vidcloud; echovideo `getSources` still plaintext single HLS |
-| 63 | Anikoto embed census (Bebop) | all embeds megaplay-only (`/stream/s-2/<id>/sub|dub`) — no alternate server; `getSourcesNew` now returns `enc` (AES/trustWatch scheme, newclient v4.7) with NO `sources.file` → 0 sources, all titles + dub |
+| 62 | Aniwave server census (Bebop E1) | 3 sub servers: 2× echovideo embed-1 + 1× myvidplay (dood MP4) - no hidden megacloud/vidcloud; echovideo `getSources` still plaintext single HLS |
+| 63 | Anikoto embed census (Bebop) | all embeds megaplay-only (`/stream/s-2/<id>/sub|dub`) - no alternate server; `getSourcesNew` now returns `enc` (AES/trustWatch scheme, newclient v4.7) with NO `sources.file` → 0 sources, all titles + dub |
 | 64 | External candidates via worker egress | animekai / hianime / anitaku(gogo) / miruro API → `530 error 1016` (unreachable from CF edge); consumet public instance dead (301 → github); animepahe kwik = JS-unpack embed (bypass-class, rejected); AllAnime crypto still missing |
 | 65 | Baseline (2 runs, same episodes) | aniwave all MPEG-TS valid, single-rendition 655–693kbps; resolve 0.7–2.6s; worker ≈/≥ direct in most samples (e.g. 1009 vs 320, 1605 vs 179 KB/s) with run-to-run lottery both directions; byte-identical |
-| 66 | Anikoto canary | bench `Bebop E1 (ank)` FAILs `no source` (~0.8–1.1s, fails fast, closed) — doubles as regression canary; matching path (providerAnimeId) still intact |
+| 66 | Anikoto canary | bench `Bebop E1 (ank)` FAILs `no source` (~0.8–1.1s, fails fast, closed) - doubles as regression canary; matching path (providerAnimeId) still intact |
 
 ### Rate-limit resilience (D073, prod build + production endpoints)
 | # | Case | Result |
 |---|------|--------|
-| 67 | P0 path trace (Bebop E1) | resolve ok → playlist 200 (1.2s) → variant ok → media segment MPEG-TS `47 40`, 577KB/0.73s; AniList direct 200, `x-ratelimit-limit: 30` — CDN/worker healthy, throttle is the break |
+| 67 | P0 path trace (Bebop E1) | resolve ok → playlist 200 (1.2s) → variant ok → media segment MPEG-TS `47 40`, 577KB/0.73s; AniList direct 200, `x-ratelimit-limit: 30` - CDN/worker healthy, throttle is the break |
 | 68 | Watch request audit (prod build) | BEFORE 4 (3× Media + Relations) → AFTER 2 (1 shared Media + Relations); Home steady 4 distinct cached Pages; stack-trace instrumentation proved the dupes were `official.ts` raw fetches, now removed |
-| 69 | Watch page playback state | `PASS` — real titles (Asteroid Blues…), 26 episodes, trailer embeds, 0 page errors (chromium) |
-| 70 | Concurrency probe (6 segs, k=1/2/3) | cold 116–247 KB/s all k; warm 1284/804/1218 KB/s — no scaling → parallel downloading rejected, aggregate throttle confirmed |
+| 69 | Watch page playback state | `PASS` - real titles (Asteroid Blues…), 26 episodes, trailer embeds, 0 page errors (chromium) |
+| 70 | Concurrency probe (6 segs, k=1/2/3) | cold 116–247 KB/s all k; warm 1284/804/1218 KB/s - no scaling → parallel downloading rejected, aggregate throttle confirmed |
 
 ### Deployment + season loading (D074, production endpoints + local prod build, UNDEPLOYED)
 | # | Case | Result |
 |---|------|--------|
-| 71 | Live bundle check | `PASS` — production serves index-C0S4MHdV.js == HEAD af326a2; deployment current, no staleness |
-| 72 | Live full path (Bebop E1) | `PASS` — /api/sources + /api/video/sources resolve (80163 'Cowboy Bebop'); playlist → variant → MPEG-TS `47 40` segment, all 200 |
-| 73 | Live browser playback (aniwave) | `PASS` — muted play t 0→12s continuous, rs 4, 0 page errors; default provider remains trailer embed (by design, unchanged) |
+| 71 | Live bundle check | `PASS` - production serves index-C0S4MHdV.js == HEAD af326a2; deployment current, no staleness |
+| 72 | Live full path (Bebop E1) | `PASS` - /api/sources + /api/video/sources resolve (80163 'Cowboy Bebop'); playlist → variant → MPEG-TS `47 40` segment, all 200 |
+| 73 | Live browser playback (aniwave) | `PASS` - muted play t 0→12s continuous, rs 4, 0 page errors; default provider remains trailer embed (by design, unchanged) |
 | 74 | AoT season before | 6.25s, 7 AniList reqs (1 Media + 6 sequential Rel), selector pops in late |
 | 75 | AoT season after | cold 5.9s/7 reqs (Rel starts parallel with Media); repeat 0 reqs/0.5s/6 options; skeleton→6 stable, no pop-in |
 | 76 | Generalization | Naruto →4 stable, MHA →8 stable, 0 page errors; Watch grid gated (25 tiles, no shift); matching logic untouched |
@@ -317,12 +317,12 @@ HMAC/allowlist/SSRF model, no Fly. Verified on preview worker + production:
 | 77 | AoT cold before/after | 7 reqs/5.3s (6× ~60KB sequential FULL-REL) → 8 reqs/4.0–4.5s (6× ~6KB SPINE + 1 BATCH + page Media) |
 | 78 | Naruto / MHA cold | 4 seasons/6 reqs/2.9–3.3s; 8 seasons/9 reqs OK (one throttled run proved the 8s bounded fallback + retry path) |
 | 79 | Warm repeat | 0 reqs/0.4s AoT (unchanged); Watch grid 25 tiles, no shift, no errors |
-| 80 | Startup breakdown (Bebop E1, worker) | resolve 3.5s + playlist 1.2s + variant 2.4s + seg1 4.6s + seg2 12.9s + seg3 1.8s — all upstream latency, no Aeri-side serial fat |
+| 80 | Startup breakdown (Bebop E1, worker) | resolve 3.5s + playlist 1.2s + variant 2.4s + seg1 4.6s + seg2 12.9s + seg3 1.8s - all upstream latency, no Aeri-side serial fat |
 | 81 | Matrix + verify-live | 21 passed; 8/8 (one transient Naruto upstream miss, clean on retry) |
 
 ### Unified groups + live specs (D076, production)
 | # | Case | Result |
 |---|------|--------|
-| 82 | Series grouping spec (live) | `PASS` 2/2 — AoT S1/S2/S3 same 6-season group, selections 0/1/2, selector nav lands anilist-20958; Naruto multi, Bebop standalone none |
-| 83 | Streaming spec (live) | `PASS` 4/4 — AoT/Bebop/Frieren/Naruto E1, currentTime advances, rs>=2, 0 page errors |
+| 82 | Series grouping spec (live) | `PASS` 2/2 - AoT S1/S2/S3 same 6-season group, selections 0/1/2, selector nav lands anilist-20958; Naruto multi, Bebop standalone none |
+| 83 | Streaming spec (live) | `PASS` 4/4 - AoT/Bebop/Frieren/Naruto E1, currentTime advances, rs>=2, 0 page errors |
 | 84 | UI (live) | 404 yes, /manga placeholder yes, Manga in nav yes, all 6 valid routes ok, blur(40px) stable across scroll |

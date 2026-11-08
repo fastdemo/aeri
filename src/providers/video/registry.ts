@@ -14,7 +14,7 @@ import { customProvider } from './custom'
 import { getPreferences, getEffectiveVideoApiUrl } from '../../storage/preferences'
 import { fetchWithTimeout } from './base'
 
-// Priority order (owner default, 2026-10-28 — D144):
+// Priority order (owner default, 2026-10-28 - D144):
 // 1. aniwave (Tier 1: verified HLS sub+dub through the same-origin Worker
 //    relay; the only sub+dub provider after MegaVid was removed)
 // 2. animeparadise (Tier 1: verified 1080p HLS + English VTT through the
@@ -27,7 +27,7 @@ import { fetchWithTimeout } from './base'
 // no trailer provider exists in this chain (see agents/streaming.md).
 // Dead/broken/stub providers (allanime/pahe/koto/neko crypto- or
 // CF-gated, miruro trailer-alias) are NEVER in the active chain: they
-// are status!=verified so the verified-only pool below excludes them —
+// are status!=verified so the verified-only pool below excludes them  - 
 // zero requests, zero timeout budget spent. MegaVid was removed entirely
 // (D124): its JSON is CORS-locked to megavid.buzz, so it could never be the
 // playing source in a browser; keeping it only produced a false episode-
@@ -37,7 +37,7 @@ import { fetchWithTimeout } from './base'
 // sources→multivariant HLS+VTT, TS-sync bytes) but REJECTED for the
 // registry: no CORS headers (browser-direct impossible) AND worker egress
 // gets a 403 personality-block ("Guess what? ... YOUR GAY!"). Same class
-// as the HiAnime-API sidecar finding — viable only as a self-hosted
+// as the HiAnime-API sidecar finding - viable only as a self-hosted
 // relay, not as a direct registry provider. See agents/streaming.md.
 export const videoProviders: VideoProvider[] = [
   aniWaveProvider,
@@ -56,7 +56,7 @@ export const videoProviders: VideoProvider[] = [
 export const primaryVideoProviders = videoProviders.filter(p => p.id !== 'mock')
 
 /**
- * Verified video providers ONLY — the sole source for the Settings UI
+ * Verified video providers ONLY - the sole source for the Settings UI
  * list. Stubs, dead upstreams, trailer-aliases, and user-configured
  * endpoints never appear in Settings.
  */
@@ -121,7 +121,7 @@ export function getProviderById(id: string): VideoProvider | undefined {
 /**
  * Display name for a provider id, for every surface that shows one (source
  * picker, "Trying …" status). Sources and episode records carry the lowercase
- * id (`aniwave`), which is not what a person should read — the owner asked for
+ * id (`aniwave`), which is not what a person should read - the owner asked for
  * the providers' own names ("AniWave", "AnimeGG", "AnimeParadise") across the
  * whole UI (2026-11-06). The registry already declares the canonical name on
  * each provider's capabilities, so there is ONE source of truth and no
@@ -244,7 +244,7 @@ export async function resolveSourcesWithFallback(
   const enabledOrdered = getOrderedProviders(getEnabledProviders())
   // The provider that produced the episode list is tried first (it already
   // proved it serves this title), then the user's priority order. There is
-  // no separate "preferred source" override — order IS the preference
+  // no separate "preferred source" override - order IS the preference
   // (D141).
   const preferred = getProviderById(episode.provider)
   const ordered: VideoProvider[] = []
@@ -284,7 +284,7 @@ export async function resolveSourcesWithFallback(
     const remaining = ordered.slice(1)
     if (remaining.length > 0) {
       // For accurate tried list, only push tried for providers that actually were attempted; we already pushed first.
-      // For remaining, we will collect after race — push all remaining as tried since we do parallel attempt.
+      // For remaining, we will collect after race - push all remaining as tried since we do parallel attempt.
       const results = await Promise.allSettled(
         remaining.map(p => withTimeout(p.getSources(episode, toSourceOptions(options))).catch(() => [] as VideoSourceEnhanced[])),
       )
@@ -319,7 +319,7 @@ export async function resolveSourcesWithFallback(
  * picker real options and makes the sub/dub toggle an instant local switch
  * instead of a dead disabled button. Each language pass runs with
  * `aggregate: true`, so EVERY enabled provider that serves this episode
- * contributes its streams — not just the first one that answers (D147). The
+ * contributes its streams - not just the first one that answers (D147). The
  * order is the user's provider priority, preferred language first; duplicate
  * provider/language/quality URLs are removed, and `tried` is the union of
  * every provider attempted. Disabled providers are never queried.

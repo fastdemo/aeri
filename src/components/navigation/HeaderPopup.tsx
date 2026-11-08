@@ -11,7 +11,7 @@ export interface PopupAnchor {
 /**
  * Glass popup portaled to document.body. WHY a portal: our dropdowns hang
  * off elements INSIDE the fixed header. `backdrop-filter` on a descendant
- * samples only that ancestor's BackdropRoot — at the top of the page the
+ * samples only that ancestor's BackdropRoot - at the top of the page the
  * header is a transparent gradient (BackdropRoot ≈ page texture ⇒ blur
  * looks rich), but once scrolled the header is opaque `bg/95 + blur-md`
  * (BackdropRoot ≈ flat color ⇒ blur has nothing to work with and the panel

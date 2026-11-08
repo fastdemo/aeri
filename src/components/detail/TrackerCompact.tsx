@@ -35,7 +35,7 @@ const SCORE_OPTIONS: FilterOption[] = Array.from({ length: 10 }, (_, i) => {
  * unrated). All values come from props derived live from useTracking, so
  * mutations propagate through the existing reactive contexts with no
  * reload. Status/progress/score routing (incl. manga vocabulary +
- * endpoints) lives in TrackingContext and the provider mappers — this
+ * endpoints) lives in TrackingContext and the provider mappers - this
  * component only collects input.
  */
 export function TrackerCompact({
@@ -123,7 +123,7 @@ export function TrackerCompact({
             else if (v) run(() => onStatus(v as AnimeStatus))
           }}
         />
-        {/* Progress pill: "Episodes: N" / "Chapters: N" — the number is a
+        {/* Progress pill: "Episodes: N" / "Chapters: N" - the number is a
             type-in that commits on Enter/blur (Escape reverts), clamped to
             the known total. */}
         <span className="inline-flex min-w-0 shrink-0 items-center gap-1 overflow-hidden rounded-full border border-[var(--border)] bg-[var(--bg-soft)] py-1.5 pl-3 pr-2.5 text-xs">

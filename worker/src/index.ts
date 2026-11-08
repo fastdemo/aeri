@@ -38,7 +38,7 @@ function corsHeaders(origin: string | null, env: Env) {
     if (origin && list.includes(origin)) allowOrigin = origin
     // Localhost preview against production (same dev flow as
     // customVideoApiUrl): allow http(s) localhost/127.0.0.1 explicitly.
-    // Never a wildcard — the requesting origin is echoed only when it is a
+    // Never a wildcard - the requesting origin is echoed only when it is a
     // loopback dev origin.
     else if (origin && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) allowOrigin = origin
     else allowOrigin = list[0] || '*'
@@ -205,7 +205,7 @@ export default {
       const anilistId = Number(mapMatch[1])
       if (!Number.isFinite(anilistId) || anilistId <= 0) return json({ error: 'Invalid anilistId' }, 400, env, origin)
       // For Cloudflare Workers, AniList GraphQL is often 403 due to IP block ("manually blocked").
-      // Avoid fetching AniList from the worker for the basic map — the frontend already has the title via direct browser fetch.
+      // Avoid fetching AniList from the worker for the basic map - the frontend already has the title via direct browser fetch.
       // Return a simple mapping where providerAnimeId == anilistId; the frontend will use its own AniList data for titles.
       // We still try to fetch AllAnime for convenience, but do not fail the whole request if AniList is blocked.
       let title = ''
@@ -573,7 +573,7 @@ const epMatch = url.pathname.match(/^\/(?:api\/)?(?:video\/)?episodes\/(\d+)$/)
       try {
         // Unpinned episode requests have no full-episode provider in the
         // worker (browser-direct providers resolve in the frontend). Return
-        // an honest empty set with demo only on explicit request — never
+        // an honest empty set with demo only on explicit request - never
         // trailers.
         if (false) {
           void demoProvider
@@ -608,7 +608,7 @@ const epMatch = url.pathname.match(/^\/(?:api\/)?(?:video\/)?episodes\/(\d+)$/)
         // When the caller pins a provider (?provider=X, always sent by the
         // frontend), try ONLY it and fail fast. The frontend runs its own
         // fallback chain across providers; a worker-side cascade after a miss
-        // would burn ~12s per provider while the caller already gave up —
+        // would burn ~12s per provider while the caller already gave up  - 
         // that double fallback was the main latency multiplier on misses.
         const pinId = preferredProviderParam || parsed.providerHint
         const pinned = pinId ? getProviderById(pinId) : undefined
@@ -649,7 +649,7 @@ const epMatch = url.pathname.match(/^\/(?:api\/)?(?:video\/)?episodes\/(\d+)$/)
             continue
           }
           // If we've tried the priority providers and all are empty, the
-          // remaining stubs return [] instantly — no extra budget spent.
+          // remaining stubs return [] instantly - no extra budget spent.
           if (tried.length === priorityProviders.length && tried.every(id => ['miruro','demo'].includes(id))) {
             // Continue to stubs (instant empties) for a complete tried list.
           }

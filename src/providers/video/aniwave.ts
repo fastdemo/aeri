@@ -78,7 +78,7 @@ export class AniWaveProvider implements VideoProvider {
     }
     if (!anilistId) return []
     const titleHint = options?.animeTitle?.trim() || ''
-    // Signed source URLs expire — never serve these from cache. Episodes
+    // Signed source URLs expire - never serve these from cache. Episodes
     // (stable) stay cached; sources always resolve fresh.
     try {
       const url = `${base}/api/sources/aniwave-${anilistId}-${episode.number}?language=${lang}&provider=aniwave${titleHint ? `&title=${encodeURIComponent(titleHint)}` : ''}${hintQuery(options)}`

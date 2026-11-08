@@ -9,7 +9,7 @@ const PATHS = {
 export function ProviderIcon({ provider, size = 28, bare = false }: { provider: 'anilist' | 'mal'; size?: number; bare?: boolean }) {
   const title = provider === 'anilist' ? 'AniList' : 'MyAnimeList'
   if (bare) {
-    // Full-bleed white brand mark, no surrounding chip — used on the
+    // Full-bleed white brand mark, no surrounding chip - used on the
     // onboarding/sign-in rows.
     return (
       <svg viewBox="0 0 24 24" fill="#fff" aria-label={title} role="img" style={{ width: size, height: size, flexShrink: 0 }}>

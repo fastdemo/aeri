@@ -10,7 +10,7 @@
  * - Chapter pages: GET /chapters/... returns HTML with static
  *   https://cdn.readdetectiveconan.com/file/mangap/...jpeg image URLs
  *   (verified real JPEG bytes, 200, no referer required).
- * - No auth, no CAPTCHA, no DRM — plain GET of public pages. No rate limit
+ * - No auth, no CAPTCHA, no DRM - plain GET of public pages. No rate limit
  *   observed (6 rapid sequential requests all 200), but the Worker keeps a
  *   small gap anyway (shared mangaFetch gate).
  *
@@ -145,7 +145,7 @@ export async function mpSearchAndMatch(hint: ProviderHint | undefined, signal?: 
   const top = ranked[0]
   // A top scorer that fails sanity/verification gets ONE generic second
   // chance (rare-token rule below) before failing closed. Exact ties at
-  // the top fail closed immediately — never guess between equals.
+  // the top fail closed immediately - never guess between equals.
   if (top && top.s >= MP_MATCH_THRESHOLD) {
     const tied = ranked.filter((r) => r.s === top.s && r.c.id !== top.c.id)
     if (tied.length) {
@@ -299,7 +299,7 @@ function parseChapterList(html: string): MpChapter[] {
     if (seen.has(key)) continue
     const raw = m[4].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 60)
     // MangaPill labels are "Chapter N[.M]" (Spy x Family uses Chapter N for
-    // its Missions — provider's own label preserved verbatim).
+    // its Missions - provider's own label preserved verbatim).
     const lm = /(Chapter\s+\d+(?:\.\d+)?|Mission\s+\d+(?:\.\d+)?|Prologue\s+\d+(?:\.\d+)?|Epilogue\s+\d+(?:\.\d+)?|Volume\s+\d+(?:\.\d+)?|Oneshot|One-shot)/i.exec(raw)
     const label = lm ? lm[1].replace(/\s+/g, ' ').trim() : raw.slice(0, 40)
     const numM = /(\d+(?:\.\d+)?)\s*$/.exec(label)

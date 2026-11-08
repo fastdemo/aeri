@@ -69,13 +69,13 @@ async function ensureFreshToken(): Promise<string | null> {
   }
 }
 
-// --- Service-status telemetry (D112) — mirrors the AniList client: only
+// --- Service-status telemetry (D112) - mirrors the AniList client: only
 // TRUE unreachability counts (timeouts, CORS-fail-through, lost connection,
 // 5xx from MAL). Throttles and session/auth failures do NOT mean MAL is
 // down, and any live success resets the streak. A MAL "hard fail" is itself
 // compound evidence: every malFetch retries through THREE transport layers
 // (worker /api/mal → legacy /mal/api → direct) before classifying, so ONE
-// counted failure already means all three transports failed — threshold 1.
+// counted failure already means all three transports failed - threshold 1.
 // The down event is raised once; the up event fires via noteMalOk() on the
 // next live success.
 let malHardFails = 0

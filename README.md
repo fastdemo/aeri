@@ -4,7 +4,7 @@
 
 A minimal anime discovery and tracking app that feels like a streaming service, not a database. Browse, search, keep track of what you're watching, and pick up where you left off.
 
-**Status:** live at `https://aeri.fastdemo.workers.dev/` (briefly deleted by accident on 2026-10-17 and fully restored the same day — D095).
+**Status:** live at `https://aeri.fastdemo.workers.dev/` (briefly deleted by accident on 2026-10-17 and fully restored the same day - D095).
 
 ## Preview
 
@@ -14,15 +14,15 @@ A minimal anime discovery and tracking app that feels like a streaming service, 
 
 Aeri tries to be the quiet, cinematic way to browse anime. Big hero, horizontal rows, no clutter. Just open it, find something, watch, and let it remember.
 
-* **Discovery** — Trending, popular, currently airing, and new releases from AniList
-* **Search** — Live search with real results as you type
-* **Tracking** — Connect AniList and MyAnimeList to sync status, progress, and ratings
-* **Episode handling** — Remembers where you left off, season-aware grouping, correct S1:E12 vs global numbering
-* **Details** — Cover, banner, description, studios, genres, relations, seasons grouped sensibly
-* **Seasons** — Related TV seasons are grouped via relations, movies and OVAs stay separate
-* **Responsive** — Works on phone, tablet, and desktop, touch rows and readable hero
-* **Caching** — Local cache for fast repeat loads
-* **PWA** — Installable on supported browsers where practical
+* **Discovery** - Trending, popular, currently airing, and new releases from AniList
+* **Search** - Live search with real results as you type
+* **Tracking** - Connect AniList and MyAnimeList to sync status, progress, and ratings
+* **Episode handling** - Remembers where you left off, season-aware grouping, correct S1:E12 vs global numbering
+* **Details** - Cover, banner, description, studios, genres, relations, seasons grouped sensibly
+* **Seasons** - Related TV seasons are grouped via relations, movies and OVAs stay separate
+* **Responsive** - Works on phone, tablet, and desktop, touch rows and readable hero
+* **Caching** - Local cache for fast repeat loads
+* **PWA** - Installable on supported browsers where practical
 
 ## Quick start
 
@@ -47,23 +47,23 @@ No backend needed for browsing and tracking. Video and MAL auth use the same Clo
 
 **Completed**
 
-* [x] Phase 1 — Foundation, routing, design system, and hosting setup
-* [x] Phase 2 — Visual prototype with mock data
-* [x] Phase 3 — AniList auth, list syncing, progress, status, and ratings
-* [x] Phase 4 — Real discovery: trending, popular, airing, search, and dynamic hero
-* [x] Phase 5 — MyAnimeList auth via PKCE, list syncing, and merged dedup
-* [x] Phase 6 — Browse filters and pagination, live search, real detail, My List, episode progress, caching, and responsive polish
-* [x] Phase 7.1 — Performance, metadata accuracy, real episode titles and thumbnails, and removal of placeholder content
-* [x] Phase 8 — Series grouping into seasons, episode completeness, UI cleanup, and settings
-* [x] Phase 9 — Episode integrity, season-aware numbering, One Piece offset handling, and cache fixes
-* [x] Phase 10 — Worker architecture, provider abstraction, and normalized sources
-* [x] Phase 11 — Navigation reliability and episode integrity in production
-* [x] Phase 12 — Dynamic homepage behavior and randomization
-* [x] Phase 13 — Cloudflare migration, production auth, and homepage row fixes
+* [x] Phase 1 - Foundation, routing, design system, and hosting setup
+* [x] Phase 2 - Visual prototype with mock data
+* [x] Phase 3 - AniList auth, list syncing, progress, status, and ratings
+* [x] Phase 4 - Real discovery: trending, popular, airing, search, and dynamic hero
+* [x] Phase 5 - MyAnimeList auth via PKCE, list syncing, and merged dedup
+* [x] Phase 6 - Browse filters and pagination, live search, real detail, My List, episode progress, caching, and responsive polish
+* [x] Phase 7.1 - Performance, metadata accuracy, real episode titles and thumbnails, and removal of placeholder content
+* [x] Phase 8 - Series grouping into seasons, episode completeness, UI cleanup, and settings
+* [x] Phase 9 - Episode integrity, season-aware numbering, One Piece offset handling, and cache fixes
+* [x] Phase 10 - Worker architecture, provider abstraction, and normalized sources
+* [x] Phase 11 - Navigation reliability and episode integrity in production
+* [x] Phase 12 - Dynamic homepage behavior and randomization
+* [x] Phase 13 - Cloudflare migration, production auth, and homepage row fixes
 
 **Partially completed**
 
-* [~] Phase 7 — Real Video Playback and Multi Provider Streaming
+* [~] Phase 7 - Real Video Playback and Multi Provider Streaming
 
 What works:
 
@@ -77,7 +77,7 @@ No other major phase was fully completed beyond what is listed above. The phase 
 
 ## Project knowledge (for agents & developers)
 
-Read `context.md` first — one-go orientation (stack, architecture, systems,
+Read `context.md` first - one-go orientation (stack, architecture, systems,
 routing, constraints, current state). For depth, read the relevant files in
 `agents/` (per-area docs: architecture, frontend, backend, streaming,
 anilist, mal, data, ui, design-system, pages, components, settings,
@@ -86,20 +86,20 @@ changelog).
 
 When making a change that affects architecture, behavior, UI, data flow,
 configuration, deployment, performance, security, or testing, update the
-relevant documentation before finishing — and keep `context.md` synchronized
+relevant documentation before finishing - and keep `context.md` synchronized
 with meaningful changes. Do not allow documentation to become a second
 fictional implementation: **the codebase is the ultimate source of truth.**
 
 GitHub is not a deployment target and must not be modified unless explicitly
 requested. **Cloudflare is the normal deployment target** (Worker `aeri`
-serves the app at https://aeri.fastdemo.workers.dev/ — see
+serves the app at https://aeri.fastdemo.workers.dev/ - see
 `agents/deployment.md` for the actual workflow).
 
 ## Deployment
 
 Aeri is hosted on **Cloudflare Workers** with assets; production was briefly deleted by accident on 2026-10-17 and fully restored the same day (D095).
 
-The GitHub Pages era ended on 2026-10-17: `fastdemo.github.io/aeri` no longer exists (Pages site deleted via the API, `gh-pages` branch removed — D096). The redirect URL for both AniList and MAL must match exactly what is configured in each provider dashboard (`https://aeri.fastdemo.workers.dev/`).
+The GitHub Pages era ended on 2026-10-17: `fastdemo.github.io/aeri` no longer exists (Pages site deleted via the API, `gh-pages` branch removed - D096). The redirect URL for both AniList and MAL must match exactly what is configured in each provider dashboard (`https://aeri.fastdemo.workers.dev/`).
 
 ```bash
 npm run build

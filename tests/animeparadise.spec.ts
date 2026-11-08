@@ -3,7 +3,7 @@ import { seedTestAuth, routeTestMalIdentity } from './helpers/test-auth'
 import { routeTestAnilistMedia } from './helpers/test-anilist'
 
 /**
- * AnimeParadise playback — live production proof.
+ * AnimeParadise playback - live production proof.
  *
  * WHAT IS REAL: provider resolution (`/api/sources/animeparadise-…`), the
  * signed `/api/stream` relay, the upstream HLS master/variant/segments and
@@ -14,7 +14,7 @@ import { routeTestAnilistMedia } from './helpers/test-anilist'
  * WHAT IS SYNTHETIC: auth only. Watch is auth-gated (D125), so the same
  * synthetic MAL token every playback spec uses is seeded, and AniList/MAL
  * metadata answers from local fixtures (Cowboy Bebop, anilistId 1, 26 eps,
- * TV, 1998 — exactly the identity hints AnimeParadise needs).
+ * TV, 1998 - exactly the identity hints AnimeParadise needs).
  *
  * PROOF STANDARD: readyState >= 2, currentTime advances, no media error,
  * and the played source is our relay (never a raw upstream URL). Subtitles
@@ -138,7 +138,7 @@ test('settings: AnimeParadise is listed once and reports Available', async ({ pa
     .poll(async () => (await readSection()).match(/AnimeParadise/g)?.length ?? 0, { timeout: 30_000, intervals: [500, 1000] })
     .toBe(1)
 
-  // Health resolves asynchronously from /api/health — wait for the real label.
+  // Health resolves asynchronously from /api/health - wait for the real label.
   await expect
     .poll(async () => /AnimeParadise[\s\S]{0,120}?Available/.test(await readSection()), { timeout: 30_000, intervals: [500, 1000] })
     .toBe(true)

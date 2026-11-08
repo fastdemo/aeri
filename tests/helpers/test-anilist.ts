@@ -4,7 +4,7 @@ import { mediaFixtureByVariables, mediaBatchFixtureByResponse } from '../fixture
 /**
  * Route the app's AniList metadata fetch to local fixtures (metadata
  * doubles, NOT playback doubles). Intercepts ONLY
- * `POST https://graphql.anilist.co` — the metadata backbone. Every other
+ * `POST https://graphql.anilist.co` - the metadata backbone. Every other
  * host (providers, worker relay, CDNs) passes through untouched unless a
  * test adds its own route.
  *
@@ -13,7 +13,7 @@ import { mediaFixtureByVariables, mediaBatchFixtureByResponse } from '../fixture
  * variables.idMal. Page/search/list queries (Viewer, MediaListCollection,
  * Page media) get a minimal empty-but-valid shape so contexts that DO
  * touch them (signed-in Home rails) render empty rows instead of hanging
- * — playback specs navigate directly to Watch/AnimeDetail and never
+ * - playback specs navigate directly to Watch/AnimeDetail and never
  * depend on rails content.
  */
 
@@ -53,7 +53,7 @@ export async function routeTestAnilistMedia(page: Page): Promise<void> {
       })
       return
     }
-    // Viewer / list / page queries: valid empty shapes (never AUTH errors —
+    // Viewer / list / page queries: valid empty shapes (never AUTH errors  - 
     // auth state comes from the MAL seed, and these tests never assert on
     // list contents).
     if (q.includes('Viewer')) {
@@ -73,7 +73,7 @@ export async function routeTestAnilistMedia(page: Page): Promise<void> {
       return
     }
     if (q.includes('Page(') || q.includes('Page (')) {
-      // Rails + browse: valid empty shape. pageInfo included — the browse
+      // Rails + browse: valid empty shape. pageInfo included - the browse
       // paginator reads hasNextPage off it; omitting it would crash the
       // parser (not merely empty rows).
       await route.fulfill({
@@ -83,12 +83,12 @@ export async function routeTestAnilistMedia(page: Page): Promise<void> {
       })
       return
     }
-    // Unknown query shape: answer with a failing GraphQL envelope — LOUD
+    // Unknown query shape: answer with a failing GraphQL envelope - LOUD
     // (suites depending on it get dead rows, not silently swallowed data)
     // and hermetic. It used to route.continue() to the REAL upstream,
     // which leaks test traffic and (during an AniList outage, 2026-10-21)
     // lets the app's own service-down telemetry fire mid-test. The
-    // GraphQL-errors envelope maps to UNKNOWN — a per-caller failure, NOT
+    // GraphQL-errors envelope maps to UNKNOWN - a per-caller failure, NOT
     // a counted service-down hard fail.
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ errors: [{ message: 'test-double: unhandled query shape' }] }) })
   })

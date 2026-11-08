@@ -1,4 +1,4 @@
-// Canonical AniList genre list — single source for the Anime-page filter and
+// Canonical AniList genre list - single source for the Anime-page filter and
 // the search genre boost below.
 export const ANILIST_GENRES = [
   'Action',

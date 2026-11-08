@@ -4,7 +4,7 @@ import { test, expect, type Page } from '@playwright/test'
  * DETAIL OVERLAY COMPOSITING REGRESSION (fast-scroll flicker).
  *
  * The floating preview card used to flicker while fast-scrolling its content.
- * Root cause was NOT hover frost (D143) — it was compositing:
+ * Root cause was NOT hover frost (D143) - it was compositing:
  *
  *  - `.anim-pop-in-center` used `animation-fill-mode: both`, so the entrance
  *    animation kept `transform: matrix(1,0,0,1,0,0)` on the card forever.
@@ -36,7 +36,7 @@ async function openPreview(page: Page, path = '/anime', index = 8) {
   await card.click({ position: { x: 18, y: 18 } })
   const dialog = page.locator('[role="dialog"]')
   await expect(dialog).toBeVisible({ timeout: 20_000 })
-  // Let the 200ms entrance animation finish — the assertions are about the
+  // Let the 200ms entrance animation finish - the assertions are about the
   // SETTLED state, which is where the old retained transform lived.
   await page.waitForTimeout(500)
   return dialog
@@ -76,7 +76,7 @@ test.describe('Detail preview card is not a giant composited layer', () => {
   })
 
   test('the card is genuinely taller than the GPU-friendly range', async ({ page }) => {
-    // One Piece: 1180 episodes — the exact fixture that measured a
+    // One Piece: 1180 episodes - the exact fixture that measured a
     // 2344 x 173,954 px card layer before the fix.
     await page.goto('/anime/21', { waitUntil: 'domcontentloaded' })
     const dialog = page.locator('[role="dialog"]')

@@ -1,4 +1,4 @@
-// Simple IndexedDB wrapper — versioned, no external dep for Phase 2
+// Simple IndexedDB wrapper - versioned, no external dep for Phase 2
 // In production, use `idb` library; this is a minimal abstraction satisfying spec.
 
 const DB_NAME = 'aeri'
@@ -146,10 +146,10 @@ export async function putWatchPos(pos: WatchPos): Promise<void> {
 }
 
 export interface ReadPos {
-  id: string // `read:<manga internalId>` — AniList Manga ID + provider + unit ID; never a bare chapter number
-  chapterId: string // provider unit id (ULID) — survives volume/chapter renames
+  id: string // `read:<manga internalId>` - AniList Manga ID + provider + unit ID; never a bare chapter number
+  chapterId: string // provider unit id (ULID) - survives volume/chapter renames
   chapterLabel?: string // provider's own display label ("Volume 3", "Chapter 12")
-  provider?: string // 'weebcentral' — isolates progress per provider
+  provider?: string // 'weebcentral' - isolates progress per provider
   page: number
   maxPage?: number
   updatedAt: number

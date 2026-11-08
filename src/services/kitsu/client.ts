@@ -15,7 +15,7 @@ import { getCache, putCache } from '../../storage/db'
  * Mapping is conservative and id-based:
  *   1. Kitsu's `anilist/anime` mapping for `identity.anilistId` (preferred)
  *   2. Kitsu's `myanimelist/anime` mapping for `identity.malId`
- *   3. otherwise unavailable — never a title search, so a sequel can never
+ *   3. otherwise unavailable - never a title search, so a sequel can never
  *      borrow another season's episode list.
  *
  * The Kitsu API is CORS-open (`access-control-allow-origin: *`, verified
@@ -274,7 +274,7 @@ export async function getKitsuEpisodes(anime: Anime, signal?: AbortSignal): Prom
       return cached.result
     }
   } catch {
-    // IndexedDB unavailable — fall through to the network.
+    // IndexedDB unavailable - fall through to the network.
   }
 
   let shared = inflight.get(key)

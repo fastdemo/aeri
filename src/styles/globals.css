@@ -24,7 +24,7 @@
   --ok: #4ade80;
   --scrim: rgba(0,0,0,0.75);
   --shadow: rgba(0,0,0,0.6);
-  /* RADIUS SCALE — the stock values. Hero and media player are unaffected
+  /* RADIUS SCALE - the stock values. Hero and media player are unaffected
      (28px); everything else uses this three-step scale. */
   --radius-sm: 4px;
   --radius-md: 8px;
@@ -32,13 +32,19 @@
   /* DIVIDER: list separators are painted OPAQUE instead
      of as 8%-alpha white. An alpha line composites with whatever background
      the row has, so the same divider read as a different colour when the
-     row under it was hovered — and re-sorting the episode/chapter list
+     row under it was hovered - and re-sorting the episode/chapter list
      moves the hovered row, which made "the line under the first row change
      color". This token is exactly `--border` pre-composited over
      `--surface`, so the normal (unhovered) look is unchanged and the line
      is now the same colour in every row, in both sort directions. */
   --divider: color-mix(in srgb, var(--text) 8%, var(--surface));
   --nav-height: 56px;
+  /* INSTALLED-APP STATUS STRIP (D170). With `viewport-fit=cover` the page
+     extends under the clock/battery; the bar grows by the top safe-area inset
+     and paints that strip with its own opaque `--bg`, so no page content can
+     show through it. Zero in a normal browser tab and on every desktop. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --nav-total: calc(var(--nav-height) + var(--safe-top));
 }
 
 * {
@@ -82,8 +88,8 @@ body {
 
 /* NO-COPY: nothing outside a form control can be selected, so page text and
    artwork cannot be dragged into another app. Inputs, textareas, selects and
-   contenteditable stay selectable — the search box and every settings field
-   would be unusable otherwise — and clipboard buttons (navigator.clipboard)
+   contenteditable stay selectable - the search box and every settings field
+   would be unusable otherwise - and clipboard buttons (navigator.clipboard)
    are unaffected by user-select. Links and images also stop being drag
    sources, which would otherwise still copy a URL or a picture. */
 html,
@@ -130,15 +136,15 @@ video {
 }
 
 /* Continue Watching progress (owner 2026-10-29, D155 2026-10-31): a floating
-   neon pill over a bottom scrim. No backdrop filter — D154's 8px track frost
+   neon pill over a bottom scrim. No backdrop filter - D154's 8px track frost
    went away with the fixed-neutral palette it was frosting; the scrim is what
    guarantees contrast now. This class stays as the scroll-quiet hook below. */
 .continue-progress {
-  /* scroll-quiet hook — see html[data-scrolling='1'] .continue-progress */
+  /* scroll-quiet hook - see html[data-scrolling='1'] .continue-progress */
 }
 
 /* CONTINUE-CARD BOTTOM SCRIM (D155, smoothed D156): the pill sits on a
-   theme-gradient bed — the same language as the Watch page episode thumbs —
+   theme-gradient bed - the same language as the Watch page episode thumbs  - 
    so a theme-ink bar never lands on artwork that matches its own ink. D156
    eased the ramp: 3 widely spaced stops over 40px read as a milky band with a
    visible top edge; nine tapering stops make it a vignette. The bottom stays
@@ -239,7 +245,7 @@ video {
     inset 0 0 10px -4px color-mix(in srgb, var(--text) 24%, transparent);
 }
 
-/* CARD FROST (hover only — 2026-10-27 scroll pass): the hover scrim's
+/* CARD FROST (hover only - 2026-10-27 scroll pass): the hover scrim's
    backdrop blur used to be always mounted, which gave every card its own
    compositing layer (108 on Home) and cost ~18% of scroll main-thread time
    on an emulated phone. It is now applied only while the card's art is
@@ -260,7 +266,7 @@ video {
 /* SCROLL-QUIET (owner report 2026-10-28): while ANY scroller is moving
    (html[data-scrolling="1"], set by lib/scrollQuiet.ts), a card sliding
    under a parked cursor would toggle its hover frost on/off many times a
-   second — a large backdrop blur created and destroyed per frame, which
+   second - a large backdrop blur created and destroyed per frame, which
    reads as the tile flashing. The hover treatment (frost, glyph, caption)
    is suppressed for the duration of the scroll and fades back in when the
    scroll settles, so the pointer position no longer repaints the artwork.
@@ -275,7 +281,7 @@ html[data-scrolling='1'] .card-frost {
 /* ROW ARROWS ARE NOT CARD AFFORDANCES. They are excluded from the
    scroll-quiet suppression: hiding them the moment their own click starts a
    smooth scroll (and showing them again 140ms after it settles) was the
-   arrow "disappear then come back" flicker — owner report 2026-10-29. */
+   arrow "disappear then come back" flicker - owner report 2026-10-29. */
 html[data-scrolling='1'] .hover-only-control:not([aria-expanded='true']):not(.row-arrow),
 html[data-scrolling='1'] .card-hover-caption {
   opacity: 0 !important;
@@ -296,7 +302,7 @@ html[data-scrolling='1'] .card-art img.img-fade.is-loaded {
    no poster), the skin keeps its STOCK 28px corner radius, and its own 1px
    frame line is made transparent because the player wears the hero's frosted
    frame
-   (`.frame-glass` in Watch.tsx) instead — two hairlines on the same edge
+   (`.frame-glass` in Watch.tsx) instead - two hairlines on the same edge
    would read as a double border. The skin's control gradient is untouched
    (it belongs to the player, not the page). */
 .aeri-player {
@@ -312,7 +318,7 @@ html[data-scrolling='1'] .card-art img.img-fade.is-loaded {
   scrollbar-width: none;
 }
 
-/* Focus — preserve pill shape: use box-shadow for rounded-full, keep outline for others.
+/* Focus - preserve pill shape: use box-shadow for rounded-full, keep outline for others.
    tabindex="-1" containers (the floating detail card, which every open and
    every deep-link refresh focuses programmatically) are EXEMPT: the ring is
    for keyboard-navigable controls, not for a card that merely took focus.
@@ -345,7 +351,7 @@ button.rounded-full:focus-visible {
   100% { transform: translateX(100%); }
 }
 
-/* Subtle entrances — short, natural, transform/opacity only */
+/* Subtle entrances - short, natural, transform/opacity only */
 @keyframes aeri-fade-in {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -391,7 +397,7 @@ button.rounded-full:focus-visible {
   }
 }
 
-/* Hover-only controls: hover features DO NOT EXIST on touch — no
+/* Hover-only controls: hover features DO NOT EXIST on touch - no
    tap-to-reveal workaround. A control that is invisible on a
    non-hover device must not keep hit-testing either, or it silently
    swallows taps meant for the card beneath it. Keyboard focus still
@@ -402,7 +408,7 @@ button.rounded-full:focus-visible {
   }
 }
 
-/* Card image fade-in on load (class added via onLoad — no re-render) */
+/* Card image fade-in on load (class added via onLoad - no re-render) */
 img.img-fade { opacity: 0; transition: opacity 0.35s ease; }
 img.img-fade.is-loaded { opacity: 0.96; }
 @media (hover: hover) {
@@ -412,19 +418,19 @@ img.img-fade.is-loaded { opacity: 0.96; }
 /* Multi-line clamp that actually clamps. Engines compute the legacy
    `display:-webkit-box` to flow-root on these nodes (verified site-wide),
    which kills the legacy box renderer, but Chromium 130+ still honors the
-   UNPREFIXED line-clamp on normal block containers — silently (no
+   UNPREFIXED line-clamp on normal block containers - silently (no
    ellipsis) unless the new-model shorthand is also present. These plain-
    CSS classes therefore carry BOTH: the legacy -webkit-line-clamp (for
    engines still running the legacy path) and `line-clamp: N ellipsis`
    (painted ellipsis on modern engines; invalid declarations are dropped
    harmlessly by engines without support). max-height is the final belt:
    even where the clamp is entirely inert the text cannot exceed N lines.
-   The primary belt is `Nlh` (the element's own line-height × N — an
+   The primary belt is `Nlh` (the element's own line-height × N - an
    exact N-line box, never a mid-glyph shave, regardless of the leading
    each node uses); the older em value stays first as the fallback for
    engines without the lh unit (and assumes generous 1.6 leading).
    Single-line truncation (truncate) is unaffected. NOTE: plain-CSS (unlayered) rules WIN over Tailwind
-   utility-layer rules at equal specificity — never pair a .clamp-* class
+   utility-layer rules at equal specificity - never pair a .clamp-* class
    with a line-clamp-* utility on the same node; switch variants via the
    later-declared plain classes (clamp-2 → sm:clamp-3) so source order
    resolves the override. */
@@ -446,7 +452,7 @@ img.img-fade.is-loaded { opacity: 0.96; }
 }
 
 /* Description visibility pair (hero): hidden at base, clamped box at
-   sm+ — display must be -webkit-box (NOT plain block) at ≥640: the
+   sm+ - display must be -webkit-box (NOT plain block) at ≥640: the
    legacy box chain is what lets the engine paint the new-model clamp's
    ellipsis (verified: plain block + same clamp declarations = silent
    cut; -webkit-box + same declarations = ellipsis paints, both engines).
@@ -459,7 +465,7 @@ img.img-fade.is-loaded { opacity: 0.96; }
 
 /* ── HERO SCRIMS (D156 2026-10-31) ────────────────────────────────────────
    ONE definition shared by the static Hero and HeroCarousel slides (they
-   used to carry byte-identical inline gradients twice — drift waiting to
+   used to carry byte-identical inline gradients twice - drift waiting to
    happen). Owner: "fix every single gradient on the website ... the
    gradients look weird i cant explain why but it looks weird."
 
@@ -468,7 +474,7 @@ img.img-fade.is-loaded { opacity: 0.96; }
    panel with a faint straight edge instead of a natural fade. Every scrim on
    the site is now a deeply-eased multi-stop ramp (the alpha steps taper as
    they approach zero) and every zero end is written as
-   `color-mix(--bg 0%, transparent)` — same hue at zero alpha instead of the
+   `color-mix(--bg 0%, transparent)` - same hue at zero alpha instead of the
    `transparent` keyword, so interpolation never crosses a different colour.
 
    The left scrim stays COLUMN-BOUND (720px, never full-bleed): a full-width
@@ -525,7 +531,7 @@ img.img-fade.is-loaded { opacity: 0.96; }
    The wash instead tints the PAGE: one very large, heavily blurred copy of
    the artwork spanning the viewport width, starting under the navbar and
    fading to nothing a few hundred px below the card (over the first row).
-   The card sits on it like an object on a tinted page — there is no edge to
+   The card sits on it like an object on a tinted page - there is no edge to
    mismatch, because there is no edge around the card at all. It is painted
    from the same <img> the slide shows (never canvas-sampled: the AniList CDN
    would taint the canvas and the colour could drift from a failed load), and
@@ -533,7 +539,7 @@ img.img-fade.is-loaded { opacity: 0.96; }
 
    Layering: z-index 0 puts it above the page background but below the hero
    card (a later positioned sibling) and below the feed rows, which Home
-   gives `relative z-10`. z-index -1 is NOT an option here — body paints an
+   gives `relative z-10`. z-index -1 is NOT an option here - body paints an
    opaque --bg, so a negative layer would be hidden behind it.
 
    Geometry: 100vw wide, centred on the hero's container (Home is max-w-1600
@@ -543,11 +549,11 @@ img.img-fade.is-loaded { opacity: 0.96; }
    Strength: Netflix's is barely a tint. Heavy blur spreads the artwork so
    the tint is 2–5 RGB, never a coloured glow. Tuned down from .46/.55. */
 /* Restored to the ORIGINAL D162 wash (owner 2026-11-05: the cheap-raster
-   revision changed how the ambient looked — "it looked nicer and natural" —
+   revision changed how the ambient looked - "it looked nicer and natural"  - 
    so the full-size blurred image is back. The card-load jank is fixed at
    the row/card layer instead (D165); the wash keeps its previous cost. */
 /* The wash's vertical ramp, shared by the page wash and the navbar's copy of
-   it (D166) — the bar copy must be masked by the SAME ramp, or it would be
+   it (D166) - the bar copy must be masked by the SAME ramp, or it would be
    brighter than the wash it continues. Vertical ramp only: the layer is
    clipped at the viewport edge, so a horizontal fade would just dim the
    outermost pixels of a wash that has nothing beyond it. Full strength behind
@@ -581,7 +587,7 @@ img.img-fade.is-loaded { opacity: 0.96; }
   left: 50%;
   /* 100vw covers the CONTENT viewport: html reserves a scrollbar gutter
      (`scrollbar-gutter: stable`), so the body box is a scrollbar-width
-     narrower than 100vw — the layer overshoots by half that on each side,
+     narrower than 100vw - the layer overshoots by half that on each side,
      which is exactly the empty gutter, never a visible gap. The blur's own
      edge falloff lands there too. */
   width: 100vw;
@@ -617,7 +623,7 @@ img.img-fade.is-loaded { opacity: 0.96; }
    which cut the wash off at y=56 and left the bar reading as a separate black
    band. This layer paints the wash back INSIDE the bar, above the bar's own
    colour: same artwork, same cover crop (HeroAmbient publishes the wash's own
-   measured height — a different box height would rescale the art and put a
+   measured height - a different box height would rescale the art and put a
    colour step at the seam), same blur/saturate/brightness and the same
    per-breakpoint opacity as `.hero-ambient`. The band the bar shows is the
    band the page would have shown there.
@@ -625,7 +631,7 @@ img.img-fade.is-loaded { opacity: 0.96; }
    The mask is the old `nav-top-fade` ramp expressed as alpha (30% at the top
    edge → 100% at the bottom), which is exactly the pre-D163 composite: faint
    under the logo, full wash strength where it meets the page wash below the
-   bar. No `backdrop-filter` — the bar's opaque colour is what the compositor
+   bar. No `backdrop-filter` - the bar's opaque colour is what the compositor
    would sample, so the art is painted, not sampled.
 
    Nothing paints when `--hero-wash-image` is unset (every page without a
@@ -661,7 +667,7 @@ img.img-fade.is-loaded { opacity: 0.96; }
 .nav-ambient-art {
   position: absolute;
   /* Same PAGE box as `.hero-ambient` (Home's `<main>` starts 56px down, so the
-     wash begins 4/16/28px above the viewport — the exact numbers come from the
+     wash begins 4/16/28px above the viewport - the exact numbers come from the
      wash itself, not from a guess here). */
   top: var(--hero-wash-top, 0px);
   left: 50%;
@@ -678,7 +684,7 @@ img.img-fade.is-loaded { opacity: 0.96; }
 /* CROSSFADE (D166 follow-up). `data-hero-wash-ready` is the page wash's own
    `loaded` flag on <html>, so the bar starts fading exactly when the wash
    does and over the same 700ms (CROSSFADE_MS). While the attribute is ABSENT
-   the layers swap instantly — that is the frame the artwork changes, and a
+   the layers swap instantly - that is the frame the artwork changes, and a
    transition there would fade the NEW artwork out over the old one. */
 html[data-hero-wash-ready] .nav-ambient-art {
   opacity: var(--nav-ambient-strength);
@@ -716,7 +722,7 @@ html[data-hero-wash-ready] .nav-ambient-art-prev {
 
 /* DEFERRED ROW RENDERING (D165, card-load jank). A row that has scrolled out
    of view keeps its cards in the DOM (horizontal scroll position survives),
-   but the browser skips its style, layout and paint until it comes back —
+   but the browser skips its style, layout and paint until it comes back  - 
    that is the difference between a 108-card feed and a 24-card one during
    the first seconds. `contain-intrinsic-size` keeps the scroll height
    honest before the first render; `auto` makes the browser remember the
@@ -771,7 +777,7 @@ html[data-hero-wash-ready] .nav-ambient-art-prev {
 /* Hero / preview-banner copy hook (D157). The copy carried a theme-aware text
    shadow from D154 (60% black on dark themes, 18% on light) that D156 halved;
    the owner then asked for NO text shadow at all and a stronger scrim behind
-   the type instead. The shadow layers are gone — the contrast now comes
+   the type instead. The shadow layers are gone - the contrast now comes
    entirely from `.hero-scrim-left` / `.detail-banner-scrim`. This class
    carries no paint; it exists so the hero copy and the preview-banner title
    share one queryable marker (tests, future tuning). */
@@ -781,7 +787,7 @@ html[data-hero-wash-ready] .nav-ambient-art-prev {
 /* thumbnail-only hover for the ⋮ trigger. The ⋮
    (QuickMenu trigger) must stay a frame-level sibling so its dropdown
    + shadow never clip inside the frame's overflow-hidden, and small
-   cards would cut it under the art region — so a plain group-hover
+   cards would cut it under the art region - so a plain group-hover
    can't reach it. `:has()` bridges the sibling gap: reveal when the
    art div (the ONLY `.group\/art` in the card) is hovered, or when
    the card holds keyboard focus. Specificity beats Tailwind's

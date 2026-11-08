@@ -1,15 +1,15 @@
 import { test, expect } from '@playwright/test'
 
 /**
- * D154 — hero copy legibility.
+ * D154 - hero copy legibility.
  *
  * Owner report (2026-10-30): the hero text is sometimes hard to read. The
  * old left scrim was 560px wide and hit transparent at 70% of that width,
- * while a long title / the description still sat on the artwork — bright
+ * while a long title / the description still sat on the artwork - bright
  * backdrops washed the copy out.
  *
  * Contract:
- * D157 (2026-10-31): the owner asked for NO text shadow on hero copy — the
+ * D157 (2026-10-31): the owner asked for NO text shadow on hero copy - the
  * contrast is bought from the scrim instead, which is denser than D156.
  *
  * Contract:
@@ -42,7 +42,7 @@ test.describe('hero copy legibility (D154, shadow removed D157)', () => {
     expect(geom.bg, 'scrim paints a gradient').toContain('linear-gradient')
 
     // The text column mounts only once its backdrop image is ready (by
-    // design — the title can never sit over another slide's picture).
+    // design - the title can never sit over another slide's picture).
     await page.locator('.hero-copy').first().waitFor({ timeout: 45_000 })
     const copy = await page.evaluate(() => {
       const nodes = [...document.querySelectorAll('.hero-copy')] as HTMLElement[]
@@ -68,7 +68,7 @@ test.describe('hero copy legibility (D154, shadow removed D157)', () => {
       }
     })
     expect(copy.count, 'title + meta + description carry the hook').toBeGreaterThanOrEqual(3)
-    // D157: no text shadow anywhere on the hero copy — the scrim carries it.
+    // D157: no text shadow anywhere on the hero copy - the scrim carries it.
     expect(copy.titleShadow, 'hero title has no text shadow').toBe('none')
     expect(copy.descShadow, 'hero description has no text shadow').toBe('none')
     for (const [i, shadow] of copy.metaShadow.entries()) {
@@ -76,7 +76,7 @@ test.describe('hero copy legibility (D154, shadow removed D157)', () => {
     }
     // D157: the scrim behind the type is denser than D156's 92%.
     expect(copy.scrimLeadAlpha, 'left scrim is >= 95% theme bg under the copy').toBeGreaterThanOrEqual(0.95)
-    // D156: a smooth ramp, not a 5-stop panel — 9 tapering stops, no shelf.
+    // D156: a smooth ramp, not a 5-stop panel - 9 tapering stops, no shelf.
     expect(geom.bg.match(/%/g)?.length ?? 0, 'deeply eased ramp (9 tapering stops)').toBeGreaterThanOrEqual(8)
   })
 

@@ -71,7 +71,7 @@ export interface VideoProvider {
   name: string
   capabilities: ProviderCapabilities
   /**
-   * Verification status. Only `verified` providers appear in Settings —
+   * Verification status. Only `verified` providers appear in Settings  - 
    * `unverified`/`broken` exist in code but are never user-facing.
    * Verified = match→episodes→sources→advancing playback confirmed in the
    * CURRENT architecture (record date in agents/changelog.md).

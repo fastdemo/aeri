@@ -40,7 +40,7 @@ export interface Anime {
   /**
    * Manga catalogue metadata from AniList (staff/tags/endDate). Present
    * only when the Media query returned them (manga surfaces); absent =
-   * unknown. Catalogue display ONLY — never chapter/page data (AniList
+   * unknown. Catalogue display ONLY - never chapter/page data (AniList
    * supplies totals, never individual readable chapters).
    */
   staff?: { role?: string | null; name: string }[]
@@ -53,7 +53,7 @@ export interface Anime {
   airingSchedule?: { airingAt: number; episode: number }[]
   isAdult?: boolean
   /**
-   * AniList relation edges attached to this entry (informational only —
+   * AniList relation edges attached to this entry (informational only  - 
    * powers the Related Entries section, never identity/tracking/streaming).
    * Shape mirrors AniList: `{ edges: [{ relationType, node }] }`.
    */
@@ -108,8 +108,8 @@ export interface AnimeListEntry {
    * D111: a successful AniList by-MAL lookup PROVED this MAL id has no
    * AniList record (definitive negative, cached like every response). The
    * show-everything rule displays it with its MAL-side
-   * record — a stable identity, never flippable, since there is no AniList
-   * counterpart — instead of hiding it forever like the D110 gate did.
+   * record - a stable identity, never flippable, since there is no AniList
+   * counterpart - instead of hiding it forever like the D110 gate did.
    */
   noAniListRecord?: boolean
 }

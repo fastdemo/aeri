@@ -1,5 +1,5 @@
 /**
- * SortableList — drag-to-reorder rows with a real grip handle.
+ * SortableList - drag-to-reorder rows with a real grip handle.
  *
  * The handle is a <button>: pointer users drag it, keyboard users focus it
  * and press ↑/↓. That keeps WCAG 2.5.7 (Dragging Movements) satisfied without
@@ -7,7 +7,7 @@
  *
  * During a drag the rows keep their DOM order; the dragged row follows the
  * pointer and the rows between `from` and `to` slide out of the way with a
- * transform. The new order is committed once, on drop — no re-render churn
+ * transform. The new order is committed once, on drop - no re-render churn
  * per pixel and no midpoint flicker.
  *
  * Move/up listeners live on `window` and read a ref, not React state: the
@@ -63,7 +63,7 @@ interface DragState {
   heights: number[]
   /**
    * How far the dragged row may travel before its top/bottom leaves the
-   * list. Without this the row followed the pointer forever — dragging past
+   * list. Without this the row followed the pointer forever - dragging past
    * the last row left a floating card far below the panel (owner report
    * 2026-10-30: "i can drag forever which looks unhinged").
    */

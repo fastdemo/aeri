@@ -5,12 +5,12 @@ import { getAnilistStats } from '../../services/anilist/client'
 // ANILIST IS THE SOLE METADATA BACKEND, WITH ONE GUARANTEE ON TOP: entries
 // tracked via MyAnimeList keep their tracking truth (status/progress/score
 // writes from MAL) but take ALL display metadata from AniList via idMal
-// lookup — anime ids through the
+// lookup - anime ids through the
 // ANIME-type space, manga entries through the MANGA-type space.
 //
-// D111 RESOLUTION STRATEGY — batch first, per-entry as failsafe:
+// D111 RESOLUTION STRATEGY - batch first, per-entry as failsafe:
 // 1) ONE batched request per ≤50-id chunk resolves the whole list at once
-//    (`getBatchByMalIds`) — rows appear immediately after a single
+//    (`getBatchByMalIds`) - rows appear immediately after a single
 //    round-trip, and every per-id cache key is pre-seeded (positives AND
 //    definitive negatives), so later passes cost zero network.
 // 2) Only when the batch itself died on a throttle (all patient retries
@@ -19,7 +19,7 @@ import { getAnilistStats } from '../../services/anilist/client'
 //    as a slow-drip fallback rather than the primary path.
 //
 // An id the batch PROVED has no AniList record is marked `noAniListRecord`
-// and keeps its MAL-side record for display — a stable identity that can
+// and keeps its MAL-side record for display - a stable identity that can
 // never flip (there is no AniList counterpart to late-arrive). Mapped ids
 // always carry the AniList record, so the identity crisis (cards swapping
 // MAL art/title for AniList ones mid-session) stays impossible: an entry
@@ -120,7 +120,7 @@ export async function enrichMalEntriesWithAnilist(
       })
     } catch {
       // Whole chunk failed (throttled after retries / network / aborted):
-      // leave those entries to the per-entry fallback below — never mark
+      // leave those entries to the per-entry fallback below - never mark
       // them unmapped, those negatives would be lies.
       batchFailed.add(kind)
     }
@@ -141,9 +141,9 @@ export async function enrichMalEntriesWithAnilist(
   if (!remaining.length) { flush(); return out }
 
   const concurrency = Math.max(1, Math.min(opts?.concurrency ?? 2, 4))
-  // In-progress entries drive Continue Watching and open modals — enrich
+  // In-progress entries drive Continue Watching and open modals - enrich
   // those first; the rest trail at drip pace. The sleep paces REAL network
-  // spend only (delta on request counters) — cache-resolved ids free-ride.
+  // spend only (delta on request counters) - cache-resolved ids free-ride.
   const isPriority = ({ e }: { e: AnimeListEntry }) =>
     e.status === 'watching' || e.progress > 0
   const priority = remaining.filter(isPriority).slice(0, 12)
@@ -162,13 +162,13 @@ export async function enrichMalEntriesWithAnilist(
     } catch (e: any) {
       if (e?.code === 'NOT_FOUND') {
         // The by-MAL lookup reached AniList and got no record: definitive
-        // non-mapping — keep the MAL-side record, flagged for display. This
+        // non-mapping - keep the MAL-side record, flagged for display. This
         // is per-entry confirmation of the batch answer (or the answers the
         // batch could not attempt). Negatives stay cached per-id, so a later
         // pass never refires the lookup.
         out[index] = { ...entry, noAniListRecord: true }
       }
-      // Other errors (throttle/network): leave unresolved — the tracking
+      // Other errors (throttle/network): leave unresolved - the tracking
       // context holds it back and a later pass resolves it via cache.
     } finally {
       // Committing every entry keeps the fallback path as responsive as the

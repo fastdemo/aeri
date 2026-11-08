@@ -9,7 +9,7 @@ import type { TrackingProviderId } from '../../storage/preferences'
 // Sign-in entry point: both providers as selectable rows. Either or both may
 // connect; the connected rows double as the tracker radio (selected row gets
 // the white border). No separate picker section, no all-caps badges.
-// While open, the page behind is scroll-locked — scrolling with the modal
+// While open, the page behind is scroll-locked - scrolling with the modal
 // open used to move the feed underneath and break layout/blur state.
 export function SignInModal({ onClose }: { onClose: () => void }) {
   const ani = useAniList()
@@ -88,7 +88,7 @@ export function SignInModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        <div className="mt-4 space-y-2" role={anyConnected ? 'radiogroup' : undefined} aria-label={anyConnected ? 'Accounts — select one to track your list' : undefined}>
+        <div className="mt-4 space-y-2" role={anyConnected ? 'radiogroup' : undefined} aria-label={anyConnected ? 'Accounts - select one to track your list' : undefined}>
           {rows.map((r) => {
             const selected = anyConnected && trackingProvider === r.id
             return (

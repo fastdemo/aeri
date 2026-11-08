@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from 'react'
  * lazy distance is generous (up to ~3000 px on fast connections), and every
  * Home row is a horizontal scroller, so a cold Home start queued ~50 large
  * images at once and the few tiles actually in view had to compete with all
- * of them — they stayed blank while offscreen art downloaded.
+ * of them - they stayed blank while offscreen art downloaded.
  *
  * This hook reports when an element has come within `rootMargin` of the
  * viewport (both axes, clipped by any scroll container), and stays true once
@@ -16,7 +16,7 @@ import { useEffect, useRef, useState } from 'react'
  * browser's queue serves those first.
  *
  * ONE OBSERVER PER ROOT MARGIN (2026-10-27 scroll pass): this used to create
- * an IntersectionObserver per card — 108 observers on Home, each with its own
+ * an IntersectionObserver per card - 108 observers on Home, each with its own
  * callback delivery on every scroll frame. Callbacks are cheap on their own,
  * but they are not free at 108×, and they compete with the pulse animations
  * for the same main thread. All cards share one observer per `rootMargin`
@@ -69,7 +69,7 @@ function release(rootMargin: string, record: MarginObserver) {
   record.count -= 1
   if (record.count > 0) return
   record.io.disconnect()
-  // Only drop the entry if it is still the one we created — a newer observer
+  // Only drop the entry if it is still the one we created - a newer observer
   // may already have replaced it after a full unmount.
   if (observers.get(rootMargin) === record) observers.delete(rootMargin)
 }
@@ -90,7 +90,7 @@ export function useNearViewport<T extends Element = HTMLDivElement>(opts?: {
     const el = ref.current
     if (!el) return
     // No IntersectionObserver (very old engines / tests): behave like plain
-    // lazy loading — render and let the browser decide.
+    // lazy loading - render and let the browser decide.
     if (typeof IntersectionObserver === 'undefined') {
       setSeen(true)
       return

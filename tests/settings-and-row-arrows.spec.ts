@@ -3,7 +3,7 @@ import { routeTestMalIdentity } from './helpers/test-auth'
 import { routeTestAnilistMedia } from './helpers/test-anilist'
 
 /**
- * D141 — row arrows + Settings functional audit.
+ * D141 - row arrows + Settings functional audit.
  *
  * ARROWS: the row scroller paints AFTER the arrow buttons in DOM order, and
  * the card's hover play glyph is z-10. The arrow must sit at z-30 so the
@@ -11,7 +11,7 @@ import { routeTestAnilistMedia } from './helpers/test-anilist'
  * click on the strip must scroll the row, never open the anime.
  *
  * SETTINGS: every control must persist through a reload and actually apply.
- * "Preferred source" is removed — provider order is the only mechanism.
+ * "Preferred source" is removed - provider order is the only mechanism.
  * Reset must re-apply the default theme in place (the theme lives on <html>,
  * so deleting `aeri:prefs` alone left the old theme painted).
  */
@@ -164,13 +164,13 @@ test.describe('settings controls', () => {
     // Default priority (D144): AniWave → AnimeParadise → AnimeGG.
     expect(before).toEqual(['AniWave', 'AnimeParadise', 'AnimeGG'])
 
-    // Manga default priority (D144): Weeb Central → MangaHere → MangaPill →
+    // Manga default priority (D144): WeebCentral → MangaHere → MangaPill →
     // MangaDex. The Settings list derives from the registry array, so this
     // pins the same order resolution uses.
     const mangaSection = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Manga', exact: true }) })
     const mangaNames = await mangaSection.locator('button[aria-label^="Reorder "]').evaluateAll((btns) =>
       btns.map((b) => (b.getAttribute('aria-label') ?? '').replace(/^Reorder /, '')))
-    expect(mangaNames).toEqual(['Weeb Central', 'MangaHere', 'MangaPill', 'MangaDex'])
+    expect(mangaNames).toEqual(['WeebCentral', 'MangaHere', 'MangaPill', 'MangaDex'])
 
     await animeSection.getByRole('button', { name: `Reorder ${before[0]}` }).focus()
     await page.keyboard.press('ArrowDown')
@@ -212,7 +212,7 @@ test.describe('settings controls', () => {
     await page.waitForSelector('text=Anime providers', { timeout: 45_000 })
 
     const animeSection = page.locator('section').filter({ has: page.getByRole('heading', { name: 'Anime', exact: true }) })
-    // The ↑/↓ buttons were replaced by the drag grip — nothing may remain.
+    // The ↑/↓ buttons were replaced by the drag grip - nothing may remain.
     await expect(animeSection.locator('button[aria-label^="Move "]')).toHaveCount(0)
 
     const rows = animeSection.locator('[data-provider-row]')
@@ -298,7 +298,7 @@ test.describe('provider row plate (D161)', () => {
       const rows = section.locator('[data-provider-row]')
       const count = await rows.count()
       expect(count, `${label} rows`).toBeGreaterThan(1)
-      // No row paints its own background — the plate lives once on the list
+      // No row paints its own background - the plate lives once on the list
       // container, so every row is the exact same painted surface.
       const rowBgs = await rows.evaluateAll((els) => [...new Set(els.map((el) => getComputedStyle(el as HTMLElement).backgroundColor))])
       expect(rowBgs, `${label} rows must not paint their own plate`).toEqual(['rgba(0, 0, 0, 0)'])
