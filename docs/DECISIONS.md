@@ -4144,3 +4144,116 @@ assertions landed; the only failure is the pre-existing mobile-only hover
 assertion on a touch profile. Screenshots:
 `OpenCode/screens/toggle-audio.png`, `OpenCode/screens/toggle-watch.png`,
 `OpenCode/screens/settings-about.png`.
+
+## D173 - Installed-app status strip is its own untransformed fixed layer (2026-11-08)
+
+Owner (iPadOS 26, Add to Home Screen): *"you can still see parts of the
+content on the very top where it should be opaque and its blurred to, causing
+the top of the navbar to blur too. address this issue, investigate how apple
+safari web app add to homescreen works and do it."*
+
+**What iOS does.** In an installed web app the page is edge-to-edge
+(`viewport-fit=cover`), but under the default status-bar style iOS 26 draws a
+translucent "Liquid Glass" bar over it and feeds that bar a blurred slice of
+the page content. Fixed overlays are not part of that slice, so no header
+background can stop the blur: the bar blurs whatever scrolling content sits
+under the top edge.
+
+**First attempt (wrong).** `App` gained `[data-nav-status-strip]`, an opaque
+fixed layer above the navbar, and the strip height was pinned to the safe-area
+inset. This did not remove the blur, and a follow-up that raised `--safe-top`
+to `max(env(...), 24px)` under `display-mode: standalone` pushed the whole
+navbar 24px down (owner: *"the navbar now... keeps pushing down. thats not
+what i want. return that to old position"*). The push was cosmetic damage from
+a workaround aimed at the wrong layer.
+
+**Final fix.** The app now sets
+`apple-mobile-web-app-status-bar-style: black-translucent`, the only mode in
+which iOS stops drawing its bar and hands the strip to the page (the clock
+and battery simply overlay the page). `[data-nav-status-strip]` then owns that
+band: a real `position: fixed` layer at `top: 0`, full width,
+`pointer-events: none`, plain opaque `--bg`, `z-60` (above the navbar's
+`z-50`), and exactly `var(--safe-top)` tall - the same token as the header's
+`pt-[var(--safe-top)]`, `--nav-total` and `<main>`. The navbar therefore sits
+exactly where it did before (no minimum, no extra padding), and the blurred
+slice is gone because the system bar no longer exists: the page's own opaque
+band is what shows under the clock.
+
+`black-translucent` gives the status icons white ink, so the boot script in
+`index.html` reads the persisted theme background and falls back to
+`default` when it is light (the legacy readable path). The strip must never
+be hidden, faded or transformed, or content can show under the clock again.
+The header keeps its `translateZ(0)` transform (the D170 bounce fix); it is
+no longer responsible for the status strip.
+
+**Verified.** `tsc --noEmit` clean; build succeeds;
+`tests/nav-status-strip.spec.ts` passes on chromium + mobile (fixed, top 0,
+full width, no pointer events, above the navbar, same opaque colour as the
+bar, 0 height in a tab so the desktop ambient is untouched; the bar's top
+padding equals the strip height and the bar stays exactly 56px tall; the
+status-bar-style meta is `black-translucent`). The iOS strip itself cannot
+be reproduced in a desktop browser; the page-owned strip, the meta contract
+and the shared-token geometry are the parts under test.
+
+## D174 - Overscroll containment, one link system, banner base, Home session cache (2026-11-08)
+
+Owner batch, 2026-11-08. Five separate surfaces, one same-day change set.
+
+**1. The navbar stays put while a mobile page overscrolls.**
+Owner: *"make the navbar fixed so even if i overscroll on mobile, it still
+remains at that position."* The bar was already `position: fixed` with the
+D170 `translateZ(0)` layer, but a document rubber-band on iOS still drags the
+fixed layer visibly with the content. `html` and `body` now carry
+`overscroll-behavior-y: contain`: the document's own bounce stops at this
+scroller instead of chaining, so the bar keeps painting exactly on its line.
+The bounce itself is not disabled (`none` would have removed it); only the
+chain to the next scroller is.
+
+**2. Settings About and the footer share one link treatment.**
+Owner: *"make github, analytics and design no more underlined ... when i
+hover over them, it acts like the github-docs-legal at the footer (that same
+animation)"* and *"add suitable icons for github-docs-legal, and make them
+differentiate like middle dots just like their counterpart in the settings
+page."* Both rows now use the quiet pattern: `text-[var(--text-faint)]`, no
+underline, `transition-colors duration-200 hover:text-[var(--text)]`, a 12px
+Lucide icon per entry (`github`, `book-open` for Docs, `scale` for Legal,
+`chart-line` / `pen-tool` still on the placeholders), and the same faded
+middot separator (`mx-2 text-[color-mix(in_srgb,var(--text)_20%,transparent)]`).
+Analytics and Design remain deliberately non-interactive `span`s: they read
+as entries but are wired to nothing (D172).
+
+**3. The preview card's banner ends in the card base.**
+Owner: *"make the bottom gradient the color of the base of that preview
+card."* The bottom stops of `.detail-banner-scrim` (62% to 100%) now mix
+`--bg-soft` instead of `--bg`, so the gradient lands on the dialog's own
+`bg-[var(--bg-soft)]` and no darker band appears under the artwork. The top
+stops stay on `--bg` because that is the surface the floating card sits over.
+
+**4. Home paints its rows from a synchronous session cache.**
+Owner: *"i can scroll fast enough and spot through the illusion of it being
+loaded."* The four rails ride one cached AniList request (5 min memory, 24 h
+IDB), but the provider cache is async, so every Home remount still started
+at `loading: true` and mounted a hero skeleton plus row skeletons - frames
+that a fast scroll exposes. Now `useAnimeMetadata.ts` keeps the last
+successful feed in a module-level `homeFeedMemory` map and uses it as the
+hook's initial state, so a remount paints real rows on the first frame and
+revalidates silently. `prefetchHomeFeed(24)` runs once at app boot (App
+shell), so the first Home visit after boot normally already has data. All
+per-row skeletons and the static four-section fallback are gone: a cold
+load shows only the hero skeleton, and no fake rows exist to scroll into.
+`loading` now means "nothing to show yet", not "a request is running".
+
+**Verified.** `tsc --noEmit` clean; build succeeds. `tests/chrome-details.spec.ts`
+(chromium + mobile) asserts: Settings About has no underline (and the hover
+colour fades where a pointer can hover), the placeholders are spans, the
+footer has one icon per link plus exactly two middots, the dialog background
+equals `--bg-soft` and the banner gradient's last colour stop is that same
+value, and a return to Home paints `section.content-row` with zero
+`[data-card-skeleton]` nodes. `tests/mobile-chrome.spec.ts` asserts
+`overscroll-behavior-y: contain` on `html`/`body` (the bar stays fixed, top
+0, own composited layer) and the D173 `black-translucent` meta plus its
+light-theme `default` fallback. `tests/home-row-deferral.spec.ts` still
+passes (offscreen rows keep their same-geometry placeholders and no page
+jump). `nav-status-strip` and `pill-system` pass on chromium + mobile;
+firefox was not run because its Playwright browser binary is not installed
+on this machine.

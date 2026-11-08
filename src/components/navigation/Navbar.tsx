@@ -502,10 +502,16 @@ export function Navbar() {
         disappears"). iOS WebKit can drop a plain fixed layer while the
         scroll view rubber-bands; promoting the bar to its own GPU layer is
         the documented remedy and keeps it painted through the bounce. The
-        bounce itself is NOT disabled - `overscroll-behavior` stays default,
-        so the page still rubber-bands. The transform also gives the header
-        its own containing block, which is fine: every child is absolute
-        against it. */}
+        bounce itself is NOT disabled - since D174 `html`/`body` carry
+        `overscroll-behavior-y: contain`, so the page still rubber-bands but
+        the document no longer chains it and cannot drag the bar off its
+        line. The transform also gives the header its own containing block,
+        which is fine: every child is absolute against it.
+
+        KEEP THE TRANSFORM (the D170 bounce fix). The status strip is painted
+        by `[data-nav-status-strip]` in `App` - the app runs with
+        `black-translucent`, so iOS hands the strip to the page instead of
+        blending a blurred slice of the content over it (D173). */}
     <header
       data-nav-solid
       className="fixed inset-x-0 top-0 z-50 isolate h-[var(--nav-total)] touch-manipulation bg-[var(--bg)] pt-[var(--safe-top)] [transform:translateZ(0)]"

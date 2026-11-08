@@ -178,20 +178,21 @@ export function Settings() {
           <p><span className="text-[var(--text-faint)]">Video:</span> <span className="text-[var(--text)]">{orderedCaps.find(c => isEnabled(c.id))?.displayName ?? 'Auto'}</span><span className="mx-2 text-[color-mix(in_srgb,var(--text)_20%,transparent)]">•</span><span className="text-[var(--text-faint)]">Storage:</span> <span className="text-[var(--text)]">This browser only</span></p>
           {/* Identity row: icon + label, divided by the same faint middot as
               the lines above. Analytics and Design are placeholders for now -
-              underlined to read as links, but deliberately not interactive
-              and wired to nothing (D172). */}
+              they read as links but are deliberately not interactive and
+              wired to nothing (D172, D174). Hover is the footer's quiet
+              colour fade, not an underline. */}
           <p className="flex flex-wrap items-center pt-2">
-            <a href="https://github.com/fastdemo/aeri" className="inline-flex items-center gap-1.5 text-[var(--text-faint)] underline hover:text-[var(--text)]">
+            <a href="https://github.com/fastdemo/aeri" className="inline-flex items-center gap-1.5 text-[var(--text-faint)] transition-colors duration-200 hover:text-[var(--text)]">
               <Icon name="github" size={12} />
               GitHub
             </a>
             <span className="mx-2 text-[color-mix(in_srgb,var(--text)_20%,transparent)]">•</span>
-            <span className="inline-flex items-center gap-1.5 text-[var(--text-faint)] underline">
+            <span className="inline-flex items-center gap-1.5 text-[var(--text-faint)] transition-colors duration-200 hover:text-[var(--text)]">
               <Icon name="chart-line" size={12} />
               Analytics
             </span>
             <span className="mx-2 text-[color-mix(in_srgb,var(--text)_20%,transparent)]">•</span>
-            <span className="inline-flex items-center gap-1.5 text-[var(--text-faint)] underline">
+            <span className="inline-flex items-center gap-1.5 text-[var(--text-faint)] transition-colors duration-200 hover:text-[var(--text)]">
               <Icon name="pen-tool" size={12} />
               Design
             </span>

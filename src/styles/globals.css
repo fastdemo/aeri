@@ -47,6 +47,19 @@
   --nav-total: calc(var(--nav-height) + var(--safe-top));
 }
 
+/* INSTALLED-APP STATUS STRIP (D173). A real fixed layer at the very top of
+   the document, outside the navbar. `apple-mobile-web-app-status-bar-style:
+   black-translucent` hands the status strip to the page (iOS stops drawing its
+   blurred "Liquid Glass" slice of the content), and this strip is what paints
+   it: untransformed, full width, plain opaque `--bg`, so no page content can
+   ever show through. Its height is `var(--safe-top)`, the same token the
+   header pads by, so it covers exactly the bar's top padding and never its
+   56px row. In a normal browser tab it is the same colour as the navbar it
+   sits on and zero tall. */
+.nav-status-strip {
+  height: var(--safe-top);
+}
+
 * {
   scrollbar-width: thin;
   scrollbar-color: var(--border-strong) transparent;
@@ -57,6 +70,14 @@ html {
   scroll-behavior: smooth;
   /* Prevent layout shift when scrollbar appears/disappears */
   scrollbar-gutter: stable;
+  /* RUBBER-BAND AND THE FIXED BAR (owner 2026-11-08: "make the navbar fixed
+     so even if i overscroll on mobile, it still remains at that position").
+     iOS paints fixed layers against the visual viewport, so a document
+     rubber-band visibly drags the bar with the content. Containing the
+     document's own overscroll stops that bounce at this scroller, which keeps
+     the bar painted exactly on its line. The D170 translateZ(0) stays: it is
+     the separate remedy for WebKit dropping the layer during a bounce. */
+  overscroll-behavior-y: contain;
 }
 
 @supports not (scrollbar-gutter: stable) {
@@ -67,6 +88,7 @@ html {
 }
 
 body {
+  overscroll-behavior-y: contain;
   margin: 0;
   background: var(--bg);
   color: var(--text);
@@ -765,12 +787,12 @@ html[data-hero-wash-ready] .nav-ambient-art-prev {
     color-mix(in srgb, var(--bg) 34%, transparent) 34%,
     color-mix(in srgb, var(--bg) 10%, transparent) 45%,
     color-mix(in srgb, var(--bg) 0%, transparent) 53%,
-    color-mix(in srgb, var(--bg) 7%, transparent) 62%,
-    color-mix(in srgb, var(--bg) 24%, transparent) 72%,
-    color-mix(in srgb, var(--bg) 48%, transparent) 82%,
-    color-mix(in srgb, var(--bg) 72%, transparent) 90%,
-    color-mix(in srgb, var(--bg) 89%, transparent) 96%,
-    var(--bg) 100%
+    color-mix(in srgb, var(--bg-soft) 7%, transparent) 62%,
+    color-mix(in srgb, var(--bg-soft) 24%, transparent) 72%,
+    color-mix(in srgb, var(--bg-soft) 48%, transparent) 82%,
+    color-mix(in srgb, var(--bg-soft) 72%, transparent) 90%,
+    color-mix(in srgb, var(--bg-soft) 89%, transparent) 96%,
+    var(--bg-soft) 100%
   );
 }
 

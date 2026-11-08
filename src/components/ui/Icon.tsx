@@ -29,6 +29,7 @@ import {
   PenTool,
   Play,
   Plus,
+  Scale,
   Search,
   Settings,
   User,
@@ -86,6 +87,7 @@ const ICONS: Record<string, LucideIcon> = {
   github: GithubGlyph as unknown as LucideIcon,
   'chart-line': ChartLine,
   'pen-tool': PenTool,
+  scale: Scale,
 }
 
 export type IconName = keyof typeof ICONS

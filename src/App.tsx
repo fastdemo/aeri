@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Link, useLocation } from 'react-router-do
 import { useAeriTitle } from './hooks/useAeriTitle'
 import { routeDefaultTitle } from './lib/pageTitle'
 import { Navbar } from './components/navigation/Navbar'
+import { Icon } from './components/ui/Icon'
+import { prefetchHomeFeed } from './hooks/useAnimeMetadata'
 import { Home } from './pages/Home'
 import { Browse } from './pages/Browse'
 import { Search } from './pages/Search'
@@ -130,9 +132,34 @@ function Layout() {
       try { window.scrollTo(0, 0) } catch {}
     }
   }, [scrollKey])
+
+  // Warm the batched Home feed at boot (D174): by the time the user reaches
+  // Home, the rows are usually already in the synchronous session cache, so
+  // the page paints real cards on the first frame instead of skeleton rows.
+  useEffect(() => { prefetchHomeFeed(24) }, [])
   return (
     <div className="flex min-h-screen flex-col bg-[var(--bg)]">
       <FaviconGuard />
+      {/* STATUS STRIP (D173). iOS Home Screen apps can keep the page
+          edge-to-edge (`viewport-fit=cover`), but under the default status-bar
+          style iOS 26 draws a translucent "Liquid Glass" bar and feeds it a
+          blurred slice of the page content, which is why card art appeared
+          over the clock and above the navbar.
+
+          `apple-mobile-web-app-status-bar-style: black-translucent` (see
+          index.html) stops that: the system bar is handed to the page, and
+          this strip is what paints it - a real, full-width fixed layer at the
+          very top with a plain OPAQUE `--bg`, so no page content can show
+          through. Its height is `var(--safe-top)`, the same token the header's
+          top padding reads, so it covers exactly the status-bar band and never
+          the bar's 56px row. It is zero tall in a browser tab. It stays for
+          the whole session (never display-none/opacity-0 - a skipped strip
+          would let content show under the clock). */}
+      <div
+        aria-hidden
+        data-nav-status-strip
+        className="nav-status-strip pointer-events-none fixed inset-x-0 top-0 z-[60] bg-[var(--bg)]"
+      />
       <Navbar />
       <main className="flex-1 pt-[var(--nav-total)]">
         {/* D112 service gate: while a required service is down, the affected
@@ -193,10 +220,24 @@ function Layout() {
               <span aria-hidden className="col-start-1 row-start-1 translate-y-full transition-transform duration-300 ease-out group-hover/credit:translate-y-0 group-focus-within/credit:translate-y-0 motion-reduce:transition-none">aeri by @fastdemo</span>
             </span>
           </div>
-          <div className="flex shrink-0 items-center gap-3">
-            <a href="https://github.com/fastdemo/aeri" className="text-[var(--text-faint)] transition-colors duration-200 hover:text-[var(--text)]">GitHub</a>
-            <Link to="/docs" className="text-[var(--text-faint)] transition-colors duration-200 hover:text-[var(--text)]">Docs</Link>
-            <Link to="/legal" className="text-[var(--text-faint)] transition-colors duration-200 hover:text-[var(--text)]">Legal</Link>
+          {/* Footer links carry the same icon + faint middot rhythm as the
+              Settings About row (D174), so the two surfaces read as one
+              system. Hover is the quiet colour fade only. */}
+          <div className="flex shrink-0 items-center">
+            <a href="https://github.com/fastdemo/aeri" className="inline-flex items-center gap-1.5 text-[var(--text-faint)] transition-colors duration-200 hover:text-[var(--text)]">
+              <Icon name="github" size={12} />
+              GitHub
+            </a>
+            <span aria-hidden className="mx-2 text-[color-mix(in_srgb,var(--text)_20%,transparent)]">•</span>
+            <Link to="/docs" className="inline-flex items-center gap-1.5 text-[var(--text-faint)] transition-colors duration-200 hover:text-[var(--text)]">
+              <Icon name="book-open" size={12} />
+              Docs
+            </Link>
+            <span aria-hidden className="mx-2 text-[color-mix(in_srgb,var(--text)_20%,transparent)]">•</span>
+            <Link to="/legal" className="inline-flex items-center gap-1.5 text-[var(--text-faint)] transition-colors duration-200 hover:text-[var(--text)]">
+              <Icon name="scale" size={12} />
+              Legal
+            </Link>
           </div>
         </div>
       </footer>

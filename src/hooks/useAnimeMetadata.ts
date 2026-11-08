@@ -53,9 +53,59 @@ function useData<T>(fetcher: (signal: AbortSignal) => Promise<T>, deps: any[]): 
  * HOME FEED - one aliased AniList request for all four Home rails (see
  * HOME_FEED_QUERY). Replaces the four independent page hooks Home used to
  * call: one cache key, one request, one loading state, one error.
+ *
+ * SESSION MEMORY (D174). The provider's cache is async (memory map + IDB), so
+ * remounting Home after a route change still started at `loading: true` with
+ * no data and briefly painted skeleton rows. The last successful feed is kept
+ * in this module map and used as the INITIAL state, so a return visit paints
+ * the real rows on the first frame and revalidates silently. `prefetchHomeFeed`
+ * warms the same map at app boot, so Home is usually already there when the
+ * user reaches it.
  */
+const homeFeedMemory = new Map<number, HomeFeed>()
+
+export function prefetchHomeFeed(perPage = 24): void {
+  if (homeFeedMemory.has(perPage)) return
+  anilistMetadataProvider.getHomeFeed(perPage)
+    .then(d => { homeFeedMemory.set(perPage, d) })
+    .catch(() => { /* keep the normal hook's error path */ })
+}
+
 export function useHomeFeed(perPage = 24): State<HomeFeed> {
-  return useData<HomeFeed>(signal => anilistMetadataProvider.getHomeFeed(perPage, signal), [perPage])
+  const [state, setState] = useState<State<HomeFeed>>(() => {
+    const hit = homeFeedMemory.get(perPage)
+    return hit
+      ? { data: hit, loading: false, error: null }
+      : { data: null, loading: true, error: null }
+  })
+  useEffect(() => {
+    const controller = new AbortController()
+    let cancelled = false
+    const hit = homeFeedMemory.get(perPage)
+    // Cached rows stay on screen while the background revalidation runs:
+    // `loading` only means "nothing to show yet".
+    setState(s => ({ data: s.data ?? hit ?? null, loading: !(s.data ?? hit), error: null }))
+    anilistMetadataProvider.getHomeFeed(perPage, controller.signal)
+      .then(d => {
+        if (cancelled || controller.signal.aborted) return
+        homeFeedMemory.set(perPage, d)
+        setState({ data: d, loading: false, error: null })
+      })
+      .catch(e => {
+        if (cancelled || controller.signal.aborted || (e as any)?.name === 'AbortError') return
+        if (e instanceof ProviderError && e.code === 'THROTTLED') {
+          if (!cancelled) setState(s => (s.data ? { data: s.data, loading: false, error: null } : { data: s.data, loading: false, error: friendlyError(e, 'Something went wrong.') }))
+          return
+        }
+        const msg = friendlyError(e, 'Something went wrong.')
+        if (!cancelled) setState(s => ({ data: s.data, loading: false, error: msg }))
+      })
+    return () => {
+      cancelled = true
+      controller.abort()
+    }
+  }, [perPage])
+  return state
 }
 
 export function useTrending(perPage = 12): State<Anime[]> {

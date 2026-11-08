@@ -5,52 +5,10 @@ import { ContentRow } from '../components/rows/ContentRow'
 import { SignInModal } from '../components/auth/SignInModal'
 import type { Anime, AnimeListEntry } from '../types/anime'
 import { useTracking } from '../contexts/TrackingContext'
-import { RowSkeleton } from '../components/ui/Skeleton'
 import { useHomeFeed } from '../hooks/useAnimeMetadata'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useDetailOpen } from '../hooks/useDetailOpen'
 import { getRecommendations } from '../recommendations/engine'
-
-function Section({
-  title,
-  subtitle,
-  state,
-  onSelect,
-  fallback,
-}: {
-  title: string
-  subtitle?: string
-  state: { data: Anime[] | null; loading: boolean; error: string | null }
-  onSelect: (a: Anime) => void
-  fallback?: Anime[]
-}) {
-  if (state.loading) return <RowSkeleton title={title} />
-  if (state.error) {
-    if (fallback && fallback.length) {
-      return (
-        <ContentRow title={title} subtitle={subtitle}>
-          {fallback.map((a) => (
-            <AnimeCard key={a.identity.internalId} anime={a} onSelect={onSelect} />
-          ))}
-        </ContentRow>
-      )
-    }
-    return (
-      <div className="rounded-lg border border-[var(--border)] bg-[var(--text)]/[0.03] px-4 py-3 text-xs text-[var(--warn)]">
-        {state.error}
-      </div>
-    )
-  }
-  const data = state.data && state.data.length ? state.data : fallback ?? []
-  if (!data.length) return null
-  return (
-    <ContentRow title={title} subtitle={subtitle}>
-      {data.map((a) => (
-        <AnimeCard key={a.identity.internalId} anime={a} onSelect={onSelect} />
-      ))}
-    </ContentRow>
-  )
-}
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr]
@@ -448,7 +406,7 @@ export function Home() {
     <div className="pb-10">
       <div className="px-4 sm:px-6 lg:mx-auto lg:w-full lg:max-w-[1600px] lg:px-12">
         <div className="px-0">
-          {trending.loading ? (
+          {feed.loading && !feed.data ? (
             <div className="aspect-[21/9] w-full animate-pulse rounded-xl bg-[color-mix(in_srgb,var(--text)_5%,transparent)] lg:min-h-[460px]" />
           ) : trending.error ? (
             <div className="flex aspect-[21/9] w-full items-center justify-center rounded-xl bg-[var(--text)]/[0.03] px-6 text-center lg:min-h-[460px]">
@@ -473,9 +431,7 @@ export function Home() {
       <div className="relative z-10 space-y-6 px-4 pt-5 sm:px-6 lg:mx-auto lg:w-full lg:max-w-[1600px] lg:space-y-7 lg:px-12">
         {/* Continue - only when signed in (spec logged-out: must not appear at all) */}
         {isAuthenticated ? (
-          loading ? (
-            <RowSkeleton title="Continue Watching" />
-          ) : continueWatching.length > 0 ? (
+          !loading && continueWatching.length > 0 ? (
             <ContentRow title="Continue Watching" subtitle={`${continueWatching.length} titles • ${trackerName}`}>
               {continueWatching.map((a) => (
                 <AnimeCard key={a.identity.internalId} anime={a} variant="continue" onSelect={handleSelect} priority={priorityIds.has(a.identity.internalId)} />
@@ -498,31 +454,19 @@ export function Home() {
           </ContentRow>
         ))}
 
-        {/* Fallback static sections if derived not ready yet (keep for loading parity) */}
-        {middleSections.length === 0 && (
-          <>
-            <Section title="Trending Now" state={trending} onSelect={handleSelect} />
-            <Section title="Popular on Aeri" state={popular} onSelect={handleSelect} />
-            <Section title="Currently Airing" state={airing} onSelect={handleSelect} />
-            <Section title="New Releases" state={news} onSelect={handleSelect} />
-          </>
-        )}
-
         {/* My List permanently at bottom */}
         {isAuthenticated ? (
-          loading ? (
-            <RowSkeleton title="My List" />
-          ) : myList.length ? (
+          !loading && myList.length ? (
             <ContentRow title="My List" subtitle={`${myList.length} titles • ${trackerName}`}>
               {myList.map((a) => (
                 <AnimeCard key={a.identity.internalId} anime={a} onSelect={handleSelect} />
               ))}
             </ContentRow>
-          ) : (
+          ) : !loading ? (
             <div className="rounded-lg border border-[var(--border)] bg-[var(--text)]/[0.02] px-4 py-6 text-center text-xs text-[var(--text-faint)]">
               Your list is empty. Add titles from Trending or Search.
             </div>
-          )
+          ) : null
         ) : null}
       </div>
 

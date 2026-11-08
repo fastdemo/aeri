@@ -136,8 +136,8 @@ test.describe('installed-app safe area (D170, owner 2026-11-07)', () => {
   })
 })
 
-test.describe('bottom overscroll keeps the navbar painted (owner 2026-11-05)', () => {
-  test('bounce stays enabled and the bar is its own composited layer', async ({ page }) => {
+test.describe('bottom overscroll keeps the navbar painted (owner 2026-11-08)', () => {
+  test('bounce is contained at the document and the bar keeps its own layer', async ({ page }) => {
     await page.setViewportSize({ width: 834, height: 1112 })
     await page.goto('/docs', { waitUntil: 'domcontentloaded' })
     await page.locator('header').waitFor({ timeout: 30_000 })
@@ -162,9 +162,11 @@ test.describe('bottom overscroll keeps the navbar painted (owner 2026-11-05)', (
       }
     })
 
-    // The owner asked for the natural rubber-band: it must NOT be disabled.
-    expect(state.overscrollHtmlY, 'the page still rubber-bands').not.toBe('none')
-    expect(state.overscrollBodyY, 'the page still rubber-bands').not.toBe('none')
+    // The owner asked for the natural rubber-band (never `none`) BUT the bar
+    // must stay on its line during a mobile overscroll (2026-11-08), so the
+    // document's own bounce is contained instead of chaining.
+    expect(state.overscrollHtmlY, 'document overscroll is contained').toBe('contain')
+    expect(state.overscrollBodyY, 'body overscroll is contained').toBe('contain')
 
     // iOS can drop a plain fixed layer while the scroll view bounces; the
     // bar is promoted to its own GPU layer so it keeps painting.
@@ -177,7 +179,7 @@ test.describe('bottom overscroll keeps the navbar painted (owner 2026-11-05)', (
 })
 
 test.describe('iOS Home Screen status bar', () => {
-  test('declares the default status-bar style with a themed colour', async ({ page }) => {
+  test('opts into black-translucent so the page owns the strip (D173)', async ({ page }) => {
     await page.goto('/docs', { waitUntil: 'domcontentloaded' })
     const meta = (name: string) =>
       page.locator(`meta[name="${name}"]`).getAttribute('content')
@@ -185,16 +187,26 @@ test.describe('iOS Home Screen status bar', () => {
     expect(await meta('apple-mobile-web-app-capable'), 'standalone mode').toBe('yes')
     expect(await meta('mobile-web-app-capable'), 'standalone mode (standard name)').toBe('yes')
     expect(await meta('apple-mobile-web-app-title')).toBe('Aeri')
-    // `default` keeps the system status bar above the content. On iOS < 26 it
-    // tints from theme-color; on iOS 26 the tint comes from the fixed
-    // header's plain background-color (asserted in the top-bar test).
-    // `black-translucent` would force white icons (unreadable on light
-    // themes) and `black` would lock it to black.
-    expect(
-      await page.locator('meta[name="apple-mobile-web-app-status-bar-style"]').count(),
-      'status-bar style stays default',
-    ).toBe(0)
+    // `black-translucent` is the only mode where iOS stops drawing the
+    // translucent "Liquid Glass" bar and lets the app paint the strip with
+    // its own opaque --bg (the fixed [data-nav-status-strip]). The boot
+    // script downgrades to `default` on light themes, where the forced white
+    // clock would be unreadable (asserted in the next test).
+    expect(await meta('apple-mobile-web-app-status-bar-style')).toBe('black-translucent')
     expect(await meta('theme-color')).toMatch(/^#[0-9a-f]{6}$/i)
+  })
+
+  test('a light saved theme downgrades the status bar to default', async ({ page }) => {
+    await page.addInitScript(() => localStorage.setItem('aeri:theme-bg', '#f5f5f5'))
+    await page.route('**/assets/*.js', (route) => route.abort())
+    await page.goto('/', { waitUntil: 'domcontentloaded' })
+
+    expect(
+      await page
+        .locator('meta[name="apple-mobile-web-app-status-bar-style"]')
+        .getAttribute('content'),
+      'white icons stay off light themes',
+    ).toBe('default')
   })
 
   test('the head restores the saved theme colour before the app bundle runs', async ({ page }) => {
